@@ -3,3 +3,4 @@
  */
 
 export { useIntegrationSettings } from './useIntegrationSettings';
+export { useNotificationChannels } from './useNotificationChannels';
