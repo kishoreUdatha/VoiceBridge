@@ -1,5 +1,8 @@
-// Industry Selection
+// Step Components - Single Responsibility Principle
 export { IndustrySelectionStep } from './IndustrySelectionStep';
+export { IndustrySelectionStepEnhanced } from './IndustrySelectionStepEnhanced';
+export { ConfigureAgentStep } from './ConfigureAgentStep';
+export { ReviewAgentStep } from './ReviewAgentStep';
 
 // Tab Contents - Single Responsibility Principle
 export { ConfigureTabContent } from './ConfigureTabContent';
