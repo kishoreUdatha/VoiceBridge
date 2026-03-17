@@ -30,3 +30,14 @@ export {
   InfoSection,
   ConfigModal,
 } from './CRMIntegrationComponents';
+
+export {
+  LoadingState as EmailLoadingState,
+  ErrorAlert,
+  SuccessAlert,
+  Header as EmailHeader,
+  EmptyState as EmailEmptyState,
+  SequenceCard,
+  CreateSequenceModal,
+  AddStepModal,
+} from './EmailSequencesComponents';
