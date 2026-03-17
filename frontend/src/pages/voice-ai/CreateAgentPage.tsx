@@ -6,177 +6,60 @@ import {
   Check,
   X,
   Loader2,
-  Play,
   Sparkles,
-  Phone,
   Brain,
   Clock,
-  Plus,
-  FileText,
-  Image,
-  Upload,
-  Trash2,
   User,
   Building2,
   Camera,
-  GripVertical,
-  MessageCircle,
 } from 'lucide-react';
-import api from '../../services/api';
 
-// Import constants, types, and components
-import { industryDetails, voiceOptions, languageOptions } from './constants/voiceAgent.constants';
-import type { Template, AgentDocument } from './types/voiceAgent.types';
-import { VoiceSelectorPanel, LanguageSelectorPanel } from './components';
-
-// industryDetails imported from constants
-
-// Voice options organized by region
-// voiceOptions and languageOptions imported from constants
+// Import constants, types, and components - following SOLID principles
+import { industryDetails, languageOptions } from './constants/voiceAgent.constants';
+import type { VoiceOption } from './types/voiceAgent.types';
+import {
+  VoiceSelectorPanel,
+  LanguageSelectorPanel,
+  VoiceTabContent,
+  PromptsTabContent,
+  DocumentsTabContent,
+  SettingsTabContent,
+} from './components';
+import { useVoiceAgentForm } from './hooks/useVoiceAgentForm';
 
 export const CreateAgentPage: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'configure' | 'voice' | 'prompt' | 'documents' | 'settings'>('configure');
 
   // Panel states for voice and language selectors
   const [showVoicePanel, setShowVoicePanel] = useState(false);
   const [showLanguagePanel, setShowLanguagePanel] = useState(false);
 
-  // Form data
-  const [formData, setFormData] = useState({
-    name: '',
-    voiceId: 'sarvam-priya',
-    voiceName: 'Priya',
-    language: 'hi-IN',
-    widgetColor: '#3B82F6',
-    widgetTitle: '',
-    widgetSubtitle: '',
-    greeting: '',
-    systemPrompt: '',
-    questions: [] as any[],
-    documents: [] as AgentDocument[],
-    useCustomVoice: false,
-    customVoiceName: '',
-    // AI Behavior Settings
-    personality: 'professional' as 'professional' | 'friendly' | 'casual',
-    responseSpeed: 'normal' as 'fast' | 'normal' | 'thoughtful',
-    creativity: 0.7,
-    interruptHandling: 'polite' as 'wait' | 'polite',
-    // Call Handling Settings
-    workingHoursEnabled: false,
-    workingHoursStart: '09:00',
-    workingHoursEnd: '18:00',
-    workingDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as string[],
-    afterHoursMessage: "Thank you for calling. Our office is currently closed. Please call back during business hours or leave a message.",
-    maxCallDuration: 10, // minutes
-    silenceTimeout: 30, // seconds
-    recordCalls: true, // Record calls for quality assurance
-    // Lead Generation Settings
-    autoCreateLeads: true,
-    deduplicateByPhone: true,
-    defaultStageId: '',
-    defaultAssigneeId: '',
-    // Appointment Booking Settings
-    appointmentEnabled: false,
-    appointmentType: 'consultation',
-    appointmentDuration: 30,
-    // CRM Integration Settings
-    crmIntegration: 'internal' as 'internal' | 'salesforce' | 'hubspot' | 'zoho' | 'custom',
-    triggerWebhookOnLead: true,
-  });
+  // Use the custom hook for form state management - Dependency Inversion Principle
+  const {
+    formData,
+    setFormData,
+    updateFormData,
+    selectedIndustry,
+    setSelectedIndustry,
+    loading,
+    error,
+    setError,
+    templates,
+    fetchTemplateDetails,
+    createAgent,
+    testVoice,
+    callFlows,
+    loadingFlows,
+  } = useVoiceAgentForm({ isEditMode: false });
 
-  // Test call state
-  const [testPhoneNumber, setTestPhoneNumber] = useState('');
-  const [isTestingCall, setIsTestingCall] = useState(false);
-  const [_testCallStatus, setTestCallStatus] = useState<'idle' | 'calling' | 'connected' | 'ended'>('idle');
-
-  // New question input state
-  const [newQuestion, setNewQuestion] = useState('');
-  const [newQuestionField, setNewQuestionField] = useState('info');
-
-  // New document input state
-  const [newDocument, setNewDocument] = useState({
-    name: '',
-    type: 'pdf' as 'pdf' | 'image' | 'video' | 'document',
-    url: '',
-    description: '',
-    keywords: '',
-  });
-
-  // File upload state
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-  // Handle file upload
-  const handleFileUpload = async (file: File) => {
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('folder', 'agent-documents');
-      formData.append('isPublic', 'true');
-
-      const response = await api.post('/upload/single', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        onUploadProgress: (progressEvent) => {
-          const progress = progressEvent.total
-            ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            : 0;
-          setUploadProgress(progress);
-        },
-      });
-
-      if (response.data.success) {
-        const uploadedFile = response.data.file;
-        // Auto-detect document type from mime type
-        let docType: 'pdf' | 'image' | 'video' | 'document' = 'document';
-        if (uploadedFile.mimeType.startsWith('image/')) docType = 'image';
-        else if (uploadedFile.mimeType.startsWith('video/')) docType = 'video';
-        else if (uploadedFile.mimeType === 'application/pdf') docType = 'pdf';
-
-        setNewDocument(prev => ({
-          ...prev,
-          url: uploadedFile.url,
-          type: docType,
-          name: prev.name || uploadedFile.originalName.replace(/\.[^/.]+$/, ''),
-        }));
-        setSelectedFile(file);
-      }
-    } catch (err: any) {
-      console.error('File upload failed:', err);
-      setError(err.response?.data?.message || 'Failed to upload file');
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
+  // Fetch template details when industry changes
+  useEffect(() => {
+    if (selectedIndustry) {
+      fetchTemplateDetails(selectedIndustry);
     }
-  };
-
-  // Handle file drop
-  const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleFileUpload(file);
-    }
-  };
-
-  // Handle file select
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleFileUpload(file);
-    }
-  };
+  }, [selectedIndustry, fetchTemplateDetails]);
 
   const steps = [
     { number: 1, title: 'Industry', icon: Building2 },
@@ -184,198 +67,23 @@ export const CreateAgentPage: React.FC = () => {
     { number: 3, title: 'Review', icon: Check },
   ];
 
-  useEffect(() => {
-    fetchTemplates();
-  }, []);
-
-  useEffect(() => {
-    if (selectedIndustry) {
-      fetchTemplateDetails(selectedIndustry);
-    }
-  }, [selectedIndustry]);
-
-  const fetchTemplates = async () => {
-    try {
-      const response = await api.get('/voice-ai/templates');
-      if (response.data.success) {
-        setTemplates(response.data.data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch templates:', err);
-    }
-  };
-
-  const fetchTemplateDetails = async (industry: string) => {
-    try {
-      const response = await api.get(`/voice-ai/templates/${industry}`);
-      if (response.data.success) {
-        const template = response.data.data;
-        // Use language-specific greeting based on currently selected language
-        const langOption = languageOptions.find(l => l.id === formData.language);
-        const languageGreeting = langOption?.greetingTemplate || template.greeting;
-
-        setFormData(prev => ({
-          ...prev,
-          name: template.name,
-          greeting: languageGreeting,
-          systemPrompt: template.systemPrompt,
-          questions: template.questions,
-          widgetColor: industryDetails[industry]?.color || '#3B82F6',
-        }));
-      }
-    } catch (err) {
-      console.error('Failed to fetch template details:', err);
-    }
-  };
-
+  // Handle agent creation using service
   const handleCreate = async () => {
-    if (!selectedIndustry || !formData.name) {
-      setError('Please fill in all required fields');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await api.post('/voice-ai/agents', {
-        name: formData.name,
-        industry: selectedIndustry,
-        customPrompt: formData.systemPrompt,
-        customQuestions: formData.questions,
-      });
-
-      if (response.data.success) {
-        const agentId = response.data.data.id;
-        // Determine voice provider based on voice selection
-        const isSarvamVoice = formData.voiceId.startsWith('sarvam-');
-        const voiceProvider = isSarvamVoice ? 'sarvam' : 'openai';
-
-        await api.put(`/voice-ai/agents/${agentId}`, {
-          voiceId: formData.voiceId,
-          voiceProvider: voiceProvider,
-          language: formData.language === 'auto' ? '' : formData.language,
-          widgetColor: formData.widgetColor,
-          widgetTitle: formData.widgetTitle || formData.name,
-          widgetSubtitle: formData.widgetSubtitle || 'AI Voice Assistant',
-          greeting: formData.greeting,
-          // AI Behavior Settings
-          personality: formData.personality,
-          responseSpeed: formData.responseSpeed,
-          creativity: formData.creativity,
-          interruptHandling: formData.interruptHandling,
-          // Call Handling Settings
-          workingHoursEnabled: formData.workingHoursEnabled,
-          workingHoursStart: formData.workingHoursStart,
-          workingHoursEnd: formData.workingHoursEnd,
-          workingDays: formData.workingDays,
-          afterHoursMessage: formData.afterHoursMessage,
-          maxCallDuration: formData.maxCallDuration,
-          silenceTimeout: formData.silenceTimeout,
-          // Documents for WhatsApp sharing
-          documents: formData.documents,
-          // Lead Generation Settings
-          autoCreateLeads: formData.autoCreateLeads,
-          deduplicateByPhone: formData.deduplicateByPhone,
-          defaultStageId: formData.defaultStageId || null,
-          defaultAssigneeId: formData.defaultAssigneeId || null,
-          // Appointment Booking Settings
-          appointmentEnabled: formData.appointmentEnabled,
-          appointmentType: formData.appointmentType,
-          appointmentDuration: formData.appointmentDuration,
-          // CRM Integration Settings
-          crmIntegration: formData.crmIntegration,
-          triggerWebhookOnLead: formData.triggerWebhookOnLead,
-        });
-        navigate('/voice-ai');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to create agent');
-    } finally {
-      setLoading(false);
+    const agentId = await createAgent();
+    if (agentId) {
+      navigate('/voice-ai');
     }
   };
 
-  const testVoice = async (voiceId: string) => {
-    try {
-      // Find the voice to determine provider - use startsWith for Sarvam voices
-      const isSarvam = voiceId.startsWith('sarvam-');
-      const voice = voiceOptions.find(v => v.id === voiceId);
-
-      console.log('[TestVoice] Testing voice:', voiceId, 'Found:', voice?.name, 'Sarvam:', isSarvam);
-
-      // Use voice-specific test text and language for Sarvam
-      let testText = 'Hello! I am your AI voice assistant. How can I help you today?';
-      if (isSarvam && voice?.testText) {
-        testText = voice.testText;
-      }
-
-      // Extract actual voice name for Sarvam (e.g., 'sarvam-priya' -> 'priya')
-      const actualVoice = isSarvam ? voiceId.replace('sarvam-', '') : voiceId;
-
-      // Use voice-specific language for Sarvam
-      const language = isSarvam && voice?.language ? voice.language : 'en-US';
-
-      console.log('[TestVoice] Calling TTS API with:', { text: testText.substring(0, 50), voice: actualVoice, provider: isSarvam ? 'sarvam' : 'openai', language });
-
-      const response = await api.post('/voice-ai/tts', {
-        text: testText,
-        voice: actualVoice,
-        provider: isSarvam ? 'sarvam' : 'openai',
-        language: language,
-      }, { responseType: 'arraybuffer' });
-
-      console.log('[TestVoice] Got response, size:', response.data.byteLength);
-
-      // Sarvam returns WAV, OpenAI returns MPEG
-      const mimeType = isSarvam ? 'audio/wav' : 'audio/mpeg';
-      const audioBlob = new Blob([response.data], { type: mimeType });
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-
-      audio.onerror = (e) => console.error('[TestVoice] Audio playback error:', e);
-      audio.onplay = () => console.log('[TestVoice] Audio playing...');
-      audio.onended = () => console.log('[TestVoice] Audio finished');
-
-      await audio.play();
-    } catch (err) {
-      console.error('[TestVoice] Failed to test voice:', err);
-    }
-  };
-
-  // Initiate test call
-  const initiateTestCall = async () => {
-    if (!testPhoneNumber.trim()) {
-      setError('Please enter a phone number for test call');
-      return;
-    }
-    try {
-      setIsTestingCall(true);
-      setTestCallStatus('calling');
-      // Get default greeting for language if no custom greeting
-      const langOption = languageOptions.find(l => l.id === formData.language);
-      const defaultGreeting = langOption?.greetingTemplate || 'Hello! How can I help you today?';
-
-      // This would integrate with your calling service
-      const response = await api.post('/voice-ai/test-call', {
-        phoneNumber: testPhoneNumber,
-        voiceId: formData.voiceId,
-        greeting: formData.greeting || defaultGreeting,
-        language: formData.language,
-      });
-      if (response.data.success) {
-        setTestCallStatus('connected');
-        setTimeout(() => {
-          setTestCallStatus('ended');
-          setIsTestingCall(false);
-        }, 5000);
-      }
-    } catch (err: any) {
-      console.error('Failed to initiate test call:', err);
-      setError(err.response?.data?.message || 'Failed to initiate test call');
-      setTestCallStatus('idle');
-      setIsTestingCall(false);
-    }
+  // Handle voice selection from VoiceTabContent
+  const handleVoiceSelect = (voice: VoiceOption, greetingTemplate?: string) => {
+    setFormData(prev => ({
+      ...prev,
+      voiceId: voice.id,
+      voiceName: voice.name,
+      language: voice.language || prev.language,
+      greeting: greetingTemplate || prev.greeting,
+    }));
   };
 
   return (
@@ -621,754 +329,45 @@ export const CreateAgentPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Voice Tab */}
+              {/* Voice Tab - Using extracted component */}
               {activeTab === 'voice' && (
-                <div className="space-y-6">
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">Select Voice</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Choose a voice for your agent. Click play to preview.</p>
-                      <button
-                        type="button"
-                        onClick={() => setShowVoicePanel(true)}
-                        className="mt-2 text-xs text-teal-600 hover:text-teal-700 font-medium"
-                      >
-                        Browse all voices →
-                      </button>
-                    </div>
-                    <div className="flex-1">
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {voiceOptions
-                          .filter(v => {
-                            return v.language === formData.language ||
-                                   v.language === 'en-IN' ||
-                                   v.language === 'en-US' ||
-                                   v.region === 'sarvam';
-                          })
-                          .slice(0, 12)
-                          .map(voice => {
-                            const isSelected = formData.voiceId === voice.id && formData.voiceName === voice.name;
-                            return (
-                              <button
-                                key={`${voice.id}-${voice.name}`}
-                                onClick={() => {
-                                  const newLanguage = voice.language || formData.language;
-                                  const langOption = languageOptions.find(l => l.id === newLanguage);
-                                  setFormData({
-                                    ...formData,
-                                    voiceId: voice.id,
-                                    voiceName: voice.name,
-                                    language: newLanguage,
-                                    greeting: langOption?.greetingTemplate || formData.greeting,
-                                  });
-                                }}
-                                className={`relative p-4 rounded-lg border text-left transition-all ${
-                                  isSelected
-                                    ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-500'
-                                    : 'border-gray-200 hover:border-teal-300 bg-white'
-                                }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <span className="text-2xl">{voice.gender === 'female' ? '👩' : '👨'}</span>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-gray-900">{voice.name}</p>
-                                    <p className="text-xs text-gray-500">{voice.description}</p>
-                                  </div>
-                                  <span
-                                    role="button"
-                                    onClick={e => { e.stopPropagation(); testVoice(voice.id); }}
-                                    className="p-2 hover:bg-gray-100 rounded-full cursor-pointer"
-                                  >
-                                    <Play size={16} className="text-teal-600" />
-                                  </span>
-                                </div>
-                                {voice.provider === 'sarvam' && (
-                                  <span className="absolute -top-2 -right-2 bg-purple-500 text-white text-[10px] px-2 py-0.5 rounded-full font-medium">Native</span>
-                                )}
-                                {isSelected && (
-                                  <div className="absolute top-2 left-2">
-                                    <Check size={16} className="text-teal-600" />
-                                  </div>
-                                )}
-                              </button>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <VoiceTabContent
+                  selectedVoiceId={formData.voiceId}
+                  selectedVoiceName={formData.voiceName}
+                  selectedLanguage={formData.language}
+                  onSelectVoice={handleVoiceSelect}
+                  onTestVoice={testVoice}
+                  onOpenVoicePanel={() => setShowVoicePanel(true)}
+                />
               )}
 
-              {/* Prompt Tab */}
+              {/* Prompt Tab - Using extracted component */}
               {activeTab === 'prompt' && (
-                <div className="space-y-6">
-                  {/* System Prompt */}
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">System Prompt</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Define your agent's behavior and knowledge.</p>
-                    </div>
-                    <div className="flex-1">
-                      <textarea
-                        value={formData.systemPrompt}
-                        onChange={e => setFormData({ ...formData, systemPrompt: e.target.value })}
-                        rows={8}
-                        placeholder="You are a helpful voice assistant for our company. Your role is to..."
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition resize-none font-mono text-sm"
-                      />
-                      <p className="text-xs text-gray-400 mt-2">
-                        Tip: Be specific about your agent's role, knowledge, and how it should handle different scenarios.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Questions to Ask */}
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">Questions</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Questions your agent will ask callers to collect information.</p>
-                    </div>
-                    <div className="flex-1">
-                      {/* Existing Questions */}
-                      <div className="space-y-2 mb-4">
-                        {formData.questions.map((q, idx) => (
-                          <div key={idx} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg group hover:bg-gray-100 transition">
-                            <GripVertical size={14} className="text-gray-300 cursor-grab" />
-                            <span className="text-gray-500 text-sm font-medium w-6">{idx + 1}.</span>
-                            <div className="flex-1">
-                              <p className="text-sm text-gray-700">{q.question || q}</p>
-                              {q.field && (
-                                <span className="text-xs text-teal-600 bg-teal-50 px-2 py-0.5 rounded mt-1 inline-block">
-                                  Collects: {q.field}
-                                </span>
-                              )}
-                            </div>
-                            <button
-                              onClick={() => {
-                                const newQuestions = formData.questions.filter((_, i) => i !== idx);
-                                setFormData({ ...formData, questions: newQuestions });
-                              }}
-                              className="p-1.5 hover:bg-red-100 rounded opacity-0 group-hover:opacity-100 transition"
-                            >
-                              <X size={14} className="text-red-500" />
-                            </button>
-                          </div>
-                        ))}
-                        {formData.questions.length === 0 && (
-                          <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 text-center">
-                            <p className="text-sm text-gray-400">No questions added yet. Add questions below to collect information from callers.</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Add New Question Form */}
-                      <div className="border border-gray-200 rounded-lg p-4 bg-white">
-                        <p className="text-sm font-medium text-gray-700 mb-3">Add New Question</p>
-                        <div className="space-y-3">
-                          <div>
-                            <label className="text-xs text-gray-500 mb-1 block">Question</label>
-                            <input
-                              type="text"
-                              value={newQuestion}
-                              onChange={e => setNewQuestion(e.target.value)}
-                              placeholder="e.g., May I know your name please?"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' && newQuestion.trim()) {
-                                  e.preventDefault();
-                                  setFormData({
-                                    ...formData,
-                                    questions: [...formData.questions, { question: newQuestion.trim(), field: newQuestionField }]
-                                  });
-                                  setNewQuestion('');
-                                  setNewQuestionField('info');
-                                }
-                              }}
-                            />
-                          </div>
-                          <div className="flex gap-3">
-                            <div className="flex-1">
-                              <label className="text-xs text-gray-500 mb-1 block">Collect as field</label>
-                              <select
-                                value={newQuestionField}
-                                onChange={e => setNewQuestionField(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm bg-white"
-                              >
-                                <option value="info">General Info</option>
-                                <option value="name">Name</option>
-                                <option value="email">Email</option>
-                                <option value="phone">Phone Number</option>
-                                <option value="company">Company</option>
-                                <option value="designation">Designation</option>
-                                <option value="location">Location/City</option>
-                                <option value="budget">Budget</option>
-                                <option value="timeline">Timeline</option>
-                                <option value="requirements">Requirements</option>
-                                <option value="interest">Interest Level</option>
-                                <option value="experience">Experience</option>
-                                <option value="currentRole">Current Role</option>
-                                <option value="availability">Availability</option>
-                                <option value="custom">Custom Field</option>
-                              </select>
-                            </div>
-                            <div className="flex items-end">
-                              <button
-                                onClick={() => {
-                                  if (newQuestion.trim()) {
-                                    setFormData({
-                                      ...formData,
-                                      questions: [...formData.questions, { question: newQuestion.trim(), field: newQuestionField }]
-                                    });
-                                    setNewQuestion('');
-                                    setNewQuestionField('info');
-                                  }
-                                }}
-                                disabled={!newQuestion.trim()}
-                                className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium flex items-center gap-2"
-                              >
-                                <Plus size={16} />
-                                Add
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <p className="text-xs text-gray-400 mt-3">
-                        Tip: Questions are asked in order. The AI will naturally weave these into the conversation.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                <PromptsTabContent
+                  systemPrompt={formData.systemPrompt}
+                  questions={formData.questions}
+                  onUpdateSystemPrompt={(prompt) => updateFormData({ systemPrompt: prompt })}
+                  onUpdateQuestions={(questions) => updateFormData({ questions })}
+                />
               )}
 
-              {/* Documents Tab - WhatsApp Sharing */}
+              {/* Documents Tab - Using extracted component */}
               {activeTab === 'documents' && (
-                <div className="space-y-6">
-                  {/* Info Banner */}
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
-                    <MessageCircle className="text-green-600 flex-shrink-0 mt-0.5" size={20} />
-                    <div>
-                      <p className="text-sm font-medium text-green-800">WhatsApp Document Sharing</p>
-                      <p className="text-xs text-green-700 mt-1">
-                        When callers ask for brochures, fee structures, or any documents during the call,
-                        the AI will automatically send them via WhatsApp.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Existing Documents */}
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">Documents</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Files that can be shared via WhatsApp during calls.</p>
-                    </div>
-                    <div className="flex-1">
-                      {formData.documents.length > 0 ? (
-                        <div className="space-y-3">
-                          {formData.documents.map((doc, idx) => (
-                            <div key={doc.id || idx} className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg group hover:bg-gray-100 transition">
-                              <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
-                                {doc.type === 'pdf' && <FileText size={20} className="text-red-500" />}
-                                {doc.type === 'image' && <Image size={20} className="text-blue-500" />}
-                                {doc.type === 'video' && <Play size={20} className="text-purple-500" />}
-                                {doc.type === 'document' && <FileText size={20} className="text-gray-500" />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-gray-900 truncate">{doc.name}</p>
-                                <p className="text-sm text-gray-500 truncate">{doc.description}</p>
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                  {doc.keywords.map((kw, i) => (
-                                    <span key={i} className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded">
-                                      {kw}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => {
-                                  const newDocs = formData.documents.filter((_, i) => i !== idx);
-                                  setFormData({ ...formData, documents: newDocs });
-                                }}
-                                className="p-2 hover:bg-red-100 rounded opacity-0 group-hover:opacity-100 transition"
-                              >
-                                <Trash2 size={16} className="text-red-500" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 text-center">
-                          <Upload size={32} className="mx-auto text-gray-300 mb-2" />
-                          <p className="text-sm text-gray-400">No documents added yet</p>
-                          <p className="text-xs text-gray-400 mt-1">Add documents below to enable WhatsApp sharing</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Add New Document Form */}
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">Add Document</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Upload or link a document.</p>
-                    </div>
-                    <div className="flex-1">
-                      <div className="border border-gray-200 rounded-lg p-4 bg-white space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-xs text-gray-500 mb-1 block">Document Name *</label>
-                            <input
-                              type="text"
-                              value={newDocument.name}
-                              onChange={e => setNewDocument({ ...newDocument, name: e.target.value })}
-                              placeholder="e.g., Fee Structure 2024"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs text-gray-500 mb-1 block">Type</label>
-                            <select
-                              value={newDocument.type}
-                              onChange={e => setNewDocument({ ...newDocument, type: e.target.value as any })}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm bg-white"
-                            >
-                              <option value="pdf">PDF Document</option>
-                              <option value="image">Image</option>
-                              <option value="video">Video</option>
-                              <option value="document">Other Document</option>
-                            </select>
-                          </div>
-                        </div>
-                        {/* File Upload Section */}
-                        <div>
-                          <label className="text-xs text-gray-500 mb-1 block">Upload File</label>
-                          <div
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={handleFileDrop}
-                            className={`relative border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
-                              isUploading
-                                ? 'border-teal-400 bg-teal-50'
-                                : selectedFile || newDocument.url
-                                ? 'border-green-400 bg-green-50'
-                                : 'border-gray-300 hover:border-teal-400 hover:bg-gray-50'
-                            }`}
-                          >
-                            {isUploading ? (
-                              <div className="py-2">
-                                <Loader2 className="animate-spin mx-auto text-teal-500 mb-2" size={24} />
-                                <p className="text-sm text-teal-600">Uploading... {uploadProgress}%</p>
-                                <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
-                                  <div
-                                    className="bg-teal-500 h-1.5 rounded-full transition-all"
-                                    style={{ width: `${uploadProgress}%` }}
-                                  />
-                                </div>
-                              </div>
-                            ) : selectedFile || newDocument.url ? (
-                              <div className="py-2">
-                                <div className="flex items-center justify-center gap-2 text-green-600">
-                                  <Check size={20} />
-                                  <span className="text-sm font-medium">
-                                    {selectedFile ? selectedFile.name : 'File linked'}
-                                  </span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedFile(null);
-                                    setNewDocument(prev => ({ ...prev, url: '' }));
-                                  }}
-                                  className="mt-2 text-xs text-red-500 hover:text-red-700"
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="py-2">
-                                <Upload className="mx-auto text-gray-400 mb-2" size={24} />
-                                <p className="text-sm text-gray-600">
-                                  Drag & drop a file here, or{' '}
-                                  <label className="text-teal-600 hover:text-teal-700 cursor-pointer font-medium">
-                                    browse
-                                    <input
-                                      type="file"
-                                      className="hidden"
-                                      accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.mp4,.webm"
-                                      onChange={handleFileSelect}
-                                    />
-                                  </label>
-                                </p>
-                                <p className="text-xs text-gray-400 mt-1">
-                                  PDF, DOC, XLS, Images, Videos (max 10MB)
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* OR Divider */}
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1 border-t border-gray-200" />
-                          <span className="text-xs text-gray-400 font-medium">OR</span>
-                          <div className="flex-1 border-t border-gray-200" />
-                        </div>
-
-                        {/* URL Input */}
-                        <div>
-                          <label className="text-xs text-gray-500 mb-1 block">Document URL</label>
-                          <input
-                            type="url"
-                            value={newDocument.url}
-                            onChange={e => {
-                              setNewDocument({ ...newDocument, url: e.target.value });
-                              if (e.target.value) setSelectedFile(null);
-                            }}
-                            placeholder="https://example.com/document.pdf"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                            disabled={!!selectedFile}
-                          />
-                          <p className="text-xs text-gray-400 mt-1">Or paste a publicly accessible URL</p>
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 mb-1 block">Description</label>
-                          <input
-                            type="text"
-                            value={newDocument.description}
-                            onChange={e => setNewDocument({ ...newDocument, description: e.target.value })}
-                            placeholder="e.g., Complete fee breakdown for all courses"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 mb-1 block">Keywords (comma separated)</label>
-                          <input
-                            type="text"
-                            value={newDocument.keywords}
-                            onChange={e => setNewDocument({ ...newDocument, keywords: e.target.value })}
-                            placeholder="e.g., fees, cost, price, tuition, charges"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                          />
-                          <p className="text-xs text-gray-400 mt-1">AI uses these to match user requests</p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            if (newDocument.name.trim()) {
-                              const doc = {
-                                id: Date.now().toString(),
-                                name: newDocument.name.trim(),
-                                type: newDocument.type,
-                                url: newDocument.url.trim(),
-                                description: newDocument.description.trim(),
-                                keywords: newDocument.keywords.split(',').map(k => k.trim()).filter(k => k),
-                              };
-                              setFormData({ ...formData, documents: [...formData.documents, doc] });
-                              setNewDocument({ name: '', type: 'pdf', url: '', description: '', keywords: '' });
-                              setSelectedFile(null);
-                            }
-                          }}
-                          disabled={!newDocument.name.trim() || isUploading}
-                          className="w-full px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium flex items-center justify-center gap-2"
-                        >
-                          <Plus size={16} />
-                          Add Document
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Example Keywords */}
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">Example Triggers</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Phrases that trigger document sharing.</p>
-                    </div>
-                    <div className="flex-1">
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <p className="text-xs text-gray-600 mb-2">The AI will send documents when callers say things like:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {['Send me the brochure', 'Fee structure bhej do', 'Can I see campus photos?', 'Share syllabus on WhatsApp', 'Fees details pampandi'].map((phrase, i) => (
-                            <span key={i} className="text-xs bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full">
-                              "{phrase}"
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <DocumentsTabContent
+                  documents={formData.documents}
+                  onUpdateDocuments={(documents) => updateFormData({ documents })}
+                />
               )}
 
-              {/* Settings Tab */}
+              {/* Settings Tab - Using extracted component */}
               {activeTab === 'settings' && (
-                <div className="space-y-6">
-                  {/* Max Call Duration */}
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">Max Duration</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Maximum call duration allowed.</p>
-                    </div>
-                    <div className="flex-1">
-                      <select
-                        value={formData.maxCallDuration}
-                        onChange={e => setFormData({ ...formData, maxCallDuration: parseInt(e.target.value) })}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white transition"
-                      >
-                        <option value={5}>5 minutes</option>
-                        <option value={10}>10 minutes</option>
-                        <option value={15}>15 minutes</option>
-                        <option value={30}>30 minutes</option>
-                        <option value={0}>Unlimited</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Working Hours Toggle */}
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">Working Hours</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Only accept calls during work hours.</p>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center">
-                        <button
-                          onClick={() => setFormData({ ...formData, workingHoursEnabled: !formData.workingHoursEnabled })}
-                          className={`relative w-12 h-6 rounded-full transition-colors ${
-                            formData.workingHoursEnabled ? 'bg-teal-500' : 'bg-gray-300'
-                          }`}
-                        >
-                          <span
-                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                              formData.workingHoursEnabled ? 'translate-x-6' : 'translate-x-0.5'
-                            }`}
-                          />
-                        </button>
-                        <span className="ml-3 text-sm text-gray-600">{formData.workingHoursEnabled ? 'Enabled' : 'Disabled'}</span>
-                      </div>
-                      {formData.workingHoursEnabled && (
-                        <div className="mt-4 flex items-center gap-4 pl-4 border-l-2 border-teal-200">
-                          <input
-                            type="time"
-                            value={formData.workingHoursStart}
-                            onChange={e => setFormData({ ...formData, workingHoursStart: e.target.value })}
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          />
-                          <span className="text-gray-500">to</span>
-                          <input
-                            type="time"
-                            value={formData.workingHoursEnd}
-                            onChange={e => setFormData({ ...formData, workingHoursEnd: e.target.value })}
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Call Recording Toggle */}
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">Call Recording</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Record all calls for quality assurance.</p>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center">
-                        <button
-                          onClick={() => setFormData({ ...formData, recordCalls: !formData.recordCalls })}
-                          className={`relative w-12 h-6 rounded-full transition-colors ${
-                            formData.recordCalls ? 'bg-teal-500' : 'bg-gray-300'
-                          }`}
-                        >
-                          <span
-                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                              formData.recordCalls ? 'translate-x-6' : 'translate-x-0.5'
-                            }`}
-                          />
-                        </button>
-                        <span className="ml-3 text-sm text-gray-600">{formData.recordCalls ? 'Enabled' : 'Disabled'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <hr className="border-gray-200" />
-
-                  {/* Lead Generation & CRM Settings */}
-                  <h3 className="text-sm font-semibold text-gray-900 pt-2">Lead Generation & CRM</h3>
-
-                  {/* Auto Create Leads */}
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">Auto Create Leads</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Automatically create leads from calls.</p>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center">
-                        <button
-                          onClick={() => setFormData({ ...formData, autoCreateLeads: !formData.autoCreateLeads })}
-                          className={`relative w-12 h-6 rounded-full transition-colors ${
-                            formData.autoCreateLeads ? 'bg-teal-500' : 'bg-gray-300'
-                          }`}
-                        >
-                          <span
-                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                              formData.autoCreateLeads ? 'translate-x-6' : 'translate-x-0.5'
-                            }`}
-                          />
-                        </button>
-                        <span className="ml-3 text-sm text-gray-600">{formData.autoCreateLeads ? 'Enabled' : 'Disabled'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Deduplicate by Phone */}
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">Deduplicate Leads</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Prevent duplicate leads by phone number.</p>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center">
-                        <button
-                          onClick={() => setFormData({ ...formData, deduplicateByPhone: !formData.deduplicateByPhone })}
-                          className={`relative w-12 h-6 rounded-full transition-colors ${
-                            formData.deduplicateByPhone ? 'bg-teal-500' : 'bg-gray-300'
-                          }`}
-                        >
-                          <span
-                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                              formData.deduplicateByPhone ? 'translate-x-6' : 'translate-x-0.5'
-                            }`}
-                          />
-                        </button>
-                        <span className="ml-3 text-sm text-gray-600">{formData.deduplicateByPhone ? 'Enabled' : 'Disabled'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Appointment Booking */}
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">Appointment Booking</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Auto-create appointments from calls.</p>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center">
-                        <button
-                          onClick={() => setFormData({ ...formData, appointmentEnabled: !formData.appointmentEnabled })}
-                          className={`relative w-12 h-6 rounded-full transition-colors ${
-                            formData.appointmentEnabled ? 'bg-teal-500' : 'bg-gray-300'
-                          }`}
-                        >
-                          <span
-                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                              formData.appointmentEnabled ? 'translate-x-6' : 'translate-x-0.5'
-                            }`}
-                          />
-                        </button>
-                        <span className="ml-3 text-sm text-gray-600">{formData.appointmentEnabled ? 'Enabled' : 'Disabled'}</span>
-                      </div>
-                      {formData.appointmentEnabled && (
-                        <div className="mt-4 flex items-center gap-4 pl-4 border-l-2 border-teal-200">
-                          <select
-                            value={formData.appointmentDuration}
-                            onChange={e => setFormData({ ...formData, appointmentDuration: parseInt(e.target.value) })}
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          >
-                            <option value={15}>15 minutes</option>
-                            <option value={30}>30 minutes</option>
-                            <option value={45}>45 minutes</option>
-                            <option value={60}>1 hour</option>
-                          </select>
-                          <span className="text-gray-500 text-sm">default duration</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* CRM Integration */}
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">CRM Integration</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Where to send lead data.</p>
-                    </div>
-                    <div className="flex-1">
-                      <select
-                        value={formData.crmIntegration}
-                        onChange={e => setFormData({ ...formData, crmIntegration: e.target.value as any })}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white transition"
-                      >
-                        <option value="internal">Internal CRM (Default)</option>
-                        <option value="salesforce">Salesforce (via Webhook)</option>
-                        <option value="hubspot">HubSpot (via Webhook)</option>
-                        <option value="zoho">Zoho CRM (via Webhook)</option>
-                        <option value="custom">Custom Webhook</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Trigger Webhooks */}
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">Trigger Webhooks</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Send events to external systems.</p>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center">
-                        <button
-                          onClick={() => setFormData({ ...formData, triggerWebhookOnLead: !formData.triggerWebhookOnLead })}
-                          className={`relative w-12 h-6 rounded-full transition-colors ${
-                            formData.triggerWebhookOnLead ? 'bg-teal-500' : 'bg-gray-300'
-                          }`}
-                        >
-                          <span
-                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                              formData.triggerWebhookOnLead ? 'translate-x-6' : 'translate-x-0.5'
-                            }`}
-                          />
-                        </button>
-                        <span className="ml-3 text-sm text-gray-600">{formData.triggerWebhookOnLead ? 'Enabled' : 'Disabled'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <hr className="border-gray-200" />
-
-                  {/* Test Call Section */}
-                  <h3 className="text-sm font-semibold text-gray-900 pt-2">Test Your Agent</h3>
-
-                  <div className="flex items-start gap-8">
-                    <div className="w-48 flex-shrink-0">
-                      <label className="text-sm font-medium text-gray-900">Phone Number</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Enter number to receive test call.</p>
-                    </div>
-                    <div className="flex-1 flex gap-3">
-                      <input
-                        type="tel"
-                        value={testPhoneNumber}
-                        onChange={e => setTestPhoneNumber(e.target.value)}
-                        placeholder="+91 98765 43210"
-                        className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
-                      />
-                      <button
-                        onClick={initiateTestCall}
-                        disabled={isTestingCall || !testPhoneNumber.trim()}
-                        className="px-6 py-2.5 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 transition font-medium flex items-center gap-2"
-                      >
-                        {isTestingCall ? (
-                          <>
-                            <Loader2 className="animate-spin" size={16} />
-                            Calling...
-                          </>
-                        ) : (
-                          <>
-                            <Phone size={16} />
-                            Test Call
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <SettingsTabContent
+                  formData={formData}
+                  onUpdateFormData={updateFormData}
+                  callFlows={callFlows}
+                  loadingFlows={loadingFlows}
+                  onError={setError}
+                />
               )}
             </div>
 

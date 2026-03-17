@@ -1,12 +1,15 @@
-import React from 'react';
-import { Clock, Mic, Brain } from 'lucide-react';
+import React, { useState } from 'react';
+import { Clock, Mic, Brain, Users, Phone, Loader2 } from 'lucide-react';
 import type { AgentFormData, CallFlowOption } from '../types/voiceAgent.types';
+import { voiceAgentService } from '../services';
+import { languageOptions } from '../constants/voiceAgent.constants';
 
 interface SettingsTabContentProps {
   formData: AgentFormData;
   onUpdateFormData: (updates: Partial<AgentFormData>) => void;
   callFlows: CallFlowOption[];
   loadingFlows: boolean;
+  onError?: (error: string) => void;
 }
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -16,7 +19,11 @@ export const SettingsTabContent: React.FC<SettingsTabContentProps> = ({
   onUpdateFormData,
   callFlows,
   loadingFlows,
+  onError,
 }) => {
+  const [testPhoneNumber, setTestPhoneNumber] = useState('');
+  const [isTestingCall, setIsTestingCall] = useState(false);
+
   const toggleDay = (day: string) => {
     const newDays = formData.workingDays.includes(day)
       ? formData.workingDays.filter(d => d !== day)
@@ -274,9 +281,17 @@ export const SettingsTabContent: React.FC<SettingsTabContentProps> = ({
         </select>
       </div>
 
-      {/* Lead Generation Settings */}
+      {/* Lead Generation & CRM Settings */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-semibold text-gray-900 mb-4">Lead Generation</h3>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
+            <Users className="w-5 h-5 text-orange-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900">Lead Generation & CRM</h3>
+            <p className="text-sm text-gray-500">Configure lead capture and CRM settings</p>
+          </div>
+        </div>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -310,6 +325,135 @@ export const SettingsTabContent: React.FC<SettingsTabContentProps> = ({
               <div className="w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
             </label>
           </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium text-gray-900">Appointment Booking</div>
+              <div className="text-sm text-gray-500">Auto-create appointments from calls</div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.appointmentEnabled}
+                onChange={(e) => onUpdateFormData({ appointmentEnabled: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+            </label>
+          </div>
+
+          {formData.appointmentEnabled && (
+            <div className="pl-4 border-l-2 border-blue-200">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Default Duration
+              </label>
+              <select
+                value={formData.appointmentDuration}
+                onChange={(e) => onUpdateFormData({ appointmentDuration: parseInt(e.target.value) })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value={15}>15 minutes</option>
+                <option value={30}>30 minutes</option>
+                <option value={45}>45 minutes</option>
+                <option value={60}>1 hour</option>
+              </select>
+            </div>
+          )}
+
+          <div className="pt-4 border-t">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              CRM Integration
+            </label>
+            <select
+              value={formData.crmIntegration}
+              onChange={(e) => onUpdateFormData({ crmIntegration: e.target.value as any })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="internal">Internal CRM (Default)</option>
+              <option value="salesforce">Salesforce (via Webhook)</option>
+              <option value="hubspot">HubSpot (via Webhook)</option>
+              <option value="zoho">Zoho CRM (via Webhook)</option>
+              <option value="custom">Custom Webhook</option>
+            </select>
+          </div>
+
+          <div className="flex items-center justify-between pt-4">
+            <div>
+              <div className="font-medium text-gray-900">Trigger Webhooks</div>
+              <div className="text-sm text-gray-500">Send events to external systems</div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.triggerWebhookOnLead}
+                onChange={(e) => onUpdateFormData({ triggerWebhookOnLead: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Test Call Section */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center">
+            <Phone className="w-5 h-5 text-teal-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900">Test Your Agent</h3>
+            <p className="text-sm text-gray-500">Make a test call to verify your agent</p>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <input
+            type="tel"
+            value={testPhoneNumber}
+            onChange={(e) => setTestPhoneNumber(e.target.value)}
+            placeholder="+91 98765 43210"
+            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
+          />
+          <button
+            onClick={async () => {
+              if (!testPhoneNumber.trim()) {
+                onError?.('Please enter a phone number for test call');
+                return;
+              }
+              try {
+                setIsTestingCall(true);
+                const langOption = languageOptions.find((l) => l.id === formData.language);
+                const defaultGreeting = langOption?.greetingTemplate || 'Hello! How can I help you today?';
+
+                await voiceAgentService.initiateTestCall({
+                  phoneNumber: testPhoneNumber,
+                  voiceId: formData.voiceId,
+                  greeting: formData.greeting || defaultGreeting,
+                  language: formData.language,
+                });
+              } catch (err: any) {
+                console.error('Failed to initiate test call:', err);
+                onError?.(err.message || 'Failed to initiate test call');
+              } finally {
+                setIsTestingCall(false);
+              }
+            }}
+            disabled={isTestingCall || !testPhoneNumber.trim()}
+            className="px-6 py-2.5 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 transition font-medium flex items-center gap-2"
+          >
+            {isTestingCall ? (
+              <>
+                <Loader2 className="animate-spin" size={16} />
+                Calling...
+              </>
+            ) : (
+              <>
+                <Phone size={16} />
+                Test Call
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
