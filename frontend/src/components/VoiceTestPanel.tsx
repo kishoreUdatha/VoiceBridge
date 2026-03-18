@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   MicrophoneIcon,
   StopIcon,
@@ -6,7 +6,6 @@ import {
   PhoneIcon,
   PhoneXMarkIcon,
 } from '@heroicons/react/24/solid';
-import { PlayIcon, PauseIcon } from '@heroicons/react/24/outline';
 import api from '../services/api';
 
 interface VoiceTestPanelProps {

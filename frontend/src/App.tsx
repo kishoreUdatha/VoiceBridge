@@ -54,7 +54,6 @@ import {
   TransferConfigPage,
   HybridInboxPage,
   InboundCallsPage,
-  AgentSettingsPage,
 } from './pages/hybrid-agent';
 import { AutoAssignSettingsPage, SmsSettingsPage, InstitutionSettingsPage, WhatsAppSettingsPage, VoiceMinutesPage, NotificationChannelsPage, CalendarSettingsPage, EmailSequencesPage, CRMIntegrationPage, PostCallMessagingPage } from './pages/settings';
 import IntegrationSettingsPage from './pages/settings/IntegrationSettingsPage';

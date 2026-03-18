@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { config } from '../config';
 import { prisma } from '../config/database';
-import { ConversationStatus, LeadSource, LeadStatus, LeadPriority } from '@prisma/client';
+import { ConversationStatus, LeadSource, LeadPriority } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { circuitBreakers, CircuitBreakerError } from '../utils/circuitBreaker';
 
@@ -73,7 +73,7 @@ export class OpenAIService {
     // Build message history
     const messages: ChatMessage[] = [
       { role: 'system', content: LEAD_COLLECTION_PROMPT },
-      ...((conversation.messages as ChatMessage[]) || []),
+      ...((conversation.messages as unknown as ChatMessage[]) || []),
       { role: 'user', content: userMessage },
     ];
 
@@ -100,7 +100,7 @@ export class OpenAIService {
 
     // Update conversation history
     const updatedMessages = [
-      ...((conversation.messages as ChatMessage[]) || []),
+      ...((conversation.messages as unknown as ChatMessage[]) || []),
       { role: 'user' as const, content: userMessage },
       { role: 'assistant' as const, content: assistantMessage },
     ];
@@ -112,8 +112,8 @@ export class OpenAIService {
     await prisma.chatbotConversation.update({
       where: { sessionId },
       data: {
-        messages: updatedMessages,
-        extractedData: { ...((conversation.extractedData as ExtractedData) || {}), ...extractedData },
+        messages: JSON.parse(JSON.stringify(updatedMessages)),
+        extractedData: JSON.parse(JSON.stringify({ ...((conversation.extractedData as ExtractedData) || {}), ...extractedData })),
         visitorName: extractedData.firstName
           ? `${extractedData.firstName} ${extractedData.lastName || ''}`.trim()
           : (conversation.visitorName || undefined),
@@ -201,7 +201,6 @@ Return only valid JSON, no explanations.`;
         email: data.email,
         phone: data.phone || 'N/A',
         source: LeadSource.CHATBOT,
-        status: LeadStatus.NEW,
         priority: LeadPriority.MEDIUM,
         customFields: {
           preferredCourse: data.preferredCourse,

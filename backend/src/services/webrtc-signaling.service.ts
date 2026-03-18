@@ -8,8 +8,10 @@ import {
 } from '../types/realtime.types';
 
 // Optional wrtc import for server-side WebRTC
-let wrtc: typeof import('wrtc') | null = null;
+// @ts-ignore - wrtc is an optional runtime dependency
+let wrtc: any = null;
 try {
+  // @ts-ignore - optional runtime import
   wrtc = require('wrtc');
   console.log('[WebRTC] Server-side WebRTC (wrtc) loaded successfully');
 } catch (error) {
@@ -71,7 +73,7 @@ class WebRTCSignalingService {
         peerConnection.pc = pc;
 
         // Handle ICE candidates
-        pc.onicecandidate = (event) => {
+        pc.onicecandidate = (event: any) => {
           if (event.candidate) {
             socket.emit('webrtc:ice', {
               peerId,
@@ -89,7 +91,7 @@ class WebRTCSignalingService {
         };
 
         // Handle incoming tracks (audio from client)
-        pc.ontrack = (event) => {
+        pc.ontrack = (event: any) => {
           console.log('[WebRTC] Received track:', event.track.kind);
           // Process audio track - could be connected to OpenAI Realtime
           // For now, just log it

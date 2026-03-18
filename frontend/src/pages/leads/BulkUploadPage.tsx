@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { useDropzone } from 'react-dropzone';
+import { useDropzone, FileRejection } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { AppDispatch, RootState } from '../../store';
 import { bulkUploadLeads, clearBulkUploadResult } from '../../store/slices/leadSlice';
@@ -54,7 +54,7 @@ export default function BulkUploadPage() {
     };
   }, [dispatch]);
 
-  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: { file: File; errors: { code: string; message: string }[] }[]) => {
+  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
     console.log('Files dropped - accepted:', acceptedFiles.length, 'rejected:', rejectedFiles.length);
     if (acceptedFiles.length > 0) {
       const f = acceptedFiles[0];

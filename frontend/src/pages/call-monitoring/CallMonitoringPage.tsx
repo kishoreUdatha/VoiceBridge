@@ -7,8 +7,6 @@ import {
   PhoneOff,
   User,
   Clock,
-  Volume2,
-  VolumeX,
   Mic,
   MicOff,
   Users,

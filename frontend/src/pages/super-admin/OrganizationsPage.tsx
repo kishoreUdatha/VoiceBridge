@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { superAdminService, Organization } from '../../services/super-admin.service';
 import {
   MagnifyingGlassIcon,
@@ -31,7 +31,6 @@ export default function OrganizationsPage() {
     adminLastName: '',
     planId: 'starter',
   });
-  const navigate = useNavigate();
 
   useEffect(() => {
     fetchOrganizations();

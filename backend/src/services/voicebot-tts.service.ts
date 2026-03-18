@@ -315,7 +315,7 @@ export async function generateTTS(
  * Supports interruption when user starts speaking
  */
 export async function sendAudioChunks(
-  ws: WebSocket,
+  ws: WebSocket.WebSocket,
   streamSid: string,
   audioBuffer: Buffer,
   checkInterrupt: () => boolean

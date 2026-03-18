@@ -29,7 +29,6 @@ import {
   DocumentArrowUpIcon,
   EyeIcon,
   ChevronDownIcon,
-  DocumentDuplicateIcon,
   ShieldCheckIcon,
   FunnelIcon,
   TrophyIcon,

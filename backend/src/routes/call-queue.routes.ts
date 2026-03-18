@@ -67,7 +67,7 @@ router.put('/:id', async (req: TenantRequest, res: Response) => {
 router.delete('/:id', async (req: TenantRequest, res: Response) => {
   try {
     await callQueueService.deleteQueue(req.params.id, req.organizationId!);
-    return ApiResponse.success(res, null, 'Queue deleted successfully');
+    return ApiResponse.success(res, { message: 'Queue deleted successfully' });
   } catch (error: any) {
     return ApiResponse.error(res, error.message, error.statusCode);
   }
@@ -109,7 +109,7 @@ router.post('/:id/members', async (req: TenantRequest, res: Response) => {
 router.delete('/:id/members/:userId', async (req: TenantRequest, res: Response) => {
   try {
     await callQueueService.removeMember(req.params.id, req.params.userId);
-    return ApiResponse.success(res, null, 'Member removed from queue');
+    return ApiResponse.success(res, { message: 'Member removed from queue' });
   } catch (error: any) {
     return ApiResponse.error(res, error.message, error.statusCode);
   }
@@ -190,7 +190,7 @@ router.put('/entries/:entryId/status', async (req: TenantRequest, res: Response)
 router.delete('/entries/:entryId', async (req: TenantRequest, res: Response) => {
   try {
     await callQueueService.removeFromQueue(req.params.entryId);
-    return ApiResponse.success(res, null, 'Entry removed from queue');
+    return ApiResponse.success(res, { message: 'Entry removed from queue' });
   } catch (error: any) {
     return ApiResponse.error(res, error.message, error.statusCode);
   }
@@ -226,7 +226,7 @@ router.post('/entries/:entryId/warm-transfer', async (req: TenantRequest, res: R
       consultFirst
     );
 
-    return ApiResponse.success(res, result, 'Warm transfer initiated');
+    return ApiResponse.success(res, result);
   } catch (error: any) {
     return ApiResponse.error(res, error.message, error.statusCode);
   }
@@ -239,7 +239,7 @@ router.post('/entries/:entryId/cold-transfer', async (req: TenantRequest, res: R
 
     const result = await callQueueService.coldTransfer(req.params.entryId, toNumber);
 
-    return ApiResponse.success(res, result, 'Cold transfer initiated');
+    return ApiResponse.success(res, result);
   } catch (error: any) {
     return ApiResponse.error(res, error.message, error.statusCode);
   }

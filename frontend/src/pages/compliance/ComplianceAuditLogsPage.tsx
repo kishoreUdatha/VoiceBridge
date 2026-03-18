@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   ClipboardDocumentListIcon,
-  MagnifyingGlassIcon,
-  FunnelIcon,
   ArrowDownTrayIcon,
   ShieldCheckIcon,
   PhoneXMarkIcon,

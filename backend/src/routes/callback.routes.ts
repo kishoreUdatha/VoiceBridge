@@ -38,7 +38,7 @@ router.get('/', async (req: TenantRequest, res: Response) => {
       Number(limit)
     );
 
-    return ApiResponse.paginated(res, result.callbacks, result.total, result.page, result.limit);
+    return ApiResponse.paginated(res, 'Callbacks retrieved', result.callbacks, result.page, result.limit, result.total);
   } catch (error: any) {
     return ApiResponse.error(res, error.message);
   }
@@ -194,7 +194,7 @@ router.put('/:id/cancel', async (req: TenantRequest, res: Response) => {
       reason
     );
 
-    return ApiResponse.success(res, callback, 'Callback cancelled');
+    return ApiResponse.success(res, callback);
   } catch (error: any) {
     return ApiResponse.error(res, error.message, error.statusCode);
   }
@@ -208,7 +208,7 @@ router.post('/:id/execute', async (req: TenantRequest, res: Response) => {
       req.organizationId!
     );
 
-    return ApiResponse.success(res, result, 'Callback initiated');
+    return ApiResponse.success(res, result);
   } catch (error: any) {
     return ApiResponse.error(res, error.message, error.statusCode);
   }

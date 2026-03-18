@@ -189,7 +189,7 @@ class SarvamService {
       );
 
       // Decode base64 audio
-      const audioBase64 = response.data.audio_content || response.data.audios?.[0];
+      const audioBase64 = response.data.audio_content || (response.data as unknown as { audios?: string[] }).audios?.[0];
       if (!audioBase64) {
         throw new Error('No audio content in response');
       }

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Mail,
   MessageSquare,
-  Phone,
   Save,
   Loader2,
   CheckCircle2,

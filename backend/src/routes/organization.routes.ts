@@ -571,7 +571,7 @@ router.post('/settings/whatsapp/test', async (req: TenantRequest, res: Response)
     }
 
     // Use the WhatsApp service to test connection
-    const whatsappService = createWhatsAppService(organizationId);
+    const whatsappService = createWhatsAppService(organizationId!);
     const testResult = await whatsappService.testConnection();
 
     if (testResult.success) {

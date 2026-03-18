@@ -61,7 +61,7 @@ router.get(
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { organizationId, userId } = req.user!;
+    const { organizationId, id: userId } = req.user!;
     const {
       type,
       recipients,

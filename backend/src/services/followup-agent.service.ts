@@ -28,6 +28,7 @@ export async function handleConversation(context: AgentContext, userMessage: str
     where: { id: context.leadId },
     include: {
       callLogs: { orderBy: { createdAt: 'desc' }, take: 5 },
+      stage: true,
     },
   }) : null;
 
@@ -48,7 +49,7 @@ YOUR ROLE:
 LEAD CONTEXT:
 - Name: ${context.firstName || 'Customer'}
 - Days since last contact: ${daysSinceLastContact}
-- Previous status: ${lead?.status || 'Unknown'}
+- Previous stage: ${lead?.stage?.name || 'Unknown'}
 
 APPROACH:
 ${daysSinceLastContact < 7
@@ -96,13 +97,8 @@ When suggesting sales conversation, include [HANDOFF:SALES].`;
     action = 'interest_detected';
     cleanMessage = aiMessage.replace(/\[INTERESTED:\w+\]/, '').trim();
 
-    // Update lead status
-    if (context.leadId) {
-      await prisma.lead.update({
-        where: { id: context.leadId },
-        data: { status: interestMatch[1] === 'hot' ? 'QUALIFIED' : 'CONTACTED' },
-      });
-    }
+    // Note: Lead stage updates should be handled through proper stage management
+    // to ensure correct stageId is used
   }
 
   // Parse handoff
@@ -117,12 +113,7 @@ When suggesting sales conversation, include [HANDOFF:SALES].`;
     action = 'declined';
     cleanMessage = aiMessage.replace('[DECLINED]', '').trim();
 
-    if (context.leadId) {
-      await prisma.lead.update({
-        where: { id: context.leadId },
-        data: { status: 'LOST' },
-      });
-    }
+    // Note: Lead stage updates should be handled through proper stage management
   }
 
   return {

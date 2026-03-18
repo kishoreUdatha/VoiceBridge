@@ -351,12 +351,13 @@ class LeadTrackingService {
 
     if (existingLead) {
       // Update existing lead with new tracking info
+      const existingCustomFields = existingLead.customFields as Record<string, unknown> || {};
       await prisma.lead.update({
         where: { id: existingLead.id },
         data: {
-          lastActivityAt: new Date(),
-          customData: {
-            ...(existingLead.customData as any || {}),
+          updatedAt: new Date(),
+          customFields: {
+            ...existingCustomFields,
             lastVisit: {
               source,
               utmSource,
@@ -401,12 +402,12 @@ class LeadTrackingService {
       data: {
         organizationId,
         email,
-        phone,
-        firstName: firstName || '',
+        phone: phone || '',
+        firstName: firstName || 'Unknown',
         lastName,
-        source: displaySource,
+        source: 'WEBSITE', // Default source for tracking captures
         stageId: defaultStage?.id,
-        customData: {
+        customFields: {
           utmSource,
           utmMedium,
           utmCampaign,
@@ -420,6 +421,7 @@ class LeadTrackingService {
           campaignId,
           capturedAt: new Date().toISOString(),
           ipAddress,
+          displaySource, // Store original display source
           ...customFields,
         },
       },
@@ -429,7 +431,8 @@ class LeadTrackingService {
     await prisma.leadActivity.create({
       data: {
         leadId: lead.id,
-        type: 'CREATED',
+        type: 'LEAD_CREATED',
+        title: 'Lead captured',
         description: `Lead captured from ${displaySource}`,
         metadata: {
           source,
@@ -505,7 +508,7 @@ class LeadTrackingService {
         throw new Error('Failed to fetch lead from Facebook');
       }
 
-      const data = await response.json();
+      const data = await response.json() as { field_data?: Array<{ name: string; values?: string[] }> };
 
       // Parse field data
       const fields: Record<string, string> = {};
@@ -560,11 +563,11 @@ class LeadTrackingService {
       where: {
         organizationId,
         createdAt: { gte: dateRange.start, lte: dateRange.end },
-        customData: { path: ['utmCampaign'], not: null },
+        customFields: { path: ['utmCampaign'], not: 'null' },
       },
       select: {
         id: true,
-        customData: true,
+        customFields: true,
         createdAt: true,
         convertedAt: true,
       },
@@ -574,7 +577,7 @@ class LeadTrackingService {
     const campaignMap = new Map<string, { leads: number; conversions: number }>();
 
     for (const lead of leads) {
-      const data = lead.customData as any;
+      const data = lead.customFields as any;
       const campaign = data?.utmCampaign || 'Unknown';
 
       const current = campaignMap.get(campaign) || { leads: 0, conversions: 0 };

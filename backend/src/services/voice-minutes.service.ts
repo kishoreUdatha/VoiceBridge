@@ -78,7 +78,7 @@ class VoiceMinutesService {
       const plan = await prisma.planDefinition.findFirst({
         where: { slug: organization.activePlanId || 'starter' },
       });
-      orgLimit = plan?.maxAICallMinutes ?? DEFAULT_PLAN_LIMITS[organization.activePlanId || 'starter'] ?? 100;
+      orgLimit = plan?.voiceMinutesIncluded ?? DEFAULT_PLAN_LIMITS[organization.activePlanId || 'starter'] ?? 100;
     }
 
     // Refresh org usage after potential reset
@@ -87,13 +87,14 @@ class VoiceMinutesService {
       select: { voiceMinutesUsed: true },
     });
     const orgUsed = refreshedOrg?.voiceMinutesUsed ?? 0;
-    const orgRemaining = Math.max(0, orgLimit - orgUsed);
+    const finalOrgLimit = orgLimit ?? 100; // Default to 100 if null
+    const orgRemaining = Math.max(0, finalOrgLimit - orgUsed);
 
     // Build usage object
     const usage: VoiceMinutesUsage = {
       organizationId,
       userId,
-      orgLimit,
+      orgLimit: finalOrgLimit,
       orgUsed,
       orgRemaining,
       userLimit: null,
@@ -103,7 +104,7 @@ class VoiceMinutesService {
     };
 
     // Check organization limit
-    if (orgUsed >= orgLimit) {
+    if (orgUsed >= finalOrgLimit) {
       usage.canMakeCall = false;
       usage.reason = 'Organization has reached its monthly voice minutes limit';
       return { allowed: false, reason: usage.reason, usage };
@@ -207,13 +208,14 @@ class VoiceMinutesService {
     }
 
     // Get plan limit
-    let limit = organization.voiceMinutesLimit;
+    let limit: number | null = organization.voiceMinutesLimit;
     if (limit === null) {
       const plan = await prisma.planDefinition.findFirst({
         where: { slug: organization.activePlanId || 'starter' },
       });
-      limit = plan?.maxAICallMinutes ?? DEFAULT_PLAN_LIMITS[organization.activePlanId || 'starter'] ?? 100;
+      limit = plan?.voiceMinutesIncluded ?? DEFAULT_PLAN_LIMITS[organization.activePlanId || 'starter'] ?? 100;
     }
+    const finalLimit = limit ?? 100;
 
     // Get user breakdown
     const users = await prisma.user.findMany({
@@ -234,9 +236,9 @@ class VoiceMinutesService {
     const resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
     return {
-      limit,
+      limit: finalLimit,
       used: organization.voiceMinutesUsed,
-      remaining: Math.max(0, limit - organization.voiceMinutesUsed),
+      remaining: Math.max(0, finalLimit - organization.voiceMinutesUsed),
       resetDate,
       userBreakdown: users.map(u => ({
         userId: u.id,

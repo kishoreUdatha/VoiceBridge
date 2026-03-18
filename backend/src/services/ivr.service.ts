@@ -262,10 +262,10 @@ export class IvrService {
     }
 
     const nodes = flow.nodes as unknown as Array<{
+      position: { x: number; y: number };
       id: string;
       type: IvrNodeType;
       data: Record<string, unknown>;
-      position: { x: number; y: number };
     }>;
 
     const edges = flow.edges as unknown as Array<{
@@ -408,6 +408,7 @@ export class IvrService {
     }
 
     const nodes = flow.nodes as unknown as Array<{
+      position: { x: number; y: number };
       id: string;
       type: IvrNodeType;
       data: Record<string, unknown>;

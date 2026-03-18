@@ -40,7 +40,7 @@ const NotificationChannelsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
-      <Toast toast={toast} onClose={clearToast} />
+      {toast && <Toast toast={toast} onClose={clearToast} />}
 
       <div className="max-w-5xl mx-auto px-6 py-8">
         <PageHeader onAddChannel={openModal} />

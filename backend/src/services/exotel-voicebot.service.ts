@@ -74,7 +74,7 @@ const prisma = new PrismaClient();
 /**
  * Handle new WebSocket connection from Exotel
  */
-export async function handleExotelWebSocket(ws: WebSocket, callId: string, agentId: string) {
+export async function handleExotelWebSocket(ws: WebSocket.WebSocket, callId: string, agentId: string) {
   console.log(`[VoiceBot] New connection for call: ${callId}, agent: ${agentId}`);
 
   // Get agent details

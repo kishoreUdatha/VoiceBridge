@@ -317,7 +317,7 @@ class OutboundCallService {
     const baseUrl = config.baseUrl;
 
     // Get or create call flow context
-    let context = activeCallFlowContexts.get(callId);
+    let context: CallFlowExecutionContext | undefined = activeCallFlowContexts.get(callId);
     if (!context && call.agent.callFlowId) {
       context = await callFlowExecutor.initializeExecution(
         call.agent.callFlowId,

@@ -5,8 +5,6 @@ import {
   Send,
   Search,
   User,
-  Clock,
-  ArrowRightLeft,
   PhoneCall,
   MessageCircle,
   Smartphone,
@@ -158,24 +156,6 @@ export const HybridInboxPage: React.FC = () => {
       console.error('Failed to send AI response:', err);
     } finally {
       setSending(false);
-    }
-  };
-
-  const handleSwitchChannel = async (newChannel: 'WHATSAPP' | 'SMS' | 'CALL') => {
-    if (!selectedPhone) return;
-
-    try {
-      await api.post('/hybrid-agent/switch-channel', {
-        phone: selectedPhone,
-        currentChannel: sendingAs,
-        newChannel,
-      });
-      if (newChannel !== 'CALL') {
-        setSendingAs(newChannel);
-      }
-      await fetchMessages(selectedPhone);
-    } catch (err) {
-      console.error('Failed to switch channel:', err);
     }
   };
 

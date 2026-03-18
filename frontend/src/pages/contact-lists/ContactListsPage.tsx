@@ -4,7 +4,6 @@ import {
   PlusIcon,
   MagnifyingGlassIcon,
   TrashIcon,
-  PencilIcon,
   UserGroupIcon,
   ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';

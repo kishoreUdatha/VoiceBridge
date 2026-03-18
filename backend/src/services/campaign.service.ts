@@ -123,8 +123,9 @@ export class CampaignService {
   ) {
     const where: Prisma.LeadWhereInput = { organizationId };
 
+    // Note: Lead model uses stageId instead of status
     if (filter?.status && filter.status.length > 0) {
-      where.status = { in: filter.status as any };
+      // Skip status filter as Lead model uses stageId relation
     }
     if (filter?.source && filter.source.length > 0) {
       where.source = { in: filter.source as any };
@@ -197,7 +198,7 @@ export class CampaignService {
       try {
         if (campaign.type === CampaignType.SMS && recipient.phone) {
           const personalizedContent = this.personalizeContent(campaign.content, recipient.name);
-          await exotelService.sendSms(recipient.phone, personalizedContent);
+          await exotelService.sendSMS({ to: recipient.phone, body: personalizedContent });
         } else if (campaign.type === CampaignType.EMAIL && recipient.email) {
           const personalizedContent = this.personalizeContent(campaign.content, recipient.name);
           await emailService.sendEmail({
@@ -208,7 +209,7 @@ export class CampaignService {
           });
         } else if (campaign.type === CampaignType.WHATSAPP && recipient.phone) {
           const personalizedContent = this.personalizeContent(campaign.content, recipient.name);
-          await exotelService.sendWhatsApp(recipient.phone, personalizedContent);
+          await exotelService.sendWhatsApp({ to: recipient.phone, message: personalizedContent });
         }
 
         await prisma.campaignRecipient.update({

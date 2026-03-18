@@ -3,7 +3,8 @@
  * Abstract interface for payment processing with Razorpay implementation
  */
 
-import * as Razorpay from 'razorpay';
+// @ts-ignore - Razorpay module compatibility
+const Razorpay = require('razorpay');
 import * as crypto from 'crypto';
 import { AppError } from '../utils/errors';
 
@@ -42,7 +43,7 @@ export interface IPaymentGateway {
  * Razorpay Payment Gateway Implementation
  */
 class RazorpayGateway implements IPaymentGateway {
-  private razorpay: Razorpay | null = null;
+  private razorpay: any = null;
   private keyId: string | undefined;
   private keySecret: string | undefined;
 

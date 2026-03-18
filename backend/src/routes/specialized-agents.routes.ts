@@ -153,7 +153,7 @@ router.post('/:id/conversation', async (req: TenantRequest, res: Response) => {
     // Build context
     const context = {
       agentId: id,
-      organizationId,
+      organizationId: organizationId!,
       leadId,
       phone: phone || lead?.phone || '',
       email: lead?.email || undefined,
@@ -206,7 +206,7 @@ router.post('/:id/handoff', async (req: TenantRequest, res: Response) => {
       // Create default agent of target type
       toAgent = await prisma.voiceAgent.create({
         data: {
-          organizationId,
+          organizationId: organizationId!,
           name: `${toAgentType} Agent`,
           agentType: toAgentType,
           industry: 'CUSTOM',
@@ -217,7 +217,7 @@ router.post('/:id/handoff', async (req: TenantRequest, res: Response) => {
 
     const context = {
       agentId: toAgent.id,
-      organizationId,
+      organizationId: organizationId!,
       leadId,
       phone: '',
       conversationHistory,

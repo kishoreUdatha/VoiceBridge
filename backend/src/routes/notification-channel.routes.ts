@@ -65,7 +65,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    const channel = await notificationChannelService.createChannel(organizationId, {
+    const channel = await notificationChannelService.createChannel({organizationId,
       name,
       type,
       webhookUrl,
@@ -147,7 +147,7 @@ router.post('/:id/test', async (req: AuthenticatedRequest, res: Response) => {
       return res.status(404).json({ success: false, message: 'Channel not found' });
     }
 
-    const success = await notificationChannelService.testChannel(channel);
+    const success = await notificationChannelService.testChannel(channel.id, organizationId);
 
     if (success) {
       res.json({ success: true, message: 'Test notification sent successfully' });

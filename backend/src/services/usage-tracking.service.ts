@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 
 export type UsageType = 'leads' | 'aiCalls' | 'aiMinutes' | 'sms' | 'emails' | 'whatsapp' | 'storage';
 
-interface UsageResult {
+export interface UsageResult {
   allowed: boolean;
   current: number;
   limit: number;

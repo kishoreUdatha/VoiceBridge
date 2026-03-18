@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Mic, MicOff, Phone, PhoneOff, Radio, Headphones, Volume2, Loader2, AlertCircle, Hand, MessageSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import io, { Socket } from 'socket.io-client';
@@ -25,7 +25,7 @@ interface TranscriptEntry {
 
 const RealtimeTestPage: React.FC = () => {
   const [status, setStatus] = useState<Status>('idle');
-  const [isConnected, setIsConnected] = useState(false);
+  const [, setIsConnected] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [transcripts, setTranscripts] = useState<TranscriptEntry[]>([]);
   const [currentText, setCurrentText] = useState('');

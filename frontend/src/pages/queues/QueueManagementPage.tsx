@@ -2,18 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   Users,
   Plus,
-  Settings,
   Clock,
-  Phone,
   CheckCircle,
-  XCircle,
   Trash2,
   Edit,
   Play,
   Pause,
   UserPlus,
   BarChart2,
-  AlertCircle,
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -44,20 +40,12 @@ interface Queue {
   };
 }
 
-interface QueueMember {
-  id: string;
-  userId: string;
-  status: string;
-  priority: number;
-  callsToday: number;
-  avgHandleTime: number;
-}
-
 export const QueueManagementPage: React.FC = () => {
   const [queues, setQueues] = useState<Queue[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showMemberModal, setShowMemberModal] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_showMemberModal, setShowMemberModal] = useState<string | null>(null);
   const [selectedQueue, setSelectedQueue] = useState<Queue | null>(null);
   const [formData, setFormData] = useState({
     name: '',

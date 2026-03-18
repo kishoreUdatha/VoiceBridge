@@ -326,6 +326,7 @@ const ChannelCard: React.FC<ChannelCardProps> = ({
 
 // Add Channel Modal
 interface AddChannelModalProps {
+  showModal: boolean;
   modalStep: ModalStep;
   formData: ChannelFormData;
   loading: boolean;
@@ -338,6 +339,7 @@ interface AddChannelModalProps {
 }
 
 export const AddChannelModal: React.FC<AddChannelModalProps> = ({
+  showModal,
   modalStep,
   formData,
   loading,
@@ -349,6 +351,8 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({
   onCreate,
 }) => {
   const config = CHANNEL_CONFIGS[formData.type];
+
+  if (!showModal) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

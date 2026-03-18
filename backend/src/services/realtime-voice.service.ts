@@ -1,6 +1,7 @@
 import { Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../config/database';
+import { Prisma } from '@prisma/client';
 import { config } from '../config';
 import {
   openaiRealtimeService,
@@ -314,7 +315,7 @@ class RealtimeVoiceService {
         await prisma.voiceSession.update({
           where: { id: session.id },
           data: {
-            qualification: session.qualification,
+            qualification: session.qualification as Prisma.InputJsonValue,
           },
         });
       }
@@ -536,7 +537,7 @@ class RealtimeVoiceService {
         email: qual.email,
         source: 'CHATBOT',
         sourceDetails: `Voice AI (Realtime) - ${agent.name}`,
-        customFields: session.qualification,
+        customFields: session.qualification as Prisma.InputJsonValue,
       },
     });
 
@@ -559,7 +560,7 @@ class RealtimeVoiceService {
         data: {
           sessionId,
           eventType,
-          eventData: eventData || {},
+          eventData: (eventData || {}) as Prisma.InputJsonValue,
         },
       });
     } catch (error) {

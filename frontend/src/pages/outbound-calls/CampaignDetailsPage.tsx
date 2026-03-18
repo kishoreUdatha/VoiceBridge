@@ -4,17 +4,11 @@ import {
   ArrowLeftIcon,
   PlayIcon,
   PauseIcon,
-  UserGroupIcon,
   PhoneIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  ClockIcon,
   ArrowPathIcon,
   Cog6ToothIcon,
   CpuChipIcon,
-  PencilIcon,
   TrashIcon,
-  XMarkIcon,
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';

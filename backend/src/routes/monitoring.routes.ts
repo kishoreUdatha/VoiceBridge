@@ -150,7 +150,7 @@ router.get('/history', async (req: TenantRequest, res: Response) => {
       Number(limit)
     );
 
-    return ApiResponse.paginated(res, result.sessions, result.total, result.page, result.limit);
+    return ApiResponse.paginated(res, 'Session history retrieved', result.sessions, result.page, result.limit, result.total);
   } catch (error: any) {
     return ApiResponse.error(res, error.message);
   }

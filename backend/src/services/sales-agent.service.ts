@@ -91,14 +91,14 @@ Respond naturally in conversation. If the lead is ready to proceed, include [ACT
     cleanMessage = aiMessage.replace('[ACTION:APPOINTMENT]', '').trim();
   }
 
-  // Update lead status if we have a lead
+  // Update lead custom fields if we have a lead
   if (context.leadId && action) {
+    const existingLead = await prisma.lead.findUnique({ where: { id: context.leadId } });
     await prisma.lead.update({
       where: { id: context.leadId },
       data: {
-        status: action === 'initiate_payment' ? 'CONVERTED' : 'QUALIFIED',
         customFields: {
-          ...((await prisma.lead.findUnique({ where: { id: context.leadId } }))?.customFields as any || {}),
+          ...(existingLead?.customFields as any || {}),
           salesAgentInteraction: new Date().toISOString(),
           lastAction: action,
         },

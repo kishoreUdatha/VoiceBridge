@@ -399,6 +399,7 @@ class SubscriptionService {
     };
   }
 
+/**   * Add users to subscription   */  async addUsers(organizationId: string, additionalUsers: number) {    const subscription = await this.getSubscription(organizationId);    if (!subscription || subscription.id.startsWith('free_')) {      throw new AppError('No active subscription', 400);    }    const plan = getPlan(subscription.planId);    if (!plan) {      throw new AppError('Plan not found', 400);    }    const pricePerUser = subscription.billingCycle === 'annual'      ? plan.annualPrice / 12      : plan.monthlyPrice;    const totalAmount = Math.round(pricePerUser * additionalUsers * 100);    const order = await paymentGateway.createOrder({      amount: totalAmount,      currency: 'INR',      receipt: `users_${organizationId}_${Date.now()}`,      notes: {        organizationId,        type: 'add_users',        additionalUsers: additionalUsers.toString(),      },    });    return {      order,      additionalUsers,      pricePerUser,      totalAmount: totalAmount / 100,      keyId: paymentGateway.getPublicKey(),    };  }
   /**
    * Verify and apply add-on payment
    */

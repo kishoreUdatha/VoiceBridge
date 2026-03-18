@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import {
   DocumentCheckIcon,
   MagnifyingGlassIcon,
-  FunnelIcon,
   CheckCircleIcon,
   XCircleIcon,
   ArrowPathIcon,

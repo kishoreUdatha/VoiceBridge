@@ -178,7 +178,7 @@ router.post('/:id/complete', async (req: AuthenticatedRequest, res: Response, ne
     const { telecallerOutcome, telecallerNotes, callbackScheduled } = req.body;
 
     if (!telecallerOutcome) {
-      return ApiResponse.badRequest(res, 'Outcome is required');
+      return ApiResponse.error(res,'Outcome is required');
     }
 
     const item = await telecallerQueueService.updateItem(req.params.id, req.user.id, {
@@ -214,7 +214,7 @@ router.post('/add', async (req: AuthenticatedRequest, res: Response, next: NextF
     } = req.body;
 
     if (!phoneNumber) {
-      return ApiResponse.badRequest(res, 'Phone number is required');
+      return ApiResponse.error(res,'Phone number is required');
     }
 
     const item = await telecallerQueueService.addToQueue({

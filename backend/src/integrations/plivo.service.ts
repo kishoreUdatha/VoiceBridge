@@ -7,7 +7,7 @@ interface SendSmsInput {
   to: string;
   message: string;
   leadId?: string;
-  userId: string;
+  userId?: string;
 }
 
 interface MakeCallInput {
@@ -95,7 +95,7 @@ export class PlivoService {
       const smsLog = await prisma.smsLog.create({
         data: {
           leadId: input.leadId,
-          userId: input.userId,
+          userId: input.userId || 'system',
           phone: input.to,
           message: input.message,
           direction: MessageDirection.OUTBOUND,
@@ -116,7 +116,7 @@ export class PlivoService {
       await prisma.smsLog.create({
         data: {
           leadId: input.leadId,
-          userId: input.userId,
+          userId: input.userId || 'system',
           phone: input.to,
           message: input.message,
           direction: MessageDirection.OUTBOUND,

@@ -9,6 +9,7 @@ interface User {
   organizationId: string;
   organizationName: string;
   role: string;
+  phone?: string;
 }
 
 interface AuthState {

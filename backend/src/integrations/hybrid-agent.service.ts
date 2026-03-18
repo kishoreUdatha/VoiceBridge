@@ -123,6 +123,10 @@ class HybridAgentService {
       throw new Error('Agent not found');
     }
 
+    if (!openai) {
+      throw new Error('OpenAI is not configured. Please set OPENAI_API_KEY.');
+    }
+
     // Build system prompt
     const systemPrompt = this.buildHybridSystemPrompt(agent, context);
 
@@ -242,7 +246,7 @@ Do NOT repeat questions that have already been answered.
     });
 
     try {
-      const result = await exotelService.sendWhatsApp(context.phone, message);
+      const result = await exotelService.sendWhatsApp({ to: context.phone, message });
 
       await prisma.whatsappLog.update({
         where: { id: logEntry.id },
@@ -282,13 +286,13 @@ Do NOT repeat questions that have already been answered.
     });
 
     try {
-      const result = await exotelService.sendSms(context.phone, message);
+      const result = await exotelService.sendSMS({ to: context.phone, body: message });
 
       await prisma.smsLog.update({
         where: { id: logEntry.id },
         data: {
           status: 'SENT',
-          providerMsgId: result?.messageId,
+          providerMsgId: result?.messageSid,
           sentAt: new Date(),
         },
       });
@@ -424,6 +428,11 @@ Do NOT repeat questions that have already been answered.
     const questions = agent.questions as any[] || [];
     if (questions.length === 0) {
       console.info(`[HybridAgent] extractQualification: No questions configured for agent: ${agentId}`);
+      return {};
+    }
+
+    if (!openai) {
+      console.warn('[HybridAgent] extractQualification: OpenAI is not configured');
       return {};
     }
 

@@ -7,21 +7,8 @@ import {
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 
-interface DisclosureConfig {
-  id: string;
-  disclosureEnabled: boolean;
-  disclosureText: string | null;
-  disclosureMessages: Record<string, string>;
-  requireAcknowledgment: boolean;
-  acknowledgmentPhrase: string | null;
-  autoPlayDelay: number;
-  recordingConsent: boolean;
-  consentRequired: boolean;
-}
-
 const RecordingDisclosurePage: React.FC = () => {
   const navigate = useNavigate();
-  const [config, setConfig] = useState<DisclosureConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -43,7 +30,6 @@ const RecordingDisclosurePage: React.FC = () => {
     try {
       const response = await api.get('/compliance/disclosure');
       const data = response.data.data;
-      setConfig(data);
       setDisclosureEnabled(data.disclosureEnabled);
       setDisclosureText(data.disclosureText || '');
       setRequireAcknowledgment(data.requireAcknowledgment);

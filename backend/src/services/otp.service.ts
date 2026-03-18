@@ -204,7 +204,7 @@ class OtpService {
   private async sendSms(phone: string, message: string): Promise<void> {
     // Import SMS service dynamically
     const { communicationService } = await import('./communication.service');
-    await communicationService.sendSms({ phone, message });
+    await communicationService.sendSms({ to: phone, message });
   }
 
   /**
@@ -216,7 +216,7 @@ class OtpService {
     textMessage: string,
     otp: string
   ): Promise<void> {
-    const { emailService } = await import('./email.service');
+    const { emailService } = await import('../integrations/email.service');
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -244,8 +244,9 @@ class OtpService {
     await emailService.sendEmail({
       to: email,
       subject,
-      text: textMessage,
+      body: textMessage,
       html: htmlContent,
+      userId: 'system', // System-initiated OTP email
     });
   }
 
@@ -253,8 +254,9 @@ class OtpService {
    * Send WhatsApp message
    */
   private async sendWhatsApp(phone: string, message: string): Promise<void> {
-    const { whatsappService } = await import('./whatsapp.service');
-    await whatsappService.sendMessage({
+    // Use exotel service for WhatsApp since it's the default configured provider
+    const { exotelService } = await import('../integrations/exotel.service');
+    await exotelService.sendWhatsApp({
       to: phone,
       message,
     });

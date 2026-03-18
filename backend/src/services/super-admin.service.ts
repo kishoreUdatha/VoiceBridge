@@ -825,11 +825,16 @@ class SuperAdminService {
         status: 'PAID',
         paidAt: { gte: startDate },
       },
-      include: {
-        organization: { select: { name: true } },
-      },
       orderBy: { paidAt: 'desc' },
     });
+
+    // Fetch organization names for invoices
+    const invOrgIds = [...new Set(invoices.map(inv => inv.organizationId))];
+    const invOrgs = await prisma.organization.findMany({
+      where: { id: { in: invOrgIds } },
+      select: { id: true, name: true },
+    });
+    const invOrgMap = new Map(invOrgs.map(o => [o.id, o.name]));
 
     const workbook = XLSX.utils.book_new();
 
@@ -845,12 +850,12 @@ class SuperAdminService {
     // Detailed invoices sheet
     const invoiceData = invoices.map((inv) => ({
       'Invoice ID': inv.id,
-      Organization: inv.organization.name,
+      Organization: invOrgMap.get(inv.organizationId) || 'Unknown',
       Amount: inv.totalAmount,
       Currency: inv.currency,
       Status: inv.status,
       'Paid At': inv.paidAt?.toISOString() || '',
-      'Payment Method': inv.paymentMethod || '',
+      Plan: inv.planName || '',
     }));
     const invoiceSheet = XLSX.utils.json_to_sheet(invoiceData);
     XLSX.utils.book_append_sheet(workbook, invoiceSheet, 'Invoice Details');
@@ -868,15 +873,20 @@ class SuperAdminService {
         month: now.getMonth() + 1,
         year: now.getFullYear(),
       },
-      include: {
-        organization: { select: { name: true, activePlanId: true } },
-      },
       orderBy: { aiCallsCount: 'desc' },
     });
 
+    // Fetch organization info for usage data
+    const usageOrgIds = [...new Set(usageData.map(u => u.organizationId))];
+    const usageOrgs = await prisma.organization.findMany({
+      where: { id: { in: usageOrgIds } },
+      select: { id: true, name: true, activePlanId: true },
+    });
+    const usageOrgMap = new Map(usageOrgs.map(o => [o.id, o]));
+
     const data = usageData.map((u) => ({
-      Organization: u.organization.name,
-      Plan: u.organization.activePlanId || 'starter',
+      Organization: usageOrgMap.get(u.organizationId)?.name || 'Unknown',
+      Plan: usageOrgMap.get(u.organizationId)?.activePlanId || 'starter',
       Month: `${u.month}/${u.year}`,
       Leads: u.leadsCount,
       'AI Calls': u.aiCallsCount,

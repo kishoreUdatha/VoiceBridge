@@ -162,7 +162,7 @@ class ConversationService {
     }
 
     // Determine sender type based on direction
-    const actualSenderType = senderType || (direction === 'OUTBOUND' ? 'SYSTEM' : 'CONTACT');
+    const actualSenderType = senderType || (direction === 'OUTBOUND' ? 'SYSTEM' : 'CUSTOMER');
 
     const message = await prisma.conversationMessage.create({
       data: {

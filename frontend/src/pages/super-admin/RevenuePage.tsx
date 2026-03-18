@@ -150,7 +150,7 @@ export default function RevenuePage() {
       <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
         <h2 className="text-lg font-semibold text-slate-800 mb-6">Revenue Over Time</h2>
         <div className="space-y-4">
-          {revenueData.map((item, index) => (
+          {revenueData.map((item) => (
             <div key={`${item.month}-${item.year}`} className="group">
               <div className="flex items-center gap-4">
                 <div className="w-24 text-sm text-slate-500">

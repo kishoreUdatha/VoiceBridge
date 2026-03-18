@@ -1,5 +1,5 @@
 import { prisma } from '../config/database';
-import { RawImportRecordStatus, BulkImportStatus, LeadSource, LeadPriority } from '@prisma/client';
+import { RawImportRecordStatus, BulkImportStatus, LeadSource, LeadPriority, Prisma } from '@prisma/client';
 import { BadRequestError, NotFoundError } from '../utils/errors';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -134,7 +134,7 @@ export class RawImportService {
           email: record.email,
           phone: record.phone,
           alternatePhone: record.alternatePhone,
-          customFields: record.customFields || {},
+          customFields: (record.customFields || {}) as Prisma.InputJsonValue,
           status: 'PENDING',
         })),
         skipDuplicates: true,

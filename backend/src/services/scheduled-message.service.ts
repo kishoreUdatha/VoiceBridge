@@ -487,9 +487,9 @@ class ScheduledMessageService {
    * Send SMS
    */
   private async sendSMS(to: string, message: string, userId: string, organizationId: string) {
-    let result = { success: false, sid: '' };
+    let result: { success: boolean; messageSid?: string } = { success: false };
     try {
-      result = await exotelService.sendSMS(to, message);
+      result = await exotelService.sendSMS({ to, body: message });
     } catch (error) {
       // Log anyway
     }
@@ -502,7 +502,7 @@ class ScheduledMessageService {
         direction: 'OUTBOUND',
         status: result.success ? 'SENT' : 'FAILED',
         provider: 'EXOTEL',
-        providerMsgId: result.sid || null,
+        providerMsgId: result.messageSid || null,
       },
     });
 

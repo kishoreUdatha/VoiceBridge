@@ -35,7 +35,7 @@ router.get(
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { organizationId, userId } = req.user!;
+    const { organizationId, id: userId } = req.user!;
     const { name, description, type, filterCriteria, tags } = req.body;
 
     if (!name) {

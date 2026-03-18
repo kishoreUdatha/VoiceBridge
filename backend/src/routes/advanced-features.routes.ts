@@ -32,7 +32,7 @@ router.get(
   async (req: TenantRequest, res: Response) => {
     try {
       const score = await leadScoringService.getLeadScore(req.params.leadId);
-      ApiResponse.success(res, 'Lead score retrieved', score);
+      return ApiResponse.success(res, score);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -44,7 +44,7 @@ router.get('/lead-scores/top', async (req: TenantRequest, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 20;
     const leads = await leadScoringService.getTopLeads(req.organization!.id, limit);
-    ApiResponse.success(res, 'Top leads retrieved', leads);
+    return ApiResponse.success(res, leads);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -69,7 +69,7 @@ router.post(
         qualification: qualification || {},
         outcome: outcome || 'NEEDS_FOLLOWUP',
       });
-      ApiResponse.success(res, 'Lead score calculated', score);
+      return ApiResponse.success(res, score);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -90,7 +90,7 @@ router.post(
         return ApiResponse.notFound(res, 'Lead score not found');
       }
 
-      ApiResponse.success(res, 'Lead score decay processed', result);
+      return ApiResponse.success(res, result);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -101,7 +101,7 @@ router.post(
 router.post('/score-decay/process-all', async (req: TenantRequest, res: Response) => {
   try {
     const result = await scoreDecayService.processOrganizationDecay(req.organization!.id);
-    ApiResponse.success(res, 'Organization score decay processed', result);
+    return ApiResponse.success(res, result);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -119,7 +119,7 @@ router.get(
         return ApiResponse.notFound(res, 'Lead score not found');
       }
 
-      ApiResponse.success(res, 'Decay preview retrieved', preview);
+      return ApiResponse.success(res, preview);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -140,7 +140,7 @@ router.post(
         req.params.leadId,
         boostPercentage || 5
       );
-      ApiResponse.success(res, 'Lead score boosted');
+      return ApiResponse.success(res, { message: 'Lead score boosted' });
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -176,7 +176,7 @@ router.post(
         notes,
       });
 
-      ApiResponse.success(res, 'Call scheduled successfully', scheduled, 201);
+      return ApiResponse.created(res, scheduled);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -199,7 +199,7 @@ router.post(
         new Date(callbackTime)
       );
 
-      ApiResponse.success(res, 'Callback scheduled successfully', scheduled, 201);
+      return ApiResponse.created(res, scheduled);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -218,7 +218,7 @@ router.get('/scheduled-calls', async (req: TenantRequest, res: Response) => {
       agentId: agentId as string,
     });
 
-    ApiResponse.success(res, 'Scheduled calls retrieved', calls);
+    return ApiResponse.success(res, calls);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -235,7 +235,7 @@ router.put(
     try {
       const { newTime } = req.body;
       const updated = await callSchedulingService.rescheduleCall(req.params.id, new Date(newTime));
-      ApiResponse.success(res, 'Call rescheduled', updated);
+      return ApiResponse.success(res, updated);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -249,7 +249,7 @@ router.put(
   async (req: TenantRequest, res: Response) => {
     try {
       const updated = await callSchedulingService.updateScheduledCallStatus(req.params.id, 'CANCELLED');
-      ApiResponse.success(res, 'Call cancelled', updated);
+      return ApiResponse.success(res, updated);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -279,7 +279,7 @@ router.post(
         expiresAt: expiresAt ? new Date(expiresAt) : undefined,
       });
 
-      ApiResponse.success(res, 'Added to DNC list', entry, 201);
+      return ApiResponse.created(res, entry);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -305,7 +305,7 @@ router.post(
         req.user!.id
       );
 
-      ApiResponse.success(res, 'DNC list imported', { count: result.count });
+      return ApiResponse.success(res, { count: result.count });
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -316,7 +316,7 @@ router.post(
 router.get('/dnc-list', async (req: TenantRequest, res: Response) => {
   try {
     const list = await dncListService.getDNCList(req.organization!.id);
-    ApiResponse.success(res, 'DNC list retrieved', list);
+    return ApiResponse.success(res, list);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -326,7 +326,7 @@ router.get('/dnc-list', async (req: TenantRequest, res: Response) => {
 router.get('/dnc-list/check/:phoneNumber', async (req: TenantRequest, res: Response) => {
   try {
     const isDNC = await dncListService.isOnDNCList(req.organization!.id, req.params.phoneNumber);
-    ApiResponse.success(res, 'DNC check complete', { phoneNumber: req.params.phoneNumber, isDNC });
+    return ApiResponse.success(res, { phoneNumber: req.params.phoneNumber, isDNC });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -336,7 +336,7 @@ router.get('/dnc-list/check/:phoneNumber', async (req: TenantRequest, res: Respo
 router.delete('/dnc-list/:phoneNumber', async (req: TenantRequest, res: Response) => {
   try {
     await dncListService.removeFromDNCList(req.organization!.id, req.params.phoneNumber);
-    ApiResponse.success(res, 'Removed from DNC list');
+    return ApiResponse.success(res, { message: 'Removed from DNC list' });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -361,7 +361,7 @@ router.post(
         ...req.body,
       });
 
-      ApiResponse.success(res, 'Follow-up rule created', rule, 201);
+      return ApiResponse.created(res, rule);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -372,7 +372,7 @@ router.post(
 router.get('/follow-up-rules', async (req: TenantRequest, res: Response) => {
   try {
     const rules = await autoFollowUpService.getFollowUpRules(req.organization!.id);
-    ApiResponse.success(res, 'Follow-up rules retrieved', rules);
+    return ApiResponse.success(res, rules);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -390,7 +390,7 @@ router.put(
   async (req: TenantRequest, res: Response) => {
     try {
       const rule = await autoFollowUpService.updateRule(req.params.id, req.body);
-      ApiResponse.success(res, 'Follow-up rule updated', rule);
+      return ApiResponse.success(res, rule);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -404,7 +404,7 @@ router.delete(
   async (req: TenantRequest, res: Response) => {
     try {
       await autoFollowUpService.deleteRule(req.params.id);
-      ApiResponse.success(res, 'Follow-up rule deleted');
+      return ApiResponse.success(res, { message: 'Follow-up rule deleted' });
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -430,7 +430,7 @@ router.post(
         ...req.body,
       });
 
-      ApiResponse.success(res, 'Appointment booked', appointment, 201);
+      return ApiResponse.created(res, appointment);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -447,7 +447,7 @@ router.post(
   async (req: TenantRequest, res: Response) => {
     try {
       const appointment = await appointmentService.bookFromCall(req.params.callId, req.body);
-      ApiResponse.success(res, 'Appointment booked from call', appointment, 201);
+      return ApiResponse.created(res, appointment);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -465,7 +465,7 @@ router.get('/appointments', async (req: TenantRequest, res: Response) => {
       status: status as string,
     });
 
-    ApiResponse.success(res, 'Appointments retrieved', appointments);
+    return ApiResponse.success(res, appointments);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -482,7 +482,7 @@ router.put(
     try {
       const { status } = req.body;
       const appointment = await appointmentService.updateAppointmentStatus(req.params.id, status);
-      ApiResponse.success(res, 'Appointment status updated', appointment);
+      return ApiResponse.success(res, appointment);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -507,7 +507,7 @@ router.post(
         ...req.body,
       });
 
-      ApiResponse.success(res, 'Webhook created', webhook, 201);
+      return ApiResponse.created(res, webhook);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -518,7 +518,7 @@ router.post(
 router.get('/webhooks', async (req: TenantRequest, res: Response) => {
   try {
     const webhooks = await webhookService.getWebhooks(req.organization!.id);
-    ApiResponse.success(res, 'Webhooks retrieved', webhooks);
+    return ApiResponse.success(res, webhooks);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -530,8 +530,8 @@ router.delete(
   validate([param('id').isUUID().withMessage('Invalid webhook ID')]),
   async (req: TenantRequest, res: Response) => {
     try {
-      await webhookService.deleteWebhook(req.params.id);
-      ApiResponse.success(res, 'Webhook deleted');
+      await webhookService.deleteWebhook(req.params.id, req.organizationId!);
+      return ApiResponse.success(res, { message: 'Webhook deleted' });
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -550,7 +550,7 @@ router.get(
     try {
       const days = parseInt(req.query.days as string) || 30;
       const analytics = await analyticsService.getAnalytics(req.organization!.id, days);
-      ApiResponse.success(res, 'Analytics retrieved', analytics);
+      return ApiResponse.success(res, analytics);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -567,7 +567,7 @@ router.post(
     try {
       const date = req.body.date ? new Date(req.body.date) : new Date();
       await analyticsService.aggregateDailyStats(req.organization!.id, date);
-      ApiResponse.success(res, 'Analytics aggregated');
+      return ApiResponse.success(res, { message: 'Analytics aggregated' });
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -596,7 +596,7 @@ router.post(
         priority,
       });
 
-      ApiResponse.success(res, 'Job added to queue', { jobId }, 201);
+      return ApiResponse.created(res, { jobId });
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -615,7 +615,7 @@ router.get(
         return ApiResponse.notFound(res, 'Job not found');
       }
 
-      ApiResponse.success(res, 'Job status retrieved', job);
+      return ApiResponse.success(res, job);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
     }
@@ -626,7 +626,7 @@ router.get(
 router.get('/jobs', async (req: TenantRequest, res: Response) => {
   try {
     const jobs = await jobQueueService.getOrganizationJobs(req.organization!.id);
-    ApiResponse.success(res, 'Jobs retrieved', jobs);
+    return ApiResponse.success(res, jobs);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -636,7 +636,7 @@ router.get('/jobs', async (req: TenantRequest, res: Response) => {
 router.get('/jobs/queue/stats', async (req: TenantRequest, res: Response) => {
   try {
     const stats = await jobQueueService.getQueueStats();
-    ApiResponse.success(res, 'Queue stats retrieved', stats);
+    return ApiResponse.success(res, stats);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -657,7 +657,7 @@ router.post('/jobs/bulk-email', async (req: TenantRequest, res: Response) => {
       { organizationId: req.organization!.id, userId: req.user!.id }
     );
 
-    ApiResponse.success(res, 'Bulk email job queued', { jobId, recipientCount: recipients.length }, 201);
+    return ApiResponse.created(res, { jobId, recipientCount: recipients.length });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -678,7 +678,7 @@ router.post('/jobs/bulk-sms', async (req: TenantRequest, res: Response) => {
       { organizationId: req.organization!.id, userId: req.user!.id }
     );
 
-    ApiResponse.success(res, 'Bulk SMS job queued', { jobId, recipientCount: recipients.length }, 201);
+    return ApiResponse.created(res, { jobId, recipientCount: recipients.length });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -699,7 +699,7 @@ router.post('/jobs/csv-import', async (req: TenantRequest, res: Response) => {
       { organizationId: req.organization!.id, userId: req.user!.id }
     );
 
-    ApiResponse.success(res, 'CSV import job queued', { jobId, recordCount: records.length }, 201);
+    return ApiResponse.created(res, { jobId, recordCount: records.length });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -720,7 +720,7 @@ router.post('/jobs/report', async (req: TenantRequest, res: Response) => {
       { organizationId: req.organization!.id, userId: req.user!.id }
     );
 
-    ApiResponse.success(res, 'Report generation job queued', { jobId }, 201);
+    return ApiResponse.created(res, { jobId });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -732,7 +732,7 @@ router.post('/jobs/report', async (req: TenantRequest, res: Response) => {
 router.get('/cleanup/preview', async (req: TenantRequest, res: Response) => {
   try {
     const preview = await fileCleanupService.getCleanupPreview();
-    ApiResponse.success(res, 'Cleanup preview retrieved', preview);
+    return ApiResponse.success(res, preview);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -742,7 +742,7 @@ router.get('/cleanup/preview', async (req: TenantRequest, res: Response) => {
 router.get('/cleanup/storage-stats', async (req: TenantRequest, res: Response) => {
   try {
     const stats = await fileCleanupService.getLocalStorageStats();
-    ApiResponse.success(res, 'Storage stats retrieved', stats);
+    return ApiResponse.success(res, stats);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -752,7 +752,7 @@ router.get('/cleanup/storage-stats', async (req: TenantRequest, res: Response) =
 router.post('/cleanup/run', async (req: TenantRequest, res: Response) => {
   try {
     const result = await fileCleanupService.runFullCleanup();
-    ApiResponse.success(res, 'Cleanup completed', result);
+    return ApiResponse.success(res, result);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -762,7 +762,7 @@ router.post('/cleanup/run', async (req: TenantRequest, res: Response) => {
 router.post('/cleanup/temp-files', async (req: TenantRequest, res: Response) => {
   try {
     const result = await fileCleanupService.cleanupTempFiles();
-    ApiResponse.success(res, 'Temp files cleaned up', result);
+    return ApiResponse.success(res, result);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -772,7 +772,7 @@ router.post('/cleanup/temp-files', async (req: TenantRequest, res: Response) => 
 router.post('/cleanup/orphaned-files', async (req: TenantRequest, res: Response) => {
   try {
     const result = await fileCleanupService.cleanupOrphanedAttachments();
-    ApiResponse.success(res, 'Orphaned files cleaned up', result);
+    return ApiResponse.success(res, result);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -782,7 +782,7 @@ router.post('/cleanup/orphaned-files', async (req: TenantRequest, res: Response)
 router.post('/cleanup/tracking-events', async (req: TenantRequest, res: Response) => {
   try {
     const result = await fileCleanupService.cleanupOldEmailTrackingEvents();
-    ApiResponse.success(res, 'Tracking events cleaned up', result);
+    return ApiResponse.success(res, result);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -792,7 +792,7 @@ router.post('/cleanup/tracking-events', async (req: TenantRequest, res: Response
 router.post('/cleanup/webhook-logs', async (req: TenantRequest, res: Response) => {
   try {
     const result = await fileCleanupService.cleanupOldWebhookLogs();
-    ApiResponse.success(res, 'Webhook logs cleaned up', result);
+    return ApiResponse.success(res, result);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -806,7 +806,7 @@ router.post('/cleanup/schedule', async (req: TenantRequest, res: Response) => {
       {},
       { organizationId: req.organization!.id, userId: req.user!.id }
     );
-    ApiResponse.success(res, 'Cleanup job scheduled', { jobId }, 201);
+    return ApiResponse.created(res, { jobId });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }

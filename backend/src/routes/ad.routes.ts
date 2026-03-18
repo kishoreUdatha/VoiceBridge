@@ -15,12 +15,12 @@ import { prisma } from '../config/database';
 const router = Router();
 
 // Facebook webhook verification (GET)
-router.get('/facebook/webhook', (req: Request, res: Response) => {
+router.get('/facebook/webhook', async (req: Request, res: Response) => {
   const mode = req.query['hub.mode'] as string;
   const token = req.query['hub.verify_token'] as string;
   const challenge = req.query['hub.challenge'] as string;
 
-  const result = facebookService.verifyWebhook(mode, token, challenge);
+  const result = await facebookService.verifyWebhook(mode, token, challenge);
   if (result) {
     res.status(200).send(challenge);
   } else {

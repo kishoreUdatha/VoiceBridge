@@ -23,7 +23,7 @@ interface SendWhatsAppParams {
   leadId?: string;
 }
 
-interface WhatsAppResponse {
+export interface WhatsAppResponse {
   success: boolean;
   messageId?: string;
   status?: string;
@@ -53,7 +53,7 @@ interface MakeCallParams {
   startPlaybackValueNew?: string; // Audio URL for pre-connection playback
 }
 
-interface CallResponse {
+export interface CallResponse {
   success: boolean;
   callSid?: string;
   status?: string;

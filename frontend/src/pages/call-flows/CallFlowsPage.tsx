@@ -7,13 +7,9 @@ import {
   Edit,
   Copy,
   Trash2,
-  Play,
   GitBranch,
   BarChart3,
   Loader2,
-  Phone,
-  CheckCircle,
-  XCircle,
 } from 'lucide-react';
 import api from '../../services/api';
 

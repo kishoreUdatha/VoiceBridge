@@ -14,11 +14,11 @@ const getPlivoClient = () => {
     throw new Error('Plivo credentials not configured');
   }
 
-  return new plivo.Client(authId, authToken);
+  return new (plivo.Client as any)(authId, authToken);
 };
 
 // Plivo XML Response helper
-const plivoXML = new plivo.Response();
+const plivoXML = new (plivo.Response as any)();
 
 // India-specific voice configuration for Plivo
 const PLIVO_INDIA_VOICES: Record<string, { voice: string; language: string }> = {
@@ -70,12 +70,12 @@ interface PlivoSMSOptions {
 }
 
 class PlivoVoiceService {
-  private client: plivo.Client;
+  private client: any;
 
   constructor() {
     try {
       this.client = getPlivoClient();
-    } catch (error) {
+    } catch (error: unknown) {
       // Only warn if Plivo is the selected voice provider
       if (config.voiceProvider === 'plivo') {
         console.warn('Plivo not configured:', (error as Error).message);
@@ -118,8 +118,8 @@ class PlivoVoiceService {
 
       return {
         success: true,
-        callUuid: response.requestUuid,
-        requestUuid: response.requestUuid,
+        callUuid: Array.isArray(response) ? response[0] : (response as any).requestUuid,
+        requestUuid: Array.isArray(response) ? response[0] : (response as any).requestUuid,
       };
     } catch (error) {
       console.error('Plivo call error:', error);
@@ -133,7 +133,7 @@ class PlivoVoiceService {
   // ==================== CALL XML GENERATION ====================
 
   generateSpeakXML(text: string, language: string = 'en-IN'): string {
-    const response = new plivo.Response();
+    const response = new (plivo.Response as any)();
     const voiceConfig = PLIVO_INDIA_VOICES[language] || PLIVO_INDIA_VOICES['en-IN'];
 
     response.addSpeak(text, {
@@ -154,7 +154,7 @@ class PlivoVoiceService {
     inputType?: 'dtmf' | 'speech' | 'dtmf speech';
     speechEndTimeout?: number;
   }): string {
-    const response = new plivo.Response();
+    const response = new (plivo.Response as any)();
     const voiceConfig = PLIVO_INDIA_VOICES[options.language || 'en-IN'] || PLIVO_INDIA_VOICES['en-IN'];
 
     const getDigits = response.addGetDigits({
@@ -182,7 +182,7 @@ class PlivoVoiceService {
     timeLimit?: number;
     timeout?: number;
   }): string {
-    const response = new plivo.Response();
+    const response = new (plivo.Response as any)();
 
     response.addDial({
       callerId: process.env.PLIVO_PHONE_NUMBER,
@@ -197,7 +197,7 @@ class PlivoVoiceService {
   }
 
   generateHangupXML(message?: string, language: string = 'en-IN'): string {
-    const response = new plivo.Response();
+    const response = new (plivo.Response as any)();
 
     if (message) {
       const voiceConfig = PLIVO_INDIA_VOICES[language] || PLIVO_INDIA_VOICES['en-IN'];
@@ -290,6 +290,8 @@ class PlivoVoiceService {
         legs: 'aleg',
         alegUrl: `${process.env.BASE_URL}/api/plivo/transfer/${callUuid}?to=${encodeURIComponent(transferTo)}`,
         alegMethod: 'POST',
+        blegUrl: `${process.env.BASE_URL}/api/plivo/bleg/${callUuid}`,
+        blegMethod: 'POST',
       });
       return true;
     } catch (error) {
@@ -336,7 +338,7 @@ class PlivoVoiceService {
         throw new Error('Plivo client not initialized');
       }
 
-      await this.client.calls.stopRecording(callUuid);
+      await this.client.calls.stopRecording(callUuid, {});
       return true;
     } catch (error) {
       console.error('Error stopping recording:', error);

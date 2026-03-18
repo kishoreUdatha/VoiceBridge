@@ -74,7 +74,11 @@ router.get('/leads', async (req: TenantRequest, res: Response) => {
       prisma.lead.findMany({
         where: whereClause,
         include: {
-          assignedTo: { select: { id: true, firstName: true, lastName: true } },
+          assignments: {
+            where: { isActive: true },
+            include: { assignedTo: { select: { id: true, firstName: true, lastName: true } } },
+            take: 1,
+          },
           _count: { select: { activities: true, notes: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -183,7 +187,8 @@ router.post('/calls', async (req: TenantRequest, res: Response) => {
       await prisma.leadActivity.create({
         data: {
           leadId,
-          type: 'CALL',
+          type: 'CALL_MADE',
+          title: 'Call initiated',
           description: `Telecaller initiated call to ${phoneNumber}`,
           userId,
         },
@@ -222,24 +227,14 @@ router.put('/calls/:id', async (req: TenantRequest, res: Response) => {
       },
     });
 
-    // Update lead status based on outcome if leadId exists
+    // Log activity if leadId exists
     if (existing.leadId && outcome) {
-      const leadStatus = outcome === 'INTERESTED' ? 'QUALIFIED' :
-                        outcome === 'CONVERTED' ? 'CONVERTED' :
-                        outcome === 'NOT_INTERESTED' ? 'LOST' : undefined;
-
-      if (leadStatus) {
-        await prisma.lead.update({
-          where: { id: existing.leadId },
-          data: { status: leadStatus },
-        });
-      }
-
       // Log activity
       await prisma.leadActivity.create({
         data: {
           leadId: existing.leadId,
-          type: 'CALL',
+          type: 'CALL_MADE',
+          title: 'Call completed',
           description: `Call completed - Outcome: ${outcome}${notes ? `. Notes: ${notes}` : ''}`,
           userId,
         },
@@ -301,17 +296,17 @@ async function transcribeRecording(callId: string, filePath: string) {
     const audioBuffer = fs.readFileSync(filePath);
 
     // Transcribe using Sarvam
-    const transcriptResult = await sarvamService.transcribeAudio(audioBuffer, 'hi-IN');
+    const transcriptResult = await sarvamService.speechToText(audioBuffer);
 
-    if (transcriptResult && transcriptResult.transcript) {
+    if (transcriptResult && transcriptResult.text) {
       // Analyze the transcript for sentiment and key points
-      const analysis = await analyzeTranscript(transcriptResult.transcript);
+      const analysis = await analyzeTranscript(transcriptResult.text);
 
       // Update call with transcript and analysis
       await prisma.telecallerCall.update({
         where: { id: callId },
         data: {
-          transcript: transcriptResult.transcript,
+          transcript: transcriptResult.text,
           sentiment: analysis.sentiment,
           qualification: analysis,
           summary: analysis.summary,
@@ -380,7 +375,10 @@ router.get('/stats', async (req: TenantRequest, res: Response) => {
     ] = await Promise.all([
       // Total assigned leads
       prisma.lead.count({
-        where: { assignedToId: userId, organizationId: req.organization!.id },
+        where: {
+          organizationId: req.organization!.id,
+          assignments: { some: { assignedToId: userId, isActive: true } },
+        },
       }),
       // Today's calls
       prisma.telecallerCall.count({

@@ -381,7 +381,7 @@ export async function executeFlowTest(
 }
 
 // Re-export executor service for direct access
-export { callFlowExecutorService } from './call-flow-executor.service';
+export { callFlowExecutorService, callFlowExecutorService as callFlowExecutor } from './call-flow-executor.service';
 
 export const callFlowService = {
   createCallFlow,

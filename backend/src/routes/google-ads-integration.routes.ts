@@ -284,8 +284,8 @@ router.post(
       const { customerId, developerToken, clientId, clientSecret, refreshToken } = req.body;
 
       googleAdsService.initialize({
-        clientId: clientId || config.googleAds?.clientId || '',
-        clientSecret: clientSecret || config.googleAds?.clientSecret || '',
+        clientId: clientId || config.google?.adsClientId || '',
+        clientSecret: clientSecret || config.google?.adsClientSecret || '',
         developerToken,
         refreshToken,
         customerId,

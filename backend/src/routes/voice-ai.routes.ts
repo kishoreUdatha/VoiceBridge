@@ -6,6 +6,7 @@ import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { ApiResponse } from '../utils/apiResponse';
 import multer from 'multer';
 import { config } from '../config';
+import { prisma } from '../config/database';
 
 const router = Router();
 
@@ -648,8 +649,7 @@ router.post('/test-call', async (req: TenantRequest, res: Response) => {
     // Make the actual call via outbound call service
     const result = await outboundCallService.makeCall({
       phone: formattedPhone,
-      agentId: agent?.id,
-      organizationId: req.organizationId!,
+      agentId: agent?.id || '',
     });
 
     console.log(`[VoiceAI] Call result:`, result);

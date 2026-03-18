@@ -29,7 +29,7 @@ const prisma = new PrismaClient();
 export interface VoiceBotSession {
   callId: string;
   agentId: string;
-  ws: WebSocket;
+  ws: WebSocket.WebSocket;
   audioBuffer: Buffer;
   transcript: Array<{ role: string; content: string; timestamp: string }>;
   qualification: Record<string, any>;
@@ -66,7 +66,7 @@ export const MAX_BUFFER_SIZE = 48000; // Max 3 seconds of audio before forced pr
 export function createSession(
   callId: string,
   agentId: string,
-  ws: WebSocket,
+  ws: WebSocket.WebSocket,
   agent: any
 ): VoiceBotSession {
   const session: VoiceBotSession = {

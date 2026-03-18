@@ -1,6 +1,6 @@
 import { prisma } from '../config/database';
 import { NotFoundError } from '../utils/errors';
-import { LeadSource, LeadStatus, LeadPriority } from '@prisma/client';
+import { LeadSource, LeadPriority, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { externalLeadImportService } from './external-lead-import.service';
 
@@ -39,8 +39,8 @@ export class FormService {
         organizationId: input.organizationId,
         name: input.name,
         description: input.description,
-        fields: input.fields,
-        settings: input.settings || {},
+        fields: input.fields as unknown as Prisma.InputJsonValue,
+        settings: (input.settings || {}) as Prisma.InputJsonValue,
         embedCode,
       },
     });
@@ -91,7 +91,13 @@ export class FormService {
 
     return prisma.customForm.update({
       where: { id },
-      data: input,
+      data: {
+        name: input.name,
+        description: input.description,
+        fields: input.fields ? (input.fields as unknown as Prisma.InputJsonValue) : undefined,
+        settings: input.settings ? (input.settings as Prisma.InputJsonValue) : undefined,
+        isActive: input.isActive,
+      },
     });
   }
 
@@ -111,7 +117,7 @@ export class FormService {
     }
 
     // Extract lead data from form submission
-    const fields = form.fields as FormField[];
+    const fields = form.fields as unknown as FormField[];
     const leadData = this.extractLeadData(fields, data);
 
     // Route to RawImportRecord instead of creating Lead directly
@@ -137,7 +143,7 @@ export class FormService {
       data: {
         formId,
         leadId: null, // No lead created directly, goes through RawImportRecord
-        data,
+        data: data as Prisma.InputJsonValue,
         ipAddress: metadata.ipAddress,
         userAgent: metadata.userAgent,
       },

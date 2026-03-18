@@ -214,7 +214,7 @@ export class OpenAIRealtimeConnection extends EventEmitter {
       input_audio_format: 'pcm16',
       output_audio_format: 'pcm16',
       input_audio_transcription: {
-        model: process.env.OPENAI_STT_MODEL || 'whisper-1',
+        model: 'whisper-1' as const,
       },
       turn_detection: {
         type: 'server_vad',

@@ -108,7 +108,7 @@ class LeadAutoAssignService {
           customFields: {
             ...(lead.customFields as any || {}),
             aiCallInitiated: true,
-            aiCallId: call.id,
+            aiCallId: call.callId,
             aiCallInitiatedAt: new Date().toISOString(),
           },
         },
@@ -121,7 +121,7 @@ class LeadAutoAssignService {
           type: 'CALL_MADE',
           title: 'AI Call Initiated',
           description: `Automated AI call initiated from ${lead.source} lead`,
-          metadata: { callId: call.id, agentId },
+          metadata: { callId: call.callId, agentId },
         },
       });
 

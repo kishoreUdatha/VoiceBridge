@@ -7,7 +7,7 @@ interface SendSmsInput {
   to: string;
   message: string;
   leadId?: string;
-  userId: string;
+  userId?: string;
 }
 
 interface SendWhatsAppInput {
@@ -94,7 +94,7 @@ export class CommunicationService {
     if (!exotelService.isConfigured()) {
       throw new Error('Exotel is not configured');
     }
-    return exotelService.sendSms(input.to, input.message);
+    return exotelService.sendSMS({ to: input.to, body: input.message });
   }
 
   /**
@@ -118,7 +118,7 @@ export class CommunicationService {
     const results = [];
     for (const recipient of recipients) {
       try {
-        const result = await exotelService.sendSms(recipient.phone, recipient.message);
+        const result = await exotelService.sendSMS({ to: recipient.phone, body: recipient.message });
         results.push({ phone: recipient.phone, success: true, result });
       } catch (error) {
         results.push({ phone: recipient.phone, success: false, error });
@@ -138,7 +138,7 @@ export class CommunicationService {
       if (primary === 'plivo' && plivoService.isConfigured()) {
         return await plivoService.sendSms(input);
       } else if (primary === 'exotel' && exotelService.isConfigured()) {
-        return await exotelService.sendSms(input.to, input.message);
+        return await exotelService.sendSMS({ to: input.to, body: input.message });
       }
     } catch (primaryError) {
       console.error(`Primary provider (${primary}) failed:`, primaryError);
@@ -150,7 +150,7 @@ export class CommunicationService {
           return await plivoService.sendSms(input);
         } else if (secondary === 'exotel' && exotelService.isConfigured()) {
           console.log('Falling back to Exotel');
-          return await exotelService.sendSms(input.to, input.message);
+          return await exotelService.sendSMS({ to: input.to, body: input.message });
         }
       } catch (fallbackError) {
         console.error(`Fallback provider (${secondary}) also failed:`, fallbackError);
@@ -170,7 +170,7 @@ export class CommunicationService {
     if (!exotelService.isConfigured()) {
       throw new Error('Exotel is not configured for WhatsApp');
     }
-    return exotelService.sendWhatsApp(input.to, input.message);
+    return exotelService.sendWhatsApp({ to: input.to, message: input.message });
   }
 
   // ==================== VOICE CALLS ====================
@@ -192,7 +192,7 @@ export class CommunicationService {
     if (!exotelService.isConfigured()) {
       throw new Error('Exotel is not configured');
     }
-    return exotelService.makeCall(input.to, input.callerId);
+    return exotelService.makeCall({ to: input.to, callerId: input.callerId });
   }
 
   // ==================== PROVIDER COMPARISON ====================

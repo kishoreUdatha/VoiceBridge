@@ -329,7 +329,7 @@ class AnalyticsService {
         return acc;
       }, {} as Record<string, number>),
       byStage: leadsByStage.reduce((acc, item) => {
-        const stageName = stageMap[item.stageId] || 'Unknown';
+        const stageName = item.stageId ? stageMap[item.stageId] || 'Unknown' : 'Unknown';
         acc[stageName] = item._count.id;
         return acc;
       }, {} as Record<string, number>),

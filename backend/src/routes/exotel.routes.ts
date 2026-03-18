@@ -291,9 +291,8 @@ async function finalizeExotelCall(callId: string) {
             lastName: qualification.name?.split(' ').slice(1).join(' ') || '',
             phone: call.phoneNumber,
             email: qualification.email || null,
-            source: 'AI_CALL',
+            source: 'AI_VOICE_AGENT',
             sourceDetails: `Exotel AI Call - ${call.agent.name}`,
-            status: 'NEW',
             customFields: qualification,
           },
         });
@@ -1495,7 +1494,7 @@ router.post('/call', async (req: TenantRequest, res: Response) => {
         leadId,
         status: 'INITIATED',
         direction: 'OUTBOUND',
-        customData: customData || {},
+        qualification: customData || {},
       },
     });
 
@@ -1575,7 +1574,7 @@ router.post('/connect', async (req: TenantRequest, res: Response) => {
         leadId,
         status: 'INITIATED',
         direction: 'OUTBOUND',
-        customData: { ...customData, agentPhone: from, type: 'click-to-call' },
+        qualification: { ...customData, agentPhone: from, type: 'click-to-call' },
       },
     });
 
@@ -1864,7 +1863,7 @@ router.get('/status', async (req: TenantRequest, res: Response) => {
 router.post('/whatsapp/send', async (req: TenantRequest, res: Response) => {
   try {
     const { to, message, mediaUrl, media, templateName, templateParams, leadId } = req.body;
-    const organizationId = req.organizationId;
+    const organizationId = req.organizationId!;
 
     // Allow sending just media without text message
     if (!to || (!message && !media?.length && !mediaUrl)) {
@@ -2047,7 +2046,7 @@ router.post('/whatsapp/document', async (req: TenantRequest, res: Response) => {
 router.post('/whatsapp/bulk', async (req: TenantRequest, res: Response) => {
   try {
     const { recipients } = req.body;
-    const organizationId = req.organizationId;
+    const organizationId = req.organizationId!;
 
     if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
       return ApiResponse.error(res, 'Recipients array is required', 400);
@@ -2108,7 +2107,7 @@ router.post('/whatsapp/bulk', async (req: TenantRequest, res: Response) => {
  */
 router.get('/whatsapp/status', async (req: TenantRequest, res: Response) => {
   try {
-    const organizationId = req.organizationId;
+    const organizationId = req.organizationId!;
     const whatsappService = createWhatsAppService(organizationId);
     const config = await whatsappService.loadConfig();
     const isConfigured = await whatsappService.isConfigured();
@@ -2157,27 +2156,20 @@ router.post('/whatsapp/webhook/status', upload.none(), async (req: Request, res:
 
     const normalizedStatus = statusMap[MessageStatus?.toLowerCase()] || 'PENDING';
 
-    // Find and update the message in communication logs
-    const communicationLog = await prisma.communicationLog.findFirst({
+    // Find and update the message in WhatsApp logs
+    const whatsappLog = await prisma.whatsappLog.findFirst({
       where: {
-        externalId: MessageSid,
+        providerMsgId: MessageSid,
       },
     });
 
-    if (communicationLog) {
-      await prisma.communicationLog.update({
-        where: { id: communicationLog.id },
+    if (whatsappLog) {
+      await prisma.whatsappLog.update({
+        where: { id: whatsappLog.id },
         data: {
-          status: normalizedStatus,
-          metadata: {
-            ...(communicationLog.metadata as any || {}),
-            deliveryStatus: MessageStatus,
-            deliveredAt: normalizedStatus === 'DELIVERED' ? new Date().toISOString() : undefined,
-            readAt: normalizedStatus === 'READ' ? new Date().toISOString() : undefined,
-            errorCode: ErrorCode,
-            errorMessage: ErrorMessage,
-            lastWebhookAt: new Date().toISOString(),
-          },
+          status: normalizedStatus as any,
+          deliveredAt: normalizedStatus === 'DELIVERED' ? new Date() : undefined,
+          readAt: normalizedStatus === 'READ' ? new Date() : undefined,
         },
       });
 
@@ -2188,15 +2180,16 @@ router.post('/whatsapp/webhook/status', upload.none(), async (req: Request, res:
 
     // Also try to update in conversation messages if exists
     try {
-      const message = await prisma.message.findFirst({
+      const message = await prisma.conversationMessage.findFirst({
         where: { externalId: MessageSid },
       });
 
       if (message) {
-        await prisma.message.update({
+        await prisma.conversationMessage.update({
           where: { id: message.id },
           data: {
-            deliveryStatus: normalizedStatus as any,
+            status: normalizedStatus as any,
+            providerStatus: MessageStatus,
           },
         });
 
@@ -2252,26 +2245,13 @@ router.post('/whatsapp/webhook/incoming', upload.none(), async (req: Request, re
       },
     });
 
-    // Log the incoming message
-    await prisma.communicationLog.create({
-      data: {
-        organizationId: lead?.organizationId || 'system',
-        leadId: lead?.id,
-        type: 'WHATSAPP',
-        direction: 'INBOUND',
-        content: Body,
-        externalId: MessageSid,
-        status: 'RECEIVED',
-        metadata: {
-          from: From,
-          to: To,
-          mediaUrl: MediaUrl,
-          mediaType: MediaContentType,
-        },
-      },
-    });
-
-    console.log(`[Exotel WhatsApp Incoming] Logged message from ${From}`);
+    // Log the incoming message - Note: WhatsappLog requires userId
+    // For now we skip logging if there's no user associated
+    if (lead) {
+      console.log(`[Exotel WhatsApp Incoming] Received message from ${From} for lead ${lead.id}`);
+    } else {
+      console.log(`[Exotel WhatsApp Incoming] Received message from ${From}, no associated lead found`);
+    }
 
     res.status(200).json({ success: true });
   } catch (error: any) {

@@ -414,7 +414,7 @@ router.get('/agent', async (req: Request, res: Response) => {
           language: 'en-IN',
           isActive: true,
           systemPrompt: 'You are a helpful customer care AI assistant. Be polite, professional, and helpful. Ask how you can assist the caller and try to understand their needs.',
-          qualificationQuestions: [
+          questions: [
             { question: 'What is your name?', field: 'name' },
             { question: 'How can I help you today?', field: 'query' },
           ],

@@ -4,7 +4,6 @@ import {
   Plus,
   GitBranch,
   Phone,
-  Settings,
   Trash2,
   Edit,
   Play,

@@ -13,8 +13,6 @@ import {
   CalendarPlus,
   Zap,
   Shield,
-  ChevronRight,
-  ExternalLink,
   Settings2,
 } from 'lucide-react';
 import api from '../../services/api';
@@ -31,7 +29,17 @@ interface CalendarIntegration {
   lastSyncError: string | null;
 }
 
-const CALENDAR_PROVIDERS = {
+interface CalendarProviderConfig {
+  name: string;
+  logo: string;
+  color: string;
+  bgGradient: string;
+  description: string;
+  features: string[];
+  comingSoon?: boolean;
+}
+
+const CALENDAR_PROVIDERS: Record<'GOOGLE' | 'OUTLOOK' | 'CALENDLY', CalendarProviderConfig> = {
   GOOGLE: {
     name: 'Google Calendar',
     logo: 'https://www.gstatic.com/images/branding/product/2x/calendar_2020q4_48dp.png',
@@ -340,7 +348,7 @@ const CalendarSettingsPage: React.FC = () => {
           /* Not Connected State */
           <div className="space-y-4">
             {/* Calendar Providers */}
-            {(Object.entries(CALENDAR_PROVIDERS) as [string, typeof CALENDAR_PROVIDERS.GOOGLE][]).map(([id, provider]) => (
+            {(Object.entries(CALENDAR_PROVIDERS) as [string, CalendarProviderConfig][]).map(([id, provider]) => (
               <div
                 key={id}
                 className={`bg-white rounded-2xl border border-gray-200 overflow-hidden transition-all hover:shadow-md ${

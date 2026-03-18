@@ -80,7 +80,7 @@ export class RazorpayService {
         currency: input.currency || 'INR',
         status: PaymentStatus.PENDING,
         description: input.description,
-        metadata: { razorpayOrder },
+        metadata: { razorpayOrder: JSON.parse(JSON.stringify(razorpayOrder)) },
       },
     });
 

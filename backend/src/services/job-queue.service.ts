@@ -272,7 +272,7 @@ class JobQueueService {
           .replace(/{name}/g, recipient.name || 'Student')
           .replace(/{phone}/g, recipient.phone);
 
-        await exotelService.sendSms(recipient.phone, personalizedMessage);
+        await exotelService.sendSMS({ to: recipient.phone, body: personalizedMessage });
         processed++;
       } catch (error) {
         failed++;
@@ -682,14 +682,12 @@ class JobQueueService {
       });
 
       // Import outbound call service dynamically
-      const { OutboundCallService } = await import('../integrations/outbound-call.service');
-      const outboundService = new OutboundCallService();
+      const { outboundCallService } = await import('../integrations/outbound-call.service');
 
       // Make the call
-      const result = await outboundService.makeCall({
+      const result = await outboundCallService.makeCall({
         phone: scheduledCall.phoneNumber,
         agentId: scheduledCall.agentId,
-        organizationId: scheduledCall.organizationId,
         leadId: scheduledCall.leadId || undefined,
       });
 

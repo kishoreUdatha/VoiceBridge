@@ -158,7 +158,7 @@ export function auditMiddleware(req: Request, res: Response, next: NextFunction)
 
           if (user) {
             actorType = 'user';
-            actorId = user.userId;
+            actorId = user.id;
             actorEmail = user.email;
             organizationId = user.organizationId;
           } else if (apiKey) {

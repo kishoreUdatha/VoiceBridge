@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import {
   VoiceSessionMode,
-  RealtimeStatus,
   TranscriptEntry,
   RealtimeStartPayload,
   RealtimeStartedPayload,
@@ -41,7 +40,6 @@ export function useRealtimeVoice(options: UseRealtimeVoiceOptions) {
 
   const socketRef = useRef<Socket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioQueueRef = useRef<ArrayBuffer[]>([]);
   const isPlayingRef = useRef(false);
@@ -287,7 +285,7 @@ export function useRealtimeVoice(options: UseRealtimeVoiceOptions) {
   }, [updateState]);
 
   // Play audio chunk
-  const playAudioChunk = useCallback(async (base64Audio: string, format: string) => {
+  const playAudioChunk = useCallback(async (base64Audio: string, _format: string) => {
     const audioData = base64ToArrayBuffer(base64Audio);
     audioQueueRef.current.push(audioData);
 

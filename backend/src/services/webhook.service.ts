@@ -468,7 +468,7 @@ class WebhookService {
         this.deliverWebhook(
           delivery.webhook,
           delivery.id,
-          delivery.payload as WebhookPayload
+          delivery.payload as unknown as WebhookPayload
         ).catch(err => {
           console.error(`Retry delivery error: ${err.message}`);
         });
@@ -605,7 +605,7 @@ class WebhookService {
     this.deliverWebhook(
       log.webhook,
       logId,
-      log.payload as WebhookPayload
+      log.payload as unknown as WebhookPayload
     ).catch(err => {
       console.error(`Manual retry error: ${err.message}`);
     });

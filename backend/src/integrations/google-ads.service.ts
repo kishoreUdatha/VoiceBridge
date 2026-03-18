@@ -120,7 +120,7 @@ export class GoogleAdsService {
 
       const data = {
         name: campaignName,
-        status: status,
+        status: String(status),
         impressions: Number(row.metrics?.impressions || 0),
         clicks: Number(row.metrics?.clicks || 0),
         conversions: Number(row.metrics?.conversions || 0),
@@ -175,7 +175,7 @@ export class GoogleAdsService {
     const leads = [];
 
     for (const row of submissions) {
-      const lead = await this.processLeadSubmission(row, organizationId);
+      const lead = await this.processLeadSubmission(row as unknown as GoogleLeadFormSubmission, organizationId);
       if (lead) {
         leads.push(lead);
       }
@@ -192,12 +192,10 @@ export class GoogleAdsService {
     organizationId: string
   ) {
     // Check if lead already exists
-    const existingLead = await prisma.adLead.findUnique({
+    const existingLead = await prisma.adLead.findFirst({
       where: {
-        adCampaignId_externalId: {
-          adCampaignId: submission.campaign_id,
-          externalId: submission.lead_id,
-        },
+        adCampaignId: submission.campaign_id,
+        externalId: submission.lead_id,
       },
     });
 
@@ -349,7 +347,7 @@ export class GoogleAdsService {
    * 2. Google Cloud Pub/Sub webhook
    * 3. Zapier/Make integration format
    */
-  async handleWebhook(payload: any, organizationId: string) {
+  async handleWebhook(payload: any, organizationId: string): Promise<any> {
     console.info(`[GoogleAds] Processing webhook for org: ${organizationId}`);
 
     // Format 1: Direct lead form submission
@@ -560,7 +558,7 @@ export class GoogleAdsService {
 
       for (const field of submissionFields) {
         if (field.field_value) {
-          const mappedKey = this.mapFieldName(field.field_type || '');
+          const mappedKey = this.mapFieldName(String(field.field_type || ''));
           const finalKey = fieldMapping[mappedKey] || mappedKey;
           fields[finalKey] = field.field_value;
         }

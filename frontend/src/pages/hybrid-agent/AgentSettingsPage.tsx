@@ -9,7 +9,6 @@ import {
   MessageSquare,
   Zap,
   AlertCircle,
-  Plus,
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -92,63 +91,6 @@ export const AgentSettingsPage: React.FC = () => {
     fallbackMessage: '',
     temperature: 0.7,
   });
-
-  // Variable insertion state
-  const [showVariableDropdown, setShowVariableDropdown] = useState<'greeting' | 'fallback' | null>(null);
-  const greetingTextareaRef = React.useRef<HTMLTextAreaElement>(null);
-  const fallbackTextareaRef = React.useRef<HTMLTextAreaElement>(null);
-
-  // Available variables for insertion
-  const availableVariables = [
-    { key: 'firstName', label: 'First Name', example: 'John' },
-    { key: 'lastName', label: 'Last Name', example: 'Doe' },
-    { key: 'phone', label: 'Phone', example: '+1234567890' },
-    { key: 'email', label: 'Email', example: 'john@example.com' },
-    { key: 'company', label: 'Company', example: 'Acme Inc' },
-    { key: 'INSTITUTION_NAME', label: 'Institution Name', example: 'VoiceBridge' },
-    { key: 'INSTITUTION_PHONE', label: 'Institution Phone', example: '+1800123456' },
-  ];
-
-  // Insert variable at cursor position
-  const insertVariable = (field: 'greeting' | 'fallback', variableKey: string) => {
-    const ref = field === 'greeting' ? greetingTextareaRef : fallbackTextareaRef;
-    const textarea = ref.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const currentValue = field === 'greeting' ? formData.greeting : formData.fallbackMessage;
-    const variable = `{{${variableKey}}}`;
-
-    const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
-
-    if (field === 'greeting') {
-      setFormData({ ...formData, greeting: newValue });
-    } else {
-      setFormData({ ...formData, fallbackMessage: newValue });
-    }
-
-    setShowVariableDropdown(null);
-
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + variable.length, start + variable.length);
-    }, 0);
-  };
-
-  // Close variable dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (showVariableDropdown) {
-        const target = e.target as HTMLElement;
-        if (!target.closest('.variable-dropdown-container')) {
-          setShowVariableDropdown(null);
-        }
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [showVariableDropdown]);
 
   useEffect(() => {
     if (id) {

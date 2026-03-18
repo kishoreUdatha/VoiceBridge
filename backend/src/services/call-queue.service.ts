@@ -203,7 +203,7 @@ export class CallQueueService {
         inboundCallId: input.inboundCallId,
         position,
         priority: input.priority ?? 5,
-        ivrData: input.ivrData ?? {},
+        ivrData: (input.ivrData ?? {}) as Prisma.InputJsonValue,
       },
     });
 

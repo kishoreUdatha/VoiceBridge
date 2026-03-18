@@ -14,8 +14,40 @@ interface ApiResponseOptions {
 }
 
 export class ApiResponse {
-  static success(res: Response, message: string, data?: unknown, statusCode = 200, meta?: ApiResponseOptions['meta']): Response {
-    return res.status(statusCode).json({
+  /**
+   * Success response
+   * @param res Express Response
+   * @param messageOrData Message string OR data (if string, requires data as 3rd param)
+   * @param dataOrStatusCode Data OR status code (depends on 2nd param type)
+   * @param statusCode Status code (default 200)
+   * @param meta Pagination meta
+   */
+  static success(
+    res: Response,
+    messageOrData: string | unknown,
+    dataOrStatusCode?: unknown,
+    statusCode = 200,
+    meta?: ApiResponseOptions['meta']
+  ): Response {
+    // Handle flexible signature: success(res, data) OR success(res, message, data)
+    let message: string;
+    let data: unknown;
+    let code = statusCode;
+
+    if (typeof messageOrData === 'string' && (dataOrStatusCode === undefined || typeof dataOrStatusCode !== 'number' || arguments.length > 3)) {
+      // Called as: success(res, message, data?, statusCode?)
+      message = messageOrData;
+      data = dataOrStatusCode;
+    } else {
+      // Called as: success(res, data) or success(res, data, statusCode)
+      message = 'Success';
+      data = messageOrData;
+      if (typeof dataOrStatusCode === 'number') {
+        code = dataOrStatusCode;
+      }
+    }
+
+    return res.status(code).json({
       success: true,
       message,
       data,
@@ -23,8 +55,17 @@ export class ApiResponse {
     });
   }
 
-  static created(res: Response, message: string, data?: unknown): Response {
-    return this.success(res, message, data, 201);
+  /**
+   * Created response (201)
+   * @param res Express Response
+   * @param messageOrData Message string OR data
+   * @param data Data (if first param is message)
+   */
+  static created(res: Response, messageOrData: string | unknown, data?: unknown): Response {
+    if (typeof messageOrData === 'string') {
+      return this.success(res, messageOrData, data, 201);
+    }
+    return this.success(res, 'Created', messageOrData, 201);
   }
 
   static error(res: Response, message: string, statusCode = 400, errors?: unknown): Response {

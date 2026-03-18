@@ -17,7 +17,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
       where: { organizationId },
       include: {
         steps: {
-          orderBy: { order: 'asc' },
+          orderBy: { stepNumber: 'asc' },
         },
         _count: {
           select: { enrollments: true },
@@ -41,12 +41,12 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
       where: { id: req.params.id, organizationId },
       include: {
         steps: {
-          orderBy: { order: 'asc' },
+          orderBy: { stepNumber: 'asc' },
         },
         enrollments: {
           include: {
             lead: {
-              select: { id: true, name: true, email: true },
+              select: { id: true, firstName: true, lastName: true, email: true },
             },
           },
           orderBy: { enrolledAt: 'desc' },
@@ -76,24 +76,24 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ success: false, message: 'Name is required' });
     }
 
-    const sequence = await dripCampaignService.createSequence(organizationId, {
+    const sequence = await dripCampaignService.createSequence({
+      organizationId,
       name,
       description,
       triggerType: triggerType || 'MANUAL',
-      triggerConditions,
     });
 
     // Add steps if provided
     if (steps && Array.isArray(steps)) {
       for (const step of steps) {
-        await dripCampaignService.addStep(sequence.id, step);
+        await dripCampaignService.addStep({ sequenceId: sequence.id, ...step });
       }
     }
 
     // Fetch the complete sequence with steps
     const completeSequence = await prisma.emailSequence.findUnique({
       where: { id: sequence.id },
-      include: { steps: { orderBy: { order: 'asc' } } },
+      include: { steps: { orderBy: { stepNumber: 'asc' } } },
     });
 
     res.status(201).json({ success: true, data: completeSequence });
@@ -124,9 +124,8 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
         description: description !== undefined ? description : sequence.description,
         isActive: isActive !== undefined ? isActive : sequence.isActive,
         triggerType: triggerType || sequence.triggerType,
-        triggerConditions: triggerConditions !== undefined ? triggerConditions : sequence.triggerConditions,
       },
-      include: { steps: { orderBy: { order: 'asc' } } },
+      include: { steps: { orderBy: { stepNumber: 'asc' } } },
     });
 
     res.json({ success: true, data: updated });
@@ -181,11 +180,18 @@ router.post('/:id/steps', async (req: AuthenticatedRequest, res: Response) => {
       return res.status(404).json({ success: false, message: 'Sequence not found' });
     }
 
-    const step = await dripCampaignService.addStep(req.params.id, {
-      type: type || 'EMAIL',
-      subject,
-      content,
-      delayMinutes: delayMinutes || 0,
+    // Get current step count to determine stepNumber
+    const existingSteps = await prisma.emailSequenceStep.count({
+      where: { sequenceId: req.params.id },
+    });
+
+    const step = await dripCampaignService.addStep({
+      sequenceId: req.params.id,
+      stepNumber: existingSteps + 1,
+      subject: subject || '',
+      body: content || '',
+      delayDays: Math.floor((delayMinutes || 0) / (24 * 60)),
+      delayHours: Math.floor(((delayMinutes || 0) % (24 * 60)) / 60),
     });
 
     res.status(201).json({ success: true, data: step });
@@ -220,11 +226,11 @@ router.put('/:id/steps/:stepId', async (req: AuthenticatedRequest, res: Response
     const updated = await prisma.emailSequenceStep.update({
       where: { id: req.params.stepId },
       data: {
-        type: type || step.type,
         subject: subject !== undefined ? subject : step.subject,
-        content: content !== undefined ? content : step.content,
-        delayMinutes: delayMinutes !== undefined ? delayMinutes : step.delayMinutes,
-        order: order !== undefined ? order : step.order,
+        body: content !== undefined ? content : step.body,
+        delayDays: delayMinutes !== undefined ? Math.floor(delayMinutes / (24 * 60)) : step.delayDays,
+        delayHours: delayMinutes !== undefined ? Math.floor((delayMinutes % (24 * 60)) / 60) : step.delayHours,
+        stepNumber: order !== undefined ? order : step.stepNumber,
       },
     });
 
@@ -325,7 +331,7 @@ router.get('/:id/enrollments', async (req: AuthenticatedRequest, res: Response) 
         where,
         include: {
           lead: {
-            select: { id: true, name: true, email: true, phone: true },
+            select: { id: true, firstName: true, lastName: true, email: true, phone: true },
           },
         },
         orderBy: { enrolledAt: 'desc' },

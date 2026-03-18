@@ -233,7 +233,11 @@ router.post('/:id/sync-lead', async (req: AuthenticatedRequest, res: Response) =
       where: { id: leadId, organizationId },
       include: {
         stage: true,
-        assignedCounselor: { select: { name: true, email: true } },
+        assignments: {
+          where: { isActive: true },
+          include: { assignedTo: { select: { firstName: true, lastName: true, email: true } } },
+          take: 1,
+        },
       },
     });
 
@@ -253,6 +257,8 @@ router.post('/:id/sync-lead', async (req: AuthenticatedRequest, res: Response) =
     }
 
     // Add metadata
+    const assignedUser = lead.assignments[0]?.assignedTo;
+    const leadName = `${lead.firstName} ${lead.lastName || ''}`.trim();
     const payload = {
       event: 'lead.created',
       timestamp: new Date().toISOString(),
@@ -260,11 +266,11 @@ router.post('/:id/sync-lead', async (req: AuthenticatedRequest, res: Response) =
         ...mappedData,
         // Include common fields if not mapped
         id: lead.id,
-        name: mappedData.Name || lead.name,
+        name: mappedData.Name || leadName,
         email: mappedData.Email || lead.email,
         phone: mappedData.Phone || lead.phone,
         stage: lead.stage?.name,
-        assignedTo: lead.assignedCounselor?.name,
+        assignedTo: assignedUser ? `${assignedUser.firstName} ${assignedUser.lastName || ''}`.trim() : undefined,
       },
     };
 

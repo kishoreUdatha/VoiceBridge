@@ -938,7 +938,7 @@ router.post(
       // Try to send via Exotel (optional - will log even if Exotel fails)
       try {
         const { exotelService } = await import('../integrations/exotel.service');
-        await exotelService.sendWhatsApp(lead.phone, message);
+        await exotelService.sendWhatsApp({ to: lead.phone, message });
 
         // Update status to sent
         await prisma.whatsappLog.update({
@@ -1042,7 +1042,7 @@ router.post(
       // Try to send via Exotel (optional - will log even if Exotel fails)
       try {
         const { exotelService } = await import('../integrations/exotel.service');
-        await exotelService.sendSms(lead.phone, message);
+        await exotelService.sendSMS({ to: lead.phone, body: message });
 
         // Update status to sent
         await prisma.smsLog.update({

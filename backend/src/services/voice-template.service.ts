@@ -1,4 +1,4 @@
-import { PrismaClient, VoiceAgentIndustry } from '@prisma/client';
+import { PrismaClient, VoiceAgentIndustry, Prisma } from '@prisma/client';
 import { AppError } from '../utils/errors';
 import { industryTemplates } from '../integrations/voice-ai.service';
 
@@ -412,12 +412,12 @@ class VoiceTemplateService {
 
         systemPrompt: template.systemPrompt,
         knowledgeBase: template.knowledgeBase,
-        questions: template.questions,
-        faqs: template.faqs,
-        documents: template.documents,
+        questions: template.questions as Prisma.InputJsonValue,
+        faqs: template.faqs as Prisma.InputJsonValue,
+        documents: template.documents as Prisma.InputJsonValue,
 
         greeting: template.greeting,
-        greetings: template.greetings,
+        greetings: template.greetings as Prisma.InputJsonValue,
         fallbackMessage: template.fallbackMessage,
         transferMessage: template.transferMessage,
         endMessage: template.endMessage,
@@ -433,7 +433,7 @@ class VoiceTemplateService {
         workingHoursEnabled: template.workingHoursEnabled,
         workingHoursStart: template.workingHoursStart,
         workingHoursEnd: template.workingHoursEnd,
-        workingDays: template.workingDays,
+        workingDays: template.workingDays as Prisma.InputJsonValue,
 
         autoCreateLeads: template.autoCreateLeads,
         deduplicateByPhone: template.deduplicateByPhone,
@@ -496,9 +496,9 @@ class VoiceTemplateService {
 
         systemPrompt: agentConfig.systemPrompt || template.systemPrompt,
         knowledgeBase: agentConfig.customizations?.knowledgeBase || template.knowledgeBase,
-        questions: template.questions,
-        faqs: template.faqs,
-        documents: template.documents,
+        questions: template.questions as Prisma.InputJsonValue,
+        faqs: template.faqs as Prisma.InputJsonValue,
+        documents: template.documents as Prisma.InputJsonValue,
 
         greeting: agentConfig.customizations?.greeting || template.greeting,
         fallbackMessage: template.fallbackMessage,
@@ -517,7 +517,7 @@ class VoiceTemplateService {
         workingHoursEnabled: template.workingHoursEnabled,
         workingHoursStart: template.workingHoursStart,
         workingHoursEnd: template.workingHoursEnd,
-        workingDays: template.workingDays,
+        workingDays: template.workingDays as Prisma.InputJsonValue,
 
         autoCreateLeads: template.autoCreateLeads,
         deduplicateByPhone: template.deduplicateByPhone,

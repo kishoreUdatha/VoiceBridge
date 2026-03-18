@@ -352,7 +352,9 @@ class DripCampaignService {
           to: enrollment.lead.email,
           subject: personalizedSubject,
           html: personalizedBody,
-          fromName: step.fromName,
+          body: personalizedBody,
+          userId: enrollment.sequence.organizationId,
+          leadId: enrollment.leadId,
         });
 
         // Update stats

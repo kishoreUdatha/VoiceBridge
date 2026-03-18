@@ -212,7 +212,6 @@ router.post(
       content,
       contentType,
       externalId,
-      metadata,
     });
 
     res.status(201).json({
@@ -241,7 +240,6 @@ router.post(
       content,
       contentType,
       externalId,
-      metadata,
     });
 
     res.status(201).json({

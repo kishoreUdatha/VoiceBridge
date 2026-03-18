@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { superAdminService, Organization } from '../../services/super-admin.service';
 import {
-  EnvelopeIcon,
   PaperAirplaneIcon,
   CheckCircleIcon,
   XCircleIcon,

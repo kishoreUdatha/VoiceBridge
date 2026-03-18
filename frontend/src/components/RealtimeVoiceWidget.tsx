@@ -1,25 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Mic,
   MicOff,
   Phone,
   PhoneOff,
   Volume2,
-  VolumeX,
   Loader2,
   AlertCircle,
   MessageSquare,
-  Radio,
   Wifi,
   WifiOff,
   Hand,
   Settings,
   X,
   ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 import { useRealtimeVoice } from '../hooks/useRealtimeVoice';
-import {
+import type {
   VoiceSessionMode,
   RealtimeStatus,
   TranscriptEntry,
@@ -81,10 +78,8 @@ export function RealtimeVoiceWidget({
     isRecording,
     isMuted,
     volume,
-    connect,
     startSession,
     startRecording,
-    stopRecording,
     interrupt,
     endSession,
     toggleMute,

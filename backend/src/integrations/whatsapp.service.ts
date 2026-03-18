@@ -510,9 +510,8 @@ export class WhatsAppService {
             return {
               success: false,
               error: 'No active WhatsApp session. The recipient must message your business number first (within 24 hours) before you can send them messages.',
-              errorCode: 'NO_SESSION',
               data: response.data,
-            };
+            } as WhatsAppResponse;
           }
 
           // Message empty error
@@ -520,9 +519,8 @@ export class WhatsAppService {
             return {
               success: false,
               error: 'Message text cannot be empty.',
-              errorCode: 'EMPTY_MESSAGE',
               data: response.data,
-            };
+            } as WhatsAppResponse;
           }
 
           // Generic error

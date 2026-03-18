@@ -1,4 +1,4 @@
-import { PrismaClient, TemplateType } from '@prisma/client';
+import { PrismaClient, TemplateType, Prisma } from '@prisma/client';
 import { AppError } from '../utils/errors';
 
 const prisma = new PrismaClient();
@@ -274,12 +274,12 @@ class TemplateService {
         subject: template.subject,
         content: template.content,
         htmlContent: template.htmlContent,
-        variables: template.variables,
-        sampleValues: template.sampleValues,
+        variables: template.variables as Prisma.InputJsonValue,
+        sampleValues: template.sampleValues as Prisma.InputJsonValue,
         headerType: template.headerType,
         headerContent: template.headerContent,
         footerContent: template.footerContent,
-        buttons: template.buttons,
+        buttons: template.buttons as Prisma.InputJsonValue,
         whatsappLanguage: template.whatsappLanguage,
         isDefault: false,
       },

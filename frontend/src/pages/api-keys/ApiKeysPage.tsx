@@ -2,11 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   KeyIcon,
   PlusIcon,
-  ClipboardDocumentIcon,
   TrashIcon,
-  EyeIcon,
-  EyeSlashIcon,
-  ArrowPathIcon,
   CheckCircleIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';

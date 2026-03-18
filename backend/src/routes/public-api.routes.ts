@@ -115,7 +115,7 @@ router.post(
         success: true,
         data: {
           sessionId: session.sessionId,
-          agentId: session.agentId,
+          agentId,
           greeting: session.greeting,
           createdAt: new Date().toISOString(),
         },
@@ -334,9 +334,9 @@ router.post(
       }
 
       // Use Exotel to send SMS
-      let result = { success: false, sid: '', error: '' };
+      let result: { success: boolean; messageSid?: string; error?: string } = { success: false, error: '' };
       try {
-        result = await exotelService.sendSMS(to, finalMessage);
+        result = await exotelService.sendSMS({ to, body: finalMessage });
       } catch (err: any) {
         result.error = err.message || 'SMS provider error';
       }
@@ -350,7 +350,7 @@ router.post(
           direction: 'OUTBOUND',
           status: result.success ? 'SENT' : 'FAILED',
           provider: 'EXOTEL',
-          providerMsgId: result.sid || null,
+          providerMsgId: result.messageSid || null,
         },
       });
 
@@ -365,7 +365,7 @@ router.post(
         success: true,
         data: {
           messageId: smsLog.id,
-          providerMessageId: result.sid,
+          providerMessageId: result.messageSid,
           to,
           status: result.success ? 'SENT' : 'QUEUED',
           note: result.error || (result.success ? 'SMS sent successfully' : 'SMS queued - Exotel KYC pending'),
@@ -414,9 +414,9 @@ router.post(
         const customMessage = typeof recipient === 'object' && recipient.message ? recipient.message : message;
 
         try {
-          let result = { success: false, sid: '' };
+          let result: { success: boolean; messageSid?: string } = { success: false };
           try {
-            result = await exotelService.sendSMS(phone, customMessage);
+            result = await exotelService.sendSMS({ to: phone, body: customMessage });
           } catch (err) {
             // SMS provider error - log anyway
           }
@@ -429,7 +429,7 @@ router.post(
               direction: 'OUTBOUND',
               status: result.success ? 'SENT' : 'PENDING',
               provider: 'EXOTEL',
-              providerMsgId: result.sid || null,
+              providerMsgId: result.messageSid || null,
             },
           });
 
@@ -884,15 +884,15 @@ router.post(
       if (agentId) {
         // AI call via agent
         try {
-          const result = await exotelService.makeCall(
-            from || process.env.EXOTEL_CALLER_ID || '',
-            to
-          );
+          const result = await exotelService.makeCall({
+            to,
+            callerId: from || process.env.EXOTEL_CALLER_ID || '',
+          });
 
           await prisma.outboundCall.update({
             where: { id: call.id },
             data: {
-              twilioCallSid: result.sid,
+              twilioCallSid: result.callSid,
               status: result.success ? 'QUEUED' : 'FAILED'
             },
           });
@@ -1211,13 +1211,19 @@ router.post(
 
       for (const leadData of leads) {
         try {
+          // Split name into firstName and lastName if needed
+          const nameParts = (leadData.name || '').split(' ');
+          const firstName = nameParts[0] || 'Unknown';
+          const lastName = nameParts.slice(1).join(' ') || undefined;
+
           const lead = await prisma.lead.create({
             data: {
               organizationId: req.organizationId!,
-              name: leadData.name,
+              firstName,
+              lastName,
               email: leadData.email,
               phone: leadData.phone,
-              source: leadData.source || 'api-bulk',
+              source: leadData.source || 'API',
               customFields: leadData.customFields || {},
               stageId: defaultStage?.id,
             },
@@ -1346,12 +1352,19 @@ router.post(
         return res.status(400).json({ success: false, error: 'name and type are required', code: 'MISSING_PARAMS' });
       }
 
+      // Get system user for campaign creation
+      const systemUser = await getSystemUser(req.organizationId!);
+      if (!systemUser) {
+        return res.status(400).json({ success: false, error: 'No user found in organization', code: 'NO_USER' });
+      }
+
       const campaign = await prisma.campaign.create({
         data: {
           organizationId: req.organizationId!,
+          createdById: systemUser.id,
           name,
           type,
-          message,
+          content: message || '',
           scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
           status: 'DRAFT',
         },

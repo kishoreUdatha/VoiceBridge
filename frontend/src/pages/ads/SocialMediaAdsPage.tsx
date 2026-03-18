@@ -4,7 +4,6 @@ import api from '../../services/api';
 import {
   GlobeAltIcon,
   UserGroupIcon,
-  CurrencyRupeeIcon,
   EyeIcon,
   CursorArrowRaysIcon,
   ArrowPathIcon,

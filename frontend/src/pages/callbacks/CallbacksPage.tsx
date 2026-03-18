@@ -36,7 +36,6 @@ export const CallbacksPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [sourceFilter, setSourceFilter] = useState<string>('');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedCallback, setSelectedCallback] = useState<Callback | null>(null);
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -125,17 +124,6 @@ export const CallbacksPage: React.FC = () => {
     }
   };
 
-  const handleUpdateStatus = async (id: string, status: string) => {
-    try {
-      await api.put(`/callbacks/${id}/status`, { status });
-      toast.success('Status updated');
-      fetchCallbacks();
-      fetchStats();
-    } catch (error) {
-      toast.error('Failed to update status');
-    }
-  };
-
   const handleCancel = async (id: string) => {
     if (!confirm('Are you sure you want to cancel this callback?')) return;
 
@@ -146,16 +134,6 @@ export const CallbacksPage: React.FC = () => {
       fetchStats();
     } catch (error) {
       toast.error('Failed to cancel callback');
-    }
-  };
-
-  const handleReschedule = async (id: string, scheduledAt: string) => {
-    try {
-      await api.put(`/callbacks/${id}/reschedule`, { scheduledAt });
-      toast.success('Callback rescheduled');
-      fetchCallbacks();
-    } catch (error) {
-      toast.error('Failed to reschedule');
     }
   };
 

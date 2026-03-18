@@ -198,7 +198,7 @@ export class VoicemailService {
     const callback = await callbackService.scheduleCallback({
       organizationId,
       phoneNumber: voicemail.callerNumber,
-      contactName: voicemail.callerName,
+      contactName: voicemail.callerName ?? undefined,
       leadId: voicemail.leadId ?? undefined,
       source: 'VOICEMAIL',
       voicemailId: voicemail.id,

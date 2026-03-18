@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import {
-  ChartBarIcon,
   UserGroupIcon,
   PhoneIcon,
   CurrencyRupeeIcon,
@@ -53,11 +52,12 @@ export default function ReportsPage() {
       setIsLoading(true);
 
       // Fetch multiple endpoints for comprehensive stats
-      const [leadsRes, callsRes, analyticsRes] = await Promise.all([
+      const [leadsRes, callsRes] = await Promise.all([
         api.get('/leads', { params: { limit: 1 } }),
         api.get('/outbound-calls/stats').catch(() => ({ data: { data: {} } })),
-        api.get('/advanced/analytics').catch(() => ({ data: { data: {} } })),
       ]);
+      // Analytics endpoint for future use
+      void api.get('/advanced/analytics').catch(() => ({ data: { data: {} } }));
 
       // Aggregate stats (using available data)
       const mockStats: ReportStats = {

@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { NotFoundError, ConflictError } from '../utils/errors';
+import { Prisma } from '@prisma/client';
 
 interface CreateLandingPageInput {
   organizationId: string;
@@ -48,9 +49,9 @@ export class LandingPageService {
         slug: input.slug,
         title: input.title,
         description: input.description,
-        content: input.content,
-        styles: input.styles || {},
-        seoSettings: input.seoSettings || {},
+        content: input.content as Prisma.InputJsonValue,
+        styles: (input.styles || {}) as Prisma.InputJsonValue,
+        seoSettings: (input.seoSettings || {}) as Prisma.InputJsonValue,
         formId: input.formId,
       },
     });

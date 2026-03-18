@@ -9,7 +9,6 @@ import {
   DocumentDuplicateIcon,
   RocketLaunchIcon,
   TrashIcon,
-  FunnelIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import api from '../../services/api';

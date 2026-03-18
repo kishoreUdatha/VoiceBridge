@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   CpuChipIcon,
   PlayIcon,
-  Cog6ToothIcon,
   ArrowDownTrayIcon,
   CheckCircleIcon,
   XCircleIcon,

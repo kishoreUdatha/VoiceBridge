@@ -138,7 +138,7 @@ export function checkUsageLimit(type: 'leads' | 'aiCalls' | 'sms' | 'emails' | '
           currentUsage = usage?.leadsCount || 0;
           break;
         case 'aiCalls':
-          limit = plan.features.aiCallsPerMonth;
+          limit = plan.features.voiceMinutesIncluded;
           currentUsage = usage?.aiCallsCount || 0;
           break;
         case 'sms':
@@ -222,7 +222,7 @@ export function checkOrgLimit(resourceType: 'forms' | 'landingPages' | 'voiceAge
           break;
         case 'voiceAgents':
           currentCount = await prisma.voiceAgent.count({ where: { organizationId } });
-          limit = plan.features.voiceAgents;
+          limit = plan.features.maxVoiceAgents;
           break;
         default:
           currentCount = 0;
