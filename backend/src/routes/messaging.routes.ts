@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middlewares/auth';
+import { createWhatsAppService } from '../integrations/whatsapp.service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -427,29 +428,41 @@ async function sendSMS(
   }
 }
 
-// WhatsApp Provider Integration
+// WhatsApp Provider Integration - Using real WhatsApp service
 async function sendWhatsApp(
   to: string,
   message: string,
   organizationId: string,
   templateId?: string
-): Promise<{ success: boolean; messageId?: string }> {
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    // TODO: Replace with actual WhatsApp Business API integration
-    // Providers: Meta WhatsApp Business API, Twilio WhatsApp, Gupshup
-
     console.log(`[WhatsApp] Sending to ${to}: ${message.substring(0, 50)}...`);
 
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const whatsappService = createWhatsAppService(organizationId);
+    await whatsappService.loadConfig();
 
-    return {
-      success: true,
-      messageId: `wa_${Date.now()}`,
-    };
-  } catch (error) {
+    const result = await whatsappService.sendMessage({
+      to,
+      message,
+      templateName: templateId,
+    });
+
+    if (result.success) {
+      console.log(`[WhatsApp] Message sent successfully: ${result.messageId}`);
+      return {
+        success: true,
+        messageId: result.messageId,
+      };
+    } else {
+      console.error(`[WhatsApp] Failed to send: ${result.error}`);
+      return {
+        success: false,
+        error: result.error,
+      };
+    }
+  } catch (error: any) {
     console.error('WhatsApp send error:', error);
-    return { success: false };
+    return { success: false, error: error.message };
   }
 }
 

@@ -140,6 +140,22 @@ export function ConversationalAIAgentDetail() {
   const [allowedDomains, setAllowedDomains] = useState<string[]>([]);
   const [contentFilterCategories, setContentFilterCategories] = useState<string[]>(['profanity', 'violence', 'adult', 'hate_speech']);
 
+  // Pre-chat form state
+  const [preChatFormEnabled, setPreChatFormEnabled] = useState(false);
+  const [preChatFormTitle, setPreChatFormTitle] = useState('Before we start');
+  const [preChatFormSubtitle, setPreChatFormSubtitle] = useState('Please provide your details');
+  const [createLeadFromForm, setCreateLeadFromForm] = useState(true);
+  const [preChatFormFields, setPreChatFormFields] = useState<Array<{ name: string; label: string; type: string; required: boolean }>>([
+    { name: 'name', label: 'Name', type: 'text', required: true },
+    { name: 'email', label: 'Email', type: 'email', required: true },
+    { name: 'phone', label: 'Phone', type: 'tel', required: false },
+  ]);
+
+  // WhatsApp follow-up state
+  const [whatsappFollowupEnabled, setWhatsappFollowupEnabled] = useState(false);
+  const [whatsappFollowupMessage, setWhatsappFollowupMessage] = useState('Hi {{name}}, thank you for your call! Here\'s a summary of our conversation:\n\n{{summary}}\n\nCall duration: {{duration}}');
+  const [whatsappFollowupDelay, setWhatsappFollowupDelay] = useState(0);
+
   // Advanced state
   const [llmProvider, setLlmProvider] = useState('openai');
   const [llmModel, setLlmModel] = useState('gpt-4o-mini');
@@ -200,6 +216,14 @@ export function ConversationalAIAgentDetail() {
       ipWhitelist: setIpWhitelist,
       allowedDomains: setAllowedDomains,
       contentFilterCategories: setContentFilterCategories,
+      preChatFormEnabled: setPreChatFormEnabled,
+      preChatFormTitle: setPreChatFormTitle,
+      preChatFormSubtitle: setPreChatFormSubtitle,
+      createLeadFromForm: setCreateLeadFromForm,
+      preChatFormFields: setPreChatFormFields,
+      whatsappFollowupEnabled: setWhatsappFollowupEnabled,
+      whatsappFollowupMessage: setWhatsappFollowupMessage,
+      whatsappFollowupDelay: setWhatsappFollowupDelay,
       workflowSteps: setWorkflowSteps,
       branches: setBranches,
       activeBranch: setActiveBranch,
@@ -404,6 +428,18 @@ export function ConversationalAIAgentDetail() {
       if (agentData.ipWhitelist) setIpWhitelist(agentData.ipWhitelist);
       if (agentData.allowedDomains) setAllowedDomains(agentData.allowedDomains);
       if (agentData.contentFilterCategories) setContentFilterCategories(agentData.contentFilterCategories);
+
+      // Pre-chat form settings
+      if (agentData.preChatFormEnabled !== undefined) setPreChatFormEnabled(agentData.preChatFormEnabled);
+      if (agentData.preChatFormTitle) setPreChatFormTitle(agentData.preChatFormTitle);
+      if (agentData.preChatFormSubtitle) setPreChatFormSubtitle(agentData.preChatFormSubtitle);
+      if (agentData.createLeadFromForm !== undefined) setCreateLeadFromForm(agentData.createLeadFromForm);
+      if (agentData.preChatFormFields) setPreChatFormFields(agentData.preChatFormFields);
+
+      // WhatsApp follow-up settings
+      if (agentData.whatsappFollowupEnabled !== undefined) setWhatsappFollowupEnabled(agentData.whatsappFollowupEnabled);
+      if (agentData.whatsappFollowupMessage) setWhatsappFollowupMessage(agentData.whatsappFollowupMessage);
+      if (agentData.whatsappFollowupDelay !== undefined) setWhatsappFollowupDelay(agentData.whatsappFollowupDelay);
 
       // Advanced tab - LLM Configuration
       if (agentData.llmProvider) setLlmProvider(agentData.llmProvider);
@@ -2235,6 +2271,213 @@ export function ConversationalAIAgentDetail() {
                           >
                             <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${authRequired ? 'right-0.5' : 'left-0.5'}`} />
                           </button>
+                        </div>
+
+                        {/* Pre-chat Form Settings */}
+                        <div className="pt-3 border-t border-gray-100">
+                          <div className="flex items-start justify-between gap-4 mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-sm font-medium text-gray-900">Pre-chat Form</span>
+                                {preChatFormEnabled && <span className="w-2 h-2 bg-green-500 rounded-full"></span>}
+                              </div>
+                              <p className="text-xs text-gray-500">Collect user details before starting conversation (lead capture).</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const newValue = !preChatFormEnabled;
+                                setPreChatFormEnabled(newValue);
+                                saveAgentConfig({ preChatFormEnabled: newValue });
+                              }}
+                              className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${preChatFormEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                            >
+                              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${preChatFormEnabled ? 'right-0.5' : 'left-0.5'}`} />
+                            </button>
+                          </div>
+
+                          {/* Pre-chat Form Configuration (shown when enabled) */}
+                          {preChatFormEnabled && (
+                            <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-3">
+                              {/* Form Title */}
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Form Title</label>
+                                <input
+                                  type="text"
+                                  value={preChatFormTitle}
+                                  onChange={(e) => {
+                                    setPreChatFormTitle(e.target.value);
+                                    saveAgentConfig({ preChatFormTitle: e.target.value });
+                                  }}
+                                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                  placeholder="Before we start"
+                                />
+                              </div>
+
+                              {/* Form Subtitle */}
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Form Subtitle</label>
+                                <input
+                                  type="text"
+                                  value={preChatFormSubtitle}
+                                  onChange={(e) => {
+                                    setPreChatFormSubtitle(e.target.value);
+                                    saveAgentConfig({ preChatFormSubtitle: e.target.value });
+                                  }}
+                                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                  placeholder="Please provide your details"
+                                />
+                              </div>
+
+                              {/* Form Fields */}
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <label className="text-xs font-medium text-gray-700">Form Fields</label>
+                                  <button
+                                    onClick={() => {
+                                      const fieldName = prompt('Enter field name (e.g., company, message):');
+                                      if (fieldName && fieldName.trim()) {
+                                        const newField = {
+                                          name: fieldName.trim().toLowerCase().replace(/\s+/g, '_'),
+                                          label: fieldName.trim().charAt(0).toUpperCase() + fieldName.trim().slice(1),
+                                          type: 'text',
+                                          required: false,
+                                        };
+                                        const newFields = [...preChatFormFields, newField];
+                                        setPreChatFormFields(newFields);
+                                        saveAgentConfig({ preChatFormFields: newFields });
+                                      }
+                                    }}
+                                    className="text-xs text-blue-600 hover:text-blue-700"
+                                  >
+                                    + Add Field
+                                  </button>
+                                </div>
+                                <div className="space-y-2">
+                                  {preChatFormFields.map((field, idx) => (
+                                    <div key={idx} className="flex items-center justify-between bg-white rounded-md px-2 py-1.5 border border-gray-200">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium text-gray-800">{field.label}</span>
+                                        <span className="text-xs text-gray-400">({field.type})</span>
+                                        {field.required && (
+                                          <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Required</span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={() => {
+                                            const newFields = preChatFormFields.map((f, i) =>
+                                              i === idx ? { ...f, required: !f.required } : f
+                                            );
+                                            setPreChatFormFields(newFields);
+                                            saveAgentConfig({ preChatFormFields: newFields });
+                                          }}
+                                          className="text-xs text-gray-500 hover:text-gray-700"
+                                        >
+                                          {field.required ? 'Optional' : 'Required'}
+                                        </button>
+                                        {!['name', 'email', 'phone'].includes(field.name) && (
+                                          <button
+                                            onClick={() => {
+                                              const newFields = preChatFormFields.filter((_, i) => i !== idx);
+                                              setPreChatFormFields(newFields);
+                                              saveAgentConfig({ preChatFormFields: newFields });
+                                            }}
+                                            className="text-xs text-red-500 hover:text-red-700"
+                                          >
+                                            Remove
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                            </div>
+                          )}
+                        </div>
+
+                        {/* WhatsApp Follow-up Settings */}
+                        <div className="pt-3 border-t border-gray-100">
+                          <div className="flex items-start justify-between gap-4 mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-sm font-medium text-gray-900">WhatsApp Follow-up</span>
+                                {whatsappFollowupEnabled && <span className="w-2 h-2 bg-green-500 rounded-full"></span>}
+                              </div>
+                              <p className="text-xs text-gray-500">Send a WhatsApp message to the lead after the call ends.</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const newValue = !whatsappFollowupEnabled;
+                                setWhatsappFollowupEnabled(newValue);
+                                saveAgentConfig({ whatsappFollowupEnabled: newValue });
+                              }}
+                              className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${whatsappFollowupEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                            >
+                              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${whatsappFollowupEnabled ? 'right-0.5' : 'left-0.5'}`} />
+                            </button>
+                          </div>
+
+                          {/* WhatsApp Follow-up Configuration (shown when enabled) */}
+                          {whatsappFollowupEnabled && (
+                            <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-3">
+                              {/* Message Template */}
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Message Template</label>
+                                <textarea
+                                  value={whatsappFollowupMessage}
+                                  onChange={(e) => {
+                                    setWhatsappFollowupMessage(e.target.value);
+                                    saveWithDebounce({ whatsappFollowupMessage: e.target.value });
+                                  }}
+                                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 min-h-[80px] resize-y"
+                                  placeholder="Enter your follow-up message..."
+                                />
+                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                  <span className="text-xs text-gray-400">Available placeholders:</span>
+                                  <code className="text-xs bg-gray-200 px-1 rounded">{'{{name}}'}</code>
+                                  <code className="text-xs bg-gray-200 px-1 rounded">{'{{summary}}'}</code>
+                                  <code className="text-xs bg-gray-200 px-1 rounded">{'{{duration}}'}</code>
+                                </div>
+                              </div>
+
+                              {/* Send Delay */}
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="text-xs font-medium text-gray-700">Send Delay</label>
+                                  <span className="text-xs text-gray-500">{whatsappFollowupDelay === 0 ? 'Immediate' : `${whatsappFollowupDelay} seconds`}</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="300"
+                                  step="30"
+                                  value={whatsappFollowupDelay}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    setWhatsappFollowupDelay(val);
+                                    saveAgentConfig({ whatsappFollowupDelay: val });
+                                  }}
+                                  className="w-full h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer"
+                                />
+                                <div className="flex justify-between text-xs text-gray-400 mt-1">
+                                  <span>Immediate</span>
+                                  <span>5 min</span>
+                                </div>
+                              </div>
+
+                              {/* Info Note */}
+                              <div className="flex items-start gap-2 p-2 bg-blue-50 rounded-md">
+                                <svg className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <p className="text-xs text-blue-700">
+                                  Make sure WhatsApp is configured in <a href="/settings/whatsapp" className="underline hover:text-blue-800">Settings → WhatsApp</a> for this to work.
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Session Timeout */}

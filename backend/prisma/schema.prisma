@@ -1707,6 +1707,14 @@ model VoiceAgent {
 
   // ==================== SECURITY SETTINGS ====================
   authenticationRequired Boolean @default(false)
+
+  // Pre-chat form settings (for lead capture authentication)
+  preChatFormEnabled     Boolean @default(false)
+  preChatFormFields      Json    @default("[{\"name\": \"name\", \"label\": \"Name\", \"type\": \"text\", \"required\": true}, {\"name\": \"email\", \"label\": \"Email\", \"type\": \"email\", \"required\": true}, {\"name\": \"phone\", \"label\": \"Phone\", \"type\": \"tel\", \"required\": false}]")
+  preChatFormTitle       String  @default("Before we start")
+  preChatFormSubtitle    String  @default("Please provide your details")
+  createLeadFromForm     Boolean @default(true) // Auto-create lead from form data
+
   rateLimitingEnabled    Boolean @default(true)
   rateLimitRequests      Int     @default(60) // requests per minute
   rateLimitBurst         Int     @default(10) // burst limit
@@ -1718,6 +1726,11 @@ model VoiceAgent {
   allowedDomains         Json    @default("[]") // Array of allowed domains for widget embedding
   ipWhitelist            Json    @default("[]") // Array of allowed IP addresses
   sessionTimeoutMinutes  Int     @default(30)
+
+  // ==================== WHATSAPP FOLLOW-UP SETTINGS ====================
+  whatsappFollowupEnabled Boolean @default(false) // Send WhatsApp after call ends
+  whatsappFollowupMessage String? @db.Text // Message template: {{name}}, {{summary}}, {{duration}}
+  whatsappFollowupDelay   Int     @default(0) // Delay in seconds before sending (0 = immediate)
 
   // ==================== ADVANCED SETTINGS ====================
   topP              Float   @default(0.9) // Nucleus sampling

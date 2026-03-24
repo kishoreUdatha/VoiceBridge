@@ -15,6 +15,21 @@ interface Message {
   timestamp: Date;
 }
 
+interface PreChatFormField {
+  name: string;
+  label: string;
+  type: 'text' | 'email' | 'tel' | 'textarea';
+  required: boolean;
+  placeholder?: string;
+}
+
+interface VisitorInfo {
+  name?: string;
+  email?: string;
+  phone?: string;
+  [key: string]: string | undefined;
+}
+
 // API URL from environment - falls back to relative URL in production
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3000/api');
 
@@ -35,6 +50,11 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [agentInfo, setAgentInfo] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Pre-chat form state
+  const [showPreChatForm, setShowPreChatForm] = useState(false);
+  const [visitorInfo, setVisitorInfo] = useState<VisitorInfo>({});
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -73,14 +93,65 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
     }
   }, [agentId]);
 
+  // Check if pre-chat form is required before starting session
+  const handleStartCall = () => {
+    if (agentInfo?.authenticationRequired || agentInfo?.preChatFormEnabled) {
+      setShowPreChatForm(true);
+      setFormErrors({});
+    } else {
+      startSession();
+    }
+  };
+
+  // Validate pre-chat form
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    const fields: PreChatFormField[] = agentInfo?.preChatFormFields || [];
+
+    for (const field of fields) {
+      const value = visitorInfo[field.name]?.trim();
+
+      if (field.required && !value) {
+        errors[field.name] = `${field.label} is required`;
+      } else if (value) {
+        // Email validation
+        if (field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          errors[field.name] = 'Please enter a valid email';
+        }
+        // Phone validation (basic)
+        if (field.type === 'tel' && !/^[+]?[\d\s-]{10,}$/.test(value.replace(/\s/g, ''))) {
+          errors[field.name] = 'Please enter a valid phone number';
+        }
+      }
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Submit pre-chat form and start session
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setShowPreChatForm(false);
+    await startSession(visitorInfo);
+  };
+
   // Start session
-  const startSession = async () => {
+  const startSession = async (visitorData?: VisitorInfo) => {
     try {
       setError(null);
       const response = await fetch(`${API_URL}/voice-ai/session/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId }),
+        body: JSON.stringify({
+          agentId,
+          visitorInfo: visitorData || visitorInfo,
+        }),
       });
 
       const data = await response.json();
@@ -88,19 +159,33 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
         setSessionId(data.data.sessionId);
         setIsConnected(true);
 
+        // Personalize greeting with visitor name
+        let greeting = data.data.greeting || '';
+        if (visitorData?.name && greeting) {
+          // Replace {{name}} placeholder if exists, or prepend name
+          if (greeting.includes('{{name}}')) {
+            greeting = greeting.replace('{{name}}', visitorData.name);
+          }
+        }
+
         // Add greeting message
-        if (data.data.greeting) {
+        if (greeting) {
           setMessages([{
             role: 'assistant',
-            content: data.data.greeting,
+            content: greeting,
             timestamp: new Date(),
           }]);
 
           // Play greeting audio
-          await playTextAsAudio(data.data.greeting);
+          await playTextAsAudio(greeting);
         }
       } else {
-        setError(data.message);
+        // Check if pre-chat form is required
+        if (data.error?.code === 'PRE_CHAT_REQUIRED') {
+          setShowPreChatForm(true);
+        } else {
+          setError(data.message);
+        }
       }
     } catch (err) {
       setError('Failed to start session');
@@ -310,7 +395,7 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
     if (isConnected) {
       endSession();
     } else {
-      startSession();
+      handleStartCall();
     }
   };
 
@@ -403,7 +488,104 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
           {/* Body */}
           {!isMinimized && (
             <>
+              {/* Pre-chat Form */}
+              {showPreChatForm && (
+                <div style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  padding: '20px',
+                  backgroundColor: '#f9fafb',
+                }}>
+                  <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                    <h4 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: '#1f2937' }}>
+                      {agentInfo?.preChatFormTitle || 'Before we start'}
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>
+                      {agentInfo?.preChatFormSubtitle || 'Please provide your details'}
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleFormSubmit}>
+                    {(agentInfo?.preChatFormFields || []).map((field: PreChatFormField) => (
+                      <div key={field.name} style={{ marginBottom: '16px' }}>
+                        <label
+                          htmlFor={field.name}
+                          style={{
+                            display: 'block',
+                            fontSize: '13px',
+                            fontWeight: 500,
+                            color: '#374151',
+                            marginBottom: '6px',
+                          }}
+                        >
+                          {field.label}
+                          {field.required && <span style={{ color: '#dc2626', marginLeft: '4px' }}>*</span>}
+                        </label>
+                        <input
+                          id={field.name}
+                          type={field.type === 'textarea' ? 'text' : field.type}
+                          placeholder={field.placeholder || `Enter your ${field.label.toLowerCase()}`}
+                          value={visitorInfo[field.name] || ''}
+                          onChange={(e) => setVisitorInfo({ ...visitorInfo, [field.name]: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            fontSize: '14px',
+                            border: formErrors[field.name] ? '1px solid #dc2626' : '1px solid #d1d5db',
+                            borderRadius: '8px',
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                        {formErrors[field.name] && (
+                          <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#dc2626' }}>
+                            {formErrors[field.name]}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowPreChatForm(false)}
+                        style={{
+                          flex: 1,
+                          padding: '12px',
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          backgroundColor: '#f3f4f6',
+                          color: '#374151',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        style={{
+                          flex: 1,
+                          padding: '12px',
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          backgroundColor: effectiveColor,
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Start Conversation
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
               {/* Messages */}
+              {!showPreChatForm && (
               <div style={{
                 flex: 1,
                 overflowY: 'auto',
@@ -446,6 +628,7 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
                 ))}
                 <div ref={messagesEndRef} />
               </div>
+              )}
 
               {/* Error */}
               {error && (

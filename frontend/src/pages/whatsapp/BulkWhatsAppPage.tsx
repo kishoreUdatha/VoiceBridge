@@ -6,6 +6,7 @@
 import {
   PaperAirplaneIcon,
   ArrowPathIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import { useBulkWhatsApp } from './hooks';
 import {
@@ -34,6 +35,7 @@ export default function BulkWhatsAppPage() {
     whatsappConfigured,
     mediaFiles,
     stats,
+    loadingLeads,
     fileInputRef,
     imageInputRef,
     videoInputRef,
@@ -47,6 +49,7 @@ export default function BulkWhatsAppPage() {
     removeMedia,
     handleSendBulk,
     addNamePlaceholder,
+    loadLeadsFromCRM,
   } = useBulkWhatsApp();
 
   if (whatsappConfigured === null) {
@@ -73,6 +76,8 @@ export default function BulkWhatsAppPage() {
             removeRecipient={removeRecipient}
             clearAllRecipients={clearAllRecipients}
             fileInputRef={fileInputRef}
+            loadLeadsFromCRM={() => loadLeadsFromCRM()}
+            loadingLeads={loadingLeads}
           />
         </div>
 

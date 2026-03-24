@@ -22,6 +22,8 @@ interface WhatsAppConfig {
   accessToken?: string;
   businessAccountId?: string;
   phoneNumberId?: string;
+  configuredViaEnv?: boolean;
+  hasEnvConfig?: boolean;
 }
 
 const PROVIDERS = [
@@ -227,10 +229,18 @@ export default function WhatsAppSettingsPage() {
       </div>
 
       {/* Status */}
-      {!config.isConfigured && (
+      {!config.isConfigured && !config.hasEnvConfig && (
         <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
           <ExclamationTriangleIcon className="w-5 h-5 text-amber-600" />
           <p className="text-sm text-amber-800">Complete the setup below to enable WhatsApp messaging</p>
+        </div>
+      )}
+
+      {/* Env Config Notice */}
+      {config.configuredViaEnv && (
+        <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <CheckCircleSolidIcon className="w-5 h-5 text-blue-600" />
+          <p className="text-sm text-blue-800">WhatsApp is configured using server environment variables. Click "Test Connection" to verify.</p>
         </div>
       )}
 
@@ -461,7 +471,7 @@ export default function WhatsAppSettingsPage() {
         </button>
         <button
           onClick={handleTest}
-          disabled={testing || !config.phoneNumber}
+          disabled={testing || (!config.phoneNumber && !config.phoneNumberId && !config.accessToken)}
           className="h-11 px-6 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors inline-flex items-center gap-2"
         >
           {testing && <ArrowPathIcon className="w-4 h-4 animate-spin" />}

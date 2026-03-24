@@ -28,6 +28,7 @@ interface UseBulkWhatsAppReturn {
   whatsappConfigured: boolean | null;
   mediaFiles: MediaFile[];
   stats: RecipientStats;
+  loadingLeads: boolean;
 
   // Refs
   fileInputRef: React.RefObject<HTMLInputElement>;
@@ -45,6 +46,7 @@ interface UseBulkWhatsAppReturn {
   removeMedia: (index: number) => void;
   handleSendBulk: () => Promise<void>;
   addNamePlaceholder: () => void;
+  loadLeadsFromCRM: (filter?: { stageId?: string; source?: string }) => Promise<void>;
 }
 
 export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
@@ -56,6 +58,7 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
   const [progress, setProgress] = useState<SendProgress>({ sent: 0, total: 0 });
   const [whatsappConfigured, setWhatsappConfigured] = useState<boolean | null>(null);
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -69,8 +72,12 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
 
   const checkWhatsAppConfig = async () => {
     try {
-      const response = await api.get('/exotel/whatsapp/status');
-      setWhatsappConfigured(response.data.data?.configured ?? response.data.configured);
+      // Check if WhatsApp is configured in organization settings
+      const response = await api.get('/organization/settings/whatsapp');
+      const config = response.data.data || response.data;
+      // Check if we have at least accessToken or phoneNumberId configured
+      const isConfigured = !!(config?.accessToken || config?.phoneNumberId || config?.isConfigured);
+      setWhatsappConfigured(isConfigured);
     } catch {
       setWhatsappConfigured(false);
     }
@@ -272,16 +279,19 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
         const recipient = recipients[i];
 
         try {
-          const response = await api.post('/exotel/whatsapp/send', {
+          // Use the multi-provider messaging API
+          const response = await api.post('/messaging/whatsapp', {
             to: recipient.phone,
             message: message.replace(/{name}/g, recipient.name || ''),
-            media: mediaData.length > 0 ? mediaData : undefined,
+            // TODO: Handle media attachments when backend supports it
           });
 
+          const result = response.data.data || response.data;
           updatedRecipients[i] = {
             ...recipient,
-            status: 'sent',
-            messageId: response.data.messageId,
+            status: result.success ? 'sent' : 'failed',
+            messageId: result.messageId,
+            error: result.success ? undefined : 'Failed to send',
           };
         } catch (error: any) {
           updatedRecipients[i] = {
@@ -294,6 +304,7 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
         setRecipients([...updatedRecipients]);
         setProgress({ sent: i + 1, total: recipients.length });
 
+        // Rate limiting: 200ms delay between messages to avoid API limits
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
     } catch (error) {
@@ -306,6 +317,55 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
   const addNamePlaceholder = useCallback(() => {
     setMessage(message + '{name}');
   }, [message]);
+
+  // Load leads from CRM database
+  const loadLeadsFromCRM = useCallback(
+    async (filter?: { stageId?: string; source?: string }) => {
+      setLoadingLeads(true);
+      try {
+        // Build query params
+        const params = new URLSearchParams();
+        params.set('limit', '1000'); // Load up to 1000 leads
+        if (filter?.stageId) params.set('stageId', filter.stageId);
+        if (filter?.source) params.set('source', filter.source);
+
+        const response = await api.get(`/leads?${params.toString()}`);
+        const leads = response.data.data || response.data.leads || [];
+
+        const newRecipients: Recipient[] = [];
+        leads.forEach((lead: any) => {
+          const phone = lead.phone || lead.alternatePhone;
+          if (phone) {
+            const normalizedPhone = parsePhoneNumbers(phone)[0];
+            if (
+              normalizedPhone &&
+              !recipients.some((r) => r.phone === normalizedPhone) &&
+              !newRecipients.some((r) => r.phone === normalizedPhone)
+            ) {
+              newRecipients.push({
+                id: crypto.randomUUID(),
+                phone: normalizedPhone,
+                name: [lead.firstName, lead.lastName].filter(Boolean).join(' ') || undefined,
+                status: 'pending',
+              });
+            }
+          }
+        });
+
+        if (newRecipients.length > 0) {
+          setRecipients([...recipients, ...newRecipients]);
+        } else {
+          alert('No leads found with phone numbers.');
+        }
+      } catch (error) {
+        console.error('Error loading leads:', error);
+        alert('Failed to load leads from CRM');
+      } finally {
+        setLoadingLeads(false);
+      }
+    },
+    [recipients]
+  );
 
   const stats: RecipientStats = {
     total: recipients.length,
@@ -329,6 +389,7 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
     whatsappConfigured,
     mediaFiles,
     stats,
+    loadingLeads,
     fileInputRef,
     imageInputRef,
     videoInputRef,
@@ -342,6 +403,7 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
     removeMedia,
     handleSendBulk,
     addNamePlaceholder,
+    loadLeadsFromCRM,
   };
 }
 

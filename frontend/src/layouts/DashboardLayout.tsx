@@ -50,8 +50,7 @@ const WhatsAppIcon = ({ className }: { className?: string }) => (
 );
 
 // ===========================================
-// SIMPLIFIED NAVIGATION - Clean & Intuitive
-// Based on user workflows, not feature categories
+// CLEAN NAVIGATION - Organized by Business Function
 // ===========================================
 
 // Main Navigation - Core daily workflow (visible to all)
@@ -61,44 +60,47 @@ const mainNavigation: NavItem[] = [
   { name: 'Inbox', href: '/hybrid-inbox', icon: ChatBubbleLeftRightIcon, roles: ['admin', 'manager', 'counselor', 'telecaller'] },
 ];
 
-// Calls - All calling related features
-const callsNavigation: NavItem[] = [
-  { name: 'AI Calling', href: '/outbound-calls', icon: PhoneIcon, roles: ['admin', 'manager', 'telecaller'] },
-  { name: 'My Queue', href: '/telecaller-queue', icon: QueueListIcon, roles: ['admin', 'manager', 'telecaller'] },
+// Voice AI - AI Agents & Automation
+const voiceAINavigation: NavItem[] = [
   { name: 'Voice Agents', href: '/voice-ai', icon: SparklesIcon, roles: ['admin', 'manager'] },
   { name: 'Call Flows', href: '/call-flows', icon: ArrowPathRoundedSquareIcon, roles: ['admin', 'manager'] },
+];
+
+// Calls - Calling Operations
+const callsNavigation: NavItem[] = [
+  { name: 'Outbound Calls', href: '/outbound-calls', icon: PhoneIcon, roles: ['admin', 'manager', 'telecaller'] },
+  { name: 'Call Queue', href: '/telecaller-queue', icon: QueueListIcon, roles: ['admin', 'manager', 'telecaller'] },
   { name: 'Call Monitoring', href: '/call-monitoring', icon: EyeIcon, roles: ['admin', 'manager'] },
 ];
 
-// Marketing - Campaigns & outreach
-const marketingNavigation: NavItem[] = [
+// Messaging - WhatsApp, SMS, Campaigns
+const messagingNavigation: NavItem[] = [
+  { name: 'Bulk WhatsApp', href: '/whatsapp/bulk', icon: WhatsAppIcon, roles: ['admin', 'manager', 'counselor'] },
   { name: 'Campaigns', href: '/campaigns', icon: MegaphoneIcon, roles: ['admin', 'manager', 'counselor'] },
-  { name: 'Ad Integrations', href: '/ad-integrations', icon: ArrowPathRoundedSquareIcon, roles: ['admin', 'manager'] },
-  { name: 'WhatsApp', href: '/whatsapp/bulk', icon: WhatsAppIcon, roles: ['admin', 'manager', 'counselor'] },
   { name: 'Templates', href: '/templates', icon: DocumentTextIcon, roles: ['admin', 'manager'] },
-  { name: 'Raw Data', href: '/raw-imports', icon: DocumentArrowUpIcon, roles: ['admin', 'manager'] },
+];
+
+// Data - Import & Lead Sources
+const dataNavigation: NavItem[] = [
+  { name: 'Import Data', href: '/raw-imports', icon: DocumentArrowUpIcon, roles: ['admin', 'manager'] },
+  { name: 'Ad Integrations', href: '/ad-integrations', icon: ArrowPathRoundedSquareIcon, roles: ['admin', 'manager'] },
   { name: 'Web Scraping', href: '/apify-dashboard', icon: MagnifyingGlassCircleIcon, roles: ['admin', 'manager'] },
 ];
 
-// Analytics - Reports & insights
+// Analytics - Reports & insights (consolidated)
 const analyticsNavigation: NavItem[] = [
-  { name: 'Analytics', href: '/analytics', icon: PresentationChartLineIcon, roles: ['admin', 'manager'] },
-  { name: 'Lead Sources', href: '/analytics/lead-sources', icon: UserGroupIcon, roles: ['admin', 'manager'] },
-  { name: 'Funnel', href: '/analytics/funnel', icon: FunnelIcon, roles: ['admin', 'manager'] },
-  { name: 'Agent Perf.', href: '/analytics/agents', icon: TrophyIcon, roles: ['admin', 'manager'] },
+  { name: 'Overview', href: '/analytics', icon: PresentationChartLineIcon, roles: ['admin', 'manager'] },
   { name: 'Reports', href: '/reports', icon: ChartBarIcon, roles: ['admin', 'manager'] },
+  { name: 'Funnel', href: '/analytics/funnel', icon: FunnelIcon, roles: ['admin', 'manager'] },
+  { name: 'Agent Performance', href: '/analytics/agents', icon: TrophyIcon, roles: ['admin', 'manager'] },
 ];
 
-// Compliance - Consent & regulatory
-const complianceNavigation: NavItem[] = [
-  { name: 'Compliance', href: '/compliance', icon: ShieldCheckIcon, roles: ['admin', 'manager'] },
-];
-
-// Settings - Configuration (Admin focused)
+// Settings - All Configuration (consolidated)
 const settingsNavigation: NavItem[] = [
   { name: 'Users', href: '/users', icon: UsersIcon, roles: ['admin'] },
+  { name: 'WhatsApp', href: '/settings/whatsapp', icon: WhatsAppIcon, roles: ['admin', 'manager'] },
   { name: 'Integrations', href: '/settings/crm-integration', icon: ArrowPathRoundedSquareIcon, roles: ['admin', 'manager'] },
-  { name: 'Post-Call Messages', href: '/settings/post-call-messaging', icon: BellIcon, roles: ['admin', 'manager'] },
+  { name: 'Compliance', href: '/compliance', icon: ShieldCheckIcon, roles: ['admin', 'manager'] },
   { name: 'Subscription', href: '/subscription', icon: CreditCardIcon, roles: ['admin', 'manager'] },
   { name: 'API Keys', href: '/api-keys', icon: KeyIcon, roles: ['admin'] },
 ];
@@ -132,10 +134,11 @@ export default function DashboardLayout() {
   };
 
   const filteredMain = useMemo(() => filterByRole(mainNavigation), [userRole]);
+  const filteredVoiceAI = useMemo(() => filterByRole(voiceAINavigation), [userRole]);
   const filteredCalls = useMemo(() => filterByRole(callsNavigation), [userRole]);
-  const filteredMarketing = useMemo(() => filterByRole(marketingNavigation), [userRole]);
+  const filteredMessaging = useMemo(() => filterByRole(messagingNavigation), [userRole]);
+  const filteredData = useMemo(() => filterByRole(dataNavigation), [userRole]);
   const filteredAnalytics = useMemo(() => filterByRole(analyticsNavigation), [userRole]);
-  const filteredCompliance = useMemo(() => filterByRole(complianceNavigation), [userRole]);
   const filteredSettings = useMemo(() => filterByRole(settingsNavigation), [userRole]);
 
   const handleLogout = async () => {
@@ -186,14 +189,28 @@ export default function DashboardLayout() {
             </button>
           </div>
 
-          {/* Navigation - Simplified */}
-          <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto">
+          {/* Navigation - Clean & Organized */}
+          <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
             {/* Main Navigation */}
             <div className="space-y-1">
               {filteredMain.map((item) => (
                 <NavItem key={item.name} item={item} onClick={() => setSidebarOpen(false)} />
               ))}
             </div>
+
+            {/* Voice AI Section */}
+            {showAdvancedSections && filteredVoiceAI.length > 0 && (
+              <div>
+                <div className="px-2.5 py-1 text-[10px] font-semibold text-violet-400 uppercase tracking-wider">
+                  Voice AI
+                </div>
+                <div className="mt-1 space-y-1">
+                  {filteredVoiceAI.map((item) => (
+                    <NavItem key={item.name} item={item} onClick={() => setSidebarOpen(false)} />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Calls Section */}
             {filteredCalls.length > 0 && (
@@ -209,14 +226,28 @@ export default function DashboardLayout() {
               </div>
             )}
 
-            {/* Marketing Section */}
-            {showAdvancedSections && filteredMarketing.length > 0 && (
+            {/* Messaging Section */}
+            {filteredMessaging.length > 0 && (
               <div>
-                <div className="px-2.5 py-1 text-[10px] font-semibold text-sky-400 uppercase tracking-wider">
-                  Marketing
+                <div className="px-2.5 py-1 text-[10px] font-semibold text-green-400 uppercase tracking-wider">
+                  Messaging
                 </div>
                 <div className="mt-1 space-y-1">
-                  {filteredMarketing.map((item) => (
+                  {filteredMessaging.map((item) => (
+                    <NavItem key={item.name} item={item} onClick={() => setSidebarOpen(false)} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Data Section */}
+            {showAdvancedSections && filteredData.length > 0 && (
+              <div>
+                <div className="px-2.5 py-1 text-[10px] font-semibold text-sky-400 uppercase tracking-wider">
+                  Data
+                </div>
+                <div className="mt-1 space-y-1">
+                  {filteredData.map((item) => (
                     <NavItem key={item.name} item={item} onClick={() => setSidebarOpen(false)} />
                   ))}
                 </div>
@@ -231,20 +262,6 @@ export default function DashboardLayout() {
                 </div>
                 <div className="mt-1 space-y-1">
                   {filteredAnalytics.map((item) => (
-                    <NavItem key={item.name} item={item} onClick={() => setSidebarOpen(false)} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Compliance Section */}
-            {showAdvancedSections && filteredCompliance.length > 0 && (
-              <div>
-                <div className="px-2.5 py-1 text-[10px] font-semibold text-teal-400 uppercase tracking-wider">
-                  Compliance
-                </div>
-                <div className="mt-1 space-y-1">
-                  {filteredCompliance.map((item) => (
                     <NavItem key={item.name} item={item} onClick={() => setSidebarOpen(false)} />
                   ))}
                 </div>
@@ -281,7 +298,7 @@ export default function DashboardLayout() {
             </div>
           </div>
 
-          {/* Navigation - Simplified */}
+          {/* Navigation - Clean & Organized */}
           <nav className="flex-1 px-2 py-3 space-y-4 overflow-y-auto scrollbar-hide">
             {/* Main Navigation */}
             <div className="space-y-1">
@@ -289,6 +306,20 @@ export default function DashboardLayout() {
                 <NavItem key={item.name} item={item} />
               ))}
             </div>
+
+            {/* Voice AI Section */}
+            {showAdvancedSections && filteredVoiceAI.length > 0 && (
+              <div>
+                <div className="px-2.5 py-1 text-[10px] font-semibold text-violet-400 uppercase tracking-wider">
+                  Voice AI
+                </div>
+                <div className="mt-1 space-y-1">
+                  {filteredVoiceAI.map((item) => (
+                    <NavItem key={item.name} item={item} />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Calls Section */}
             {filteredCalls.length > 0 && (
@@ -304,14 +335,28 @@ export default function DashboardLayout() {
               </div>
             )}
 
-            {/* Marketing Section */}
-            {showAdvancedSections && filteredMarketing.length > 0 && (
+            {/* Messaging Section */}
+            {filteredMessaging.length > 0 && (
               <div>
-                <div className="px-2.5 py-1 text-[10px] font-semibold text-sky-400 uppercase tracking-wider">
-                  Marketing
+                <div className="px-2.5 py-1 text-[10px] font-semibold text-green-400 uppercase tracking-wider">
+                  Messaging
                 </div>
                 <div className="mt-1 space-y-1">
-                  {filteredMarketing.map((item) => (
+                  {filteredMessaging.map((item) => (
+                    <NavItem key={item.name} item={item} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Data Section */}
+            {showAdvancedSections && filteredData.length > 0 && (
+              <div>
+                <div className="px-2.5 py-1 text-[10px] font-semibold text-sky-400 uppercase tracking-wider">
+                  Data
+                </div>
+                <div className="mt-1 space-y-1">
+                  {filteredData.map((item) => (
                     <NavItem key={item.name} item={item} />
                   ))}
                 </div>
@@ -326,20 +371,6 @@ export default function DashboardLayout() {
                 </div>
                 <div className="mt-1 space-y-1">
                   {filteredAnalytics.map((item) => (
-                    <NavItem key={item.name} item={item} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Compliance Section */}
-            {showAdvancedSections && filteredCompliance.length > 0 && (
-              <div>
-                <div className="px-2.5 py-1 text-[10px] font-semibold text-teal-400 uppercase tracking-wider">
-                  Compliance
-                </div>
-                <div className="mt-1 space-y-1">
-                  {filteredCompliance.map((item) => (
                     <NavItem key={item.name} item={item} />
                   ))}
                 </div>

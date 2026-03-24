@@ -424,11 +424,30 @@ router.get('/settings/whatsapp', async (req: TenantRequest, res: Response) => {
     }
 
     const settings = (organization.settings as any) || {};
-    const whatsapp = settings.whatsapp || {
-      provider: 'exotel',
+    let whatsapp = settings.whatsapp || {
+      provider: 'meta',
       phoneNumber: '',
       isConfigured: false,
     };
+
+    // Check for environment variables if no org-level config
+    const envAccessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    const envPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const envBusinessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+    const hasEnvConfig = !!(envAccessToken && envPhoneNumberId);
+
+    // If no org config but env vars exist, indicate that
+    if (!whatsapp.isConfigured && hasEnvConfig) {
+      whatsapp = {
+        ...whatsapp,
+        provider: 'meta',
+        phoneNumberId: envPhoneNumberId,
+        businessAccountId: envBusinessAccountId || '',
+        accessToken: envAccessToken,
+        isConfigured: true,
+        configuredViaEnv: true,
+      };
+    }
 
     // Don't send secrets to frontend - mask them
     const safeWhatsapp = {
@@ -436,6 +455,7 @@ router.get('/settings/whatsapp', async (req: TenantRequest, res: Response) => {
       apiKey: whatsapp.apiKey ? '••••••••' + whatsapp.apiKey.slice(-4) : '',
       apiSecret: whatsapp.apiSecret ? '••••••••' + whatsapp.apiSecret.slice(-4) : '',
       accessToken: whatsapp.accessToken ? '••••••••' + whatsapp.accessToken.slice(-4) : '',
+      hasEnvConfig,
     };
 
     return ApiResponse.success(res, 'WhatsApp settings retrieved', safeWhatsapp);
@@ -513,7 +533,7 @@ router.post('/settings/whatsapp', async (req: TenantRequest, res: Response) => {
       accessToken: accessToken && !accessToken.startsWith('••••') ? accessToken : currentWhatsapp.accessToken || '',
       businessAccountId: businessAccountId || currentWhatsapp.businessAccountId || '',
       phoneNumberId: phoneNumberId || currentWhatsapp.phoneNumberId || '',
-      isConfigured: !!(phoneNumber || currentWhatsapp.phoneNumber),
+      isConfigured: !!(phoneNumber || currentWhatsapp.phoneNumber || phoneNumberId || currentWhatsapp.phoneNumberId || accessToken || currentWhatsapp.accessToken),
       updatedAt: new Date().toISOString(),
     };
 
@@ -564,10 +584,31 @@ router.post('/settings/whatsapp/test', async (req: TenantRequest, res: Response)
     }
 
     const settings = (organization.settings as any) || {};
-    const whatsapp = settings.whatsapp || {};
+    let whatsapp = settings.whatsapp || {};
 
-    if (!whatsapp.phoneNumber) {
-      return ApiResponse.error(res, 'WhatsApp phone number not configured', 400);
+    // Check for env variables if no org-level config
+    if (!whatsapp.isConfigured && !whatsapp.phoneNumberId && !whatsapp.accessToken) {
+      const envAccessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+      const envPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+      const envBusinessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+
+      if (envAccessToken && envPhoneNumberId) {
+        whatsapp = {
+          provider: 'meta',
+          phoneNumber: envPhoneNumberId,
+          accessToken: envAccessToken,
+          phoneNumberId: envPhoneNumberId,
+          businessAccountId: envBusinessAccountId,
+          isConfigured: true,
+        };
+      }
+    }
+
+    // For Meta API, phoneNumberId is sufficient (phoneNumber is optional)
+    const hasValidConfig = whatsapp.phoneNumber || whatsapp.phoneNumberId || whatsapp.accessToken;
+
+    if (!hasValidConfig) {
+      return ApiResponse.error(res, 'WhatsApp not configured. Please add credentials in Settings.', 400);
     }
 
     // Use the WhatsApp service to test connection

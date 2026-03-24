@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { voiceAIService } from '../integrations/voice-ai.service';
 import { elevenlabsService } from '../integrations/elevenlabs.service';
 import { openaiService } from '../integrations/openai.service';
+import { createWhatsAppService } from '../integrations/whatsapp.service';
 import { authenticate } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { ApiResponse } from '../utils/apiResponse';
@@ -41,6 +42,12 @@ router.get('/widget/:agentId', async (req: Request, res: Response) => {
       widgetColor: agent.widgetColor,
       widgetPosition: agent.widgetPosition,
       voiceId: agent.voiceId,
+      // Pre-chat form configuration
+      authenticationRequired: agent.authenticationRequired,
+      preChatFormEnabled: agent.preChatFormEnabled,
+      preChatFormFields: agent.preChatFormFields,
+      preChatFormTitle: agent.preChatFormTitle,
+      preChatFormSubtitle: agent.preChatFormSubtitle,
     });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
@@ -56,13 +63,79 @@ router.post('/session/start', async (req: Request, res: Response) => {
       return ApiResponse.error(res, 'Agent ID is required', 400);
     }
 
+    // Get agent to check authentication requirements
+    const agent = await voiceAIService.getAgent(agentId);
+    if (!agent || !agent.isActive) {
+      return ApiResponse.error(res, 'Agent not found or inactive', 404);
+    }
+
+    // Check if pre-chat form is required
+    if (agent.authenticationRequired || agent.preChatFormEnabled) {
+      const formFields = agent.preChatFormFields as Array<{
+        name: string;
+        label: string;
+        type: string;
+        required: boolean;
+      }>;
+
+      // Validate required fields
+      const missingFields: string[] = [];
+      for (const field of formFields) {
+        if (field.required && (!visitorInfo || !visitorInfo[field.name])) {
+          missingFields.push(field.label);
+        }
+      }
+
+      if (missingFields.length > 0) {
+        return ApiResponse.error(
+          res,
+          `Please provide: ${missingFields.join(', ')}`,
+          400,
+          { code: 'PRE_CHAT_REQUIRED', missingFields }
+        );
+      }
+    }
+
+    // Create lead from form data if enabled
+    let leadId: string | undefined;
+    if (agent.createLeadFromForm && visitorInfo && (visitorInfo.name || visitorInfo.email || visitorInfo.phone)) {
+      try {
+        const lead = await prisma.lead.create({
+          data: {
+            organizationId: agent.organizationId,
+            name: visitorInfo.name || 'Voice Widget Visitor',
+            email: visitorInfo.email || null,
+            phone: visitorInfo.phone || null,
+            source: 'VOICE_WIDGET',
+            status: 'NEW',
+            metadata: {
+              capturedFrom: 'voice-ai-widget',
+              agentId: agent.id,
+              agentName: agent.name,
+              capturedAt: new Date().toISOString(),
+              ...visitorInfo,
+            },
+          },
+        });
+        leadId = lead.id;
+      } catch (leadError) {
+        console.error('Failed to create lead from voice widget:', leadError);
+        // Continue even if lead creation fails
+      }
+    }
+
     const session = await voiceAIService.startSession(agentId, {
       ...visitorInfo,
       ip: req.ip,
       device: req.headers['user-agent'],
+      leadId,
     });
 
-    ApiResponse.success(res, 'Session started', session);
+    ApiResponse.success(res, 'Session started', {
+      ...session,
+      leadId,
+      visitorName: visitorInfo?.name,
+    });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -118,12 +191,78 @@ router.post('/session/:sessionId/end', async (req: Request, res: Response) => {
 
     const session = await voiceAIService.endSession(sessionId, status || 'COMPLETED');
 
+    // Send WhatsApp follow-up if enabled
+    let whatsappSent = false;
+    try {
+      // Get the agent settings
+      const agent = await prisma.voiceAgent.findUnique({
+        where: { id: session.agentId },
+        select: {
+          organizationId: true,
+          whatsappFollowupEnabled: true,
+          whatsappFollowupMessage: true,
+          whatsappFollowupDelay: true,
+          name: true,
+        },
+      });
+
+      if (agent?.whatsappFollowupEnabled && session.leadId) {
+        // Get lead phone number
+        const lead = await prisma.lead.findUnique({
+          where: { id: session.leadId },
+          select: { phone: true, firstName: true, lastName: true },
+        });
+
+        if (lead?.phone) {
+          const whatsappService = createWhatsAppService(agent.organizationId);
+          await whatsappService.loadConfig();
+
+          // Build the message
+          const leadName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'there';
+          const durationMinutes = Math.round((session.duration || 0) / 60);
+
+          let message = agent.whatsappFollowupMessage ||
+            `Hi {{name}}! Thank you for speaking with us. Here's a summary of our conversation:\n\n{{summary}}\n\nFeel free to reach out if you have any questions!`;
+
+          // Replace placeholders
+          message = message
+            .replace(/\{\{name\}\}/g, leadName)
+            .replace(/\{\{summary\}\}/g, session.summary || 'No summary available')
+            .replace(/\{\{duration\}\}/g, `${durationMinutes} minute${durationMinutes !== 1 ? 's' : ''}`);
+
+          // Send after delay (if configured)
+          const delay = agent.whatsappFollowupDelay || 0;
+          if (delay > 0) {
+            setTimeout(async () => {
+              try {
+                await whatsappService.sendMessage({ to: lead.phone!, message });
+                console.log(`[VoiceAI] WhatsApp follow-up sent to ${lead.phone} after ${delay}s delay`);
+              } catch (err) {
+                console.error('[VoiceAI] Failed to send delayed WhatsApp:', err);
+              }
+            }, delay * 1000);
+          } else {
+            const result = await whatsappService.sendMessage({ to: lead.phone, message });
+            whatsappSent = result.success;
+            if (result.success) {
+              console.log(`[VoiceAI] WhatsApp follow-up sent to ${lead.phone}`);
+            } else {
+              console.error(`[VoiceAI] WhatsApp follow-up failed: ${result.error}`);
+            }
+          }
+        }
+      }
+    } catch (whatsappError) {
+      console.error('[VoiceAI] WhatsApp follow-up error:', whatsappError);
+    }
+
     ApiResponse.success(res, 'Session ended', {
       sessionId: session.id,
       duration: session.duration,
       summary: session.summary,
       sentiment: session.sentiment,
       leadCreated: !!session.leadId,
+      whatsappSent,
     });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
@@ -870,6 +1009,8 @@ router.put('/agents/:agentId', async (req: TenantRequest, res: Response) => {
       'authenticationRequired', 'rateLimitingEnabled', 'rateLimitRequests', 'rateLimitBurst',
       'contentFilteringEnabled', 'contentFilterCategories', 'dataRetentionDays',
       'anonymizeUserData', 'gdprComplianceEnabled', 'allowedDomains', 'ipWhitelist', 'sessionTimeoutMinutes',
+      // Pre-chat Form Settings
+      'preChatFormEnabled', 'preChatFormFields', 'preChatFormTitle', 'preChatFormSubtitle', 'createLeadFromForm',
       // Advanced Settings
       'topP', 'frequencyPenalty', 'presencePenalty', 'maxResponseTokens', 'stopSequences',
       'speechRate', 'voicePitch', 'silenceDetection', 'debugMode', 'logLevel', 'logConversations',

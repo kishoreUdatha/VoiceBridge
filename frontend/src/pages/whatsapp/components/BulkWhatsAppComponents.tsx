@@ -82,6 +82,8 @@ interface RecipientsPanelProps {
   removeRecipient: (id: string) => void;
   clearAllRecipients: () => void;
   fileInputRef: React.RefObject<HTMLInputElement>;
+  loadLeadsFromCRM?: () => void;
+  loadingLeads?: boolean;
 }
 
 export const RecipientsPanel: React.FC<RecipientsPanelProps> = ({
@@ -93,6 +95,8 @@ export const RecipientsPanel: React.FC<RecipientsPanelProps> = ({
   removeRecipient,
   clearAllRecipients,
   fileInputRef,
+  loadLeadsFromCRM,
+  loadingLeads,
 }) => (
   <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
     <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
@@ -122,8 +126,8 @@ export const RecipientsPanel: React.FC<RecipientsPanelProps> = ({
         </button>
       </div>
 
-      {/* File Upload */}
-      <div>
+      {/* File Upload & Load from CRM */}
+      <div className="space-y-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -133,12 +137,32 @@ export const RecipientsPanel: React.FC<RecipientsPanelProps> = ({
         />
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="w-full h-20 flex flex-col items-center justify-center gap-1 border-2 border-dashed border-gray-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition-colors cursor-pointer"
+          className="w-full h-16 flex flex-col items-center justify-center gap-1 border-2 border-dashed border-gray-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition-colors cursor-pointer"
         >
-          <DocumentArrowUpIcon className="w-6 h-6 text-gray-400" />
+          <DocumentArrowUpIcon className="w-5 h-5 text-gray-400" />
           <span className="text-sm text-gray-600">Upload Excel or CSV</span>
-          <span className="text-xs text-gray-400">Columns: Phone, Name</span>
         </button>
+
+        {/* Load from CRM Button */}
+        {loadLeadsFromCRM && (
+          <button
+            onClick={loadLeadsFromCRM}
+            disabled={loadingLeads}
+            className="w-full h-12 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg font-medium hover:from-indigo-600 hover:to-purple-600 disabled:opacity-50 transition-all"
+          >
+            {loadingLeads ? (
+              <>
+                <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                Loading Leads...
+              </>
+            ) : (
+              <>
+                <UserGroupIcon className="w-4 h-4" />
+                Load from CRM
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Recipients List */}

@@ -45,7 +45,7 @@ export class WhatsAppService {
   }
 
   /**
-   * Load WhatsApp config from organization settings
+   * Load WhatsApp config from organization settings or environment variables
    */
   async loadConfig(): Promise<WhatsAppConfig | null> {
     try {
@@ -61,6 +61,26 @@ export class WhatsAppService {
 
       const settings = (organization.settings as any) || {};
       this.config = settings.whatsapp || null;
+
+      // Fallback to environment variables if no org-level config
+      if (!this.config || !this.config.isConfigured) {
+        const envAccessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+        const envPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+        const envBusinessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+
+        if (envAccessToken && envPhoneNumberId) {
+          console.info(`[WhatsApp] Using environment variables for Meta Cloud API`);
+          this.config = {
+            provider: 'meta',
+            phoneNumber: envPhoneNumberId,
+            accessToken: envAccessToken,
+            phoneNumberId: envPhoneNumberId,
+            businessAccountId: envBusinessAccountId,
+            isConfigured: true,
+          };
+          return this.config;
+        }
+      }
 
       if (!this.config) {
         console.info(`[WhatsApp] No WhatsApp config found for org: ${this.organizationId}`);
@@ -80,7 +100,9 @@ export class WhatsAppService {
     if (!this.config) {
       await this.loadConfig();
     }
-    return !!(this.config?.isConfigured && this.config?.phoneNumber);
+    // For Meta API, phoneNumberId is sufficient (phoneNumber is optional)
+    const hasCredentials = this.config?.phoneNumber || this.config?.phoneNumberId || this.config?.accessToken;
+    return !!(this.config?.isConfigured && hasCredentials);
   }
 
   /**
@@ -662,8 +684,14 @@ export class WhatsAppService {
       await this.loadConfig();
     }
 
-    if (!this.config || !this.config.phoneNumber) {
+    if (!this.config) {
       return { success: false, message: 'WhatsApp not configured' };
+    }
+
+    // For Meta API, phoneNumberId is sufficient (phoneNumber is optional)
+    const hasValidConfig = this.config.phoneNumber || this.config.phoneNumberId || this.config.accessToken;
+    if (!hasValidConfig) {
+      return { success: false, message: 'WhatsApp not configured - missing credentials' };
     }
 
     const provider = this.config.provider;
