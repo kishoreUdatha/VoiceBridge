@@ -24,16 +24,7 @@ export const leadsApi = {
       if (filters?.search) params.append('search', filters.search);
 
       console.log('[LeadsAPI] Fetching leads from /telecaller/leads');
-      const { Alert } = require('react-native');
-      let response;
-      try {
-        response = await api.get(`/telecaller/leads?${params.toString()}`);
-        Alert.alert('Leads API', `Success: ${response.data?.success}, Count: ${response.data?.data?.leads?.length || 0}`);
-      } catch (err: any) {
-        Alert.alert('Leads Error', `${err.message}\nStatus: ${err.response?.status}`);
-        throw err;
-      }
-      console.log('[LeadsAPI] Response success:', response.data?.success, 'Leads:', response.data?.data?.leads?.length);
+      const response = await api.get(`/telecaller/leads?${params.toString()}`);
 
       // Parse response - backend returns { success, message, data: { leads, total } }
       const responseData = response.data;
