@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { authService } from '../services/auth.service';
 import { ApiResponse } from '../utils/apiResponse';
 import { AuthenticatedRequest } from '../middlewares/auth';
+import { setAuthCookies, clearAuthCookies, getRefreshToken } from '../utils/cookies';
 
 export class AuthController {
   async register(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -20,7 +21,15 @@ export class AuthController {
         planId,
       });
 
-      ApiResponse.created(res, 'Registration successful', result);
+      // Set httpOnly cookies for tokens
+      setAuthCookies(res, {
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      });
+
+      // Return user data without tokens in response body (tokens are in cookies)
+      const { accessToken, refreshToken, ...safeResult } = result;
+      ApiResponse.created(res, 'Registration successful', safeResult);
     } catch (error) {
       next(error);
     }
@@ -32,7 +41,27 @@ export class AuthController {
 
       const result = await authService.login({ email, password });
 
-      ApiResponse.success(res, 'Login successful', result);
+      // Set httpOnly cookies for tokens (for web clients)
+      setAuthCookies(res, {
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      });
+
+      // Check if request is from mobile app (no cookie support)
+      const userAgent = req.headers['user-agent'] || '';
+      const isMobileApp = userAgent.includes('okhttp') ||
+                          userAgent.includes('Expo') ||
+                          userAgent.includes('React Native') ||
+                          req.headers['x-client-type'] === 'mobile';
+
+      if (isMobileApp) {
+        // Return tokens in response body for mobile apps
+        ApiResponse.success(res, 'Login successful', result);
+      } else {
+        // Return user data without tokens in response body for web (tokens are in cookies)
+        const { accessToken, refreshToken, ...safeResult } = result;
+        ApiResponse.success(res, 'Login successful', safeResult);
+      }
     } catch (error) {
       next(error);
     }
@@ -40,11 +69,21 @@ export class AuthController {
 
   async refreshToken(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { refreshToken } = req.body;
+      // Get refresh token from cookie or body (backward compatibility)
+      const refreshToken = getRefreshToken(req);
+
+      if (!refreshToken) {
+        ApiResponse.unauthorized(res, 'Refresh token required');
+        return;
+      }
 
       const tokens = await authService.refreshTokens(refreshToken);
 
-      ApiResponse.success(res, 'Tokens refreshed successfully', tokens);
+      // Set new httpOnly cookies
+      setAuthCookies(res, tokens);
+
+      // Don't return tokens in response body
+      ApiResponse.success(res, 'Tokens refreshed successfully', { message: 'Tokens refreshed' });
     } catch (error) {
       next(error);
     }
@@ -55,6 +94,9 @@ export class AuthController {
       if (req.user) {
         await authService.logout(req.user.id);
       }
+
+      // Clear auth cookies
+      clearAuthCookies(res);
 
       ApiResponse.success(res, 'Logged out successfully');
     } catch (error) {

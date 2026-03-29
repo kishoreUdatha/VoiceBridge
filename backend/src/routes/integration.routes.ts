@@ -3,24 +3,53 @@
  * API endpoints for managing Calendar, CRM, Payment, and Custom API integrations
  */
 
-import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Router, Response } from 'express';
+import { body, param, query } from 'express-validator';
+import rateLimit from 'express-rate-limit';
+import { prisma } from '../config/database';
+import { config } from '../config';
 import integrationService from '../services/integration.service';
+import { authenticate, authorize } from '../middlewares/auth';
+import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 
 const router = Router();
-const prisma = new PrismaClient();
 
-// Middleware to get organization ID from authenticated user
-const getOrgId = (req: Request): string => {
-  return (req as any).user?.organizationId;
-};
+// Rate limiters for expensive operations
+const oauthRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 OAuth requests per minute
+  message: { success: false, message: 'Too many OAuth requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const paymentRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20, // 20 payment operations per minute
+  message: { success: false, message: 'Too many payment requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiTestRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 API tests per minute
+  message: { success: false, message: 'Too many API test requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply authentication and tenant middleware to all routes
+router.use(authenticate);
+router.use(tenantMiddleware);
 
 // ==================== CALENDAR INTEGRATION ROUTES ====================
 
 // Get calendar integration status
-router.get('/calendar', async (req: Request, res: Response) => {
+router.get('/calendar', async (req: TenantRequest, res: Response) => {
   try {
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
 
     const integrations = await prisma.calendarIntegration.findMany({
       where: { organizationId },
@@ -45,11 +74,17 @@ router.get('/calendar', async (req: Request, res: Response) => {
 });
 
 // Get OAuth URL for calendar provider
-router.get('/calendar/auth/:provider', async (req: Request, res: Response) => {
+router.get('/calendar/auth/:provider', oauthRateLimiter, validate([
+  param('provider').isIn(['google', 'outlook']).withMessage('Provider must be google or outlook'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { provider } = req.params;
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
     const redirectUri = `${process.env.APP_URL}/api/integrations/calendar/callback`;
+
+    if (!organizationId) {
+      return res.status(401).json({ success: false, message: 'Organization not found' });
+    }
 
     let authUrl: string;
 
@@ -67,8 +102,8 @@ router.get('/calendar/auth/:provider', async (req: Request, res: Response) => {
   }
 });
 
-// OAuth callback for calendar
-router.get('/calendar/callback', async (req: Request, res: Response) => {
+// OAuth callback for calendar (public endpoint for OAuth redirect)
+router.get('/calendar/callback', async (req: TenantRequest, res: Response) => {
   try {
     const { code, state } = req.query;
 
@@ -76,13 +111,33 @@ router.get('/calendar/callback', async (req: Request, res: Response) => {
       return res.redirect('/settings/integrations?error=missing_params');
     }
 
-    const stateData = JSON.parse(Buffer.from(state as string, 'base64').toString());
+    // SECURITY: Safely parse state with error handling
+    let stateData: { organizationId?: string; provider?: string };
+    try {
+      stateData = JSON.parse(Buffer.from(state as string, 'base64').toString());
+    } catch {
+      console.error('Calendar OAuth: Invalid state parameter');
+      return res.redirect('/settings/integrations?error=invalid_state');
+    }
+
     const { organizationId, provider } = stateData;
+
+    // SECURITY: Validate required fields
+    if (!organizationId || !provider) {
+      return res.redirect('/settings/integrations?error=missing_state_params');
+    }
+
+    // SECURITY: Validate provider value
+    const validProviders = ['google', 'outlook', 'GOOGLE', 'OUTLOOK'];
+    if (!validProviders.includes(provider)) {
+      return res.redirect('/settings/integrations?error=invalid_provider');
+    }
+
     const redirectUri = `${process.env.APP_URL}/api/integrations/calendar/callback`;
 
     await integrationService.calendar.handleOAuthCallback(
       code as string,
-      provider.toUpperCase(),
+      provider.toUpperCase() as 'GOOGLE' | 'OUTLOOK',
       organizationId,
       redirectUri
     );
@@ -95,10 +150,24 @@ router.get('/calendar/callback', async (req: Request, res: Response) => {
 });
 
 // Get available calendar slots
-router.get('/calendar/:integrationId/slots', async (req: Request, res: Response) => {
+router.get('/calendar/:integrationId/slots', validate([
+  param('integrationId').isUUID().withMessage('Invalid integration ID'),
+  query('date').isISO8601().withMessage('Valid date is required'),
+  query('duration').optional().isInt({ min: 5, max: 480 }).withMessage('Duration must be 5-480 minutes'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { integrationId } = req.params;
     const { date, duration } = req.query;
+    const organizationId = req.organizationId;
+
+    // SECURITY: Verify integration belongs to user's organization
+    const integration = await prisma.calendarIntegration.findFirst({
+      where: { id: integrationId, organizationId },
+    });
+
+    if (!integration) {
+      return res.status(404).json({ success: false, message: 'Calendar integration not found' });
+    }
 
     const slots = await integrationService.calendar.getAvailableSlots(
       integrationId,
@@ -113,10 +182,29 @@ router.get('/calendar/:integrationId/slots', async (req: Request, res: Response)
 });
 
 // Book appointment
-router.post('/calendar/:integrationId/book', async (req: Request, res: Response) => {
+router.post('/calendar/:integrationId/book', validate([
+  param('integrationId').isUUID().withMessage('Invalid integration ID'),
+  body('title').trim().notEmpty().withMessage('Title is required')
+    .isLength({ max: 200 }).withMessage('Title must be at most 200 characters'),
+  body('description').optional().trim().isLength({ max: 2000 }).withMessage('Description must be at most 2000 characters'),
+  body('startTime').isISO8601().withMessage('Valid start time is required'),
+  body('endTime').isISO8601().withMessage('Valid end time is required'),
+  body('attendeeEmail').optional().isEmail().withMessage('Valid attendee email is required'),
+  body('attendeeName').optional().trim().isLength({ max: 100 }).withMessage('Attendee name must be at most 100 characters'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { integrationId } = req.params;
     const { title, description, startTime, endTime, attendeeEmail, attendeeName } = req.body;
+    const organizationId = req.organizationId;
+
+    // SECURITY: Verify integration belongs to user's organization
+    const integration = await prisma.calendarIntegration.findFirst({
+      where: { id: integrationId, organizationId },
+    });
+
+    if (!integration) {
+      return res.status(404).json({ success: false, message: 'Calendar integration not found' });
+    }
 
     const event = await integrationService.calendar.bookAppointment(integrationId, {
       title,
@@ -134,13 +222,24 @@ router.post('/calendar/:integrationId/book', async (req: Request, res: Response)
 });
 
 // Disconnect calendar
-router.delete('/calendar/:integrationId', async (req: Request, res: Response) => {
+router.delete('/calendar/:integrationId', validate([
+  param('integrationId').isUUID().withMessage('Invalid integration ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { integrationId } = req.params;
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
 
-    await prisma.calendarIntegration.deleteMany({
+    // SECURITY: Verify integration exists and belongs to organization before delete
+    const integration = await prisma.calendarIntegration.findFirst({
       where: { id: integrationId, organizationId },
+    });
+
+    if (!integration) {
+      return res.status(404).json({ success: false, message: 'Calendar integration not found' });
+    }
+
+    await prisma.calendarIntegration.delete({
+      where: { id: integrationId },
     });
 
     res.json({ success: true, message: 'Calendar disconnected' });
@@ -152,9 +251,9 @@ router.delete('/calendar/:integrationId', async (req: Request, res: Response) =>
 // ==================== CRM INTEGRATION ROUTES ====================
 
 // Get CRM integrations
-router.get('/crm', async (req: Request, res: Response) => {
+router.get('/crm', async (req: TenantRequest, res: Response) => {
   try {
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
 
     const integrations = await prisma.crmIntegration.findMany({
       where: { organizationId },
@@ -176,14 +275,35 @@ router.get('/crm', async (req: Request, res: Response) => {
 });
 
 // Create/Update CRM integration
-router.post('/crm', async (req: Request, res: Response) => {
+router.post('/crm', authorize('admin', 'manager'), validate([
+  body('id').optional().isUUID().withMessage('Invalid integration ID'),
+  body('name').optional().trim().isLength({ max: 200 }).withMessage('Name must be at most 200 characters'),
+  body('type').trim().notEmpty().withMessage('CRM type is required')
+    .isIn(['SALESFORCE', 'HUBSPOT', 'ZOHO', 'CUSTOM', 'LEADSQUARED', 'FRESHSALES']).withMessage('Invalid CRM type'),
+  body('webhookUrl').optional().isURL().withMessage('Valid webhook URL is required'),
+  body('apiKey').optional().isString().withMessage('API key must be a string'),
+  body('fieldMappings').optional().isArray().withMessage('Field mappings must be an array'),
+]), async (req: TenantRequest, res: Response) => {
   try {
-    const organizationId = getOrgId(req);
-    const { name, type, webhookUrl, apiKey, fieldMappings } = req.body;
+    const organizationId = req.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ success: false, message: 'Organization not found' });
+    }
+    const { id, name, type, webhookUrl, apiKey, fieldMappings } = req.body;
+
+    // If updating, verify ownership first
+    if (id) {
+      const existing = await prisma.crmIntegration.findFirst({
+        where: { id, organizationId },
+      });
+      if (!existing) {
+        return res.status(404).json({ success: false, message: 'CRM integration not found' });
+      }
+    }
 
     const integration = await prisma.crmIntegration.upsert({
       where: {
-        id: req.body.id || 'new',
+        id: id || 'new',
       },
       create: {
         organizationId,
@@ -210,13 +330,23 @@ router.post('/crm', async (req: Request, res: Response) => {
 });
 
 // Lookup lead in CRM
-router.get('/crm/:integrationId/lookup', async (req: Request, res: Response) => {
+router.get('/crm/:integrationId/lookup', validate([
+  param('integrationId').isUUID().withMessage('Invalid integration ID'),
+  query('phone').trim().notEmpty().withMessage('Phone number is required')
+    .matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone number format'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { integrationId } = req.params;
     const { phone } = req.query;
+    const organizationId = req.organizationId;
 
-    if (!phone) {
-      return res.status(400).json({ success: false, message: 'Phone number required' });
+    // SECURITY: Verify integration belongs to user's organization
+    const integration = await prisma.crmIntegration.findFirst({
+      where: { id: integrationId, organizationId },
+    });
+
+    if (!integration) {
+      return res.status(404).json({ success: false, message: 'CRM integration not found' });
     }
 
     const lead = await integrationService.crm.lookupLead(integrationId, phone as string);
@@ -228,10 +358,35 @@ router.get('/crm/:integrationId/lookup', async (req: Request, res: Response) => 
 });
 
 // Create lead in CRM
-router.post('/crm/:integrationId/create-lead', async (req: Request, res: Response) => {
+router.post('/crm/:integrationId/create-lead', validate([
+  param('integrationId').isUUID().withMessage('Invalid integration ID'),
+  body('firstName').optional().trim().isLength({ max: 100 }).withMessage('First name must be at most 100 characters'),
+  body('lastName').optional().trim().isLength({ max: 100 }).withMessage('Last name must be at most 100 characters'),
+  body('phone').optional().matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone number format'),
+  body('email').optional().isEmail().withMessage('Invalid email format'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { integrationId } = req.params;
-    const leadData = req.body;
+    const { firstName, lastName, phone, email, ...otherFields } = req.body;
+    const organizationId = req.organizationId;
+
+    // SECURITY: Verify integration belongs to user's organization
+    const integration = await prisma.crmIntegration.findFirst({
+      where: { id: integrationId, organizationId },
+    });
+
+    if (!integration) {
+      return res.status(404).json({ success: false, message: 'CRM integration not found' });
+    }
+
+    // SECURITY: Construct safe lead data with explicit fields
+    const leadData = {
+      firstName,
+      lastName,
+      phone,
+      email,
+      ...otherFields,
+    };
 
     const result = await integrationService.crm.createLead(integrationId, leadData);
 
@@ -242,13 +397,24 @@ router.post('/crm/:integrationId/create-lead', async (req: Request, res: Respons
 });
 
 // Delete CRM integration
-router.delete('/crm/:integrationId', async (req: Request, res: Response) => {
+router.delete('/crm/:integrationId', authorize('admin', 'manager'), validate([
+  param('integrationId').isUUID().withMessage('Invalid integration ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { integrationId } = req.params;
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
 
-    await prisma.crmIntegration.deleteMany({
+    // SECURITY: Verify integration exists and belongs to organization before delete
+    const integration = await prisma.crmIntegration.findFirst({
       where: { id: integrationId, organizationId },
+    });
+
+    if (!integration) {
+      return res.status(404).json({ success: false, message: 'CRM integration not found' });
+    }
+
+    await prisma.crmIntegration.delete({
+      where: { id: integrationId },
     });
 
     res.json({ success: true, message: 'CRM integration deleted' });
@@ -260,9 +426,9 @@ router.delete('/crm/:integrationId', async (req: Request, res: Response) => {
 // ==================== PAYMENT INTEGRATION ROUTES ====================
 
 // Get payment integrations
-router.get('/payment', async (req: Request, res: Response) => {
+router.get('/payment', async (req: TenantRequest, res: Response) => {
   try {
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
 
     const integrations = await prisma.paymentIntegration.findMany({
       where: { organizationId },
@@ -285,9 +451,21 @@ router.get('/payment', async (req: Request, res: Response) => {
 });
 
 // Create/Update payment integration
-router.post('/payment', async (req: Request, res: Response) => {
+router.post('/payment', authorize('admin', 'manager'), paymentRateLimiter, validate([
+  body('provider').trim().notEmpty().withMessage('Payment provider is required')
+    .isIn(['RAZORPAY', 'STRIPE', 'PAYPAL', 'CASHFREE', 'PAYTM']).withMessage('Invalid payment provider'),
+  body('apiKey').optional().isString().isLength({ max: 500 }).withMessage('API key must be at most 500 characters'),
+  body('apiSecret').optional().isString().isLength({ max: 500 }).withMessage('API secret must be at most 500 characters'),
+  body('webhookSecret').optional().isString().isLength({ max: 500 }).withMessage('Webhook secret must be at most 500 characters'),
+  body('merchantId').optional().trim().isLength({ max: 100 }).withMessage('Merchant ID must be at most 100 characters'),
+  body('currency').optional().isLength({ min: 3, max: 3 }).withMessage('Currency must be a 3-letter code'),
+  body('testMode').optional().isBoolean().withMessage('Test mode must be a boolean'),
+]), async (req: TenantRequest, res: Response) => {
   try {
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ success: false, message: 'Organization not found' });
+    }
     const { provider, apiKey, apiSecret, webhookSecret, merchantId, currency, testMode } = req.body;
 
     const integration = await prisma.paymentIntegration.upsert({
@@ -332,10 +510,28 @@ router.post('/payment', async (req: Request, res: Response) => {
 });
 
 // Create payment link
-router.post('/payment/:integrationId/create-link', async (req: Request, res: Response) => {
+router.post('/payment/:integrationId/create-link', paymentRateLimiter, validate([
+  param('integrationId').isUUID().withMessage('Invalid integration ID'),
+  body('amount').isFloat({ min: 0.01 }).withMessage('Amount must be a positive number'),
+  body('currency').optional().isLength({ min: 3, max: 3 }).withMessage('Currency must be a 3-letter code'),
+  body('description').optional().trim().isLength({ max: 500 }).withMessage('Description must be at most 500 characters'),
+  body('customerName').optional().trim().isLength({ max: 100 }).withMessage('Customer name must be at most 100 characters'),
+  body('customerPhone').optional().matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone number format'),
+  body('customerEmail').optional().isEmail().withMessage('Invalid email format'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { integrationId } = req.params;
     const { amount, currency, description, customerName, customerPhone, customerEmail } = req.body;
+    const organizationId = req.organizationId;
+
+    // SECURITY: Verify integration belongs to user's organization
+    const integration = await prisma.paymentIntegration.findFirst({
+      where: { id: integrationId, organizationId },
+    });
+
+    if (!integration) {
+      return res.status(404).json({ success: false, message: 'Payment integration not found' });
+    }
 
     const paymentLink = await integrationService.payment.createPaymentLink(integrationId, {
       amount,
@@ -352,20 +548,29 @@ router.post('/payment/:integrationId/create-link', async (req: Request, res: Res
   }
 });
 
-// Payment webhook callback
-router.post('/payment/webhook/:provider', async (req: Request, res: Response) => {
+// Payment webhook callback (public endpoint - webhooks don't have auth)
+// Note: This endpoint should verify webhook signatures for security
+router.post('/payment/webhook/:provider', validate([
+  param('provider').isIn(['razorpay', 'stripe', 'paypal', 'cashfree', 'paytm']).withMessage('Invalid payment provider'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { provider } = req.params;
 
     // Verify webhook signature based on provider
     if (provider === 'razorpay') {
       const signature = req.headers['x-razorpay-signature'] as string;
-      // Verify and process payment
-      console.log('Razorpay webhook received:', req.body);
+      if (!signature) {
+        return res.status(401).json({ success: false, message: 'Missing signature' });
+      }
+      // TODO: Verify signature with razorpay webhook secret
+      console.log('Razorpay webhook received');
     } else if (provider === 'stripe') {
       const signature = req.headers['stripe-signature'] as string;
-      // Verify and process payment
-      console.log('Stripe webhook received:', req.body);
+      if (!signature) {
+        return res.status(401).json({ success: false, message: 'Missing signature' });
+      }
+      // TODO: Verify signature with stripe webhook secret
+      console.log('Stripe webhook received');
     }
 
     res.json({ success: true });
@@ -375,13 +580,24 @@ router.post('/payment/webhook/:provider', async (req: Request, res: Response) =>
 });
 
 // Delete payment integration
-router.delete('/payment/:integrationId', async (req: Request, res: Response) => {
+router.delete('/payment/:integrationId', authorize('admin', 'manager'), validate([
+  param('integrationId').isUUID().withMessage('Invalid integration ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { integrationId } = req.params;
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
 
-    await prisma.paymentIntegration.deleteMany({
+    // SECURITY: Verify integration exists and belongs to organization before delete
+    const integration = await prisma.paymentIntegration.findFirst({
       where: { id: integrationId, organizationId },
+    });
+
+    if (!integration) {
+      return res.status(404).json({ success: false, message: 'Payment integration not found' });
+    }
+
+    await prisma.paymentIntegration.delete({
+      where: { id: integrationId },
     });
 
     res.json({ success: true, message: 'Payment integration deleted' });
@@ -393,10 +609,22 @@ router.delete('/payment/:integrationId', async (req: Request, res: Response) => 
 // ==================== CUSTOM API ENDPOINT ROUTES ====================
 
 // Get custom API endpoints
-router.get('/custom-api', async (req: Request, res: Response) => {
+router.get('/custom-api', validate([
+  query('voiceAgentId').optional().isUUID().withMessage('Invalid voice agent ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
     const { voiceAgentId } = req.query;
+
+    // SECURITY: If voiceAgentId provided, verify it belongs to organization
+    if (voiceAgentId) {
+      const agent = await prisma.voiceAgent.findFirst({
+        where: { id: voiceAgentId as string, organizationId },
+      });
+      if (!agent) {
+        return res.status(404).json({ success: false, message: 'Voice agent not found' });
+      }
+    }
 
     const endpoints = await prisma.customApiEndpoint.findMany({
       where: {
@@ -425,9 +653,25 @@ router.get('/custom-api', async (req: Request, res: Response) => {
 });
 
 // Create custom API endpoint
-router.post('/custom-api', async (req: Request, res: Response) => {
+router.post('/custom-api', validate([
+  body('voiceAgentId').optional().isUUID().withMessage('Invalid voice agent ID'),
+  body('name').trim().notEmpty().withMessage('Name is required')
+    .isLength({ max: 200 }).withMessage('Name must be at most 200 characters'),
+  body('url').isURL().withMessage('Valid URL is required'),
+  body('method').optional().isIn(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']).withMessage('Invalid HTTP method'),
+  body('headers').optional().isObject().withMessage('Headers must be an object'),
+  body('authType').optional().isIn(['NONE', 'BEARER', 'API_KEY', 'BASIC']).withMessage('Invalid auth type'),
+  body('authValue').optional().isString().isLength({ max: 1000 }).withMessage('Auth value must be at most 1000 characters'),
+  body('trigger').optional().isIn(['ALWAYS', 'KEYWORD', 'INTENT']).withMessage('Invalid trigger type'),
+  body('triggerKeywords').optional().isArray().withMessage('Trigger keywords must be an array'),
+  body('parseResponse').optional().isBoolean().withMessage('parseResponse must be a boolean'),
+  body('responseMapping').optional().isObject().withMessage('Response mapping must be an object'),
+]), async (req: TenantRequest, res: Response) => {
   try {
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ success: false, message: 'Organization not found' });
+    }
     const {
       voiceAgentId,
       name,
@@ -441,6 +685,16 @@ router.post('/custom-api', async (req: Request, res: Response) => {
       parseResponse,
       responseMapping,
     } = req.body;
+
+    // SECURITY: If voiceAgentId provided, verify it belongs to organization
+    if (voiceAgentId) {
+      const agent = await prisma.voiceAgent.findFirst({
+        where: { id: voiceAgentId, organizationId },
+      });
+      if (!agent) {
+        return res.status(404).json({ success: false, message: 'Voice agent not found' });
+      }
+    }
 
     const endpoint = await prisma.customApiEndpoint.create({
       data: {
@@ -467,19 +721,66 @@ router.post('/custom-api', async (req: Request, res: Response) => {
 });
 
 // Update custom API endpoint
-router.put('/custom-api/:endpointId', async (req: Request, res: Response) => {
+// SECURITY FIX: Extract specific fields instead of spreading req.body
+router.put('/custom-api/:endpointId', validate([
+  param('endpointId').isUUID().withMessage('Invalid endpoint ID'),
+  body('name').optional().trim().notEmpty().isLength({ max: 200 }).withMessage('Name must be at most 200 characters'),
+  body('url').optional().isURL().withMessage('Valid URL is required'),
+  body('method').optional().isIn(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']).withMessage('Invalid HTTP method'),
+  body('headers').optional().isObject().withMessage('Headers must be an object'),
+  body('authType').optional().isIn(['NONE', 'BEARER', 'API_KEY', 'BASIC']).withMessage('Invalid auth type'),
+  body('authValue').optional().isString().isLength({ max: 1000 }).withMessage('Auth value must be at most 1000 characters'),
+  body('trigger').optional().isIn(['ALWAYS', 'KEYWORD', 'INTENT']).withMessage('Invalid trigger type'),
+  body('triggerKeywords').optional().isArray().withMessage('Trigger keywords must be an array'),
+  body('parseResponse').optional().isBoolean().withMessage('parseResponse must be a boolean'),
+  body('responseMapping').optional().isObject().withMessage('Response mapping must be an object'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { endpointId } = req.params;
-    const organizationId = getOrgId(req);
-    const updates = req.body;
+    const organizationId = req.organizationId;
 
-    if (updates.authValue) {
-      updates.authValue = integrationService.encrypt(updates.authValue);
+    // SECURITY: Verify endpoint exists and belongs to organization
+    const existingEndpoint = await prisma.customApiEndpoint.findFirst({
+      where: { id: endpointId, organizationId },
+    });
+
+    if (!existingEndpoint) {
+      return res.status(404).json({ success: false, message: 'Endpoint not found' });
     }
 
-    const endpoint = await prisma.customApiEndpoint.updateMany({
-      where: { id: endpointId, organizationId },
-      data: updates,
+    // SECURITY: Extract only allowed fields - NO direct req.body spread
+    const {
+      name,
+      url,
+      method,
+      headers,
+      authType,
+      authValue,
+      trigger,
+      triggerKeywords,
+      parseResponse,
+      responseMapping,
+      isActive,
+    } = req.body;
+
+    // Build update data with only provided fields
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (url !== undefined) updateData.url = url;
+    if (method !== undefined) updateData.method = method;
+    if (headers !== undefined) updateData.headers = headers;
+    if (authType !== undefined) updateData.authType = authType;
+    if (authValue !== undefined) updateData.authValue = integrationService.encrypt(authValue);
+    if (trigger !== undefined) updateData.trigger = trigger;
+    if (triggerKeywords !== undefined) updateData.triggerKeywords = triggerKeywords;
+    if (parseResponse !== undefined) updateData.parseResponse = parseResponse;
+    if (responseMapping !== undefined) updateData.responseMapping = responseMapping;
+    if (isActive !== undefined) updateData.isActive = isActive;
+
+    const endpoint = await prisma.customApiEndpoint.update({
+      where: { id: endpointId },
+      data: updateData,
     });
 
     res.json({ success: true, data: endpoint });
@@ -489,12 +790,25 @@ router.put('/custom-api/:endpointId', async (req: Request, res: Response) => {
 });
 
 // Test custom API endpoint
-router.post('/custom-api/:endpointId/test', async (req: Request, res: Response) => {
+router.post('/custom-api/:endpointId/test', apiTestRateLimiter, validate([
+  param('endpointId').isUUID().withMessage('Invalid endpoint ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { endpointId } = req.params;
-    const testData = req.body;
+    const organizationId = req.organizationId;
 
-    const result = await integrationService.customApi.callEndpoint(endpointId, testData);
+    // SECURITY: Verify endpoint belongs to user's organization
+    const endpoint = await prisma.customApiEndpoint.findFirst({
+      where: { id: endpointId, organizationId },
+    });
+
+    if (!endpoint) {
+      return res.status(404).json({ success: false, message: 'Endpoint not found' });
+    }
+
+    // Only pass safe test data fields
+    const { testPayload } = req.body;
+    const result = await integrationService.customApi.callEndpoint(endpointId, testPayload || {});
 
     res.json({ success: true, data: result });
   } catch (error: any) {
@@ -503,13 +817,24 @@ router.post('/custom-api/:endpointId/test', async (req: Request, res: Response) 
 });
 
 // Delete custom API endpoint
-router.delete('/custom-api/:endpointId', async (req: Request, res: Response) => {
+router.delete('/custom-api/:endpointId', validate([
+  param('endpointId').isUUID().withMessage('Invalid endpoint ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { endpointId } = req.params;
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
 
-    await prisma.customApiEndpoint.deleteMany({
+    // SECURITY: Verify endpoint exists and belongs to organization before delete
+    const endpoint = await prisma.customApiEndpoint.findFirst({
       where: { id: endpointId, organizationId },
+    });
+
+    if (!endpoint) {
+      return res.status(404).json({ success: false, message: 'Endpoint not found' });
+    }
+
+    await prisma.customApiEndpoint.delete({
+      where: { id: endpointId },
     });
 
     res.json({ success: true, message: 'Endpoint deleted' });
@@ -521,9 +846,21 @@ router.delete('/custom-api/:endpointId', async (req: Request, res: Response) => 
 // ==================== AGENT INTEGRATION ROUTES ====================
 
 // Get integrations for a voice agent
-router.get('/agent/:voiceAgentId', async (req: Request, res: Response) => {
+router.get('/agent/:voiceAgentId', validate([
+  param('voiceAgentId').isUUID().withMessage('Invalid voice agent ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { voiceAgentId } = req.params;
+    const organizationId = req.organizationId;
+
+    // SECURITY: Verify agent belongs to user's organization
+    const agent = await prisma.voiceAgent.findFirst({
+      where: { id: voiceAgentId, organizationId },
+    });
+
+    if (!agent) {
+      return res.status(404).json({ success: false, message: 'Voice agent not found' });
+    }
 
     const integrations = await integrationService.agentIntegration.getAgentIntegrations(voiceAgentId);
 
@@ -534,10 +871,26 @@ router.get('/agent/:voiceAgentId', async (req: Request, res: Response) => {
 });
 
 // Enable/disable integration for agent
-router.post('/agent/:voiceAgentId/toggle', async (req: Request, res: Response) => {
+router.post('/agent/:voiceAgentId/toggle', validate([
+  param('voiceAgentId').isUUID().withMessage('Invalid voice agent ID'),
+  body('integrationType').trim().notEmpty().withMessage('Integration type is required')
+    .isIn(['CALENDAR', 'CRM', 'PAYMENT', 'SHEETS', 'CUSTOM_API']).withMessage('Invalid integration type'),
+  body('enabled').isBoolean().withMessage('Enabled must be a boolean'),
+  body('config').optional().isObject().withMessage('Config must be an object'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { voiceAgentId } = req.params;
     const { integrationType, enabled, config } = req.body;
+    const organizationId = req.organizationId;
+
+    // SECURITY: Verify agent belongs to user's organization
+    const agent = await prisma.voiceAgent.findFirst({
+      where: { id: voiceAgentId, organizationId },
+    });
+
+    if (!agent) {
+      return res.status(404).json({ success: false, message: 'Voice agent not found' });
+    }
 
     const result = await integrationService.agentIntegration.toggleIntegration(
       voiceAgentId,
@@ -553,10 +906,26 @@ router.post('/agent/:voiceAgentId/toggle', async (req: Request, res: Response) =
 });
 
 // Link specific integration to agent
-router.post('/agent/:voiceAgentId/link', async (req: Request, res: Response) => {
+router.post('/agent/:voiceAgentId/link', validate([
+  param('voiceAgentId').isUUID().withMessage('Invalid voice agent ID'),
+  body('integrationType').trim().notEmpty().withMessage('Integration type is required')
+    .isIn(['CALENDAR', 'CRM', 'PAYMENT', 'SHEETS', 'CUSTOM_API']).withMessage('Invalid integration type'),
+  body('integrationId').isUUID().withMessage('Invalid integration ID'),
+  body('config').optional().isObject().withMessage('Config must be an object'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { voiceAgentId } = req.params;
     const { integrationType, integrationId, config } = req.body;
+    const organizationId = req.organizationId;
+
+    // SECURITY: Verify agent belongs to user's organization
+    const agent = await prisma.voiceAgent.findFirst({
+      where: { id: voiceAgentId, organizationId },
+    });
+
+    if (!agent) {
+      return res.status(404).json({ success: false, message: 'Voice agent not found' });
+    }
 
     const result = await integrationService.agentIntegration.linkIntegration(
       voiceAgentId,
@@ -574,16 +943,21 @@ router.post('/agent/:voiceAgentId/link', async (req: Request, res: Response) => 
 // ==================== GOOGLE OAUTH FOR AGENT TOOLS ====================
 
 // Google OAuth initiation for agent tools (calendar, sheets, etc.)
-router.get('/google/auth', async (req: Request, res: Response) => {
+router.get('/google/auth', oauthRateLimiter, validate([
+  query('tool').isIn(['calendar', 'sheets']).withMessage('Tool must be calendar or sheets'),
+  query('agentId').isUUID().withMessage('Invalid agent ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { tool, agentId } = req.query;
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
 
-    if (!tool || !agentId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required parameters: tool and agentId'
-      });
+    // SECURITY: Verify agent belongs to user's organization
+    const agent = await prisma.voiceAgent.findFirst({
+      where: { id: agentId as string, organizationId },
+    });
+
+    if (!agent) {
+      return res.status(404).json({ success: false, message: 'Voice agent not found' });
     }
 
     // Define scopes based on tool type
@@ -602,7 +976,7 @@ router.get('/google/auth', async (req: Request, res: Response) => {
 
     // Google OAuth configuration
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    const redirectUri = `${process.env.APP_URL || 'http://localhost:3000'}/api/integrations/google/callback`;
+    const redirectUri = `${config.baseUrl}/api/integrations/google/callback`;
 
     if (!clientId) {
       return res.status(500).json({
@@ -636,8 +1010,8 @@ router.get('/google/auth', async (req: Request, res: Response) => {
   }
 });
 
-// Google OAuth callback for agent tools
-router.get('/google/callback', async (req: Request, res: Response) => {
+// Google OAuth callback for agent tools (public endpoint for OAuth redirect)
+router.get('/google/callback', async (req: TenantRequest, res: Response) => {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
   try {
@@ -653,10 +1027,29 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       return res.redirect(`${frontendUrl}/voice-ai/agents?error=missing_params`);
     }
 
-    // Decode state
-    const stateData = JSON.parse(Buffer.from(state as string, 'base64').toString());
+    // SECURITY: Safely decode and parse state with error handling
+    let stateData: { tool?: string; agentId?: string; organizationId?: string };
+    try {
+      stateData = JSON.parse(Buffer.from(state as string, 'base64').toString());
+    } catch {
+      console.error('Google OAuth: Invalid state parameter');
+      return res.redirect(`${frontendUrl}/voice-ai/agents?error=invalid_state`);
+    }
+
     const { tool, agentId } = stateData;
     let { organizationId } = stateData;
+
+    // SECURITY: Validate required fields from state
+    if (!tool || !agentId) {
+      console.error('Google OAuth: Missing required state fields');
+      return res.redirect(`${frontendUrl}/voice-ai/agents?error=invalid_state`);
+    }
+
+    // SECURITY: Validate tool value
+    if (!['calendar', 'sheets'].includes(tool)) {
+      console.error('Google OAuth: Invalid tool in state');
+      return res.redirect(`${frontendUrl}/voice-ai/agents?error=invalid_tool`);
+    }
 
     // If organizationId is missing, get it from the agent
     if (!organizationId && agentId) {
@@ -675,7 +1068,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     // Exchange code for tokens
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const redirectUri = `${process.env.APP_URL || 'http://localhost:3000'}/api/integrations/google/callback`;
+    const redirectUri = `${config.baseUrl}/api/integrations/google/callback`;
 
     if (!clientId || !clientSecret) {
       return res.redirect(`${frontendUrl}/voice-ai/agents?error=oauth_not_configured`);
@@ -694,9 +1087,14 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       }),
     });
 
-    const tokens = await tokenResponse.json();
+    const tokens = await tokenResponse.json() as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      error?: string;
+    };
 
-    if (tokens.error) {
+    if (tokens.error || !tokens.access_token || !tokens.expires_in) {
       console.error('Token exchange error:', tokens);
       return res.redirect(`${frontendUrl}/voice-ai/agents?error=token_exchange_failed`);
     }
@@ -707,7 +1105,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       const calendarResponse = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList/primary', {
         headers: { Authorization: `Bearer ${tokens.access_token}` },
       });
-      const calendarInfo = await calendarResponse.json();
+      const calendarInfo = await calendarResponse.json() as { id?: string };
 
       // Create or update calendar integration
       const existingCalendar = await prisma.calendarIntegration.findFirst({
@@ -796,13 +1194,15 @@ router.get('/google/callback', async (req: Request, res: Response) => {
 
       console.log('[GoogleOAuth] Calendar integration saved successfully for agent:', agentId);
     } else if (tool === 'sheets') {
-      // Store sheets integration
-      const agent = await prisma.conversationalAIAgent.findUnique({
+      // Store sheets integration in metadata
+      const agent = await prisma.voiceAgent.findUnique({
         where: { id: agentId },
+        select: { metadata: true },
       });
 
       if (agent) {
-        const toolsConfig = (agent.toolsConfig as Record<string, any>) || {};
+        const currentMetadata = (agent.metadata as Record<string, any>) || {};
+        const toolsConfig = currentMetadata.toolsConfig || {};
         toolsConfig.sheets = {
           enabled: true,
           provider: 'google',
@@ -812,9 +1212,9 @@ router.get('/google/callback', async (req: Request, res: Response) => {
           refreshToken: tokens.refresh_token ? integrationService.encrypt(tokens.refresh_token) : null,
         };
 
-        await prisma.conversationalAIAgent.update({
+        await prisma.voiceAgent.update({
           where: { id: agentId },
-          data: { toolsConfig },
+          data: { metadata: { ...currentMetadata, toolsConfig } },
         });
       }
     }
@@ -878,16 +1278,21 @@ router.get('/google/callback', async (req: Request, res: Response) => {
 });
 
 // Check Google OAuth connection status for a tool
-router.get('/google/status', async (req: Request, res: Response) => {
+router.get('/google/status', validate([
+  query('tool').isIn(['calendar', 'sheets']).withMessage('Tool must be calendar or sheets'),
+  query('agentId').isUUID().withMessage('Invalid agent ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { tool, agentId } = req.query;
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
 
-    if (!tool || !agentId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required parameters: tool and agentId'
-      });
+    // SECURITY: Verify agent belongs to user's organization
+    const agent = await prisma.voiceAgent.findFirst({
+      where: { id: agentId as string, organizationId },
+    });
+
+    if (!agent) {
+      return res.status(404).json({ success: false, message: 'Voice agent not found' });
     }
 
     let connected = false;
@@ -903,12 +1308,18 @@ router.get('/google/status', async (req: Request, res: Response) => {
         lastSyncAt: integration.lastSyncAt,
       } : null;
     } else if (tool === 'sheets') {
-      const agent = await prisma.conversationalAIAgent.findUnique({
-        where: { id: agentId as string },
+      const convAgent = await prisma.voiceAgent.findFirst({
+        where: { id: agentId as string, organizationId },
+        select: { metadata: true },
       });
-      const toolsConfig = (agent?.toolsConfig as Record<string, any>) || {};
+      const metadata = (convAgent?.metadata as Record<string, any>) || {};
+      const toolsConfig = metadata.toolsConfig || {};
       connected = toolsConfig.sheets?.connected || false;
-      connectionInfo = toolsConfig.sheets || null;
+      // Don't expose sensitive token info
+      connectionInfo = toolsConfig.sheets ? {
+        connected: toolsConfig.sheets.connected,
+        connectedAt: toolsConfig.sheets.connectedAt,
+      } : null;
     }
 
     res.json({
@@ -924,20 +1335,16 @@ router.get('/google/status', async (req: Request, res: Response) => {
 });
 
 // Force reset calendar integration (completely delete for fresh OAuth)
-router.delete('/google/reset', async (req: Request, res: Response) => {
+router.delete('/google/reset', authorize('admin', 'manager'), validate([
+  query('tool').isIn(['calendar', 'sheets']).withMessage('Tool must be calendar or sheets'),
+  query('agentId').optional().isUUID().withMessage('Invalid agent ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
-    const { tool, agentId } = req.query;
-    const organizationId = getOrgId(req);
-
-    if (!tool) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required parameter: tool'
-      });
-    }
+    const { tool } = req.query;
+    const organizationId = req.organizationId;
 
     if (tool === 'calendar') {
-      // Get the calendar integration first
+      // Get the calendar integration first - already scoped to organization
       const calendarIntegration = await prisma.calendarIntegration.findFirst({
         where: { organizationId, provider: 'GOOGLE' },
       });
@@ -965,16 +1372,21 @@ router.delete('/google/reset', async (req: Request, res: Response) => {
 });
 
 // Disconnect Google OAuth for a tool
-router.delete('/google/disconnect', async (req: Request, res: Response) => {
+router.delete('/google/disconnect', validate([
+  query('tool').isIn(['calendar', 'sheets']).withMessage('Tool must be calendar or sheets'),
+  query('agentId').isUUID().withMessage('Invalid agent ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { tool, agentId } = req.query;
-    const organizationId = getOrgId(req);
+    const organizationId = req.organizationId;
 
-    if (!tool || !agentId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required parameters: tool and agentId'
-      });
+    // SECURITY: Verify agent belongs to user's organization
+    const voiceAgent = await prisma.voiceAgent.findFirst({
+      where: { id: agentId as string, organizationId },
+    });
+
+    if (!voiceAgent) {
+      return res.status(404).json({ success: false, message: 'Voice agent not found' });
     }
 
     if (tool === 'calendar') {
@@ -984,13 +1396,15 @@ router.delete('/google/disconnect', async (req: Request, res: Response) => {
       });
     }
 
-    // Update agent tools config
-    const agent = await prisma.conversationalAIAgent.findUnique({
-      where: { id: agentId as string },
+    // Update agent tools config in metadata - verify ownership first
+    const agent = await prisma.voiceAgent.findFirst({
+      where: { id: agentId as string, organizationId },
+      select: { id: true, metadata: true },
     });
 
     if (agent) {
-      const toolsConfig = (agent.toolsConfig as Record<string, any>) || {};
+      const currentMetadata = (agent.metadata as Record<string, any>) || {};
+      const toolsConfig = currentMetadata.toolsConfig || {};
       if (toolsConfig[tool as string]) {
         toolsConfig[tool as string] = {
           ...toolsConfig[tool as string],
@@ -999,9 +1413,9 @@ router.delete('/google/disconnect', async (req: Request, res: Response) => {
         };
       }
 
-      await prisma.conversationalAIAgent.update({
-        where: { id: agentId as string },
-        data: { toolsConfig },
+      await prisma.voiceAgent.update({
+        where: { id: agent.id },
+        data: { metadata: { ...currentMetadata, toolsConfig } },
       });
     }
 

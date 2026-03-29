@@ -525,6 +525,7 @@ export interface RealtimeTranscriptionPayload {
 export interface RealtimeAudioResponsePayload {
   audio: string; // base64
   format: 'pcm16' | 'mp3';
+  sampleRate?: number;
 }
 
 export interface RealtimeStatusPayload {

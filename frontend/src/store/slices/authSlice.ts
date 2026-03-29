@@ -14,17 +14,19 @@ interface User {
 
 interface AuthState {
   user: User | null;
-  accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialized: boolean; // Track if we've checked auth status
   error: string | null;
 }
 
+// With httpOnly cookies, we can't check localStorage for auth status
+// We need to verify auth via API call on app load
 const initialState: AuthState = {
   user: null,
-  accessToken: localStorage.getItem('accessToken'),
-  isAuthenticated: !!localStorage.getItem('accessToken'),
+  isAuthenticated: false, // Will be set true after successful API check
   isLoading: false,
+  isInitialized: false, // Set to true after first auth check
   error: null,
 };
 
@@ -78,9 +80,12 @@ const authSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
-    setTokens: (state, action: PayloadAction<{ accessToken: string }>) => {
-      state.accessToken = action.payload.accessToken;
+    // Deprecated: tokens are now in httpOnly cookies
+    setTokens: (state, _action: PayloadAction<{ accessToken: string }>) => {
       state.isAuthenticated = true;
+    },
+    setInitialized: (state) => {
+      state.isInitialized = true;
     },
   },
   extraReducers: (builder) => {
@@ -92,8 +97,8 @@ const authSlice = createSlice({
     builder.addCase(login.fulfilled, (state, action: PayloadAction<AuthResponse>) => {
       state.isLoading = false;
       state.user = action.payload.user;
-      state.accessToken = action.payload.accessToken;
       state.isAuthenticated = true;
+      state.isInitialized = true;
     });
     builder.addCase(login.rejected, (state, action) => {
       state.isLoading = false;
@@ -108,15 +113,15 @@ const authSlice = createSlice({
     builder.addCase(register.fulfilled, (state, action: PayloadAction<AuthResponse>) => {
       state.isLoading = false;
       state.user = action.payload.user;
-      state.accessToken = action.payload.accessToken;
       state.isAuthenticated = true;
+      state.isInitialized = true;
     });
     builder.addCase(register.rejected, (state, action) => {
       state.isLoading = false;
       state.error = action.payload as string;
     });
 
-    // Fetch current user
+    // Fetch current user (used to check auth status on app load)
     builder.addCase(fetchCurrentUser.pending, (state) => {
       state.isLoading = true;
     });
@@ -124,22 +129,22 @@ const authSlice = createSlice({
       state.isLoading = false;
       state.user = action.payload;
       state.isAuthenticated = true;
+      state.isInitialized = true;
     });
     builder.addCase(fetchCurrentUser.rejected, (state) => {
       state.isLoading = false;
       state.isAuthenticated = false;
-      state.accessToken = null;
       state.user = null;
+      state.isInitialized = true;
     });
 
     // Logout
     builder.addCase(logout.fulfilled, (state) => {
       state.user = null;
-      state.accessToken = null;
       state.isAuthenticated = false;
     });
   },
 });
 
-export const { clearError, setTokens } = authSlice.actions;
+export const { clearError, setTokens, setInitialized } = authSlice.actions;
 export default authSlice.reducer;

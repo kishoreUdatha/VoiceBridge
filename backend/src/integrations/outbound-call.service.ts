@@ -10,6 +10,7 @@
  */
 
 import { PrismaClient, OutboundCallStatus, OutboundContactStatus, CallOutcome } from '@prisma/client';
+import { prisma } from '../config/database';
 import { config } from '../config';
 import { voiceMinutesService } from '../services/voice-minutes.service';
 import { callFlowService, callFlowExecutor, CallFlowExecutionContext } from '../services/call-flow.service';
@@ -21,7 +22,6 @@ import { callSpeechService } from '../services/call-speech.service';
 import { callFinalizationService } from '../services/call-finalization.service';
 import { getLanguageConfig, generateExoML, isHindiLanguage } from '../config/language.config';
 
-const prisma = new PrismaClient();
 
 // In-memory storage for active call flow executions
 const activeCallFlowContexts = new Map<string, CallFlowExecutionContext>();
@@ -610,6 +610,7 @@ class OutboundCallService {
     dateTo?: Date;
     limit?: number;
     offset?: number;
+    assignedToUserId?: string; // For role-based filtering
   }) {
     const where: any = {};
 
@@ -626,12 +627,25 @@ class OutboundCallService {
       where.agent = { organizationId: filters.organizationId };
     }
 
+    // Role-based filtering: only show calls for leads assigned to this user
+    if (filters.assignedToUserId) {
+      where.existingLead = {
+        assignments: {
+          some: {
+            assignedToId: filters.assignedToUserId,
+            isActive: true,
+          },
+        },
+      };
+    }
+
     const [calls, total] = await Promise.all([
       prisma.outboundCall.findMany({
         where,
         include: {
           agent: { select: { id: true, name: true, industry: true } },
           campaign: { select: { id: true, name: true } },
+          existingLead: { select: { id: true, firstName: true, lastName: true, phone: true } },
         },
         orderBy: { createdAt: 'desc' },
         take: filters.limit || 50,
@@ -662,10 +676,10 @@ class OutboundCallService {
     });
 
     const totalCalls = calls.length;
-    const completedCalls = calls.filter(c => c.status === 'COMPLETED').length;
-    const answeredCalls = calls.filter(c => c.duration && c.duration > 0).length;
-    const leadsGenerated = calls.filter(c => c.leadGenerated).length;
-    const avgDuration = calls.reduce((acc, c) => acc + (c.duration || 0), 0) / answeredCalls || 0;
+    const completedCalls = calls.filter((c: typeof calls[0]) => c.status === 'COMPLETED').length;
+    const answeredCalls = calls.filter((c: typeof calls[0]) => c.duration && c.duration > 0).length;
+    const leadsGenerated = calls.filter((c: typeof calls[0]) => c.leadGenerated).length;
+    const avgDuration = calls.reduce((acc: number, c: typeof calls[0]) => acc + (c.duration || 0), 0) / answeredCalls || 0;
 
     const outcomeBreakdown: Record<string, number> = {};
     for (const call of calls) {
@@ -675,9 +689,9 @@ class OutboundCallService {
     }
 
     const sentimentBreakdown = {
-      positive: calls.filter(c => c.sentiment === 'positive').length,
-      neutral: calls.filter(c => c.sentiment === 'neutral').length,
-      negative: calls.filter(c => c.sentiment === 'negative').length,
+      positive: calls.filter((c: typeof calls[0]) => c.sentiment === 'positive').length,
+      neutral: calls.filter((c: typeof calls[0]) => c.sentiment === 'neutral').length,
+      negative: calls.filter((c: typeof calls[0]) => c.sentiment === 'negative').length,
     };
 
     return {

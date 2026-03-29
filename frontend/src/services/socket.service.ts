@@ -18,7 +18,7 @@ const getSocketUrl = (): string => {
   return import.meta.env.PROD ? '' : 'http://localhost:3001';
 };
 
-type TokenRefreshCallback = (newToken: string) => void;
+type TokenRefreshCallback = (refreshed: boolean) => void;
 
 class SocketService {
   private socket: Socket | null = null;
@@ -138,11 +138,11 @@ class SocketService {
           this.socket = null;
         }
 
-        // Reconnect with new token
-        this.connect(newToken);
+        // Reconnect - cookies are automatically sent
+        await this.connectAsync();
 
-        // Notify callbacks about new token
-        this.tokenRefreshCallbacks.forEach((callback) => callback(newToken));
+        // Notify callbacks about token refresh
+        this.tokenRefreshCallbacks.forEach((callback) => callback(true));
       } else {
         console.error('[Socket] Token refresh failed, user needs to re-login');
       }

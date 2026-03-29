@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { voiceAIService } from '../integrations/voice-ai.service';
 import { apiAuth, requirePermission, requireAgentAccess, ApiAuthRequest } from '../middlewares/apiAuth';
 import { API_PERMISSIONS } from '../services/api-key.service';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { exotelService } from '../integrations/exotel.service';
 import { webhookService, WEBHOOK_EVENTS } from '../services/webhook.service';
 import { templateService } from '../services/template.service';
@@ -11,7 +11,6 @@ import { rateLimiters, dynamicApiKeyRateLimiter } from '../services/rate-limit.s
 import multer from 'multer';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Configure multer for file upload
 const upload = multer({

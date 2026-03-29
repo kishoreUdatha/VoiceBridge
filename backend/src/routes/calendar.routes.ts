@@ -1,13 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { authenticate, AuthenticatedRequest } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
 import { calendarService } from '../services/calendar.service';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 
 const router = Router();
-const prisma = new PrismaClient();
 
-// All routes require authentication
+// All routes require authentication and tenant context
 router.use(authenticate);
+router.use(tenantMiddleware);
 
 // Get calendar integration status
 router.get('/integration', async (req: AuthenticatedRequest, res: Response) => {

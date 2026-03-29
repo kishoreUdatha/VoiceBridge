@@ -14,16 +14,33 @@ import { prisma } from '../config/database';
 
 const router = Router();
 
+// Rate limiter for test endpoints
+import rateLimit from 'express-rate-limit';
+const testEndpointLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 test requests per hour
+  message: { success: false, message: 'Too many test requests' },
+});
+
 // ==================== TEST ENDPOINTS (Development Only) ====================
 
 // Test Facebook lead capture WITHOUT signature verification
-router.post('/facebook/test-lead', async (req: Request, res: Response, next: NextFunction) => {
+// SECURITY: Requires authentication and uses authenticated user's organization
+router.post('/facebook/test-lead', authenticate, tenantMiddleware, testEndpointLimiter, validate([
+  body('firstName').optional().trim().isLength({ max: 100 }).withMessage('First name too long'),
+  body('lastName').optional().trim().isLength({ max: 100 }).withMessage('Last name too long'),
+  body('email').optional().trim().isEmail().withMessage('Invalid email'),
+  body('phone').optional().trim().matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone'),
+  body('campaignName').optional().trim().isLength({ max: 200 }).withMessage('Campaign name too long'),
+]), async (req: TenantRequest, res: Response, next: NextFunction) => {
   try {
-    const { organizationId, firstName, lastName, email, phone, campaignName } = req.body;
-
-    if (!organizationId) {
-      return res.status(400).json({ success: false, message: 'organizationId is required' });
+    // Only allow in development mode
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ success: false, message: 'Test endpoints disabled in production' });
     }
+
+    const { firstName, lastName, email, phone, campaignName } = req.body;
+    const organizationId = req.organizationId!; // Use authenticated user's organization
 
     // Simulate a Facebook lead webhook payload
     const mockPayload = {
@@ -77,13 +94,22 @@ router.post('/facebook/test-lead', async (req: Request, res: Response, next: Nex
 });
 
 // Test Instagram lead capture WITHOUT signature verification
-router.post('/instagram/test-lead', async (req: Request, res: Response, next: NextFunction) => {
+// SECURITY: Requires authentication and uses authenticated user's organization
+router.post('/instagram/test-lead', authenticate, tenantMiddleware, testEndpointLimiter, validate([
+  body('firstName').optional().trim().isLength({ max: 100 }).withMessage('First name too long'),
+  body('lastName').optional().trim().isLength({ max: 100 }).withMessage('Last name too long'),
+  body('email').optional().trim().isEmail().withMessage('Invalid email'),
+  body('phone').optional().trim().matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone'),
+  body('campaignName').optional().trim().isLength({ max: 200 }).withMessage('Campaign name too long'),
+]), async (req: TenantRequest, res: Response, next: NextFunction) => {
   try {
-    const { organizationId, firstName, lastName, email, phone, campaignName } = req.body;
-
-    if (!organizationId) {
-      return res.status(400).json({ success: false, message: 'organizationId is required' });
+    // Only allow in development mode
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ success: false, message: 'Test endpoints disabled in production' });
     }
+
+    const { firstName, lastName, email, phone, campaignName } = req.body;
+    const organizationId = req.organizationId!; // Use authenticated user's organization
 
     const { externalLeadImportService } = await import('../services/external-lead-import.service');
 
@@ -127,7 +153,7 @@ router.get('/facebook/webhook', async (req: Request, res: Response) => {
   const challenge = req.query['hub.challenge'] as string;
   const orgId = req.query['org'] as string; // Optional: org ID in webhook URL
 
-  console.log(`[Facebook] Webhook verification request - mode: ${mode}, token: ${token?.substring(0, 10)}...`);
+  console.log(`[Facebook] Webhook verification request - mode: ${mode}, token: [REDACTED]`);
 
   if (mode !== 'subscribe') {
     console.warn('[Facebook] Invalid mode for webhook verification');
@@ -239,13 +265,12 @@ router.post('/facebook/webhook', async (req: Request, res: Response, next: NextF
       console.info('[Facebook] Test mode - skipping signature verification');
     }
 
-    // Use found org ID or fallback - check multiple sources
+    // Use found org ID or fallback - SECURITY: Do NOT accept from body (can be spoofed)
     if (!organizationId) {
       organizationId =
-        req.body.organizationId ||
         req.query.organizationId as string ||
         req.headers['x-organization-id'] as string ||
-        process.env.DEFAULT_ORG_ID;
+        process.env.DEFAULT_ORG_ID || null;
     }
 
     if (!organizationId) {
@@ -312,13 +337,12 @@ router.post('/instagram/webhook', webhookLimiter, async (req: Request, res: Resp
       console.info('[Instagram] Test mode - skipping signature verification');
     }
 
-    // Use found org ID or fallback - check multiple sources
+    // Use found org ID or fallback - SECURITY: Do NOT accept from body (can be spoofed)
     if (!organizationId) {
       organizationId =
-        req.body.organizationId ||
         req.query.organizationId as string ||
         req.headers['x-organization-id'] as string ||
-        process.env.DEFAULT_ORG_ID;
+        process.env.DEFAULT_ORG_ID || null;
     }
 
     if (!organizationId) {
@@ -361,12 +385,11 @@ router.post('/linkedin/webhook', webhookLimiter, async (req: Request, res: Respo
       }
     }
 
-    // Get organization ID from multiple sources
+    // Get organization ID - SECURITY: Do NOT accept from body (can be spoofed)
     const organizationId =
-      req.body.organizationId ||
-      req.query.organizationId ||
-      req.headers['x-organization-id'] ||
-      process.env.DEFAULT_ORG_ID;
+      req.query.organizationId as string ||
+      req.headers['x-organization-id'] as string ||
+      process.env.DEFAULT_ORG_ID || null;
 
     if (!organizationId) {
       console.warn('[LinkedIn] No organization ID provided in webhook');
@@ -433,12 +456,11 @@ router.post('/google/webhook', webhookLimiter, async (req: Request, res: Respons
       }
     }
 
-    // Get organization ID from multiple possible sources
+    // Get organization ID - SECURITY: Do NOT accept from body (can be spoofed)
     const organizationId =
-      req.body.organizationId ||
-      req.query.organizationId ||
-      req.headers['x-organization-id'] ||
-      process.env.DEFAULT_ORG_ID;
+      req.query.organizationId as string ||
+      req.headers['x-organization-id'] as string ||
+      process.env.DEFAULT_ORG_ID || null;
 
     if (!organizationId) {
       console.warn('[GoogleAds] No organization ID provided in webhook');
@@ -782,20 +804,7 @@ router.get(
   }
 );
 
-// Google Ads webhook handler
-router.post(
-  '/google/webhook',
-  webhookLimiter,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const organizationId = req.body.organizationId || process.env.DEFAULT_ORG_ID;
-      const lead = await googleAdsService.handleWebhook(req.body, organizationId);
-
-      ApiResponse.success(res, 'Webhook processed', { lead });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
+// NOTE: Google Ads webhook handler is defined above at /google/webhook (before protected routes)
+// This duplicate endpoint was removed for security - it accepted organizationId from body
 
 export default router;

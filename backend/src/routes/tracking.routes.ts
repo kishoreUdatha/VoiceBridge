@@ -6,6 +6,7 @@ import { twitterAdsService } from '../integrations/twitter-ads.service';
 import { tiktokAdsService } from '../integrations/tiktok-ads.service';
 import { youtubeAdsService } from '../integrations/youtube-ads.service';
 import { authenticate } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AppError } from '../utils/errors';
 import { prisma } from '../config/database';
@@ -636,6 +637,7 @@ router.get(
 router.get(
   '/pixel-code',
   authenticate,
+  tenantMiddleware,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
@@ -662,6 +664,7 @@ router.get(
 router.get(
   '/form-code',
   authenticate,
+  tenantMiddleware,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
@@ -695,6 +698,7 @@ router.get(
 router.get(
   '/sources',
   authenticate,
+  tenantMiddleware,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { startDate, endDate } = req.query;
@@ -714,6 +718,7 @@ router.get(
 router.get(
   '/campaigns',
   authenticate,
+  tenantMiddleware,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { startDate, endDate } = req.query;
@@ -733,6 +738,7 @@ router.get(
 router.get(
   '/sources-list',
   authenticate,
+  tenantMiddleware,
   asyncHandler(async (req, res) => {
     res.json({
       success: true,
@@ -756,6 +762,7 @@ router.get(
 router.get(
   '/ad-interactions',
   authenticate,
+  tenantMiddleware,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { startDate, endDate } = req.query;
@@ -776,6 +783,7 @@ router.get(
 router.get(
   '/ad-interactions/unconverted',
   authenticate,
+  tenantMiddleware,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { days, limit, offset } = req.query;
@@ -798,6 +806,7 @@ router.get(
 router.get(
   '/ad-interactions/lead/:leadId',
   authenticate,
+  tenantMiddleware,
   asyncHandler(async (req, res) => {
     const { leadId } = req.params;
 

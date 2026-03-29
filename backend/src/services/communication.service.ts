@@ -22,6 +22,7 @@ interface MakeCallInput {
   to: string;
   leadId?: string;
   callerId: string;
+  organizationId: string;
   callType?: CallType;
 }
 

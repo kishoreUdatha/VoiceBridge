@@ -139,7 +139,7 @@ export class RazorpayService {
     return updatedPayment;
   }
 
-  async getPaymentDetails(orderId: string) {
+  async getPaymentDetails(orderId: string, organizationId?: string) {
     const payment = await prisma.payment.findUnique({
       where: { orderId },
       include: {
@@ -162,12 +162,23 @@ export class RazorpayService {
       throw new NotFoundError('Payment not found');
     }
 
+    // Verify organization ownership if organizationId is provided
+    if (organizationId && payment.organizationId !== organizationId) {
+      throw new NotFoundError('Payment not found'); // Don't reveal existence to unauthorized users
+    }
+
     return payment;
   }
 
-  async getPaymentHistory(studentProfileId: string) {
+  async getPaymentHistory(studentProfileId: string, organizationId?: string) {
+    // Build where clause with organization filter if provided
+    const whereClause: any = { studentProfileId };
+    if (organizationId) {
+      whereClause.organizationId = organizationId;
+    }
+
     return prisma.payment.findMany({
-      where: { studentProfileId },
+      where: whereClause,
       include: { splits: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -210,14 +221,35 @@ export class RazorpayService {
   }
 
   async handleWebhook(payload: Record<string, unknown>, signature: string) {
-    // Verify webhook signature
+    // Verify webhook signature with timing-safe comparison
     const webhookSecret = config.razorpay.keySecret || '';
+
+    if (!webhookSecret) {
+      console.error('[Razorpay] SECURITY: Webhook secret not configured');
+      throw new BadRequestError('Webhook verification failed');
+    }
+
+    if (!signature) {
+      console.error('[Razorpay] SECURITY: No signature provided in webhook request');
+      throw new BadRequestError('Webhook signature required');
+    }
+
     const expectedSignature = crypto
       .createHmac('sha256', webhookSecret)
       .update(JSON.stringify(payload))
       .digest('hex');
 
-    if (expectedSignature !== signature) {
+    // Use timing-safe comparison to prevent timing attacks
+    try {
+      const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+      const receivedBuffer = Buffer.from(signature, 'hex');
+
+      if (expectedBuffer.length !== receivedBuffer.length ||
+          !crypto.timingSafeEqual(expectedBuffer, receivedBuffer)) {
+        throw new BadRequestError('Invalid webhook signature');
+      }
+    } catch (error) {
+      if (error instanceof BadRequestError) throw error;
       throw new BadRequestError('Invalid webhook signature');
     }
 

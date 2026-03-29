@@ -14,14 +14,22 @@
  */
 
 import OpenAI from 'openai';
-import { PrismaClient, CallOutcome } from '@prisma/client';
+import { CallOutcome, LeadGrade } from '@prisma/client';
+import { prisma } from '../config/database';
 import { sarvamService } from '../integrations/sarvam.service';
 import { leadLifecycleService } from './lead-lifecycle.service';
 import { leadScoringService } from './lead-scoring.service';
+import {
+  analyzeCallEnhanced,
+  generateCoachingSuggestions,
+  extractCallData,
+  EnhancedCallAnalysisResult,
+  CoachingSuggestions,
+  ExtractedCallData,
+} from './voicebot-ai.service';
 import fs from 'fs';
 import path from 'path';
 
-const prisma = new PrismaClient();
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -63,19 +71,129 @@ function mapToTelecallerOutcome(outcome: CallOutcome): TelecallerCallOutcome {
 
 class TelecallerCallFinalizationService {
   /**
+   * Find a lead stage by searching multiple terms with fallback options
+   * @param organizationId - Organization ID to search within
+   * @param searchTerms - Array of terms to search for in order of preference
+   * @returns The matching stage ID or undefined if not found
+   */
+  private async findStageByTerms(
+    organizationId: string,
+    searchTerms: string[]
+  ): Promise<string | undefined> {
+    for (const term of searchTerms) {
+      // Try exact slug match first
+      let stage = await prisma.leadStage.findFirst({
+        where: {
+          organizationId,
+          slug: { equals: term, mode: 'insensitive' },
+          isActive: true,
+        },
+      });
+      if (stage) return stage.id;
+
+      // Try slug contains
+      stage = await prisma.leadStage.findFirst({
+        where: {
+          organizationId,
+          slug: { contains: term, mode: 'insensitive' },
+          isActive: true,
+        },
+      });
+      if (stage) return stage.id;
+
+      // Try name contains
+      stage = await prisma.leadStage.findFirst({
+        where: {
+          organizationId,
+          name: { contains: term, mode: 'insensitive' },
+          isActive: true,
+        },
+      });
+      if (stage) return stage.id;
+    }
+    return undefined;
+  }
+
+  /**
+   * Parse string transcript to message array format for AI analysis
+   * Telecaller transcripts are plain text, so we split into alternating agent/customer turns
+   */
+  private parseTranscriptToMessages(transcript: string): Array<{ role: string; content: string }> {
+    if (!transcript || transcript.trim().length === 0) {
+      return [];
+    }
+
+    // Try to detect speaker labels in transcript (Agent:, Customer:, Telecaller:, User:, etc.)
+    const speakerPattern = /^(Agent|Telecaller|Assistant|Rep|User|Customer|Caller|Lead):\s*/gmi;
+    const hasSpeakerLabels = speakerPattern.test(transcript);
+
+    if (hasSpeakerLabels) {
+      // Parse labeled transcript
+      const messages: Array<{ role: string; content: string }> = [];
+      const lines = transcript.split('\n');
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        // Check for speaker label
+        const agentMatch = trimmed.match(/^(Agent|Telecaller|Assistant|Rep):\s*(.+)/i);
+        const customerMatch = trimmed.match(/^(User|Customer|Caller|Lead):\s*(.+)/i);
+
+        if (agentMatch) {
+          messages.push({ role: 'assistant', content: agentMatch[2] });
+        } else if (customerMatch) {
+          messages.push({ role: 'user', content: customerMatch[2] });
+        } else if (messages.length > 0) {
+          // Continuation of previous message
+          messages[messages.length - 1].content += ' ' + trimmed;
+        } else {
+          // No label on first line, treat as user
+          messages.push({ role: 'user', content: trimmed });
+        }
+      }
+
+      return messages;
+    }
+
+    // No speaker labels - split by sentences and alternate between agent/customer
+    // This is a best-effort approach for raw transcripts
+    const sentences = transcript.split(/[.!?]+/).filter(s => s.trim().length > 0);
+
+    if (sentences.length === 1) {
+      // Single block of text - treat entire transcript as customer speech
+      return [{ role: 'user', content: transcript.trim() }];
+    }
+
+    // Alternate between agent and customer for multi-sentence transcripts
+    return sentences.map((sentence, index) => ({
+      role: index % 2 === 0 ? 'assistant' : 'user',
+      content: sentence.trim(),
+    }));
+  }
+
+  /**
    * Process a telecaller call recording with full AI analysis
    */
   async processRecording(callId: string, filePath: string): Promise<void> {
     console.log(`[TelecallerAI] Starting AI analysis for call ${callId}`);
 
     try {
-      // Get call details
+      // Get call details with organization's preferred language
       const call = await prisma.telecallerCall.findUnique({
         where: { id: callId },
         include: {
           lead: true,
           telecaller: {
-            select: { id: true, firstName: true, lastName: true, organizationId: true },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              organizationId: true,
+              organization: {
+                select: { preferredLanguage: true }
+              }
+            },
           },
         },
       });
@@ -85,9 +203,13 @@ class TelecallerCallFinalizationService {
         return;
       }
 
-      // Step 1: Transcribe the recording
+      // Get organization's preferred language (default to Telugu)
+      const preferredLanguage = call.telecaller?.organization?.preferredLanguage || 'te-IN';
+      console.log(`[TelecallerAI] Using preferred language: ${preferredLanguage}`);
+
+      // Step 1: Transcribe the recording with preferred language
       console.log(`[TelecallerAI] Step 1: Transcribing recording...`);
-      const transcript = await this.transcribeRecording(filePath);
+      const transcript = await this.transcribeRecording(filePath, preferredLanguage);
 
       if (!transcript) {
         console.error(`[TelecallerAI] Transcription failed for call ${callId}`);
@@ -95,19 +217,110 @@ class TelecallerCallFinalizationService {
         return;
       }
 
-      // Step 2: Analyze sentiment
-      console.log(`[TelecallerAI] Step 2: Analyzing sentiment...`);
-      const sentiment = await this.analyzeSentiment(transcript);
+      // Step 1.5: Validate transcript has meaningful conversation
+      const validationResult = this.validateTranscript(transcript, call.duration || 0);
+      if (!validationResult.isValid) {
+        console.log(`[TelecallerAI] No meaningful conversation detected: ${validationResult.reason}`);
 
-      // Step 3: Determine outcome
-      console.log(`[TelecallerAI] Step 3: Determining outcome...`);
-      const outcome = await this.determineOutcome(transcript);
+        // Update call with no-conversation defaults
+        await prisma.telecallerCall.update({
+          where: { id: callId },
+          data: {
+            transcript: transcript || '',
+            sentiment: 'neutral',
+            outcome: validationResult.suggestedOutcome,
+            summary: validationResult.reason,
+            qualification: {
+              noConversation: true,
+              reason: validationResult.reason,
+              aiAnalyzedAt: new Date().toISOString(),
+            },
+            aiAnalyzed: true,
+            status: 'COMPLETED',
+          },
+        });
 
-      // Step 4: Generate summary
-      console.log(`[TelecallerAI] Step 4: Generating summary...`);
-      const summary = await this.generateSummary(transcript);
+        console.log(`[TelecallerAI] Call ${callId} marked as ${validationResult.suggestedOutcome} (no conversation)`);
+        return;
+      }
 
-      // Step 5: Extract qualification data
+      // Convert string transcript to message array format for AI analysis
+      const transcriptMessages = this.parseTranscriptToMessages(transcript);
+
+      // Step 2: Run enhanced AI analysis (sentiment, outcome, summary, key questions, issues)
+      console.log(`[TelecallerAI] Step 2: Running enhanced AI analysis...`);
+      const enhancedAnalysis: EnhancedCallAnalysisResult = await analyzeCallEnhanced(
+        transcriptMessages,
+        [], // mood history
+        'neutral',
+        call.duration || 0
+      );
+      console.log(`[TelecallerAI] Enhanced analysis complete:`, {
+        callQualityScore: enhancedAnalysis.callQualityScore,
+        sentiment: enhancedAnalysis.sentiment,
+        outcome: enhancedAnalysis.outcome,
+        keyQuestionsCount: enhancedAnalysis.keyQuestionsAsked.length,
+        keyIssuesCount: enhancedAnalysis.keyIssuesDiscussed.length,
+      });
+
+      // Step 3: Generate coaching suggestions with error handling
+      console.log(`[TelecallerAI] Step 3: Generating coaching suggestions...`);
+      let coachingSuggestions: CoachingSuggestions;
+      try {
+        coachingSuggestions = await generateCoachingSuggestions(
+          transcriptMessages,
+          enhancedAnalysis.outcome,
+          enhancedAnalysis.sentiment,
+          enhancedAnalysis.agentSpeakingTime,
+          enhancedAnalysis.customerSpeakingTime
+        );
+      } catch (coachingError) {
+        console.warn(`[TelecallerAI] Coaching suggestions failed, using defaults:`, coachingError);
+        coachingSuggestions = {
+          positiveHighlights: [],
+          areasToImprove: [],
+          nextCallTips: [],
+          coachingSummary: 'Coaching analysis unavailable',
+          talkListenFeedback: '',
+          empathyScore: 50,
+          objectionHandlingScore: 50,
+          closingScore: 50,
+        };
+      }
+      // Ensure all fields have safe defaults to prevent null reference errors
+      coachingSuggestions = {
+        positiveHighlights: coachingSuggestions?.positiveHighlights || [],
+        areasToImprove: coachingSuggestions?.areasToImprove || [],
+        nextCallTips: coachingSuggestions?.nextCallTips || [],
+        coachingSummary: coachingSuggestions?.coachingSummary || '',
+        talkListenFeedback: coachingSuggestions?.talkListenFeedback || '',
+        empathyScore: coachingSuggestions?.empathyScore ?? 50,
+        objectionHandlingScore: coachingSuggestions?.objectionHandlingScore ?? 50,
+        closingScore: coachingSuggestions?.closingScore ?? 50,
+      };
+      console.log(`[TelecallerAI] Coaching suggestions generated:`, {
+        positiveCount: coachingSuggestions.positiveHighlights.length,
+        areasCount: coachingSuggestions.areasToImprove.length,
+        empathyScore: coachingSuggestions.empathyScore,
+      });
+
+      // Step 4: Extract structured call data with error handling
+      console.log(`[TelecallerAI] Step 4: Extracting structured call data...`);
+      let extractedData: ExtractedCallData;
+      try {
+        extractedData = await extractCallData(transcriptMessages);
+      } catch (extractError) {
+        console.warn(`[TelecallerAI] Data extraction failed, using defaults:`, extractError);
+        extractedData = { items: [], summary: '' };
+      }
+      // Ensure safe defaults
+      extractedData = {
+        items: extractedData?.items || [],
+        summary: extractedData?.summary || '',
+      };
+      console.log(`[TelecallerAI] Extracted ${extractedData.items.length} data items`);
+
+      // Step 5: Additional qualification and buying signals
       console.log(`[TelecallerAI] Step 5: Extracting qualification data...`);
       const qualification = await this.extractQualificationData(transcript);
 
@@ -115,8 +328,15 @@ class TelecallerCallFinalizationService {
       console.log(`[TelecallerAI] Step 6: Analyzing buying signals...`);
       const buyingSignals = await this.detectBuyingSignals(transcript);
 
-      // Step 7: Update call with AI analysis
-      console.log(`[TelecallerAI] Step 7: Updating call record...`);
+      // Use enhanced analysis values
+      const sentiment = enhancedAnalysis.sentiment;
+      const outcome = enhancedAnalysis.outcome as CallOutcome;
+      const summary = enhancedAnalysis.summary;
+      const callQualityScore = enhancedAnalysis.callQualityScore;
+      console.log(`[TelecallerAI] Call quality score: ${callQualityScore}`);
+
+      // Step 7: Update call with AI analysis (including enhanced fields)
+      console.log(`[TelecallerAI] Step 7: Updating call record with enhanced analysis...`);
       const telecallerOutcome = mapToTelecallerOutcome(outcome);
       const updatedCall = await prisma.telecallerCall.update({
         where: { id: callId },
@@ -125,6 +345,26 @@ class TelecallerCallFinalizationService {
           sentiment,
           outcome: telecallerOutcome,
           summary,
+          callQualityScore,
+          // Enhanced analysis fields
+          keyQuestionsAsked: enhancedAnalysis.keyQuestionsAsked,
+          keyIssuesDiscussed: enhancedAnalysis.keyIssuesDiscussed,
+          sentimentIntensity: enhancedAnalysis.sentimentIntensity,
+          agentSpeakingTime: enhancedAnalysis.agentSpeakingTime,
+          customerSpeakingTime: enhancedAnalysis.customerSpeakingTime,
+          nonSpeechTime: enhancedAnalysis.nonSpeechTime,
+          enhancedTranscript: enhancedAnalysis.enhancedTranscript as any,
+          // Coaching fields
+          coachingPositiveHighlights: coachingSuggestions.positiveHighlights as any,
+          coachingAreasToImprove: coachingSuggestions.areasToImprove as any,
+          coachingNextCallTips: coachingSuggestions.nextCallTips,
+          coachingSummary: coachingSuggestions.coachingSummary,
+          coachingTalkListenFeedback: coachingSuggestions.talkListenFeedback,
+          coachingEmpathyScore: coachingSuggestions.empathyScore,
+          coachingObjectionScore: coachingSuggestions.objectionHandlingScore,
+          coachingClosingScore: coachingSuggestions.closingScore,
+          // Extracted data
+          extractedData: extractedData as any,
           qualification: {
             ...qualification,
             buyingSignals: buyingSignals.signals,
@@ -162,42 +402,209 @@ class TelecallerCallFinalizationService {
   }
 
   /**
-   * Transcribe audio recording using Sarvam or Whisper
+   * Validate if transcript contains meaningful conversation
+   * Returns false for empty, silence-only, or noise transcripts
    */
-  private async transcribeRecording(filePath: string): Promise<string | null> {
+  private validateTranscript(
+    transcript: string,
+    duration: number
+  ): { isValid: boolean; reason: string; suggestedOutcome: TelecallerCallOutcome } {
+    // Trim and normalize transcript
+    const cleanTranscript = transcript.trim().toLowerCase();
+
+    // Check 1: Empty or very short transcript
+    if (!cleanTranscript || cleanTranscript.length < 10) {
+      return {
+        isValid: false,
+        reason: 'No conversation detected - recording appears to be silent or empty',
+        suggestedOutcome: 'NO_ANSWER',
+      };
+    }
+
+    // Check 2: Very short duration (less than 5 seconds)
+    if (duration > 0 && duration < 5) {
+      return {
+        isValid: false,
+        reason: 'Call too short for meaningful conversation',
+        suggestedOutcome: 'NO_ANSWER',
+      };
+    }
+
+    // Check 3: Count actual words (filter out noise markers and single characters)
+    const words = cleanTranscript
+      .split(/\s+/)
+      .filter(word => word.length > 1 && !/^[.…,!?]+$/.test(word));
+
+    if (words.length < 5) {
+      return {
+        isValid: false,
+        reason: 'Transcript contains too few words to analyze - likely noise or silence',
+        suggestedOutcome: 'NO_ANSWER',
+      };
+    }
+
+    // Check 4: Detect common noise/silence patterns from transcription services
+    const noisePatterns = [
+      /^\.+$/,                    // Just dots
+      /^\[.*\]$/,                 // Just bracketed noise markers like [silence], [music]
+      /^(uh|um|hmm|ah)+$/,        // Just filler sounds
+      /^(music|silence|noise|static|background|inaudible)+$/i,
+      /thank you for watching/i,  // Common transcription artifact
+      /please subscribe/i,        // Common transcription artifact
+    ];
+
+    for (const pattern of noisePatterns) {
+      if (pattern.test(cleanTranscript)) {
+        return {
+          isValid: false,
+          reason: 'Recording contains only background noise or silence markers',
+          suggestedOutcome: 'NO_ANSWER',
+        };
+      }
+    }
+
+    // Check 5: Ensure there's actual dialogue (at least some greeting or response)
+    const conversationIndicators = [
+      /hello/i, /hi/i, /hey/i, /good (morning|afternoon|evening)/i,
+      /namaskar/i, /namaste/i, /vanakkam/i,
+      /yes/i, /no/i, /okay/i, /sure/i,
+      /tell me/i, /speak/i, /calling/i, /call/i,
+      /sir/i, /ma'?am/i, /madam/i,
+      /thank/i, /please/i,
+      /interested/i, /information/i, /details/i,
+      /price/i, /cost/i, /offer/i,
+      /busy/i, /later/i, /callback/i,
+      /wrong number/i, /galat/i,
+      // Hindi common words
+      /haan/i, /nahi/i, /kya/i, /kaun/i, /bol/i, /baat/i,
+      /aap/i, /main/i, /mujhe/i, /humko/i,
+      // Telugu common words
+      /andi/i, /emandi/i, /cheppandi/i, /meeru/i, /nenu/i,
+      /avunu/i, /kaadu/i, /ledhu/i, /undi/i, /ledu/i,
+      /enti/i, /ela/i, /evaru/i, /ekkada/i,
+      /baagundi/i, /manchidi/i, /samajam/i,
+      /dhanyavadalu/i, /thanks/i, /namaskaram/i,
+      /intrest/i, /kavali/i, /vaddu/i,
+      /call cheyandi/i, /tarvata/i, /ippudu/i,
+      /rate/i, /price/i, /money/i, /paisa/i,
+      /sir/i, /madam/i, /garu/i,
+    ];
+
+    const hasConversationIndicator = conversationIndicators.some(pattern =>
+      pattern.test(cleanTranscript)
+    );
+
+    if (!hasConversationIndicator && words.length < 15) {
+      return {
+        isValid: false,
+        reason: 'No recognizable conversation detected in the recording',
+        suggestedOutcome: 'NO_ANSWER',
+      };
+    }
+
+    // Transcript appears to have meaningful content
+    return {
+      isValid: true,
+      reason: '',
+      suggestedOutcome: 'INTERESTED', // Will be determined by AI
+    };
+  }
+
+  /**
+   * Transcribe audio recording using Sarvam or Whisper
+   * Supports Telugu, Hindi, and other Indian languages
+   *
+   * @param filePath - Path to the audio file
+   * @param language - Preferred language code (e.g., 'te-IN', 'hi-IN', 'en-IN')
+   */
+  private async transcribeRecording(filePath: string, language: string = 'te-IN'): Promise<string | null> {
     try {
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        console.error(`[TelecallerAI] Recording file not found: ${filePath}`);
+        return null;
+      }
+
+      // Get file stats
+      const stats = fs.statSync(filePath);
+      console.log(`[TelecallerAI] Recording file size: ${stats.size} bytes`);
+
+      if (stats.size < 1000) {
+        console.error(`[TelecallerAI] Recording file too small (${stats.size} bytes), likely empty`);
+        return null;
+      }
+
       // Read audio file
       const audioBuffer = fs.readFileSync(filePath);
 
       // Try Sarvam first (better for Indian languages)
       try {
-        const result = await sarvamService.speechToText(audioBuffer);
+        // Pass the organization's preferred language for accurate transcription
+        console.log(`[TelecallerAI] Using Sarvam with language hint: ${language}`);
+        const result = await sarvamService.speechToText(audioBuffer, 8000, language);
         if (result && result.text) {
+          console.log(`[TelecallerAI] Sarvam transcription successful (language: ${language}): ${result.text.substring(0, 100)}...`);
           return result.text;
         }
-      } catch (sarvamError) {
-        console.log('[TelecallerAI] Sarvam failed, trying Whisper...');
+      } catch (sarvamError: any) {
+        console.log(`[TelecallerAI] Sarvam failed: ${sarvamError?.message || 'Unknown error'}, trying Whisper...`);
       }
 
-      // Fallback to Whisper
+      // Fallback to Whisper with language hint
       if (openai) {
-        const response = await openai.audio.transcriptions.create({
-          file: fs.createReadStream(filePath),
-          model: 'whisper-1',
-          language: 'en', // Can be made dynamic
+        // Map Indian language codes to Whisper language codes
+        const whisperLangMap: Record<string, string> = {
+          'te-IN': 'te',  // Telugu
+          'hi-IN': 'hi',  // Hindi
+          'ta-IN': 'ta',  // Tamil
+          'kn-IN': 'kn',  // Kannada
+          'ml-IN': 'ml',  // Malayalam
+          'mr-IN': 'mr',  // Marathi
+          'bn-IN': 'bn',  // Bengali
+          'gu-IN': 'gu',  // Gujarati
+          'pa-IN': 'pa',  // Punjabi
+          'en-IN': 'en',  // English
+        };
+        const whisperLang = whisperLangMap[language] || language.split('-')[0];
+
+        console.log(`[TelecallerAI] Starting Whisper transcription with language: ${whisperLang}...`);
+
+        // Create a promise that rejects after timeout
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Whisper transcription timeout (60s)')), 60000);
         });
-        return response.text;
+
+        // Race between transcription and timeout
+        try {
+          const response = await Promise.race([
+            openai.audio.transcriptions.create({
+              file: fs.createReadStream(filePath),
+              model: 'whisper-1',
+              language: whisperLang, // Use preferred language
+            }),
+            timeoutPromise,
+          ]);
+
+          console.log(`[TelecallerAI] Whisper transcription successful (${whisperLang}): ${response.text.substring(0, 100)}...`);
+          return response.text;
+        } catch (whisperError: any) {
+          console.error(`[TelecallerAI] Whisper transcription failed: ${whisperError?.message || 'Unknown error'}`);
+          return null;
+        }
+      } else {
+        console.error('[TelecallerAI] OpenAI client not initialized - missing OPENAI_API_KEY');
       }
 
       return null;
-    } catch (error) {
-      console.error('[TelecallerAI] Transcription error:', error);
+    } catch (error: any) {
+      console.error(`[TelecallerAI] Transcription error: ${error?.message || error}`);
       return null;
     }
   }
 
   /**
    * Analyze sentiment using OpenAI
+   * Supports Indian languages (Telugu, Hindi, Tamil, etc.) and English
    */
   private async analyzeSentiment(transcript: string): Promise<string> {
     if (!openai) return 'neutral';
@@ -209,6 +616,7 @@ class TelecallerCallFinalizationService {
           {
             role: 'system',
             content: `Analyze the customer's sentiment in this phone conversation.
+The conversation may be in any Indian language (Telugu, Hindi, Tamil, Kannada, etc.) or English.
 Consider their tone, word choice, and overall attitude.
 Reply with ONLY one word: positive, neutral, or negative.`,
           },
@@ -230,7 +638,71 @@ Reply with ONLY one word: positive, neutral, or negative.`,
   }
 
   /**
+   * Calculate call quality score using OpenAI
+   * Analyzes communication quality, professionalism, and effectiveness
+   * Returns a score from 0-100
+   */
+  private async calculateCallQualityScore(transcript: string, duration: number): Promise<number> {
+    // If no conversation or very short, return 0
+    if (!transcript || transcript.trim().length < 20 || duration < 10) {
+      return 0;
+    }
+
+    if (!openai) return 50; // Default if no OpenAI
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `Analyze this phone call transcript and rate the overall call quality on a scale of 0-100.
+The conversation may be in any Indian language (Telugu, Hindi, Tamil, Kannada, etc.) or English.
+
+Consider these factors:
+- Communication clarity and professionalism
+- Rapport building with the customer
+- How well the caller explained the product/service
+- Objection handling (if any objections arose)
+- Overall conversation flow and engagement
+- Whether key information was gathered
+- Customer engagement level
+
+SCORING RULES:
+- 90-100: Excellent - Outstanding communication, built strong rapport, handled all concerns professionally
+- 70-89: Good - Clear communication, addressed main points well, minor areas for improvement
+- 50-69: Average - Basic needs met but lacked engagement or missed some opportunities
+- 30-49: Below Average - Poor engagement, missed key opportunities, unprofessional elements
+- 0-29: Poor - Very short conversation, no real engagement, or major communication issues
+
+Reply with ONLY a number between 0 and 100.`,
+          },
+          {
+            role: 'user',
+            content: transcript,
+          },
+        ],
+        temperature: 0,
+        max_tokens: 10,
+      });
+
+      const result = completion.choices[0]?.message?.content?.trim();
+      const score = parseInt(result || '50', 10);
+
+      // Ensure score is within valid range
+      if (isNaN(score) || score < 0) return 0;
+      if (score > 100) return 100;
+
+      return score;
+    } catch (error) {
+      console.error('[TelecallerAI] Call quality score calculation error:', error);
+      return 50; // Default on error
+    }
+  }
+
+  /**
    * Determine call outcome using OpenAI
+   * Supports Indian languages (Telugu, Hindi, Tamil, etc.) and English
    */
   private async determineOutcome(transcript: string): Promise<CallOutcome> {
     if (!openai) return 'NEEDS_FOLLOWUP';
@@ -242,13 +714,15 @@ Reply with ONLY one word: positive, neutral, or negative.`,
           {
             role: 'system',
             content: `Analyze this phone call and determine the outcome.
+The conversation may be in any Indian language (Telugu, Hindi, Tamil, Kannada, etc.) or English.
+
 Reply with ONLY one of these outcomes:
 - INTERESTED: Customer showed interest in the product/service
 - NOT_INTERESTED: Customer clearly not interested
 - CALLBACK_REQUESTED: Customer asked to be called back later
 - NEEDS_FOLLOWUP: Conversation incomplete, needs follow-up
 - CONVERTED: Customer agreed to purchase/sign up
-- NO_ANSWER: Call was not answered (rarely applicable for recordings)
+- NO_ANSWER: Call was not answered
 - BUSY: Customer was busy, couldn't talk
 - VOICEMAIL: Left a voicemail
 - WRONG_NUMBER: Wrong number reached
@@ -483,7 +957,23 @@ Examples of objections:
         },
       };
 
-      // Update lead
+      // Determine stage update based on outcome
+      let stageUpdate: { stageId?: string } = {};
+      if (call.outcome === 'INTERESTED' || call.outcome === 'CONVERTED' || call.outcome === 'CALLBACK_REQUESTED') {
+        // Find appropriate stage for the outcome with multiple fallback options
+        const stageSearchTerms = call.outcome === 'CONVERTED'
+          ? ['won', 'closed-won', 'converted', 'customer', 'closed']
+          : ['qualified', 'hot', 'interested', 'opportunity', 'engaged'];
+
+        const stageId = await this.findStageByTerms(lead.organizationId, stageSearchTerms);
+        if (stageId) {
+          stageUpdate = { stageId };
+        } else {
+          console.warn(`[TelecallerFinalization] No matching stage found for outcome ${call.outcome} in org ${lead.organizationId}`);
+        }
+      }
+
+      // Update lead with stage progression and conversion flag
       await prisma.lead.update({
         where: { id: call.leadId },
         data: {
@@ -491,13 +981,38 @@ Examples of objections:
           lastContactedAt: new Date(),
           totalCalls: { increment: 1 },
           ...(qualification.email && !lead.email && { email: qualification.email }),
-          ...(qualification.company && !lead.company && { company: qualification.company }),
+          ...stageUpdate,
+          // Set conversion flag when outcome is CONVERTED
+          ...(call.outcome === 'CONVERTED' && {
+            isConverted: true,
+            convertedAt: new Date(),
+          }),
         },
       });
+
+      // Create stage change activity if stage was updated
+      if (stageUpdate.stageId && stageUpdate.stageId !== lead.stageId) {
+        await prisma.leadActivity.create({
+          data: {
+            leadId: call.leadId,
+            type: 'STAGE_CHANGED',
+            title: `Stage updated based on call outcome: ${call.outcome}`,
+            description: `Lead stage automatically updated after telecaller call`,
+            userId: call.telecallerId,
+            metadata: {
+              callId: call.id,
+              outcome: call.outcome,
+              previousStageId: lead.stageId,
+              newStageId: stageUpdate.stageId,
+            },
+          },
+        });
+      }
 
       // Create call log
       await prisma.callLog.create({
         data: {
+          organizationId: lead.organizationId,
           leadId: call.leadId,
           callerId: call.telecallerId,
           phoneNumber: call.phoneNumber,
@@ -545,6 +1060,19 @@ ${call.summary}
     organizationId: string
   ): Promise<void> {
     try {
+      // Find appropriate stage based on outcome with multiple fallback options
+      const stageSearchTerms = call.outcome === 'CONVERTED'
+        ? ['won', 'closed-won', 'converted', 'customer', 'closed']
+        : call.outcome === 'INTERESTED'
+          ? ['qualified', 'hot', 'interested', 'opportunity', 'engaged']
+          : ['new', 'fresh', 'uncontacted', 'lead'];
+
+      const stageId = await this.findStageByTerms(organizationId, stageSearchTerms);
+
+      if (!stageId) {
+        console.warn(`[TelecallerFinalization] No matching stage found for new lead with outcome ${call.outcome} in org ${organizationId}`);
+      }
+
       const lead = await prisma.lead.create({
         data: {
           organizationId,
@@ -552,10 +1080,9 @@ ${call.summary}
           lastName: qualification.name?.split(' ').slice(1).join(' ') || '',
           phone: call.phoneNumber,
           email: qualification.email || null,
-          company: qualification.company || null,
           source: 'MANUAL',
           sourceDetails: `Telecaller: ${call.telecaller?.firstName} ${call.telecaller?.lastName}`,
-          priority: call.outcome === 'CONVERTED' ? 'HIGH' : 'MEDIUM',
+          priority: call.outcome === 'CONVERTED' ? 'HIGH' : call.outcome === 'INTERESTED' ? 'HIGH' : 'MEDIUM',
           customFields: {
             ...qualification,
             createdFromCall: call.id,
@@ -564,6 +1091,13 @@ ${call.summary}
           },
           totalCalls: 1,
           lastContactedAt: new Date(),
+          // Set stage based on outcome
+          ...(stageId && { stageId }),
+          // Set conversion flag when outcome is CONVERTED
+          ...(call.outcome === 'CONVERTED' && {
+            isConverted: true,
+            convertedAt: new Date(),
+          }),
         },
       });
 
@@ -723,6 +1257,25 @@ ${call.summary}
       // Determine priority
       const priority = this.determinePriority(call.outcome, overallScore);
 
+      // Get existing lead score to calculate rolling average for avgCallDuration
+      const existingScore = await prisma.leadScore.findUnique({
+        where: { leadId: call.leadId },
+        select: { callCount: true, avgCallDuration: true },
+      });
+
+      const currentDuration = call.duration || 0;
+      let newAvgCallDuration: number;
+
+      if (existingScore) {
+        // Calculate rolling average: ((oldAvg * oldCount) + newValue) / newCount
+        const oldCount = existingScore.callCount || 0;
+        const oldAvg = existingScore.avgCallDuration || 0;
+        const newCount = oldCount + 1;
+        newAvgCallDuration = Math.round(((oldAvg * oldCount) + currentDuration) / newCount);
+      } else {
+        newAvgCallDuration = currentDuration;
+      }
+
       // Upsert lead score
       await prisma.leadScore.upsert({
         where: { leadId: call.leadId },
@@ -738,7 +1291,7 @@ ${call.summary}
           buyingSignals: qualification.buyingSignals || [],
           objections: qualification.objections || [],
           callCount: 1,
-          avgCallDuration: call.duration || 0,
+          avgCallDuration: currentDuration,
           lastInteraction: new Date(),
           aiClassification: this.getAIClassification(overallScore),
           classificationConfidence: 0.85,
@@ -754,6 +1307,7 @@ ${call.summary}
           buyingSignals: qualification.buyingSignals || [],
           objections: qualification.objections || [],
           callCount: { increment: 1 },
+          avgCallDuration: newAvgCallDuration,
           lastInteraction: new Date(),
           aiClassification: this.getAIClassification(overallScore),
         },
@@ -806,7 +1360,7 @@ ${call.summary}
     return Math.min(score, 100);
   }
 
-  private determineGrade(score: number): string {
+  private determineGrade(score: number): LeadGrade {
     if (score >= 90) return 'A_PLUS';
     if (score >= 75) return 'A';
     if (score >= 60) return 'B';
@@ -877,6 +1431,609 @@ ${call.summary}
       });
     } catch (e) {
       console.error('[TelecallerAI] Error updating call with error:', e);
+    }
+  }
+
+  /**
+   * Process recording for Raw Import Record (Assigned Data workflow)
+   *
+   * This method handles AI analysis for telecaller calls to raw import records:
+   * - Transcribes the recording
+   * - Analyzes sentiment and outcome
+   * - Auto-updates the raw import record status
+   * - Auto-converts to lead if customer is interested
+   */
+  async processRecordingForRawImport(
+    callId: string,
+    filePath: string,
+    rawImportRecordId: string
+  ): Promise<void> {
+    console.log(`[TelecallerAI] Processing raw import call ${callId} for record ${rawImportRecordId}`);
+
+    try {
+      // Get call and raw import record details with organization's preferred language
+      const [call, rawRecord] = await Promise.all([
+        prisma.telecallerCall.findUnique({
+          where: { id: callId },
+          include: {
+            telecaller: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                organizationId: true,
+                organization: {
+                  select: { preferredLanguage: true }
+                }
+              },
+            },
+          },
+        }),
+        prisma.rawImportRecord.findUnique({
+          where: { id: rawImportRecordId },
+          include: {
+            bulkImport: true,
+          },
+        }),
+      ]);
+
+      if (!call) {
+        console.error(`[TelecallerAI] Call ${callId} not found`);
+        return;
+      }
+
+      if (!rawRecord) {
+        console.error(`[TelecallerAI] Raw import record ${rawImportRecordId} not found`);
+        return;
+      }
+
+      const organizationId = call.telecaller?.organizationId;
+      if (!organizationId) {
+        console.error(`[TelecallerAI] No organization found for telecaller`);
+        return;
+      }
+
+      // Get organization's preferred language (default to Telugu)
+      const preferredLanguage = call.telecaller?.organization?.preferredLanguage || 'te-IN';
+      console.log(`[TelecallerAI] Using preferred language: ${preferredLanguage}`);
+
+      // Step 1: Transcribe the recording with preferred language
+      console.log(`[TelecallerAI] Step 1: Transcribing recording...`);
+      const transcript = await this.transcribeRecording(filePath, preferredLanguage);
+
+      if (!transcript) {
+        console.error(`[TelecallerAI] Transcription failed for call ${callId}`);
+        await this.updateRawImportCallError(callId, rawImportRecordId, 'Transcription failed');
+        return;
+      }
+
+      // Step 1.5: Validate transcript has meaningful conversation
+      const validationResult = this.validateTranscript(transcript, call.duration || 0);
+      if (!validationResult.isValid) {
+        console.log(`[TelecallerAI] No meaningful conversation detected: ${validationResult.reason}`);
+
+        // Update call with no-conversation defaults
+        await prisma.telecallerCall.update({
+          where: { id: callId },
+          data: {
+            transcript: transcript || '',
+            sentiment: 'neutral',
+            outcome: validationResult.suggestedOutcome,
+            summary: validationResult.reason,
+            qualification: {
+              noConversation: true,
+              reason: validationResult.reason,
+              aiAnalyzedAt: new Date().toISOString(),
+            },
+            aiAnalyzed: true,
+            status: 'COMPLETED',
+          },
+        });
+
+        // Update raw import record with no-conversation status
+        await prisma.rawImportRecord.update({
+          where: { id: rawImportRecordId },
+          data: {
+            status: 'NO_ANSWER',
+            callSummary: validationResult.reason,
+            callSentiment: 'neutral',
+            lastCallAt: new Date(),
+            callAttempts: { increment: 1 },
+            customFields: {
+              ...(rawRecord.customFields as object || {}),
+              lastCallId: callId,
+              noConversation: true,
+              lastCallOutcome: validationResult.suggestedOutcome,
+            },
+          },
+        });
+
+        console.log(`[TelecallerAI] Raw import call ${callId} marked as ${validationResult.suggestedOutcome} (no conversation)`);
+        return;
+      }
+
+      // Convert string transcript to message array format for AI analysis
+      const transcriptMessages = this.parseTranscriptToMessages(transcript);
+
+      // Step 2: Run enhanced AI analysis (sentiment, outcome, summary, key questions, issues)
+      console.log(`[TelecallerAI] Step 2: Running enhanced AI analysis...`);
+      const enhancedAnalysis: EnhancedCallAnalysisResult = await analyzeCallEnhanced(
+        transcriptMessages,
+        [], // mood history
+        'neutral',
+        call.duration || 0
+      );
+      console.log(`[TelecallerAI] Enhanced analysis complete:`, {
+        callQualityScore: enhancedAnalysis.callQualityScore,
+        sentiment: enhancedAnalysis.sentiment,
+        outcome: enhancedAnalysis.outcome,
+        keyQuestionsCount: enhancedAnalysis.keyQuestionsAsked.length,
+        keyIssuesCount: enhancedAnalysis.keyIssuesDiscussed.length,
+      });
+
+      // Step 3: Generate coaching suggestions with error handling
+      console.log(`[TelecallerAI] Step 3: Generating coaching suggestions...`);
+      let coachingSuggestions: CoachingSuggestions;
+      try {
+        coachingSuggestions = await generateCoachingSuggestions(
+          transcriptMessages,
+          enhancedAnalysis.outcome,
+          enhancedAnalysis.sentiment,
+          enhancedAnalysis.agentSpeakingTime,
+          enhancedAnalysis.customerSpeakingTime
+        );
+      } catch (coachingError) {
+        console.warn(`[TelecallerAI] Coaching suggestions failed, using defaults:`, coachingError);
+        coachingSuggestions = {
+          positiveHighlights: [],
+          areasToImprove: [],
+          nextCallTips: [],
+          coachingSummary: 'Coaching analysis unavailable',
+          talkListenFeedback: '',
+          empathyScore: 50,
+          objectionHandlingScore: 50,
+          closingScore: 50,
+        };
+      }
+      // Ensure all fields have safe defaults to prevent null reference errors
+      coachingSuggestions = {
+        positiveHighlights: coachingSuggestions?.positiveHighlights || [],
+        areasToImprove: coachingSuggestions?.areasToImprove || [],
+        nextCallTips: coachingSuggestions?.nextCallTips || [],
+        coachingSummary: coachingSuggestions?.coachingSummary || '',
+        talkListenFeedback: coachingSuggestions?.talkListenFeedback || '',
+        empathyScore: coachingSuggestions?.empathyScore ?? 50,
+        objectionHandlingScore: coachingSuggestions?.objectionHandlingScore ?? 50,
+        closingScore: coachingSuggestions?.closingScore ?? 50,
+      };
+      console.log(`[TelecallerAI] Coaching suggestions generated:`, {
+        positiveCount: coachingSuggestions.positiveHighlights.length,
+        areasCount: coachingSuggestions.areasToImprove.length,
+        empathyScore: coachingSuggestions.empathyScore,
+      });
+
+      // Step 4: Extract structured call data with error handling
+      console.log(`[TelecallerAI] Step 4: Extracting structured call data...`);
+      let extractedData: ExtractedCallData;
+      try {
+        extractedData = await extractCallData(transcriptMessages);
+      } catch (extractError) {
+        console.warn(`[TelecallerAI] Data extraction failed, using defaults:`, extractError);
+        extractedData = { items: [], summary: '' };
+      }
+      // Ensure safe defaults
+      extractedData = {
+        items: extractedData?.items || [],
+        summary: extractedData?.summary || '',
+      };
+      console.log(`[TelecallerAI] Extracted ${extractedData.items.length} data items`);
+
+      // Step 5: Additional qualification and buying signals
+      console.log(`[TelecallerAI] Step 5: Extracting qualification data...`);
+      const qualification = await this.extractQualificationData(transcript);
+
+      // Step 6: Detect buying signals and objections
+      console.log(`[TelecallerAI] Step 6: Analyzing buying signals...`);
+      const buyingSignals = await this.detectBuyingSignals(transcript);
+
+      // Use enhanced analysis values
+      const sentiment = enhancedAnalysis.sentiment;
+      const outcome = enhancedAnalysis.outcome as CallOutcome;
+      const summary = enhancedAnalysis.summary;
+      const callQualityScore = enhancedAnalysis.callQualityScore;
+      console.log(`[TelecallerAI] Call quality score: ${callQualityScore}`);
+
+      // Map CallOutcome to RawImportRecord status
+      const rawImportStatus = this.mapOutcomeToRawImportStatus(outcome);
+
+      // Step 7: Update the telecaller call with enhanced analysis
+      const telecallerOutcome = mapToTelecallerOutcome(outcome);
+      await prisma.telecallerCall.update({
+        where: { id: callId },
+        data: {
+          transcript,
+          sentiment,
+          outcome: telecallerOutcome,
+          summary,
+          callQualityScore,
+          // Enhanced analysis fields
+          keyQuestionsAsked: enhancedAnalysis.keyQuestionsAsked,
+          keyIssuesDiscussed: enhancedAnalysis.keyIssuesDiscussed,
+          sentimentIntensity: enhancedAnalysis.sentimentIntensity,
+          agentSpeakingTime: enhancedAnalysis.agentSpeakingTime,
+          customerSpeakingTime: enhancedAnalysis.customerSpeakingTime,
+          nonSpeechTime: enhancedAnalysis.nonSpeechTime,
+          enhancedTranscript: enhancedAnalysis.enhancedTranscript as any,
+          // Coaching fields
+          coachingPositiveHighlights: coachingSuggestions.positiveHighlights as any,
+          coachingAreasToImprove: coachingSuggestions.areasToImprove as any,
+          coachingNextCallTips: coachingSuggestions.nextCallTips,
+          coachingSummary: coachingSuggestions.coachingSummary,
+          coachingTalkListenFeedback: coachingSuggestions.talkListenFeedback,
+          coachingEmpathyScore: coachingSuggestions.empathyScore,
+          coachingObjectionScore: coachingSuggestions.objectionHandlingScore,
+          coachingClosingScore: coachingSuggestions.closingScore,
+          // Extracted data
+          extractedData: extractedData as any,
+          qualification: {
+            ...qualification,
+            buyingSignals: buyingSignals.signals,
+            objections: buyingSignals.objections,
+            rawImportRecordId,
+            aiAnalyzedAt: new Date().toISOString(),
+          },
+          aiAnalyzed: true,
+          status: 'COMPLETED',
+        },
+      });
+
+      // Step 8: Update the raw import record status
+      console.log(`[TelecallerAI] Step 8: Updating raw import record status to ${rawImportStatus}...`);
+      await prisma.rawImportRecord.update({
+        where: { id: rawImportRecordId },
+        data: {
+          status: rawImportStatus,
+          callSummary: summary,
+          callSentiment: sentiment,
+          interestLevel: outcome === 'INTERESTED' || outcome === 'CONVERTED' ? 'high' :
+                         outcome === 'CALLBACK_REQUESTED' ? 'medium' : 'low',
+          lastCallAt: new Date(),
+          customFields: {
+            ...(rawRecord.customFields as object || {}),
+            lastCallId: callId,
+            lastCallOutcome: outcome,
+            aiAnalyzed: true,
+            aiAnalyzedAt: new Date().toISOString(),
+            buyingSignals: buyingSignals.signals,
+            objections: buyingSignals.objections,
+            qualificationData: qualification,
+          },
+        },
+      });
+
+      // Step 9: Auto-convert to lead if INTERESTED or CONVERTED
+      if (outcome === 'INTERESTED' || outcome === 'CONVERTED' || outcome === 'CALLBACK_REQUESTED') {
+        console.log(`[TelecallerAI] Step 9: Auto-converting to lead (outcome: ${outcome})...`);
+        await this.autoConvertRawImportToLead(
+          rawRecord,
+          call,
+          qualification,
+          organizationId,
+          outcome,
+          sentiment,
+          summary
+        );
+      }
+
+      console.log(`[TelecallerAI] Raw import AI analysis completed for call ${callId}`);
+      console.log(`[TelecallerAI] Results: Outcome=${outcome}, Sentiment=${sentiment}, Status=${rawImportStatus}`);
+    } catch (error) {
+      console.error(`[TelecallerAI] Error processing raw import call ${callId}:`, error);
+      await this.updateRawImportCallError(callId, rawImportRecordId, (error as Error).message);
+    }
+  }
+
+  /**
+   * Map CallOutcome to RawImportRecord status
+   */
+  private mapOutcomeToRawImportStatus(outcome: CallOutcome): string {
+    const mapping: Record<string, string> = {
+      INTERESTED: 'INTERESTED',
+      NOT_INTERESTED: 'NOT_INTERESTED',
+      CALLBACK_REQUESTED: 'CALLBACK_REQUESTED',
+      NEEDS_FOLLOWUP: 'CALLBACK_REQUESTED',
+      CONVERTED: 'INTERESTED', // Will be converted to lead
+      NO_ANSWER: 'NO_ANSWER',
+      BUSY: 'CALLBACK_REQUESTED',
+      VOICEMAIL: 'NO_ANSWER',
+      WRONG_NUMBER: 'NOT_INTERESTED',
+      DNC_REQUESTED: 'NOT_INTERESTED',
+    };
+    // Default to CALLBACK_REQUESTED (a valid end state) instead of CALLING
+    return mapping[outcome] || 'CALLBACK_REQUESTED';
+  }
+
+  /**
+   * Auto-convert raw import record to lead
+   */
+  private async autoConvertRawImportToLead(
+    rawRecord: any,
+    call: any,
+    qualification: Record<string, any>,
+    organizationId: string,
+    outcome: string,
+    sentiment: string,
+    summary: string
+  ): Promise<void> {
+    try {
+      // Extract data from raw record - use direct fields and customFields
+      const customData = rawRecord.customFields as Record<string, any> || {};
+
+      // Find phone/email from raw record fields or qualification
+      const phone = rawRecord.phone || qualification.phone || call.phoneNumber;
+      const email = rawRecord.email || qualification.email;
+      const name = qualification.name || `${rawRecord.firstName || ''} ${rawRecord.lastName || ''}`.trim();
+      const firstName = rawRecord.firstName || name.split(' ')[0] || 'Lead';
+      const lastName = rawRecord.lastName || name.split(' ').slice(1).join(' ') || '';
+
+      // Check if lead with this phone already exists
+      const existingLead = await prisma.lead.findFirst({
+        where: {
+          organizationId,
+          phone,
+        },
+      });
+
+      if (existingLead) {
+        console.log(`[TelecallerAI] Lead already exists for phone ${phone}, updating...`);
+
+        // Update existing lead
+        await prisma.lead.update({
+          where: { id: existingLead.id },
+          data: {
+            lastContactedAt: new Date(),
+            totalCalls: { increment: 1 },
+            customFields: {
+              ...(existingLead.customFields as object || {}),
+              ...qualification,
+              rawImportRecordId: rawRecord.id,
+              lastCallOutcome: outcome,
+              lastCallSentiment: sentiment,
+            },
+          },
+        });
+
+        // Link call to lead
+        await prisma.telecallerCall.update({
+          where: { id: call.id },
+          data: { leadId: existingLead.id },
+        });
+
+        // Mark raw import record as converted
+        await prisma.rawImportRecord.update({
+          where: { id: rawRecord.id },
+          data: {
+            status: 'CONVERTED',
+            convertedLeadId: existingLead.id,
+          },
+        });
+
+        return;
+      }
+
+      // Create new lead - goes to UNASSIGNED POOL for manager to assign
+      const lead = await prisma.lead.create({
+        data: {
+          organizationId,
+          firstName,
+          lastName,
+          phone,
+          email,
+          alternatePhone: rawRecord.alternatePhone || null,
+          source: rawRecord.bulkImport?.source || 'BULK_UPLOAD',
+          sourceDetails: `Qualified by Telecaller: ${call.telecaller?.firstName} ${call.telecaller?.lastName}`,
+          priority: outcome === 'CONVERTED' ? 'HIGH' : (outcome === 'INTERESTED' ? 'HIGH' : 'MEDIUM'),
+          status: 'NEW', // New lead waiting for counselor assignment
+          customFields: {
+            ...customData,
+            ...qualification,
+            rawImportRecordId: rawRecord.id,
+            convertedAt: new Date().toISOString(),
+            qualifiedBy: call.telecallerId,
+            qualifiedByName: `${call.telecaller?.firstName} ${call.telecaller?.lastName}`,
+            conversionOutcome: outcome,
+            conversionSentiment: sentiment,
+            callSummary: summary,
+            // Flag for manager to see this needs assignment
+            needsAssignment: true,
+          },
+          totalCalls: 1,
+          lastContactedAt: new Date(),
+        },
+      });
+
+      // Link call to new lead
+      await prisma.telecallerCall.update({
+        where: { id: call.id },
+        data: { leadId: lead.id },
+      });
+
+      // DO NOT assign to telecaller - leave unassigned for manager to assign to counselor
+      // Manager will see this in "Unassigned Leads" and assign to appropriate counselor
+
+      // Create initial note with AI summary - helps counselor understand context
+      if (summary) {
+        await prisma.leadNote.create({
+          data: {
+            leadId: lead.id,
+            userId: call.telecallerId,
+            content: `**Lead Qualified by Telecaller - Waiting for Counselor Assignment**
+
+**Call Summary:**
+${summary}
+
+**Customer Sentiment:** ${sentiment}
+**Outcome:** ${outcome}
+**Qualified by:** ${call.telecaller?.firstName} ${call.telecaller?.lastName}
+**Call Date:** ${new Date().toLocaleDateString()}
+
+⚠️ **Action Required:** Manager needs to assign this lead to a counselor for follow-up.`,
+            isPinned: true,
+          },
+        });
+      }
+
+      // Create activity
+      await prisma.leadActivity.create({
+        data: {
+          leadId: lead.id,
+          type: 'LEAD_CREATED',
+          title: 'Lead Qualified - Pending Counselor Assignment',
+          description: `Telecaller ${call.telecaller?.firstName} qualified this lead. AI detected ${outcome} outcome with ${sentiment} sentiment. Waiting for manager to assign to counselor.`,
+          userId: call.telecallerId,
+          metadata: {
+            callId: call.id,
+            rawImportRecordId: rawRecord.id,
+            outcome,
+            sentiment,
+            aiConverted: true,
+            qualifiedBy: call.telecallerId,
+            needsAssignment: true,
+          },
+        },
+      });
+
+      // Mark raw import record as converted
+      await prisma.rawImportRecord.update({
+        where: { id: rawRecord.id },
+        data: {
+          status: 'CONVERTED',
+          convertedLeadId: lead.id,
+          convertedById: call.telecallerId,
+          convertedAt: new Date(),
+        },
+      });
+
+      // Create a follow-up reminder for managers to assign this lead
+      // Schedule for 2 hours from now to give manager time to see new leads
+      const followUpDate = new Date();
+      followUpDate.setHours(followUpDate.getHours() + 2);
+
+      await prisma.followUp.create({
+        data: {
+          leadId: lead.id,
+          organizationId,
+          scheduledFor: followUpDate,
+          type: 'TASK',
+          title: `🔔 New Qualified Lead - Needs Assignment: ${firstName} ${lastName}`,
+          description: `Lead qualified by telecaller ${call.telecaller?.firstName} ${call.telecaller?.lastName}.
+Outcome: ${outcome} | Sentiment: ${sentiment}
+
+Please assign this lead to a counselor for follow-up.`,
+          priority: outcome === 'CONVERTED' || outcome === 'INTERESTED' ? 'HIGH' : 'MEDIUM',
+          status: 'PENDING',
+          // No assignedToId - will show in manager's unassigned follow-ups
+          metadata: {
+            needsAssignment: true,
+            qualifiedBy: call.telecallerId,
+            callId: call.id,
+            rawImportRecordId: rawRecord.id,
+          },
+        },
+      });
+
+      // Create notification for organization admins/managers
+      const managers = await prisma.user.findMany({
+        where: {
+          organizationId,
+          role: { in: ['ADMIN', 'MANAGER'] },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+
+      // Create notifications for each manager
+      for (const manager of managers) {
+        await prisma.notification.create({
+          data: {
+            userId: manager.id,
+            type: 'LEAD_QUALIFIED',
+            title: 'New Qualified Lead Needs Assignment',
+            message: `Telecaller ${call.telecaller?.firstName} qualified lead "${firstName} ${lastName}". Please assign to a counselor.`,
+            data: {
+              leadId: lead.id,
+              callId: call.id,
+              outcome,
+              sentiment,
+            },
+          },
+        });
+      }
+
+      console.log(`[TelecallerAI] Created lead ${lead.id} from raw import ${rawRecord.id} - notified ${managers.length} managers`);
+    } catch (error) {
+      console.error(`[TelecallerAI] Auto-convert to lead error:`, error);
+      // Log the error to database for tracking
+      try {
+        await prisma.leadActivity.create({
+          data: {
+            leadId: call.leadId || undefined,
+            type: 'ERROR',
+            title: 'Auto-conversion failed',
+            description: `Failed to auto-convert raw import to lead: ${(error as Error).message}`,
+            userId: call.telecallerId,
+            metadata: {
+              callId: call.id,
+              rawImportRecordId: rawRecord.id,
+              error: (error as Error).message,
+            },
+          },
+        });
+      } catch (logError) {
+        console.error('[TelecallerAI] Failed to log auto-convert error:', logError);
+      }
+    }
+  }
+
+  /**
+   * Update call and raw import record with error
+   */
+  private async updateRawImportCallError(
+    callId: string,
+    rawImportRecordId: string,
+    error: string
+  ): Promise<void> {
+    try {
+      // Get current customFields first
+      const record = await prisma.rawImportRecord.findUnique({
+        where: { id: rawImportRecordId },
+        select: { customFields: true },
+      });
+
+      await Promise.all([
+        prisma.telecallerCall.update({
+          where: { id: callId },
+          data: {
+            qualification: {
+              aiError: error,
+              aiAnalyzedAt: new Date().toISOString(),
+            },
+            aiAnalyzed: false,
+          },
+        }),
+        prisma.rawImportRecord.update({
+          where: { id: rawImportRecordId },
+          data: {
+            customFields: {
+              ...(record?.customFields as object || {}),
+              aiError: error,
+              aiAnalyzedAt: new Date().toISOString(),
+            },
+          },
+        }),
+      ]);
+    } catch (e) {
+      console.error('[TelecallerAI] Error updating raw import call with error:', e);
     }
   }
 }

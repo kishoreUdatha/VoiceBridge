@@ -9,7 +9,7 @@
  * - PlansConfig: Plan configurations (Single Responsibility)
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { AppError } from '../utils/errors';
 
 // Import extracted services - Dependency Inversion Principle
@@ -19,7 +19,6 @@ import { planLimitsService } from './plan-limits.service';
 import { invoiceService } from './invoice.service';
 import { PLANS, ADD_ONS, getPlan, getAddOnPrice, type PlanId, type AddOnType } from '../config/plans.config';
 
-const prisma = new PrismaClient();
 
 // Re-export for backward compatibility
 export { PLANS, ADD_ONS };

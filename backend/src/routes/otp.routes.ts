@@ -1,11 +1,39 @@
 import { Router, Request, Response } from 'express';
+import { body, param, query } from 'express-validator';
+import rateLimit from 'express-rate-limit';
 import { otpService } from '../services/otp.service';
-import { authenticate, optionalAuth } from '../middlewares/auth';
+import { authenticate, authorize, optionalAuth } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 import { ApiResponse } from '../utils/apiResponse';
 import { OtpPurpose, OtpChannel, OtpIdentifierType } from '@prisma/client';
+import { prisma } from '../config/database';
 
 const router = Router();
+
+// Rate limiters for OTP endpoints to prevent brute force and abuse
+const otpSendRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // 5 OTP requests per minute per IP
+  message: { success: false, message: 'Too many OTP requests. Please wait before trying again.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const otpVerifyRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 verification attempts per 15 minutes per IP
+  message: { success: false, message: 'Too many verification attempts. Please wait before trying again.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const otpStatusRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 status checks per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // ==================== PUBLIC ENDPOINTS ====================
 
@@ -13,36 +41,20 @@ const router = Router();
  * Send OTP (Public - for lead verification)
  * POST /api/otp/send
  */
-router.post('/send', async (req: Request, res: Response) => {
+router.post('/send', otpSendRateLimiter, validate([
+  body('identifier').trim().notEmpty().withMessage('Identifier (phone or email) is required')
+    .isLength({ max: 255 }).withMessage('Identifier too long'),
+  body('identifierType').isIn(['PHONE', 'EMAIL']).withMessage('Valid identifier type (PHONE or EMAIL) is required'),
+  body('purpose').isIn([
+    'PHONE_VERIFICATION', 'EMAIL_VERIFICATION', 'APPLICATION_SUBMISSION',
+    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION'
+  ]).withMessage('Invalid OTP purpose'),
+  body('channel').optional().isIn(['SMS', 'EMAIL', 'WHATSAPP']),
+  body('leadId').optional().isUUID().withMessage('Invalid lead ID'),
+  body('applicationId').optional().isUUID().withMessage('Invalid application ID'),
+]), async (req: Request, res: Response) => {
   try {
     const { identifier, identifierType, purpose, channel, leadId, applicationId } = req.body;
-
-    // Validation
-    if (!identifier) {
-      return ApiResponse.error(res, 'Identifier (phone or email) is required', 400);
-    }
-
-    if (!identifierType || !['PHONE', 'EMAIL'].includes(identifierType)) {
-      return ApiResponse.error(res, 'Valid identifier type (PHONE or EMAIL) is required', 400);
-    }
-
-    if (!purpose) {
-      return ApiResponse.error(res, 'OTP purpose is required', 400);
-    }
-
-    // Validate purpose
-    const validPurposes = [
-      'PHONE_VERIFICATION',
-      'EMAIL_VERIFICATION',
-      'APPLICATION_SUBMISSION',
-      'DOCUMENT_UPLOAD',
-      'PAYMENT_CONFIRMATION',
-      'ADMISSION_CONFIRMATION',
-    ];
-
-    if (!validPurposes.includes(purpose)) {
-      return ApiResponse.error(res, 'Invalid OTP purpose', 400);
-    }
 
     // Validate phone format
     if (identifierType === 'PHONE') {
@@ -90,19 +102,17 @@ router.post('/send', async (req: Request, res: Response) => {
  * Verify OTP (Public)
  * POST /api/otp/verify
  */
-router.post('/verify', async (req: Request, res: Response) => {
+router.post('/verify', otpVerifyRateLimiter, validate([
+  body('identifier').trim().notEmpty().withMessage('Identifier is required')
+    .isLength({ max: 255 }).withMessage('Identifier too long'),
+  body('purpose').isIn([
+    'PHONE_VERIFICATION', 'EMAIL_VERIFICATION', 'APPLICATION_SUBMISSION',
+    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION'
+  ]).withMessage('Invalid OTP purpose'),
+  body('otp').matches(/^\d{6}$/).withMessage('OTP must be 6 digits'),
+]), async (req: Request, res: Response) => {
   try {
     const { identifier, purpose, otp } = req.body;
-
-    // Validation
-    if (!identifier || !purpose || !otp) {
-      return ApiResponse.error(res, 'Identifier, purpose, and OTP are required', 400);
-    }
-
-    // Validate OTP format (6 digits)
-    if (!/^\d{6}$/.test(otp)) {
-      return ApiResponse.error(res, 'OTP must be 6 digits', 400);
-    }
 
     const result = await otpService.verifyOtp({
       identifier: identifier.replace(/[\s-]/g, ''),
@@ -131,13 +141,16 @@ router.post('/verify', async (req: Request, res: Response) => {
  * Resend OTP (Public)
  * POST /api/otp/resend
  */
-router.post('/resend', async (req: Request, res: Response) => {
+router.post('/resend', otpSendRateLimiter, validate([
+  body('identifier').trim().notEmpty().withMessage('Identifier is required')
+    .isLength({ max: 255 }).withMessage('Identifier too long'),
+  body('purpose').isIn([
+    'PHONE_VERIFICATION', 'EMAIL_VERIFICATION', 'APPLICATION_SUBMISSION',
+    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION'
+  ]).withMessage('Invalid OTP purpose'),
+]), async (req: Request, res: Response) => {
   try {
     const { identifier, purpose } = req.body;
-
-    if (!identifier || !purpose) {
-      return ApiResponse.error(res, 'Identifier and purpose are required', 400);
-    }
 
     const result = await otpService.resendOtp(
       identifier.replace(/[\s-]/g, ''),
@@ -164,13 +177,16 @@ router.post('/resend', async (req: Request, res: Response) => {
  * Check verification status (Public)
  * GET /api/otp/status
  */
-router.get('/status', async (req: Request, res: Response) => {
+router.get('/status', otpStatusRateLimiter, validate([
+  query('identifier').trim().notEmpty().withMessage('Identifier is required')
+    .isLength({ max: 255 }).withMessage('Identifier too long'),
+  query('purpose').isIn([
+    'PHONE_VERIFICATION', 'EMAIL_VERIFICATION', 'APPLICATION_SUBMISSION',
+    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION'
+  ]).withMessage('Invalid OTP purpose'),
+]), async (req: Request, res: Response) => {
   try {
     const { identifier, purpose } = req.query;
-
-    if (!identifier || !purpose) {
-      return ApiResponse.error(res, 'Identifier and purpose are required', 400);
-    }
 
     const status = await otpService.getVerificationStatus(
       (identifier as string).replace(/[\s-]/g, ''),
@@ -193,15 +209,20 @@ router.use(tenantMiddleware);
  * Send OTP for a lead (Authenticated)
  * POST /api/otp/lead/:leadId/send
  */
-router.post('/lead/:leadId/send', async (req: TenantRequest, res: Response) => {
+router.post('/lead/:leadId/send', validate([
+  param('leadId').isUUID().withMessage('Invalid lead ID'),
+  body('identifierType').isIn(['PHONE', 'EMAIL']).withMessage('Valid identifier type (PHONE or EMAIL) is required'),
+  body('purpose').isIn([
+    'PHONE_VERIFICATION', 'EMAIL_VERIFICATION', 'APPLICATION_SUBMISSION',
+    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION'
+  ]).withMessage('Invalid OTP purpose'),
+  body('channel').optional().isIn(['SMS', 'EMAIL', 'WHATSAPP']),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { leadId } = req.params;
     const { identifierType, purpose, channel } = req.body;
 
-    // Get lead details
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-
+    // SECURITY: Verify lead belongs to user's organization
     const lead = await prisma.lead.findFirst({
       where: {
         id: leadId,
@@ -248,16 +269,20 @@ router.post('/lead/:leadId/send', async (req: TenantRequest, res: Response) => {
  * Send OTP for application submission (Authenticated)
  * POST /api/otp/application/:applicationId/send
  */
-router.post('/application/:applicationId/send', async (req: TenantRequest, res: Response) => {
+router.post('/application/:applicationId/send', validate([
+  param('applicationId').isUUID().withMessage('Invalid application ID'),
+  body('channel').optional().isIn(['SMS', 'EMAIL', 'WHATSAPP']),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { applicationId } = req.params;
     const { channel } = req.body;
 
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-
+    // SECURITY: Verify application belongs to a lead in user's organization
     const application = await prisma.leadApplication.findFirst({
-      where: { id: applicationId },
+      where: {
+        id: applicationId,
+        lead: { organizationId: req.organizationId },
+      },
       include: { lead: true },
     });
 
@@ -298,16 +323,20 @@ router.post('/application/:applicationId/send', async (req: TenantRequest, res: 
  * Verify and submit application (Authenticated)
  * POST /api/otp/application/:applicationId/verify-submit
  */
-router.post('/application/:applicationId/verify-submit', async (req: TenantRequest, res: Response) => {
+router.post('/application/:applicationId/verify-submit', validate([
+  param('applicationId').isUUID().withMessage('Invalid application ID'),
+  body('otp').matches(/^\d{6}$/).withMessage('OTP must be 6 digits'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { applicationId } = req.params;
     const { otp } = req.body;
 
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-
+    // SECURITY: Verify application belongs to a lead in user's organization
     const application = await prisma.leadApplication.findFirst({
-      where: { id: applicationId },
+      where: {
+        id: applicationId,
+        lead: { organizationId: req.organizationId },
+      },
       include: { lead: true },
     });
 
@@ -357,12 +386,21 @@ router.post('/application/:applicationId/verify-submit', async (req: TenantReque
  * Get OTP history for a lead (Authenticated)
  * GET /api/otp/lead/:leadId/history
  */
-router.get('/lead/:leadId/history', async (req: TenantRequest, res: Response) => {
+router.get('/lead/:leadId/history', validate([
+  param('leadId').isUUID().withMessage('Invalid lead ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { leadId } = req.params;
 
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
+    // SECURITY: Verify lead belongs to user's organization
+    const lead = await prisma.lead.findFirst({
+      where: { id: leadId, organizationId: req.organizationId },
+      select: { id: true },
+    });
+
+    if (!lead) {
+      return ApiResponse.error(res, 'Lead not found', 404);
+    }
 
     const otpHistory = await prisma.otpVerification.findMany({
       where: { leadId },
@@ -393,7 +431,7 @@ router.get('/lead/:leadId/history', async (req: TenantRequest, res: Response) =>
  * Cleanup expired OTPs (Admin only)
  * POST /api/otp/cleanup
  */
-router.post('/cleanup', async (req: TenantRequest, res: Response) => {
+router.post('/cleanup', authorize('admin'), async (req: TenantRequest, res: Response) => {
   try {
     const deletedCount = await otpService.cleanupExpiredOtps();
     ApiResponse.success(res, `Cleaned up ${deletedCount} expired OTP records`, { deletedCount });

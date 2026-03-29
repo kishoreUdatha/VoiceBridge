@@ -5,6 +5,7 @@ import { AppDispatch, RootState } from '../../store';
 import { fetchLeadStats } from '../../store/slices/leadSlice';
 import { fetchStats } from '../../store/slices/rawImportSlice';
 import subscriptionService, { Subscription } from '../../services/subscription.service';
+import api from '../../services/api';
 import {
   PieChart,
   Pie,
@@ -16,6 +17,9 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Line,
+  Area,
+  ComposedChart,
 } from 'recharts';
 import {
   UsersIcon,
@@ -40,6 +44,43 @@ const STATUS_COLORS: Record<string, string> = {
 const PIE_COLORS = ['#6366F1', '#EC4899', '#14B8A6', '#F59E0B', '#8B5CF6', '#EF4444', '#10B981', '#3B82F6'];
 const SOURCE_COLORS = ['#6366F1', '#EC4899', '#14B8A6', '#F59E0B', '#8B5CF6', '#06B6D4', '#EF4444', '#84CC16'];
 
+// Comprehensive Dashboard Stats
+interface DashboardStats {
+  today: {
+    calls: number;
+    followUpsCompleted: number;
+    pendingFollowUps: number;
+    target: { calls: number; followUps: number };
+  };
+  // Assigned data breakdown - targets come from here
+  assignedData: {
+    leads: number;
+    rawRecords: number;        // Pending to call (ASSIGNED/PENDING status)
+    totalRawRecords: number;   // Total assigned (all statuses)
+    queueItems: number;
+    total: number;             // Total pending to call
+  };
+  weeklyActivity: Array<{ day: string; date: string; calls: number; target: number }>;
+  thisWeek: { totalCalls: number; followUpsCompleted: number; target: number };
+  leads: {
+    total: number;
+    byStage: Record<string, number>;
+    converted: number;
+    won: number;
+    conversionRate: number;
+    winRate: number;
+  };
+  outcomes: Record<string, number>;
+  recentActivities: Array<{
+    id: string;
+    type: string;
+    title: string;
+    leadName: string | null;
+    leadId: string | null;
+    createdAt: string;
+  }>;
+}
+
 export default function DashboardPage() {
   const dispatch = useDispatch<AppDispatch>();
   const { stats } = useSelector((state: RootState) => state.leads);
@@ -48,6 +89,10 @@ export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+
+  // Get user role
+  const userRole = user?.role?.toLowerCase() || '';
+  const isTelecallerOrCounselor = ['telecaller', 'counselor'].includes(userRole);
 
   useEffect(() => {
     dispatch(fetchLeadStats());
@@ -117,6 +162,322 @@ export default function DashboardPage() {
   const isFreePlan = subscription?.planId === 'free' || !subscription?.planId;
   const isTrial = subscription?.status === 'TRIAL';
   const showUpgradeBanner = isFreePlan || isTrial;
+
+  // Telecaller/Counselor Dashboard View
+  if (isTelecallerOrCounselor) {
+    const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+    const [loadingLeads, setLoadingLeads] = useState(true);
+
+    useEffect(() => {
+      const fetchWorkQueue = async () => {
+        try {
+          setLoadingLeads(true);
+          // Fetch comprehensive dashboard stats
+          const dashboardRes = await api.get('/telecaller/dashboard-stats');
+          setDashboardStats(dashboardRes.data?.data || null);
+        } catch (error) {
+          console.error('Failed to fetch work queue:', error);
+        } finally {
+          setLoadingLeads(false);
+        }
+      };
+      fetchWorkQueue();
+    }, []);
+
+    // Weekly activity from real data
+    const weeklyActivity = dashboardStats?.weeklyActivity || [];
+
+    // KPI calculations - targets now come from assigned data
+    const dailyCallTarget = dashboardStats?.today?.target?.calls || dashboardStats?.assignedData?.total || 0;
+    const dailyFollowUpTarget = dashboardStats?.today?.target?.followUps || 0;
+    const callsProgress = dailyCallTarget > 0
+      ? Math.min(((dashboardStats?.today?.calls || 0) / dailyCallTarget) * 100, 100)
+      : 0;
+    const totalFollowUps = (dashboardStats?.today?.pendingFollowUps || 0) + (dashboardStats?.today?.followUpsCompleted || 0);
+
+    // Lead pipeline data
+    const waterfallData = [
+      { name: 'New', value: dashboardStats?.leads?.byStage?.['New'] || dashboardStats?.leads?.byStage?.['NEW'] || 0, fill: '#3B82F6' },
+      { name: 'Contacted', value: dashboardStats?.leads?.byStage?.['Contacted'] || dashboardStats?.leads?.byStage?.['CONTACTED'] || 0, fill: '#8B5CF6' },
+      { name: 'Qualified', value: dashboardStats?.leads?.byStage?.['Qualified'] || dashboardStats?.leads?.byStage?.['QUALIFIED'] || 0, fill: '#10B981' },
+      { name: 'Negotiation', value: dashboardStats?.leads?.byStage?.['Negotiation'] || dashboardStats?.leads?.byStage?.['NEGOTIATION'] || 0, fill: '#F59E0B' },
+      { name: 'Won', value: dashboardStats?.leads?.won || 0, fill: '#059669' },
+    ];
+
+    return (
+      <div className="p-3 min-h-screen">
+        {/* Compact Header */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <h1 className="text-sm font-semibold text-white">{getGreeting()}, {user?.firstName}</h1>
+            <span className="text-slate-600 text-xs hidden sm:inline">|</span>
+            <span className="text-slate-400 text-xs hidden sm:inline">{currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+            {/* Live Indicator */}
+            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/10 rounded-full">
+              <span className="relative flex h-1 w-1">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1 w-1 bg-emerald-500"></span>
+              </span>
+              <span className="text-emerald-400 text-[9px] font-medium">Live</span>
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              setLoadingLeads(true);
+              try {
+                const res = await api.get('/telecaller/dashboard-stats');
+                setDashboardStats(res.data?.data || null);
+              } catch (e) {
+                console.error(e);
+              }
+              setLoadingLeads(false);
+              setLastRefresh(new Date());
+            }}
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded transition-all"
+          >
+            <ArrowPathIcon className={`w-3.5 h-3.5 ${loadingLeads ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+
+        {/* Compact KPI Cards Row */}
+        <div className="grid grid-cols-3 lg:grid-cols-6 gap-1.5 mb-2">
+          {/* Total Leads */}
+          <Link to="/leads?assignedToMe=true" className="bg-slate-800/50 rounded p-2 border border-slate-700/50 hover:border-blue-500/50 transition-all">
+            <p className="text-slate-400 text-[9px] uppercase tracking-wide">Leads</p>
+            <p className="text-lg font-bold text-white">{dashboardStats?.leads?.total || 0}</p>
+          </Link>
+
+          {/* Calls Today */}
+          <div className="bg-slate-800/50 rounded p-2 border border-slate-700/50">
+            <p className="text-slate-400 text-[9px] uppercase tracking-wide">Calls</p>
+            <div className="flex items-end justify-between">
+              <p className="text-lg font-bold text-white">{dashboardStats?.today?.calls || 0}<span className="text-slate-500 text-xs font-normal">/{dailyCallTarget}</span></p>
+              <span className={`text-[9px] font-medium ${callsProgress >= 100 ? 'text-emerald-400' : 'text-violet-400'}`}>{Math.round(callsProgress)}%</span>
+            </div>
+          </div>
+
+          {/* Follow-ups */}
+          <div className="bg-slate-800/50 rounded p-2 border border-slate-700/50">
+            <p className="text-slate-400 text-[9px] uppercase tracking-wide">Follow-ups</p>
+            <div className="flex items-end justify-between">
+              <p className="text-lg font-bold text-white">{dashboardStats?.today?.followUpsCompleted || 0}<span className="text-slate-500 text-xs font-normal">/{dailyFollowUpTarget}</span></p>
+              <span className="text-amber-400 text-[9px]">{dashboardStats?.today?.pendingFollowUps || 0} left</span>
+            </div>
+          </div>
+
+          {/* Conversion */}
+          <div className="bg-slate-800/50 rounded p-2 border border-slate-700/50">
+            <p className="text-slate-400 text-[9px] uppercase tracking-wide">Conversion</p>
+            <p className="text-lg font-bold text-emerald-400">{dashboardStats?.leads?.conversionRate || 0}%</p>
+          </div>
+
+          {/* Win Rate */}
+          <div className="bg-slate-800/50 rounded p-2 border border-slate-700/50">
+            <p className="text-slate-400 text-[9px] uppercase tracking-wide">Win Rate</p>
+            <p className="text-lg font-bold text-cyan-400">{dashboardStats?.leads?.winRate || 0}%</p>
+          </div>
+
+          {/* Won */}
+          <div className="bg-slate-800/50 rounded p-2 border border-slate-700/50">
+            <p className="text-slate-400 text-[9px] uppercase tracking-wide">Won</p>
+            <p className="text-lg font-bold text-green-400">{dashboardStats?.leads?.won || 0}</p>
+          </div>
+        </div>
+
+        {/* Main Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-3">
+          {/* Left Column - 2/3 width */}
+          <div className="lg:col-span-2 space-y-2">
+            {/* Weekly Performance Chart */}
+            <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700/50">
+              <div className="flex items-center justify-between mb-1.5">
+                <h3 className="text-[10px] font-semibold text-white uppercase tracking-wide">Weekly Performance</h3>
+                <div className="flex items-center gap-2 text-[9px]">
+                  <span className="flex items-center gap-1 text-slate-400"><span className="w-1.5 h-1.5 rounded-sm bg-violet-500"></span>Calls</span>
+                  <span className="flex items-center gap-1 text-slate-400"><span className="w-2 h-0.5 bg-amber-400"></span>Target</span>
+                </div>
+              </div>
+              <div className="h-32">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={weeklyActivity.length > 0 ? weeklyActivity : [
+                    { day: 'Mon', date: '', calls: 0, target: 15 }, { day: 'Tue', date: '', calls: 0, target: 15 },
+                    { day: 'Wed', date: '', calls: 0, target: 15 }, { day: 'Thu', date: '', calls: 0, target: 15 },
+                    { day: 'Fri', date: '', calls: 0, target: 15 }, { day: 'Sat', date: '', calls: 0, target: 10 }, { day: 'Sun', date: '', calls: 0, target: 10 }
+                  ]} barSize={32}>
+                    <defs>
+                      <linearGradient id="barGradientEnterprise" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#A78BFA" />
+                        <stop offset="50%" stopColor="#8B5CF6" />
+                        <stop offset="100%" stopColor="#6D28D9" />
+                      </linearGradient>
+                      <linearGradient id="areaGradientEnterprise" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
+                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94A3B8' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94A3B8' }} width={35} />
+                    <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
+                      <div className="bg-slate-900/95 backdrop-blur-xl text-white px-4 py-3 rounded-xl shadow-2xl border border-slate-700">
+                        <p className="font-bold text-sm mb-2">{label}</p>
+                        <div className="space-y-1">
+                          <p className="text-violet-300 text-xs flex justify-between gap-4"><span>Calls:</span> <span className="font-bold">{payload[0]?.value}</span></p>
+                          <p className="text-amber-300 text-xs flex justify-between gap-4"><span>Target:</span> <span className="font-bold">{payload[1]?.value}</span></p>
+                          <p className={`text-xs flex justify-between gap-4 ${(payload[0]?.value as number) >= (payload[1]?.value as number) ? 'text-emerald-400' : 'text-red-400'}`}>
+                            <span>Status:</span> <span className="font-bold">{(payload[0]?.value as number) >= (payload[1]?.value as number) ? '✓ Achieved' : '○ Pending'}</span>
+                          </p>
+                        </div>
+                      </div>
+                    ) : null} />
+                    <Bar dataKey="calls" fill="url(#barGradientEnterprise)" radius={[6, 6, 0, 0]} />
+                    <Line type="monotone" dataKey="target" stroke="#F59E0B" strokeWidth={2} strokeDasharray="6 4" dot={{ fill: '#F59E0B', strokeWidth: 0, r: 4 }} activeDot={{ r: 6, fill: '#FCD34D' }} />
+                    <Area type="monotone" dataKey="calls" stroke="none" fill="url(#areaGradientEnterprise)" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Assigned Data Breakdown - Shows where targets come from */}
+            <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700/50">
+              <div className="flex items-center justify-between mb-1.5">
+                <h3 className="text-[10px] font-semibold text-white uppercase tracking-wide">Assigned to Call</h3>
+                <span className="text-[9px] text-slate-500">Your Targets</span>
+              </div>
+              <div className="grid grid-cols-5 gap-2">
+                <div className="text-center p-2 rounded-lg bg-blue-500/10">
+                  <p className="text-white font-bold text-lg">{dashboardStats?.assignedData?.leads || 0}</p>
+                  <p className="text-[9px] text-blue-400">Leads</p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
+                  <p className="text-cyan-400 font-bold text-lg">{dashboardStats?.assignedData?.totalRawRecords || 0}</p>
+                  <p className="text-[9px] text-cyan-400">Total Assigned</p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-purple-500/10">
+                  <p className="text-white font-bold text-lg">{dashboardStats?.assignedData?.rawRecords || 0}</p>
+                  <p className="text-[9px] text-purple-400">Pending</p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-amber-500/10">
+                  <p className="text-white font-bold text-lg">{dashboardStats?.assignedData?.queueItems || 0}</p>
+                  <p className="text-[9px] text-amber-400">Queue</p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                  <p className="text-emerald-400 font-bold text-lg">{dashboardStats?.assignedData?.total || 0}</p>
+                  <p className="text-[9px] text-emerald-400">Total Target</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Lead Pipeline */}
+            <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700/50">
+              <div className="flex items-center justify-between mb-1.5">
+                <h3 className="text-[10px] font-semibold text-white uppercase tracking-wide">Lead Pipeline</h3>
+                <Link to="/leads?assignedToMe=true" className="text-[9px] text-blue-400">View All →</Link>
+              </div>
+              <div className="grid grid-cols-5 gap-2">
+                {waterfallData.map((stage, idx) => (
+                  <div key={idx} className="text-center p-2 rounded-lg" style={{ backgroundColor: `${stage.fill}20` }}>
+                    <p className="text-white font-bold text-lg">{stage.value}</p>
+                    <p className="text-[9px]" style={{ color: stage.fill }}>{stage.name}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Call Outcomes */}
+            <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700/50">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-[10px] font-semibold text-white uppercase tracking-wide">Call Outcomes</h3>
+                <span className="text-[9px] text-slate-500">Today</span>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { label: 'Connected', value: dashboardStats?.outcomes?.CONNECTED || dashboardStats?.outcomes?.connected || 0, color: 'bg-emerald-500', icon: '✓' },
+                  { label: 'No Answer', value: dashboardStats?.outcomes?.NO_ANSWER || dashboardStats?.outcomes?.noAnswer || 0, color: 'bg-amber-500', icon: '✗' },
+                  { label: 'Busy', value: dashboardStats?.outcomes?.BUSY || dashboardStats?.outcomes?.busy || 0, color: 'bg-orange-500', icon: '⏸' },
+                  { label: 'Failed', value: dashboardStats?.outcomes?.FAILED || dashboardStats?.outcomes?.failed || 0, color: 'bg-red-500', icon: '!' },
+                ].map((outcome, idx) => (
+                  <div key={idx} className="text-center p-2 bg-slate-700/30 rounded-lg">
+                    <div className={`w-6 h-6 mx-auto mb-1 rounded-full ${outcome.color}/20 flex items-center justify-center`}>
+                      <span className={`text-[10px] ${outcome.color.replace('bg-', 'text-')}`}>{outcome.icon}</span>
+                    </div>
+                    <p className="text-white font-bold text-sm">{outcome.value}</p>
+                    <p className="text-slate-400 text-[8px]">{outcome.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - 1/3 width */}
+          <div className="space-y-2">
+            {/* Follow-up Funnel */}
+            <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700/50">
+              <div className="flex items-center justify-between mb-1.5">
+                <h3 className="text-[10px] font-semibold text-white uppercase tracking-wide">Follow-ups</h3>
+                <Link to="/leads?followUpToday=true" className="text-[9px] text-amber-400">View →</Link>
+              </div>
+              <div className="space-y-1">
+                {[
+                  { label: 'Total', value: totalFollowUps, color: 'bg-amber-500', width: '100%' },
+                  { label: 'Pending', value: dashboardStats?.today?.pendingFollowUps || 0, color: 'bg-orange-500', width: '70%' },
+                  { label: 'Done', value: dashboardStats?.today?.followUpsCompleted || 0, color: 'bg-emerald-500', width: '40%' },
+                ].map((stage, idx) => (
+                  <div key={idx} className={`h-5 rounded ${stage.color} flex items-center justify-between px-2`} style={{ width: stage.width }}>
+                    <span className="text-white text-[9px]">{stage.label}</span>
+                    <span className="text-white text-[10px] font-bold">{stage.value}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-center mt-1.5 pt-1.5 border-t border-slate-700/50">
+                <span className="text-emerald-400 text-xs font-bold">{totalFollowUps > 0 ? Math.round(((dashboardStats?.today?.followUpsCompleted || 0) / totalFollowUps) * 100) : 0}%</span>
+                <span className="text-slate-500 text-[9px] ml-1">complete</span>
+              </div>
+            </div>
+
+            {/* Recent Activity */}
+            <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700/50">
+              <h3 className="text-[10px] font-semibold text-white uppercase tracking-wide mb-1.5">Recent Activity</h3>
+              <div className="space-y-1.5">
+                {(dashboardStats?.recentActivities || []).slice(0, 4).length > 0 ? (
+                  dashboardStats?.recentActivities?.slice(0, 4).map((activity, idx) => (
+                    <div key={idx} className="flex items-center gap-2 p-1.5 bg-slate-700/30 rounded-lg">
+                      <div className={`w-5 h-5 rounded flex items-center justify-center ${
+                        activity.type === 'CALL' ? 'bg-blue-500/20' :
+                        activity.type === 'NOTE_ADDED' ? 'bg-amber-500/20' :
+                        activity.type === 'STATUS_CHANGED' ? 'bg-emerald-500/20' : 'bg-slate-500/20'
+                      }`}>
+                        <span className="text-[8px]">
+                          {activity.type === 'CALL' ? '📞' :
+                           activity.type === 'NOTE_ADDED' ? '📝' :
+                           activity.type === 'STATUS_CHANGED' ? '✓' : '•'}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] text-white truncate">{activity.title}</p>
+                        <p className="text-[8px] text-slate-500">{activity.leadName || 'Unknown'}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-3 text-slate-500 text-[10px]">No recent activity</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2">
+          <span>Synced: {lastRefresh.toLocaleTimeString()}</span>
+          <span className="flex items-center gap-1">
+            <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></span>
+            Live
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

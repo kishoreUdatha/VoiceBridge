@@ -8,8 +8,10 @@
 import axios from 'axios';
 import { circuitBreakers, CircuitBreakerError } from '../utils/circuitBreaker';
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
-const ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io/v1';
+import { config } from '../config';
+
+const ELEVENLABS_API_KEY = config.elevenlabs.apiKey || '';
+const ELEVENLABS_BASE_URL = config.apiUrls.elevenlabs;
 
 // ElevenLabs voice models
 export const ELEVENLABS_MODELS = {

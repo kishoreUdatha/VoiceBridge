@@ -3,10 +3,10 @@
  * Handles CRUD operations for voice agents
  */
 
-import { PrismaClient, VoiceAgentIndustry } from '@prisma/client';
+import { VoiceAgentIndustry } from '@prisma/client';
+import { prisma } from '../config/database';
 import { INDUSTRY_TEMPLATES, getIndustryTemplate } from '../config/voice-agent-templates.config';
 
-const prisma = new PrismaClient();
 
 /**
  * Create a new voice agent

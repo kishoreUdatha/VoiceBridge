@@ -31,9 +31,11 @@ interface CreatePartnerDto {
   partnerType?: PartnerType;
   companyName: string;
   companyWebsite?: string;
-  contactPerson: string;
+  website?: string;
+  contactPerson?: string;
   contactEmail: string;
   contactPhone?: string;
+  description?: string;
   businessType?: string;
   targetIndustry?: string;
   expectedCustomers?: number;
@@ -42,9 +44,11 @@ interface CreatePartnerDto {
 interface UpdatePartnerDto {
   companyName?: string;
   companyWebsite?: string;
+  website?: string;
   contactPerson?: string;
   contactEmail?: string;
   contactPhone?: string;
+  description?: string;
   businessType?: string;
   targetIndustry?: string;
 }
@@ -67,7 +71,7 @@ class PartnerService {
         partnerType: data.partnerType || 'RESELLER',
         companyName: data.companyName,
         companyWebsite: data.companyWebsite,
-        contactPerson: data.contactPerson,
+        contactPerson: data.contactPerson || data.companyName,
         contactEmail: data.contactEmail,
         contactPhone: data.contactPhone,
         businessType: data.businessType,

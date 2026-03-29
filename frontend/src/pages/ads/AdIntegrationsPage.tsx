@@ -312,6 +312,13 @@ export default function AdIntegrationsPage() {
             >
               <ArrowPathIcon className="h-4 w-4" />
             </button>
+            <button
+              onClick={() => navigate('/webhook-urls')}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors text-xs font-medium"
+            >
+              <SignalIcon className="h-3.5 w-3.5" />
+              Webhook URLs
+            </button>
           </div>
         </div>
       </div>

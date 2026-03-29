@@ -13,6 +13,8 @@ export interface Lead {
   priority: string;
   notes?: string;
   customFields?: Record<string, unknown>;
+  isConverted?: boolean;
+  convertedAt?: string;
   createdAt: string;
   updatedAt: string;
   assignments?: Array<{
@@ -34,6 +36,7 @@ export interface LeadFilter {
   search?: string;
   dateFrom?: string;
   dateTo?: string;
+  isConverted?: string;
   page?: number;
   limit?: number;
 }

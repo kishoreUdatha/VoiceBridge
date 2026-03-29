@@ -25,6 +25,9 @@ import {
   CpuChipIcon,
   ArrowPathIcon,
   TrashIcon,
+  PlusIcon,
+  XMarkIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 import { showToast } from '../../utils/toast';
 import api from '../../services/api';
@@ -66,6 +69,31 @@ export default function RawImportDetailPage() {
   const [callingHoursEnd, setCallingHoursEnd] = useState('18:00');
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
 
+  // Add manual record modal state
+  const [showAddRecordModal, setShowAddRecordModal] = useState(false);
+  const [isAddingRecord, setIsAddingRecord] = useState(false);
+  const [newRecord, setNewRecord] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    alternatePhone: '',
+  });
+
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filterAssignedTo, setFilterAssignedTo] = useState<string>('');
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   useEffect(() => {
     if (id) {
       dispatch(fetchBulkImportById(id));
@@ -80,11 +108,11 @@ export default function RawImportDetailPage() {
 
   useEffect(() => {
     loadRecords();
-  }, [activeTab, page]);
+  }, [activeTab, page, debouncedSearch, filterAssignedTo]);
 
   // Lock body scroll when panels are open
   useEffect(() => {
-    if (showCampaignModal || showAssignModal) {
+    if (showCampaignModal || showAssignModal || showAddRecordModal) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -92,7 +120,7 @@ export default function RawImportDetailPage() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [showCampaignModal, showAssignModal]);
+  }, [showCampaignModal, showAssignModal, showAddRecordModal]);
 
   const loadRecords = () => {
     if (!id) return;
@@ -102,8 +130,17 @@ export default function RawImportDetailPage() {
         status: activeTab === 'ALL' ? undefined : activeTab,
         page,
         limit: 50,
+        search: debouncedSearch || undefined,
+        assignedToId: filterAssignedTo || undefined,
       })
     );
+  };
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setDebouncedSearch('');
+    setFilterAssignedTo('');
+    setPage(1);
   };
 
   const loadVoiceAgents = async () => {
@@ -257,6 +294,44 @@ export default function RawImportDetailPage() {
     setCallingHoursEnd('18:00');
   };
 
+  const handleAddManualRecord = async () => {
+    if (!newRecord.firstName.trim()) {
+      showToast.error('First name is required');
+      return;
+    }
+    if (!newRecord.phone.trim()) {
+      showToast.error('Phone number is required');
+      return;
+    }
+
+    setIsAddingRecord(true);
+    try {
+      await api.post('/raw-imports/records/add-manual', {
+        bulkImportId: id,
+        ...newRecord,
+      });
+      showToast.success('Record added successfully');
+      closeAddRecordModal();
+      loadRecords();
+      dispatch(fetchBulkImportById(id!));
+    } catch (error: any) {
+      showToast.error(error.response?.data?.message || 'Failed to add record');
+    } finally {
+      setIsAddingRecord(false);
+    }
+  };
+
+  const closeAddRecordModal = () => {
+    setShowAddRecordModal(false);
+    setNewRecord({
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      alternatePhone: '',
+    });
+  };
+
   if (!currentImport) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -288,10 +363,19 @@ export default function RawImportDetailPage() {
               on {formatDate(currentImport.createdAt)}
             </p>
           </div>
-          <button onClick={loadRecords} className="btn btn-outline btn-sm flex items-center gap-1 text-xs">
-            <ArrowPathIcon className="h-3.5 w-3.5" />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowAddRecordModal(true)}
+              className="btn btn-primary btn-sm flex items-center gap-1 text-xs"
+            >
+              <PlusIcon className="h-3.5 w-3.5" />
+              Add Record
+            </button>
+            <button onClick={loadRecords} className="btn btn-outline btn-sm flex items-center gap-1 text-xs">
+              <ArrowPathIcon className="h-3.5 w-3.5" />
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
 
@@ -319,6 +403,45 @@ export default function RawImportDetailPage() {
           <p className="text-xs text-gray-500">Converted</p>
           <p className="text-lg font-semibold text-primary-600">{currentImport.convertedCount}</p>
         </div>
+      </div>
+
+      {/* Search and Filters - Inline Compact Design */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search name, phone..."
+            className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+
+        {/* Assigned To Filter */}
+        <select
+          value={filterAssignedTo}
+          onChange={(e) => { setFilterAssignedTo(e.target.value); setPage(1); }}
+          className="px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[140px]"
+        >
+          <option value="">All Telecallers</option>
+          {telecallers.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.firstName} {t.lastName}
+            </option>
+          ))}
+        </select>
+
+        {/* Clear Filters */}
+        {(searchQuery || filterAssignedTo) && (
+          <button
+            onClick={clearFilters}
+            className="px-2 py-1.5 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+          >
+            <XMarkIcon className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Bulk Actions Bar */}
@@ -434,6 +557,120 @@ export default function RawImportDetailPage() {
           onCreateAgent={() => navigate('/voice-ai/create')}
           onClose={closeCampaignModal}
         />
+      )}
+
+      {/* Add Manual Record Modal */}
+      {showAddRecordModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/50" onClick={closeAddRecordModal} />
+            <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Add Record Manually</h3>
+                <button
+                  onClick={closeAddRecordModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      First Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newRecord.firstName}
+                      onChange={(e) => setNewRecord({ ...newRecord, firstName: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="John"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Last Name
+                    </label>
+                    <input
+                      type="text"
+                      value={newRecord.lastName}
+                      onChange={(e) => setNewRecord({ ...newRecord, lastName: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Doe"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Phone Number <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={newRecord.phone}
+                    onChange={(e) => setNewRecord({ ...newRecord, phone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="+91 9876543210"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Alternate Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={newRecord.alternatePhone}
+                    onChange={(e) => setNewRecord({ ...newRecord, alternatePhone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="+91 9876543211"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={newRecord.email}
+                    onChange={(e) => setNewRecord({ ...newRecord, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="john@example.com"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t">
+                <button
+                  onClick={closeAddRecordModal}
+                  className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddManualRecord}
+                  disabled={isAddingRecord}
+                  className="px-4 py-2 text-sm text-white bg-primary-600 hover:bg-primary-700 rounded-lg disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isAddingRecord ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <PlusIcon className="h-4 w-4" />
+                      Add Record
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

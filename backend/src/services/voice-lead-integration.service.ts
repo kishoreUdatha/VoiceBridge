@@ -3,13 +3,12 @@
  * Handles lead creation, CRM integration, webhooks, and notifications from voice sessions
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { webhookService, WEBHOOK_EVENTS } from './webhook.service';
 import { notificationChannelService } from './notification-channel.service';
 import { calendarService } from './calendar.service';
 import { dripCampaignService } from './drip-campaign.service';
 
-const prisma = new PrismaClient();
 
 /**
  * Create or update lead from voice session
@@ -210,6 +209,7 @@ export async function createCallLogForSession(leadId: string, session: any, agen
 
     await prisma.callLog.create({
       data: {
+        organizationId: agent.organizationId,
         leadId,
         callerId: systemUser.id,
         phoneNumber: session.visitorPhone || 'unknown',

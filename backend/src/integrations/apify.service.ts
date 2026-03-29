@@ -10,11 +10,13 @@
 
 import axios, { AxiosInstance } from 'axios';
 import { prisma } from '../config/database';
-import { ApifyScraperType, ApifyScrapeJobStatus } from '@prisma/client';
+import { ApifyScraperType, ApifyScrapeJobStatus, Prisma } from '@prisma/client';
 import { externalLeadImportService, ExternalLeadData } from '../services/external-lead-import.service';
 import { circuitBreakers } from '../utils/circuitBreaker';
 
-const APIFY_API_URL = 'https://api.apify.com/v2';
+// Use config for API URL
+import { config } from '../config';
+const APIFY_API_URL = config.apiUrls.apify;
 
 // Predefined actor IDs for common scrapers
 // These are popular actors from the Apify Store
@@ -804,9 +806,9 @@ export class ApifyService {
         bulkImportId,
         organizationId,
         email: null,
-        rawData: {
+        customFields: {
           path: ['website'],
-          not: null,
+          not: Prisma.DbNull,
         },
       },
       take: 100,
@@ -821,8 +823,8 @@ export class ApifyService {
     const recordsByDomain = new Map<string, typeof records>();
 
     for (const record of records) {
-      const rawData = record.rawData as Record<string, any>;
-      const website = rawData?.website || rawData?.customFields?.website;
+      const customFields = record.customFields as Record<string, any>;
+      const website = customFields?.website;
       if (website) {
         const domain = this.extractDomain(website);
         websites.push(website);
@@ -871,14 +873,14 @@ export class ApifyService {
 
       for (const record of matchingRecords) {
         try {
-          const rawData = (record.rawData as Record<string, any>) || {};
+          const existingCustomFields = (record.customFields as Record<string, any>) || {};
 
           await prisma.rawImportRecord.update({
             where: { id: record.id },
             data: {
               email: primaryEmail,
-              rawData: {
-                ...rawData,
+              customFields: {
+                ...existingCustomFields,
                 extractedEmails: contactInfo.emails,
                 extractedPhones: contactInfo.phones,
                 socialLinks: contactInfo.socialLinks,

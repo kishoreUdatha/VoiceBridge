@@ -1,7 +1,6 @@
 import axios from 'axios';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 
-const prisma = new PrismaClient();
 
 export interface WhatsAppConfig {
   provider: 'exotel' | 'meta' | 'gupshup' | 'wati' | '360dialog';
@@ -742,7 +741,7 @@ export class WhatsAppService {
             : `https://${this.config.apiKey.replace(/\/$/, '')}`;
           const watiTestUrl = `${watiBaseUrl}/api/v1/getContacts`;
           console.log('[Wati Test] Testing connection to:', watiTestUrl);
-          console.log('[Wati Test] Token starts with:', cleanToken.substring(0, 20) + '...');
+          console.log('[Wati Test] Token: [REDACTED]');
           try {
             const watiResponse = await axios.get(watiTestUrl, {
               headers: { 'Authorization': `Bearer ${cleanToken}` },

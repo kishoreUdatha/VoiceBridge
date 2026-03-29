@@ -4,11 +4,10 @@
  */
 
 import OpenAI from 'openai';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { config } from '../config';
 import { getLanguageConfig, generateExoML, isHindiLanguage, DEFAULT_TRANSFER_KEYWORDS } from '../config/language.config';
 
-const prisma = new PrismaClient();
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })

@@ -3,10 +3,9 @@
  * Handles appointment booking and management
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { exotelService } from '../integrations/exotel.service';
 
-const prisma = new PrismaClient();
 
 export type LocationType = 'PHONE' | 'VIDEO' | 'IN_PERSON' | 'OTHER';
 
@@ -14,15 +13,18 @@ export interface BookAppointmentData {
   organizationId: string;
   leadId?: string;
   callId?: string;
-  title: string;
+  title?: string;
   description?: string;
   appointmentType?: string;
+  type?: 'CALL' | 'VIDEO' | 'IN_PERSON';
   scheduledAt: Date;
   duration?: number;
   locationType?: LocationType;
+  location?: string;
   locationDetails?: string;
-  contactName: string;
-  contactPhone: string;
+  notes?: string;
+  contactName?: string;
+  contactPhone?: string;
   contactEmail?: string;
 }
 
@@ -30,7 +32,23 @@ export interface BookAppointmentData {
  * Book a new appointment
  */
 export async function bookAppointment(data: BookAppointmentData) {
-  return prisma.appointment.create({ data });
+  return prisma.appointment.create({
+    data: {
+      organizationId: data.organizationId,
+      leadId: data.leadId,
+      callId: data.callId,
+      title: data.title || 'Appointment',
+      description: data.description,
+      appointmentType: data.appointmentType || data.type,
+      scheduledAt: data.scheduledAt,
+      duration: data.duration || 30,
+      locationType: data.locationType,
+      locationDetails: data.location || data.locationDetails,
+      contactName: data.contactName || 'Customer',
+      contactPhone: data.contactPhone || '',
+      contactEmail: data.contactEmail,
+    },
+  });
 }
 
 /**

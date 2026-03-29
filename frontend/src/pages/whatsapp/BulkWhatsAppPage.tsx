@@ -6,7 +6,6 @@
 import {
   PaperAirplaneIcon,
   ArrowPathIcon,
-  UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import { useBulkWhatsApp } from './hooks';
 import {

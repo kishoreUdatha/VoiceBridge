@@ -5,16 +5,21 @@
 
 import { Router } from 'express';
 import { authenticate, AuthenticatedRequest } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
 import { agentAnalyticsService } from '../services/agent-analytics.service';
 import { prisma } from '../config/database';
 
 const router = Router();
 
+// All routes require authentication and tenant context
+router.use(authenticate);
+router.use(tenantMiddleware);
+
 /**
  * GET /voice-ai/agents/:agentId/analytics
  * Get comprehensive analytics for an agent
  */
-router.get('/agents/:agentId/analytics', authenticate, async (req: AuthenticatedRequest, res) => {
+router.get('/agents/:agentId/analytics', async (req: AuthenticatedRequest, res) => {
   try {
     const { agentId } = req.params;
     const organizationId = req.user!.organizationId;
@@ -40,7 +45,7 @@ router.get('/agents/:agentId/analytics', authenticate, async (req: Authenticated
  * GET /voice-ai/agents/:agentId/conversations
  * Get paginated conversation history
  */
-router.get('/agents/:agentId/conversations', authenticate, async (req: AuthenticatedRequest, res) => {
+router.get('/agents/:agentId/conversations', async (req: AuthenticatedRequest, res) => {
   try {
     const { agentId } = req.params;
     const organizationId = req.user!.organizationId;
@@ -84,7 +89,7 @@ router.get('/agents/:agentId/conversations', authenticate, async (req: Authentic
  * GET /voice-ai/agents/:agentId/conversations/:conversationId
  * Get single conversation detail
  */
-router.get('/agents/:agentId/conversations/:conversationId', authenticate, async (req: AuthenticatedRequest, res) => {
+router.get('/agents/:agentId/conversations/:conversationId', async (req: AuthenticatedRequest, res) => {
   try {
     const { agentId, conversationId } = req.params;
     const type = (req.query.type as 'voice_session' | 'outbound_call') || 'voice_session';
@@ -120,7 +125,7 @@ router.get('/agents/:agentId/conversations/:conversationId', authenticate, async
  * GET /voice-ai/agents/:agentId/conversations/export
  * Export conversations to CSV
  */
-router.get('/agents/:agentId/conversations/export', authenticate, async (req: AuthenticatedRequest, res) => {
+router.get('/agents/:agentId/conversations/export', async (req: AuthenticatedRequest, res) => {
   try {
     const { agentId } = req.params;
     const organizationId = req.user!.organizationId;

@@ -1,7 +1,7 @@
-import { PrismaClient, ConversationChannel, ConversationState, MessageDirection, MessageContentType, MessageDeliveryStatus, SenderType } from '@prisma/client';
+import { ConversationChannel, ConversationState, MessageDirection, MessageContentType, MessageDeliveryStatus, SenderType } from '@prisma/client';
+import { prisma } from '../config/database';
 import { AppError } from '../utils/errors';
 
-const prisma = new PrismaClient();
 
 interface CreateConversationParams {
   organizationId: string;

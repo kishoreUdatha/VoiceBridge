@@ -1,12 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/errors';
 import { config } from '../config';
+import { errorTracker } from '../utils/errorTracking';
 
 interface ErrorResponse {
   success: false;
   message: string;
   errors?: unknown;
   stack?: string;
+  requestId?: string;
 }
 
 export function errorHandler(
@@ -15,11 +17,34 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
-  console.error('Error:', err);
+  // Generate request ID for tracing
+  const requestId = (req.headers['x-request-id'] as string) ||
+    `req_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+  // Track error with full context
+  errorTracker.captureException(err, {
+    userId: (req as any).user?.id,
+    organizationId: (req as any).user?.organizationId,
+    endpoint: `${req.method} ${req.path}`,
+    method: req.method,
+    requestId,
+    userAgent: req.headers['user-agent'] as string,
+    ip: req.ip,
+    extra: {
+      query: req.query,
+      params: req.params,
+    },
+  });
+
+  // Log error (in production, errorTracker handles detailed logging)
+  if (config.env === 'development') {
+    console.error('Error:', err);
+  }
 
   const response: ErrorResponse = {
     success: false,
     message: 'Internal server error',
+    requestId, // Include for client-side error reporting
   };
 
   let statusCode = 500;

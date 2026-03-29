@@ -1,16 +1,38 @@
 import { Router, Request, Response } from 'express';
+import { body, param, query } from 'express-validator';
+import rateLimit from 'express-rate-limit';
 import { voiceAIService } from '../integrations/voice-ai.service';
 import { elevenlabsService } from '../integrations/elevenlabs.service';
 import { openaiService } from '../integrations/openai.service';
 import { createWhatsAppService } from '../integrations/whatsapp.service';
-import { authenticate } from '../middlewares/auth';
+import { authenticate, authorize } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 import { ApiResponse } from '../utils/apiResponse';
 import multer from 'multer';
 import { config } from '../config';
 import { prisma } from '../config/database';
+import { Prisma } from '@prisma/client';
 
 const router = Router();
+
+// Rate limiter for public endpoints - more restrictive
+const publicEndpointLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute per IP
+  message: { success: false, message: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiter for TTS/STT endpoints - expensive operations
+const voiceProcessingLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 requests per minute per IP
+  message: { success: false, message: 'Rate limit exceeded for voice processing' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Configure multer for audio upload
 const upload = multer({
@@ -23,7 +45,9 @@ const upload = multer({
 // ==================== PUBLIC ENDPOINTS (For Widget) ====================
 
 // Get agent info for widget (public)
-router.get('/widget/:agentId', async (req: Request, res: Response) => {
+router.get('/widget/:agentId', publicEndpointLimiter, validate([
+  param('agentId').isUUID().withMessage('Invalid agent ID'),
+]), async (req: Request, res: Response) => {
   try {
     const { agentId } = req.params;
 
@@ -55,13 +79,15 @@ router.get('/widget/:agentId', async (req: Request, res: Response) => {
 });
 
 // Start voice session (public - for widget)
-router.post('/session/start', async (req: Request, res: Response) => {
+router.post('/session/start', publicEndpointLimiter, validate([
+  body('agentId').isUUID().withMessage('Invalid agent ID'),
+  body('visitorInfo').optional().isObject().withMessage('Visitor info must be an object'),
+  body('visitorInfo.name').optional().trim().isLength({ max: 100 }).withMessage('Name must be at most 100 characters'),
+  body('visitorInfo.email').optional().trim().isEmail().withMessage('Invalid email format'),
+  body('visitorInfo.phone').optional().trim().matches(/^[\d+\-() ]{0,20}$/).withMessage('Invalid phone format'),
+]), async (req: Request, res: Response) => {
   try {
     const { agentId, visitorInfo } = req.body;
-
-    if (!agentId) {
-      return ApiResponse.error(res, 'Agent ID is required', 400);
-    }
 
     // Get agent to check authentication requirements
     const agent = await voiceAIService.getAgent(agentId);
@@ -103,12 +129,11 @@ router.post('/session/start', async (req: Request, res: Response) => {
         const lead = await prisma.lead.create({
           data: {
             organizationId: agent.organizationId,
-            name: visitorInfo.name || 'Voice Widget Visitor',
+            firstName: visitorInfo.name || 'Voice Widget Visitor',
             email: visitorInfo.email || null,
-            phone: visitorInfo.phone || null,
-            source: 'VOICE_WIDGET',
-            status: 'NEW',
-            metadata: {
+            phone: visitorInfo.phone || 'unknown',
+            source: 'AI_VOICE_INBOUND',
+            customFields: {
               capturedFrom: 'voice-ai-widget',
               agentId: agent.id,
               agentName: agent.name,
@@ -142,10 +167,25 @@ router.post('/session/start', async (req: Request, res: Response) => {
 });
 
 // Process voice message (public - for widget)
-router.post('/session/:sessionId/message', upload.single('audio'), async (req: Request, res: Response) => {
+router.post('/session/:sessionId/message', publicEndpointLimiter, upload.single('audio'), validate([
+  param('sessionId').isUUID().withMessage('Invalid session ID'),
+  body('text').optional().trim().isLength({ max: 5000 }).withMessage('Text must be at most 5000 characters'),
+]), async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
     const { text } = req.body;
+
+    // Verify session exists and is active before processing
+    const existingSession = await prisma.voiceSession.findUnique({
+      where: { id: sessionId },
+      select: { id: true, status: true }
+    });
+    if (!existingSession) {
+      return ApiResponse.error(res, 'Session not found', 404);
+    }
+    if (existingSession.status !== 'ACTIVE') {
+      return ApiResponse.error(res, 'Session is no longer active', 400);
+    }
 
     let userMessage = text;
 
@@ -184,7 +224,10 @@ router.post('/session/:sessionId/message', upload.single('audio'), async (req: R
 });
 
 // End voice session (public - for widget)
-router.post('/session/:sessionId/end', async (req: Request, res: Response) => {
+router.post('/session/:sessionId/end', publicEndpointLimiter, validate([
+  param('sessionId').isUUID().withMessage('Invalid session ID'),
+  body('status').optional().isIn(['COMPLETED', 'CANCELLED', 'FAILED']).withMessage('Invalid status'),
+]), async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
     const { status } = req.body;
@@ -270,7 +313,9 @@ router.post('/session/:sessionId/end', async (req: Request, res: Response) => {
 });
 
 // Get session transcript (public - for widget)
-router.get('/session/:sessionId/transcript', async (req: Request, res: Response) => {
+router.get('/session/:sessionId/transcript', publicEndpointLimiter, validate([
+  param('sessionId').isUUID().withMessage('Invalid session ID'),
+]), async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
 
@@ -288,7 +333,7 @@ router.get('/session/:sessionId/transcript', async (req: Request, res: Response)
 });
 
 // Get all available voices (public)
-router.get('/voices', async (req: Request, res: Response) => {
+router.get('/voices', publicEndpointLimiter, async (req: Request, res: Response) => {
   try {
     const voices: Array<{
       id: string;
@@ -353,15 +398,17 @@ router.get('/voices', async (req: Request, res: Response) => {
 });
 
 // Text to Speech endpoint (public - for widget)
-router.post('/tts', async (req: Request, res: Response) => {
+router.post('/tts', voiceProcessingLimiter, validate([
+  body('text').trim().notEmpty().withMessage('Text is required')
+    .isLength({ max: 5000 }).withMessage('Text must be at most 5000 characters'),
+  body('voice').optional().isString().withMessage('Voice must be a string'),
+  body('provider').optional().isIn(['openai', 'elevenlabs', 'sarvam', 'ai4bharat']).withMessage('Invalid provider'),
+  body('language').optional().isString().isLength({ max: 10 }).withMessage('Invalid language code'),
+]), async (req: Request, res: Response) => {
   try {
     const { text, voice, provider, language } = req.body;
 
     console.log('[TTS] Request:', { text: text?.substring(0, 50), voice, provider, language });
-
-    if (!text) {
-      return ApiResponse.error(res, 'Text is required', 400);
-    }
 
     let audioBuffer: Buffer;
     let contentType = 'audio/mpeg';
@@ -534,10 +581,21 @@ router.post('/tts', async (req: Request, res: Response) => {
 });
 
 // Speech to Text endpoint (public - for widget)
-router.post('/stt', upload.single('audio'), async (req: Request, res: Response) => {
+router.post('/stt', voiceProcessingLimiter, upload.single('audio'), async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       return ApiResponse.error(res, 'Audio file is required', 400);
+    }
+
+    // Validate file size (already handled by multer but add safety check)
+    if (req.file.size > 10 * 1024 * 1024) {
+      return ApiResponse.error(res, 'Audio file too large (max 10MB)', 400);
+    }
+
+    // Validate MIME type
+    const allowedMimes = ['audio/webm', 'audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/ogg', 'audio/m4a'];
+    if (!allowedMimes.includes(req.file.mimetype)) {
+      return ApiResponse.error(res, 'Invalid audio format', 400);
     }
 
     const text = await voiceAIService.speechToText(
@@ -556,11 +614,31 @@ router.post('/stt', upload.single('audio'), async (req: Request, res: Response) 
 router.use(authenticate);
 router.use(tenantMiddleware);
 
+// Rate limiter for expensive voice operations
+const voiceCloneLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 voice cloning requests per hour
+  message: { success: false, message: 'Too many voice cloning requests' },
+});
+
 // Clone voice - Upload voice sample for voice cloning
-router.post('/clone-voice', upload.single('voice'), async (req: TenantRequest, res: Response) => {
+router.post('/clone-voice', voiceCloneLimiter, upload.single('voice'), validate([
+  body('name').optional().trim().isLength({ max: 100 }).withMessage('Name too long'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     if (!req.file) {
       return ApiResponse.error(res, 'Voice sample is required', 400);
+    }
+
+    // Validate file size (safety check)
+    if (req.file.size > 10 * 1024 * 1024) {
+      return ApiResponse.error(res, 'Voice sample too large (max 10MB)', 400);
+    }
+
+    // Validate MIME type
+    const allowedMimes = ['audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/webm', 'audio/ogg', 'audio/m4a'];
+    if (!allowedMimes.includes(req.file.mimetype)) {
+      return ApiResponse.error(res, 'Invalid audio format', 400);
     }
 
     const { name } = req.body;
@@ -595,7 +673,10 @@ router.get('/custom-voices', async (req: TenantRequest, res: Response) => {
 });
 
 // Delete custom voice
-router.delete('/custom-voices/:voiceId', async (req: TenantRequest, res: Response) => {
+router.delete('/custom-voices/:voiceId', authorize('admin'), validate([
+  param('voiceId').trim().notEmpty().withMessage('Voice ID is required')
+    .isLength({ max: 100 }).withMessage('Invalid voice ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { voiceId } = req.params;
     await voiceAIService.deleteCustomVoice(voiceId, req.organizationId!);
@@ -701,16 +782,26 @@ Respond in JSON format ONLY:
   }
 }
 
+// Rate limiter for chat/LLM endpoints
+const chatTestLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20, // 20 chat tests per minute
+  message: { success: false, message: 'Too many chat test requests' },
+});
+
 // ==================== CHAT TEST ENDPOINT ====================
 // Test agent responses via chat (text-based testing)
 // Uses the model configured in the agent settings
-router.post('/chat/test', async (req: TenantRequest, res: Response) => {
+router.post('/chat/test', chatTestLimiter, validate([
+  body('agentId').isUUID().withMessage('Invalid agent ID'),
+  body('message').trim().notEmpty().withMessage('Message is required')
+    .isLength({ max: 5000 }).withMessage('Message must be at most 5000 characters'),
+  body('conversationHistory').optional().isArray({ max: 50 }).withMessage('Conversation history too long'),
+  body('testMode').optional().isBoolean().withMessage('testMode must be a boolean'),
+  body('expectedOutput').optional().trim().isLength({ max: 2000 }).withMessage('Expected output too long'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { agentId, message, conversationHistory = [], testMode = false, expectedOutput } = req.body;
-
-    if (!agentId || !message) {
-      return ApiResponse.error(res, 'Agent ID and message are required', 400);
-    }
 
     // Get the agent with model configuration
     const agent = await prisma.voiceAgent.findFirst({
@@ -852,14 +943,25 @@ router.post('/chat/test', async (req: TenantRequest, res: Response) => {
   }
 });
 
+// Rate limiter for agent creation
+const agentCreationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20, // 20 agent creations per hour
+  message: { success: false, message: 'Too many agent creation requests' },
+});
+
 // Create new voice agent
-router.post('/agents', async (req: TenantRequest, res: Response) => {
+router.post('/agents', agentCreationLimiter, authorize('admin', 'manager'), validate([
+  body('name').trim().notEmpty().withMessage('Name is required')
+    .isLength({ max: 100 }).withMessage('Name must be at most 100 characters'),
+  body('industry').trim().notEmpty().withMessage('Industry is required')
+    .isIn(['EDUCATION', 'REAL_ESTATE', 'HEALTHCARE', 'ECOMMERCE', 'FINANCE', 'IT_RECRUITMENT', 'CUSTOMER_CARE', 'CUSTOM'])
+    .withMessage('Invalid industry'),
+  body('customPrompt').optional().trim().isLength({ max: 10000 }).withMessage('Custom prompt too long'),
+  body('customQuestions').optional().isArray({ max: 50 }).withMessage('Too many custom questions'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { name, industry, customPrompt, customQuestions } = req.body;
-
-    if (!name || !industry) {
-      return ApiResponse.error(res, 'Name and industry are required', 400);
-    }
 
     const agent = await voiceAIService.createAgent({
       organizationId: req.organizationId!,
@@ -876,6 +978,12 @@ router.post('/agents', async (req: TenantRequest, res: Response) => {
   }
 });
 
+// Pagination validation
+const paginationValidation = [
+  query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+];
+
 // Get all agents for organization
 router.get('/agents', async (req: TenantRequest, res: Response) => {
   try {
@@ -887,16 +995,23 @@ router.get('/agents', async (req: TenantRequest, res: Response) => {
 });
 
 // Get single agent
-router.get('/agents/:agentId', async (req: TenantRequest, res: Response) => {
+router.get('/agents/:agentId', validate([
+  param('agentId').isUUID().withMessage('Invalid agent ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { agentId } = req.params;
-    const agent = await voiceAIService.getAgent(agentId);
+
+    // Verify agent belongs to organization
+    const agent = await prisma.voiceAgent.findFirst({
+      where: { id: agentId, organizationId: req.organizationId },
+    });
 
     if (!agent) {
       return ApiResponse.error(res, 'Agent not found', 404);
     }
 
-    ApiResponse.success(res, 'Agent retrieved', agent);
+    const fullAgent = await voiceAIService.getAgent(agentId);
+    ApiResponse.success(res, 'Agent retrieved', fullAgent);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -905,7 +1020,7 @@ router.get('/agents/:agentId', async (req: TenantRequest, res: Response) => {
 // Upload document for agent knowledge base
 const documentUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit for documents
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit for documents (reduced from 50MB)
   fileFilter: (req, file, cb) => {
     // Allow common document types
     const allowedMimes = [
@@ -919,15 +1034,40 @@ const documentUpload = multer({
       'application/json',
       'text/markdown',
     ];
-    if (allowedMimes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
+
+    // Validate MIME type
+    if (!allowedMimes.includes(file.mimetype)) {
       cb(new Error(`File type ${file.mimetype} not allowed`));
+      return;
     }
+
+    // Validate file extension matches MIME type
+    const ext = file.originalname.split('.').pop()?.toLowerCase();
+    const mimeExtMap: Record<string, string[]> = {
+      'application/pdf': ['pdf'],
+      'text/plain': ['txt', 'text'],
+      'text/csv': ['csv'],
+      'application/msword': ['doc'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['docx'],
+      'application/vnd.ms-excel': ['xls'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['xlsx'],
+      'application/json': ['json'],
+      'text/markdown': ['md', 'markdown'],
+    };
+
+    const allowedExts = mimeExtMap[file.mimetype] || [];
+    if (!ext || !allowedExts.includes(ext)) {
+      cb(new Error('File extension does not match content type'));
+      return;
+    }
+
+    cb(null, true);
   }
 });
 
-router.post('/agents/documents/upload', documentUpload.single('file'), async (req: TenantRequest, res: Response) => {
+router.post('/agents/documents/upload', documentUpload.single('file'), validate([
+  body('agentId').isUUID().withMessage('Valid agent ID is required'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { agentId } = req.body;
     const file = req.file;
@@ -936,8 +1076,9 @@ router.post('/agents/documents/upload', documentUpload.single('file'), async (re
       return ApiResponse.error(res, 'No file uploaded', 400);
     }
 
-    if (!agentId) {
-      return ApiResponse.error(res, 'Agent ID is required', 400);
+    // Additional file validation
+    if (file.size > 10 * 1024 * 1024) {
+      return ApiResponse.error(res, 'File too large (max 10MB)', 400);
     }
 
     // Verify agent belongs to organization
@@ -974,9 +1115,25 @@ router.post('/agents/documents/upload', documentUpload.single('file'), async (re
 });
 
 // Update agent
-router.put('/agents/:agentId', async (req: TenantRequest, res: Response) => {
+router.put('/agents/:agentId', validate([
+  param('agentId').isUUID().withMessage('Invalid agent ID'),
+  body('name').optional().trim().isLength({ max: 100 }).withMessage('Name too long'),
+  body('description').optional().trim().isLength({ max: 2000 }).withMessage('Description too long'),
+  body('systemPrompt').optional().trim().isLength({ max: 10000 }).withMessage('System prompt too long'),
+  body('greeting').optional().trim().isLength({ max: 1000 }).withMessage('Greeting too long'),
+  body('maxDuration').optional().isInt({ min: 30, max: 3600 }).withMessage('Max duration must be 30-3600 seconds'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { agentId } = req.params;
+
+    // Verify agent belongs to organization
+    const existingAgent = await prisma.voiceAgent.findFirst({
+      where: { id: agentId, organizationId: req.organizationId },
+    });
+    if (!existingAgent) {
+      return ApiResponse.error(res, 'Agent not found', 404);
+    }
+
     const updateData = req.body;
 
     // Filter out fields that don't exist in the schema
@@ -1065,9 +1222,19 @@ router.put('/agents/:agentId', async (req: TenantRequest, res: Response) => {
 });
 
 // Delete agent
-router.delete('/agents/:agentId', async (req: TenantRequest, res: Response) => {
+router.delete('/agents/:agentId', validate([
+  param('agentId').isUUID().withMessage('Invalid agent ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { agentId } = req.params;
+
+    // Verify agent belongs to organization
+    const agent = await prisma.voiceAgent.findFirst({
+      where: { id: agentId, organizationId: req.organizationId },
+    });
+    if (!agent) {
+      return ApiResponse.error(res, 'Agent not found', 404);
+    }
 
     await voiceAIService.deleteAgent(agentId);
 
@@ -1080,15 +1247,18 @@ router.delete('/agents/:agentId', async (req: TenantRequest, res: Response) => {
 // ==================== PUBLISH FEATURE ====================
 
 // Publish agent - makes the agent live
-router.post('/agents/:agentId/publish', async (req: TenantRequest, res: Response) => {
+router.post('/agents/:agentId/publish', validate([
+  param('agentId').isUUID().withMessage('Invalid agent ID'),
+  body('description').optional().trim().isLength({ max: 500 }).withMessage('Description too long'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { agentId } = req.params;
     const { description } = req.body; // Optional version description
     const userId = req.user?.id;
 
-    // Get current agent
-    const agent = await prisma.voiceAgent.findUnique({
-      where: { id: agentId },
+    // Get current agent and verify organization
+    const agent = await prisma.voiceAgent.findFirst({
+      where: { id: agentId, organizationId: req.organizationId },
     });
 
     if (!agent) {
@@ -1141,7 +1311,7 @@ router.post('/agents/:agentId/publish', async (req: TenantRequest, res: Response
         publishedAt: new Date(),
         publishedById: userId,
         publishedConfig: configSnapshot,
-        draftConfig: null, // Clear draft when publishing
+        draftConfig: Prisma.JsonNull, // Clear draft when publishing
         versionNumber: newVersion,
         versionHistory: versionHistory,
       },
@@ -1161,12 +1331,15 @@ router.post('/agents/:agentId/publish', async (req: TenantRequest, res: Response
 });
 
 // Unpublish agent - returns to draft mode
-router.post('/agents/:agentId/unpublish', async (req: TenantRequest, res: Response) => {
+router.post('/agents/:agentId/unpublish', validate([
+  param('agentId').isUUID().withMessage('Invalid agent ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { agentId } = req.params;
 
-    const agent = await prisma.voiceAgent.findUnique({
-      where: { id: agentId },
+    // Verify agent belongs to organization (IDOR protection)
+    const agent = await prisma.voiceAgent.findFirst({
+      where: { id: agentId, organizationId: req.organizationId },
     });
 
     if (!agent) {
@@ -1192,12 +1365,15 @@ router.post('/agents/:agentId/unpublish', async (req: TenantRequest, res: Respon
 });
 
 // Get agent version history
-router.get('/agents/:agentId/versions', async (req: TenantRequest, res: Response) => {
+router.get('/agents/:agentId/versions', validate([
+  param('agentId').isUUID().withMessage('Invalid agent ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { agentId } = req.params;
 
-    const agent = await prisma.voiceAgent.findUnique({
-      where: { id: agentId },
+    // Verify agent belongs to organization (IDOR protection)
+    const agent = await prisma.voiceAgent.findFirst({
+      where: { id: agentId, organizationId: req.organizationId },
       select: {
         versionNumber: true,
         versionHistory: true,
@@ -1224,10 +1400,23 @@ router.get('/agents/:agentId/versions', async (req: TenantRequest, res: Response
 // ==================== END PUBLISH FEATURE ====================
 
 // Get agent sessions
-router.get('/agents/:agentId/sessions', async (req: TenantRequest, res: Response) => {
+router.get('/agents/:agentId/sessions', validate([
+  param('agentId').isUUID().withMessage('Invalid agent ID'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { agentId } = req.params;
-    const limit = parseInt(req.query.limit as string) || 50;
+
+    // Verify agent belongs to organization
+    const agent = await prisma.voiceAgent.findFirst({
+      where: { id: agentId, organizationId: req.organizationId },
+      select: { id: true },
+    });
+    if (!agent) {
+      return ApiResponse.error(res, 'Agent not found', 404);
+    }
+
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
 
     const sessions = await voiceAIService.getAgentSessions(agentId, limit);
 
@@ -1238,10 +1427,23 @@ router.get('/agents/:agentId/sessions', async (req: TenantRequest, res: Response
 });
 
 // Get agent analytics
-router.get('/agents/:agentId/analytics', async (req: TenantRequest, res: Response) => {
+router.get('/agents/:agentId/analytics', validate([
+  param('agentId').isUUID().withMessage('Invalid agent ID'),
+  query('days').optional().isInt({ min: 1, max: 365 }).withMessage('Days must be between 1 and 365'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { agentId } = req.params;
-    const days = parseInt(req.query.days as string) || 30;
+
+    // Verify agent belongs to organization
+    const agent = await prisma.voiceAgent.findFirst({
+      where: { id: agentId, organizationId: req.organizationId },
+      select: { id: true },
+    });
+    if (!agent) {
+      return ApiResponse.error(res, 'Agent not found', 404);
+    }
+
+    const days = Math.min(parseInt(req.query.days as string) || 30, 365);
 
     const analytics = await voiceAIService.getAgentAnalytics(agentId, days);
 
@@ -1252,9 +1454,25 @@ router.get('/agents/:agentId/analytics', async (req: TenantRequest, res: Respons
 });
 
 // Get session details (admin)
-router.get('/sessions/:sessionId', async (req: TenantRequest, res: Response) => {
+router.get('/sessions/:sessionId', validate([
+  param('sessionId').isUUID().withMessage('Invalid session ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { sessionId } = req.params;
+
+    // Verify session belongs to organization (IDOR protection)
+    const sessionCheck = await prisma.voiceSession.findFirst({
+      where: { id: sessionId },
+      include: {
+        agent: {
+          select: { organizationId: true },
+        },
+      },
+    });
+
+    if (!sessionCheck || sessionCheck.agent?.organizationId !== req.organizationId) {
+      return ApiResponse.error(res, 'Session not found', 404);
+    }
 
     const session = await voiceAIService.getSession(sessionId);
 
@@ -1346,6 +1564,100 @@ router.get('/agents/:agentId/embed', async (req: TenantRequest, res: Response) =
 </script>`;
 
     ApiResponse.success(res, 'Embed code generated', { embedCode, agentId });
+  } catch (error) {
+    ApiResponse.error(res, (error as Error).message, 500);
+  }
+});
+
+// ==================== RAG (Knowledge Base) ====================
+
+// Get RAG documents for agent
+router.get('/agents/:agentId/rag/documents', async (req: TenantRequest, res: Response) => {
+  try {
+    const { agentId } = req.params;
+
+    // Verify agent belongs to organization
+    const agent = await prisma.voiceAgent.findFirst({
+      where: {
+        id: agentId,
+        organizationId: req.organizationId!,
+      },
+    });
+
+    if (!agent) {
+      return ApiResponse.error(res, 'Agent not found', 404);
+    }
+
+    // Get knowledge base documents (if table exists)
+    // For now, return the agent's knowledge base content
+    const documents = [];
+
+    if (agent.knowledgeBase) {
+      documents.push({
+        id: `${agentId}-kb`,
+        name: 'Knowledge Base',
+        type: 'text',
+        content: typeof agent.knowledgeBase === 'string'
+          ? agent.knowledgeBase.substring(0, 200) + '...'
+          : 'Knowledge base configured',
+        createdAt: agent.createdAt,
+      });
+    }
+
+    if (agent.faqs && Array.isArray(agent.faqs) && (agent.faqs as any[]).length > 0) {
+      documents.push({
+        id: `${agentId}-faqs`,
+        name: 'FAQs',
+        type: 'faq',
+        count: (agent.faqs as any[]).length,
+        createdAt: agent.createdAt,
+      });
+    }
+
+    ApiResponse.success(res, 'RAG documents retrieved', documents);
+  } catch (error) {
+    ApiResponse.error(res, (error as Error).message, 500);
+  }
+});
+
+// Upload RAG document
+router.post('/agents/:agentId/rag/documents', upload.single('file'), async (req: TenantRequest, res: Response) => {
+  try {
+    const { agentId } = req.params;
+    const { content, type = 'text' } = req.body;
+
+    // Verify agent belongs to organization
+    const agent = await prisma.voiceAgent.findFirst({
+      where: {
+        id: agentId,
+        organizationId: req.organizationId!,
+      },
+    });
+
+    if (!agent) {
+      return ApiResponse.error(res, 'Agent not found', 404);
+    }
+
+    // Handle file upload or text content
+    let documentContent = content;
+    if (req.file) {
+      documentContent = req.file.buffer.toString('utf-8');
+    }
+
+    // Update agent's knowledge base
+    const updatedAgent = await prisma.voiceAgent.update({
+      where: { id: agentId },
+      data: {
+        knowledgeBase: documentContent,
+      },
+    });
+
+    ApiResponse.success(res, 'Document uploaded', {
+      id: `${agentId}-kb`,
+      name: req.file?.originalname || 'Knowledge Base',
+      type,
+      size: documentContent?.length || 0,
+    });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }

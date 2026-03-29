@@ -27,6 +27,7 @@ interface UpdateLeadInput {
   priority?: LeadPriority;
   notes?: string;
   customFields?: Prisma.InputJsonValue;
+  isConverted?: boolean;
 }
 
 interface LeadFilter {
@@ -38,6 +39,7 @@ interface LeadFilter {
   search?: string;
   dateFrom?: Date;
   dateTo?: Date;
+  isConverted?: boolean;
 }
 
 export class LeadService {
@@ -173,10 +175,17 @@ export class LeadService {
       }
     }
 
+    if (filter.isConverted !== undefined) {
+      where.isConverted = filter.isConverted;
+    }
+
     const [leads, total] = await Promise.all([
       prisma.lead.findMany({
         where,
         include: {
+          stage: {
+            select: { id: true, name: true, color: true },
+          },
           assignments: {
             where: { isActive: true },
             include: {
@@ -205,10 +214,15 @@ export class LeadService {
       throw new NotFoundError('Lead not found');
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // Set convertedAt timestamp when marking as converted
+    const updateData: Record<string, unknown> = { ...input };
+    if (input.isConverted === true && !lead.isConverted) {
+      updateData.convertedAt = new Date();
+    }
+
     return prisma.lead.update({
       where: { id },
-      data: input as any,
+      data: updateData,
       include: {
         assignments: {
           where: { isActive: true },
@@ -321,7 +335,7 @@ export class LeadService {
     };
   }
 
-  async getStats(organizationId: string) {
+  async getStats(organizationId: string, assignedToId?: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -332,6 +346,19 @@ export class LeadService {
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
 
+    // Base where clause - if assignedToId is provided, filter by assignment
+    const baseWhere = assignedToId
+      ? {
+          organizationId,
+          assignments: {
+            some: {
+              assignedToId,
+              isActive: true,
+            },
+          },
+        }
+      : { organizationId };
+
     const [
       total,
       byStage,
@@ -341,32 +368,32 @@ export class LeadService {
       thisMonthCount,
       stages,
     ] = await Promise.all([
-      prisma.lead.count({ where: { organizationId } }),
+      prisma.lead.count({ where: baseWhere }),
       prisma.lead.groupBy({
         by: ['stageId'],
-        where: { organizationId },
+        where: baseWhere,
         _count: true,
       }),
       prisma.lead.groupBy({
         by: ['source'],
-        where: { organizationId },
+        where: baseWhere,
         _count: true,
       }),
       prisma.lead.count({
         where: {
-          organizationId,
+          ...baseWhere,
           createdAt: { gte: today },
         },
       }),
       prisma.lead.count({
         where: {
-          organizationId,
+          ...baseWhere,
           createdAt: { gte: weekAgo },
         },
       }),
       prisma.lead.count({
         where: {
-          organizationId,
+          ...baseWhere,
           createdAt: { gte: monthStart },
         },
       }),

@@ -42,6 +42,7 @@ import analyticsRoutes from './analytics.routes';
 import trackingRoutes from './tracking.routes';
 import adInsightsRoutes from './ad-insights.routes';
 import organizationRoutes from './organization.routes';
+import organizationIntegrationsRoutes from './organization-integrations.routes';
 import rawImportRoutes from './rawImport.routes';
 import telecallerRoutes from './telecaller.routes';
 import phoneNumberRoutes from './phone-number.routes';
@@ -75,6 +76,7 @@ import conversationalAIAgentRoutes from './conversational-ai-agent.routes';
 import ragRoutes from './rag.routes';
 import agentAnalyticsRoutes from './agent-analytics.routes';
 import messagingRoutes from './messaging.routes';
+import notificationDeviceRoutes from './notification-device.routes';
 
 const router = Router();
 
@@ -126,6 +128,7 @@ router.use('/analytics', analyticsRoutes);
 router.use('/tracking', trackingRoutes);
 router.use('/ad-insights', adInsightsRoutes);
 router.use('/organization', organizationRoutes);
+router.use('/organization/integrations', organizationIntegrationsRoutes);
 router.use('/raw-imports', rawImportRoutes);
 router.use('/telecaller', telecallerRoutes);
 router.use('/messaging', messagingRoutes);
@@ -145,6 +148,7 @@ router.use('/voice-minutes', voiceMinutesRoutes);
 // Integration Settings
 router.use('/calendar', calendarRoutes);
 router.use('/notification-channels', notificationChannelRoutes);
+router.use('/notifications', notificationDeviceRoutes);
 router.use('/email-sequences', emailSequenceRoutes);
 router.use('/crm-integrations', crmIntegrationRoutes);
 router.use('/integrations', integrationRoutes);

@@ -72,6 +72,7 @@ export const leadsApi = {
       }
 
       return {
+        success: true,
         data: transformedLeads,
         pagination: {
           page,
@@ -91,9 +92,31 @@ export const leadsApi = {
    */
   getLead: async (leadId: string): Promise<Lead> => {
     try {
-      const response = await api.get<ApiResponse<Lead>>(`/leads/${leadId}`);
-      return response.data.data;
+      console.log('[LeadsAPI] Fetching single lead:', leadId);
+      const response = await api.get(`/leads/${leadId}`);
+      console.log('[LeadsAPI] Single lead response:', JSON.stringify(response.data));
+
+      const leadData = response.data.data || response.data;
+
+      // Transform to match app's Lead type
+      const lead: Lead = {
+        id: leadData.id,
+        name: `${leadData.firstName || ''} ${leadData.lastName || ''}`.trim() || 'Unknown',
+        phone: leadData.phone || '',
+        email: leadData.email || undefined,
+        company: leadData.centerName || leadData.company || undefined,
+        status: (leadData.status || 'NEW') as LeadStatus,
+        source: leadData.source || undefined,
+        notes: leadData.notes || undefined,
+        lastContactedAt: leadData.lastContactedAt || undefined,
+        createdAt: leadData.createdAt || new Date().toISOString(),
+        updatedAt: leadData.updatedAt || new Date().toISOString(),
+      };
+
+      console.log('[LeadsAPI] Transformed lead:', JSON.stringify(lead));
+      return lead;
     } catch (error) {
+      console.error('[LeadsAPI] Error fetching lead:', error);
       throw new Error(getErrorMessage(error));
     }
   },

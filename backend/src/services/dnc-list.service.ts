@@ -3,9 +3,8 @@
  * Handles Do Not Call list management
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 
-const prisma = new PrismaClient();
 
 export type DNCReason = 'CUSTOMER_REQUEST' | 'LEGAL_REQUIREMENT' | 'WRONG_NUMBER' | 'DECEASED' | 'COMPETITOR' | 'SPAM_COMPLAINT' | 'OTHER';
 

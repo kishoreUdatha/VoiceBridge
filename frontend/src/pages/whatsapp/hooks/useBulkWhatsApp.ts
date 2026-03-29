@@ -259,7 +259,8 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
     try {
       const updatedRecipients = [...recipients];
 
-      const mediaData = await Promise.all(
+      // Prepare media data for future use when backend supports it
+      const _mediaData = await Promise.all(
         mediaFiles.map(async (media) => {
           const reader = new FileReader();
           return new Promise<{ type: string; data: string; filename: string }>((resolve) => {
@@ -274,6 +275,7 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
           });
         })
       );
+      void _mediaData; // Suppress unused variable warning until media support is added
 
       for (let i = 0; i < recipients.length; i++) {
         const recipient = recipients[i];

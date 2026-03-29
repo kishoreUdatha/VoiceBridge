@@ -3,12 +3,11 @@
  * Handles customer support conversations with RAG-powered knowledge retrieval
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import OpenAI from 'openai';
 import { AgentContext, AgentResponse, SupportTicket } from './specialized-agent.types';
 import { ragService } from './rag.service';
 
-const prisma = new PrismaClient();
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })

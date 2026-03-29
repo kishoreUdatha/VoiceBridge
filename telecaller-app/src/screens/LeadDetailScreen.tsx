@@ -42,16 +42,22 @@ const STATUS_OPTIONS: LeadStatus[] = [
 const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { leadId } = route.params;
   const dispatch = useAppDispatch();
-  const { selectedLead, isLoading } = useAppSelector((state) => state.leads);
+  const { selectedLead, isLoading, error } = useAppSelector((state) => state.leads);
   const { calls } = useAppSelector((state) => state.calls);
   const [refreshing, setRefreshing] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
 
   const loadLeadData = useCallback(async () => {
-    await Promise.all([
-      dispatch(fetchLeadById(leadId)),
-      dispatch(fetchCallHistory({ leadId })),
-    ]);
+    try {
+      console.log('[LeadDetail] Loading lead:', leadId);
+      await Promise.all([
+        dispatch(fetchLeadById(leadId)),
+        dispatch(fetchCallHistory({ leadId })),
+      ]);
+      console.log('[LeadDetail] Lead loaded successfully');
+    } catch (error) {
+      console.error('[LeadDetail] Error loading lead:', error);
+    }
   }, [dispatch, leadId]);
 
   useEffect(() => {
@@ -66,7 +72,8 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const handleCall = () => {
     if (selectedLead) {
-      navigation.navigate('Call', { lead: selectedLead });
+      // Navigate to Smart Call Prep first for AI suggestions
+      navigation.navigate('SmartCallPrep', { lead: selectedLead });
     }
   };
 
@@ -116,7 +123,8 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     return (
       <View style={styles.errorContainer}>
         <Icon name="account-off" size={64} color="#9CA3AF" />
-        <Text style={styles.errorText}>Lead not found</Text>
+        <Text style={styles.errorText}>{error || 'Lead not found'}</Text>
+        <Text style={styles.errorSubtext}>ID: {leadId}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={loadLeadData}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
@@ -317,6 +325,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#6B7280',
     marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  errorSubtext: {
+    fontSize: 12,
+    color: '#9CA3AF',
     marginBottom: 24,
   },
   retryButton: {

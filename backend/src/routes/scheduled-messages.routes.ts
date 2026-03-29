@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import { scheduledMessageService } from '../services/scheduled-message.service';
 import { authenticate } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AppError } from '../utils/errors';
 
 const router = Router();
 
-// All routes require authentication
+// All routes require authentication and tenant context
 router.use(authenticate);
+router.use(tenantMiddleware);
 
 /**
  * @api {get} /scheduled-messages List Scheduled Messages

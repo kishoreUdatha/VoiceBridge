@@ -3,10 +3,10 @@
  * Handles lead scoring, grading, and prioritization
  */
 
-import { PrismaClient, CallOutcome, LeadGrade } from '@prisma/client';
+import { CallOutcome, LeadGrade } from '@prisma/client';
+import { prisma } from '../config/database';
 import OpenAI from 'openai';
 
-const prisma = new PrismaClient();
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;

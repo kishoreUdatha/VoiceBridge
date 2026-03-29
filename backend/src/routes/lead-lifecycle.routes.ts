@@ -17,6 +17,7 @@ import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { prisma } from '../config/database';
 import { leadLifecycleService } from '../services/lead-lifecycle.service';
 import { FollowUpType, FollowUpStatus } from '@prisma/client';
+import { canAccessLead, getLeadAccessContext, buildFollowUpAccessFilter } from '../utils/leadAccess';
 
 const router = Router();
 
@@ -38,7 +39,13 @@ router.get(
     try {
       const { leadId } = req.params;
 
-      // Verify lead belongs to organization
+      // Role-based access check: admin/manager see all, others only assigned leads
+      const hasAccess = await canAccessLead(leadId, getLeadAccessContext(req));
+      if (!hasAccess) {
+        return ApiResponse.notFound(res, 'Lead not found');
+      }
+
+      // Get lead details
       const lead = await prisma.lead.findFirst({
         where: {
           id: leadId,
@@ -107,15 +114,9 @@ router.get(
     try {
       const { leadId } = req.params;
 
-      // Verify lead belongs to organization
-      const lead = await prisma.lead.findFirst({
-        where: {
-          id: leadId,
-          organizationId: req.organizationId!,
-        },
-      });
-
-      if (!lead) {
+      // Role-based access check: admin/manager see all, others only assigned leads
+      const hasAccess = await canAccessLead(leadId, getLeadAccessContext(req));
+      if (!hasAccess) {
         return ApiResponse.notFound(res, 'Lead not found');
       }
 
@@ -142,6 +143,12 @@ router.get(
     try {
       const { leadId } = req.params;
       const { status } = req.query;
+
+      // Role-based access check: admin/manager see all, others only assigned leads
+      const hasAccess = await canAccessLead(leadId, getLeadAccessContext(req));
+      if (!hasAccess) {
+        return ApiResponse.notFound(res, 'Lead not found');
+      }
 
       const where: any = {
         leadId,
@@ -187,15 +194,9 @@ router.post(
       const { leadId } = req.params;
       const { scheduledAt, followUpType, assigneeId, voiceAgentId, message } = req.body;
 
-      // Verify lead
-      const lead = await prisma.lead.findFirst({
-        where: {
-          id: leadId,
-          organizationId: req.organizationId!,
-        },
-      });
-
-      if (!lead) {
+      // Role-based access check: admin/manager see all, others only assigned leads
+      const hasAccess = await canAccessLead(leadId, getLeadAccessContext(req));
+      if (!hasAccess) {
         return ApiResponse.notFound(res, 'Lead not found');
       }
 
@@ -246,6 +247,12 @@ router.put(
     try {
       const { leadId, followUpId } = req.params;
       const { scheduledAt, status, notes } = req.body;
+
+      // Role-based access check: admin/manager see all, others only assigned leads
+      const hasAccess = await canAccessLead(leadId, getLeadAccessContext(req));
+      if (!hasAccess) {
+        return ApiResponse.notFound(res, 'Lead not found');
+      }
 
       // Verify follow-up exists and belongs to lead
       const followUp = await prisma.followUp.findFirst({
@@ -307,6 +314,12 @@ router.delete(
     try {
       const { leadId, followUpId } = req.params;
 
+      // Role-based access check: admin/manager see all, others only assigned leads
+      const hasAccess = await canAccessLead(leadId, getLeadAccessContext(req));
+      if (!hasAccess) {
+        return ApiResponse.notFound(res, 'Lead not found');
+      }
+
       // Verify follow-up exists and belongs to lead
       const followUp = await prisma.followUp.findFirst({
         where: {
@@ -350,7 +363,13 @@ router.post(
       const { leadId } = req.params;
       const { voiceAgentId } = req.body;
 
-      // Verify lead
+      // Role-based access check (admin/manager already verified by authorize middleware)
+      const hasAccess = await canAccessLead(leadId, getLeadAccessContext(req));
+      if (!hasAccess) {
+        return ApiResponse.notFound(res, 'Lead not found');
+      }
+
+      // Get lead details for the call
       const lead = await prisma.lead.findFirst({
         where: {
           id: leadId,
@@ -449,8 +468,11 @@ router.get(
     try {
       const { type, assigneeId, limit = '20' } = req.query;
 
+      // Build role-based access filter for follow-ups
+      const accessFilter = buildFollowUpAccessFilter(getLeadAccessContext(req));
+
       const where: any = {
-        lead: { organizationId: req.organizationId! },
+        ...accessFilter,
         status: 'UPCOMING',
         scheduledAt: { lte: new Date(Date.now() + 24 * 60 * 60 * 1000) }, // Due within 24 hours
       };

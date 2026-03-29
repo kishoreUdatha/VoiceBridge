@@ -14,6 +14,7 @@ interface MakeCallInput {
   to: string;
   leadId?: string;
   callerId: string;
+  organizationId: string;
   callType?: CallType;
 }
 
@@ -234,6 +235,7 @@ export class PlivoService {
       // Log the call
       const callLog = await prisma.callLog.create({
         data: {
+          organizationId: input.organizationId,
           leadId: input.leadId,
           callerId: input.callerId,
           phoneNumber: input.to,
@@ -250,6 +252,7 @@ export class PlivoService {
     } catch (error) {
       await prisma.callLog.create({
         data: {
+          organizationId: input.organizationId,
           leadId: input.leadId,
           callerId: input.callerId,
           phoneNumber: input.to,

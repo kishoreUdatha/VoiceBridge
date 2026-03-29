@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 import { createServer } from 'http';
 import { config } from './config';
 import { connectDatabase } from './config/database';
@@ -15,6 +16,7 @@ import { setupSwagger } from './swagger';
 import testCallRoutes from './routes/test-call.routes';
 import voicebotRoutes, { initializeVoiceBotWebSocket } from './routes/voicebot.routes';
 import { initializeScheduledJobs } from './services/job-initializer.service';
+import { csrfTokenSetter, csrfProtection, csrfTokenEndpoint } from './middlewares/csrf';
 import fs from 'fs';
 import path from 'path';
 
@@ -27,14 +29,91 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Security middleware
-app.use(helmet());
+// Build CSP connect sources from config
+const cspConnectSources = [
+  "'self'",
+  'wss:',
+  'ws:',
+  config.apiUrls.openai.replace('/v1', ''), // OpenAI API
+  config.sarvam.apiUrl, // Sarvam AI
+  config.apiUrls.elevenlabs.replace('/v1', ''), // ElevenLabs
+  config.apiUrls.facebookGraph, // Facebook Graph API
+  ...(process.env.CSP_ADDITIONAL_CONNECT_SRC?.split(',') || []),
+].filter(Boolean);
+
+// Security middleware with enhanced headers
+app.use(
+  helmet({
+    // Content Security Policy
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"], // Removed unsafe-eval for production security
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+        connectSrc: cspConnectSources,
+        mediaSrc: ["'self'", 'blob:'],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'self'"],
+        formAction: ["'self'"],
+        upgradeInsecureRequests: config.isProduction ? [] : null,
+      },
+    },
+    // Prevent clickjacking
+    frameguard: { action: 'deny' },
+    // Prevent MIME type sniffing
+    noSniff: true,
+    // Enable XSS filter
+    xssFilter: true,
+    // Hide powered by header
+    hidePoweredBy: true,
+    // HTTP Strict Transport Security
+    hsts: config.isProduction
+      ? {
+          maxAge: 31536000, // 1 year
+          includeSubDomains: true,
+          preload: true,
+        }
+      : false,
+    // Referrer policy
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    // Cross-Origin-Embedder-Policy
+    crossOriginEmbedderPolicy: false, // Disabled to allow external resources
+    // Cross-Origin-Opener-Policy
+    crossOriginOpenerPolicy: { policy: 'same-origin' },
+    // Cross-Origin-Resource-Policy
+    crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow cross-origin for API
+  })
+);
+
+// Additional security headers
+app.use((req, res, next) => {
+  // Prevent caching of sensitive data
+  if (req.path.startsWith('/api/auth')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+
+  // Feature Policy / Permissions Policy
+  res.setHeader(
+    'Permissions-Policy',
+    'camera=(), microphone=(self), geolocation=(), payment=()'
+  );
+
+  next();
+});
+
 app.use(
   cors({
     origin: config.corsOrigins,
     credentials: true,
   })
 );
+
+// Cookie parsing middleware (for httpOnly cookie auth)
+app.use(cookieParser());
 
 // Body parsing middleware - capture raw body for webhook signature verification
 app.use(express.json({
@@ -54,6 +133,14 @@ if (config.env === 'development') {
 } else {
   app.use(morgan('combined'));
 }
+
+// CSRF Protection
+// Sets CSRF token cookie on all requests
+app.use(csrfTokenSetter);
+// Endpoint to get CSRF token for SPAs
+app.get('/api/csrf-token', csrfTokenEndpoint);
+// Validate CSRF token on state-changing requests to /api
+app.use('/api', csrfProtection);
 
 // Static files
 app.use('/uploads', express.static(uploadsDir));
@@ -94,7 +181,99 @@ app.use('/api', routes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Start server
+// =============================================================================
+// Global Error Handlers - Prevent silent crashes
+// =============================================================================
+
+/**
+ * Handle unhandled promise rejections
+ * These occur when a promise is rejected but no .catch() handler is attached
+ */
+process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
+  console.error('='.repeat(60));
+  console.error('UNHANDLED PROMISE REJECTION');
+  console.error('='.repeat(60));
+  console.error('Reason:', reason);
+  console.error('Promise:', promise);
+  console.error('Stack:', reason instanceof Error ? reason.stack : 'No stack trace');
+  console.error('='.repeat(60));
+
+  // In production, log to monitoring service (e.g., Sentry, DataDog)
+  // For now, we log and continue - but could exit in strict mode
+  // process.exit(1);
+});
+
+/**
+ * Handle uncaught exceptions
+ * These are synchronous errors that were not caught by try/catch
+ */
+process.on('uncaughtException', (error: Error) => {
+  console.error('='.repeat(60));
+  console.error('UNCAUGHT EXCEPTION - Server will shut down');
+  console.error('='.repeat(60));
+  console.error('Error:', error.message);
+  console.error('Stack:', error.stack);
+  console.error('='.repeat(60));
+
+  // Uncaught exceptions leave the app in an undefined state
+  // Graceful shutdown is recommended
+  gracefulShutdown('uncaughtException');
+});
+
+/**
+ * Handle SIGTERM (graceful shutdown request)
+ */
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received - initiating graceful shutdown');
+  gracefulShutdown('SIGTERM');
+});
+
+/**
+ * Handle SIGINT (Ctrl+C)
+ */
+process.on('SIGINT', () => {
+  console.log('SIGINT received - initiating graceful shutdown');
+  gracefulShutdown('SIGINT');
+});
+
+/**
+ * Graceful shutdown function
+ * Closes all connections properly before exiting
+ */
+async function gracefulShutdown(signal: string) {
+  console.log(`\nGraceful shutdown initiated (${signal})...`);
+
+  // Set a timeout to force exit if graceful shutdown takes too long
+  const forceExitTimeout = setTimeout(() => {
+    console.error('Graceful shutdown timed out - forcing exit');
+    process.exit(1);
+  }, 30000); // 30 seconds timeout
+
+  try {
+    // Close HTTP server (stop accepting new connections)
+    httpServer.close(() => {
+      console.log('HTTP server closed');
+    });
+
+    // Close database connections
+    const { disconnectDatabase } = require('./config/database');
+    await disconnectDatabase();
+    console.log('Database connections closed');
+
+    clearTimeout(forceExitTimeout);
+    console.log('Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during graceful shutdown:', error);
+    clearTimeout(forceExitTimeout);
+    process.exit(1);
+  }
+}
+
+// =============================================================================
+// Start Server
+// =============================================================================
+
 async function startServer() {
   try {
     await connectDatabase();

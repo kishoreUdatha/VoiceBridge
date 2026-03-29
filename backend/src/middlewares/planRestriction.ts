@@ -1,10 +1,9 @@
 import { Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { PLANS } from '../services/subscription.service';
 import { AppError } from '../utils/errors';
 import { AuthenticatedRequest } from './auth';
 
-const prisma = new PrismaClient();
 
 type PlanFeature =
   | 'aiCalls'

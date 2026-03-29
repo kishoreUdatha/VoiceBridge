@@ -1,6 +1,6 @@
-import { PrismaClient, NotificationChannelType } from '@prisma/client';
+import { NotificationChannelType } from '@prisma/client';
+import { prisma } from '../config/database';
 
-const prisma = new PrismaClient();
 
 // Notification Events
 export const NOTIFICATION_EVENTS = {

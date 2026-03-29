@@ -1,7 +1,7 @@
-import { PrismaClient, ContactListType, ContactStatus } from '@prisma/client';
+import { ContactListType, ContactStatus } from '@prisma/client';
+import { prisma } from '../config/database';
 import { AppError } from '../utils/errors';
 
-const prisma = new PrismaClient();
 
 interface CreateContactListParams {
   organizationId: string;
@@ -109,7 +109,7 @@ class ContactListService {
     ]);
 
     return {
-      data: lists.map(list => ({
+      data: lists.map((list: typeof lists[0]) => ({
         ...list,
         contactCount: list._count.contacts,
       })),

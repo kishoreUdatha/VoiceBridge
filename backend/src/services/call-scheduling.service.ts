@@ -3,9 +3,9 @@
  * Handles scheduling and managing scheduled calls
  */
 
-import { PrismaClient, ScheduledCallStatus } from '@prisma/client';
+import { ScheduledCallStatus } from '@prisma/client';
+import { prisma } from '../config/database';
 
-const prisma = new PrismaClient();
 
 export interface ScheduleCallData {
   organizationId: string;

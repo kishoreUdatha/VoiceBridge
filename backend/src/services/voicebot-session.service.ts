@@ -4,7 +4,8 @@
  */
 
 import * as WebSocket from 'ws';
-import { PrismaClient, CallOutcome } from '@prisma/client';
+import { CallOutcome } from '@prisma/client';
+import { prisma } from '../config/database';
 import { voiceMinutesService } from './voice-minutes.service';
 import { analyzeCall, extractQualificationData } from './voicebot-ai.service';
 import { detectCallbackRequest, createScheduledCallback } from './voicebot-callback.service';
@@ -21,7 +22,6 @@ const OUTCOME_MAP: Record<string, CallOutcome> = {
   'VOICEMAIL': 'VOICEMAIL',
 };
 
-const prisma = new PrismaClient();
 
 /**
  * Voice Bot Session interface

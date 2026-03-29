@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Telecaller CRM</string>
+    <string name="accessibility_service_description">Enable this service to allow call recording. The service monitors call events to automatically start and stop recording when you make or receive calls. Your recordings are stored securely on your device.</string>
 </resources>

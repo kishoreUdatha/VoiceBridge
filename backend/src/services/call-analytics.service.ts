@@ -1,6 +1,5 @@
-import { PrismaClient, CallOutcome } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { CallOutcome } from '@prisma/client';
+import { prisma } from '../config/database';
 
 // ==================== TYPES ====================
 
@@ -114,14 +113,15 @@ class CallAnalyticsService {
     });
 
     // Get conversion data between stages
-    const stages = stageCounts.map(s => ({
+    interface StageData { name: string; order: number; count: number }
+    const stages: StageData[] = stageCounts.map((s: typeof stageCounts[0]) => ({
       name: s.stageName,
       order: s.stageOrder,
       count: s._count.id,
     }));
 
     // Calculate conversion rates between stages
-    const funnelData = stages.map((stage, index) => {
+    const funnelData = stages.map((stage: StageData, index: number) => {
       const previousStage = index > 0 ? stages[index - 1] : null;
       const conversionRate = previousStage
         ? previousStage.count > 0
@@ -322,7 +322,8 @@ class CallAnalyticsService {
     });
 
     // Sort by the selected metric
-    const sortedPerformance = performance.sort((a, b) => {
+    type PerformanceItem = typeof performance[0];
+    const sortedPerformance = performance.sort((a: PerformanceItem, b: PerformanceItem) => {
       switch (metric) {
         case 'calls':
           return (b._sum.totalCalls || 0) - (a._sum.totalCalls || 0);
@@ -339,7 +340,7 @@ class CallAnalyticsService {
       }
     });
 
-    return sortedPerformance.slice(0, limit).map((agent, index) => ({
+    return sortedPerformance.slice(0, limit).map((agent: PerformanceItem, index: number) => ({
       rank: index + 1,
       agentId: agent.agentId,
       agentName: agent.agentName,
@@ -374,8 +375,17 @@ class CallAnalyticsService {
     });
 
     // Calculate totals
+    interface DailyTotals {
+      totalCalls: number;
+      answeredCalls: number;
+      interestedCount: number;
+      appointmentsBooked: number;
+      paymentsCollected: number;
+      totalTalkTime: number;
+    }
+    type DailyDataItem = typeof dailyData[0];
     const totals = dailyData.reduce(
-      (acc, day) => ({
+      (acc: DailyTotals, day: DailyDataItem) => ({
         totalCalls: acc.totalCalls + day.totalCalls,
         answeredCalls: acc.answeredCalls + day.answeredCalls,
         interestedCount: acc.interestedCount + day.interestedCount,
@@ -406,7 +416,7 @@ class CallAnalyticsService {
           ? Math.round((totals.answeredCalls / totals.totalCalls) * 10000) / 100
           : 0,
       },
-      dailyTrend: dailyData.map(d => ({
+      dailyTrend: dailyData.map((d: DailyDataItem) => ({
         date: d.date.toISOString().split('T')[0],
         calls: d.totalCalls,
         answered: d.answeredCalls,
@@ -449,12 +459,13 @@ class CallAnalyticsService {
       _count: { id: true },
     });
 
-    const total = outcomes.reduce((sum, o) => sum + o._count.id, 0);
+    type OutcomeItem = typeof outcomes[0];
+    const total = outcomes.reduce((sum: number, o: OutcomeItem) => sum + o._count.id, 0);
 
     return {
       period: { startDate: startDate || defaultStartDate, endDate: endDate || new Date() },
       total,
-      distribution: outcomes.map(o => ({
+      distribution: outcomes.map((o: OutcomeItem) => ({
         outcome: o.outcome,
         count: o._count.id,
         percentage: total > 0 ? Math.round((o._count.id / total) * 10000) / 100 : 0,
@@ -491,9 +502,10 @@ class CallAnalyticsService {
     });
 
     // Group by date and outcome
+    type CallItem = typeof calls[0];
     const dailyData: Record<string, Record<string, number>> = {};
 
-    calls.forEach(call => {
+    calls.forEach((call: CallItem) => {
       const date = call.createdAt.toISOString().split('T')[0];
       const outcome = call.outcome || 'UNKNOWN';
 
@@ -553,8 +565,10 @@ class CallAnalyticsService {
     });
 
     // Create a map for converted leads
+    type LeadSourceItem = typeof leadsBySource[0];
+    type ConvertedSourceItem = typeof convertedBySource[0];
     const convertedMap: Record<string, number> = {};
-    convertedBySource.forEach(c => {
+    convertedBySource.forEach((c: ConvertedSourceItem) => {
       convertedMap[c.source] = c._count.id;
     });
 
@@ -563,7 +577,7 @@ class CallAnalyticsService {
     let socialMediaConverted = 0;
     const socialMediaByPlatform: Record<string, number> = {};
 
-    leadsBySource.forEach(lead => {
+    leadsBySource.forEach((lead: LeadSourceItem) => {
       if (SOCIAL_MEDIA_SOURCES.includes(lead.source)) {
         socialMediaTotal += lead._count.id;
         socialMediaConverted += convertedMap[lead.source] || 0;
@@ -577,7 +591,7 @@ class CallAnalyticsService {
     let aiInbound = 0;
     let aiOutbound = 0;
 
-    leadsBySource.forEach(lead => {
+    leadsBySource.forEach((lead: LeadSourceItem) => {
       if (AI_VOICE_SOURCES.includes(lead.source)) {
         aiVoiceTotal += lead._count.id;
         aiVoiceConverted += convertedMap[lead.source] || 0;
@@ -738,6 +752,151 @@ class CallAnalyticsService {
       outcomes: {
         distribution: outcomeDistribution,
         trends: outcomeTrends,
+      },
+    };
+  }
+
+  // ==================== AI INSIGHTS ====================
+
+  /**
+   * Get recent calls for AI insights
+   */
+  async getRecentCalls(organizationId: string, days: number = 30) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const calls = await prisma.outboundCall.findMany({
+      where: {
+        agent: { organizationId },
+        createdAt: { gte: startDate },
+      },
+      select: {
+        id: true,
+        status: true,
+        outcome: true,
+        sentiment: true,
+        duration: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 1000, // Limit for performance
+    });
+
+    return calls;
+  }
+
+  /**
+   * Get call analytics summary
+   */
+  async getSummary(organizationId: string, days: number = 30) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const [
+      totalCalls,
+      completedCalls,
+      outcomeData,
+      sentimentData,
+      agentCount,
+      avgDurationResult,
+    ] = await Promise.all([
+      // Total calls
+      prisma.outboundCall.count({
+        where: {
+          agent: { organizationId },
+          createdAt: { gte: startDate },
+        },
+      }),
+      // Completed/answered calls
+      prisma.outboundCall.count({
+        where: {
+          agent: { organizationId },
+          createdAt: { gte: startDate },
+          status: 'COMPLETED',
+        },
+      }),
+      // Outcome distribution
+      prisma.outboundCall.groupBy({
+        by: ['outcome'],
+        where: {
+          agent: { organizationId },
+          createdAt: { gte: startDate },
+        },
+        _count: { id: true },
+      }),
+      // Sentiment distribution
+      prisma.outboundCall.groupBy({
+        by: ['sentiment'],
+        where: {
+          agent: { organizationId },
+          createdAt: { gte: startDate },
+        },
+        _count: { id: true },
+      }),
+      // Active agents count
+      prisma.voiceAgent.count({
+        where: { organizationId, isActive: true },
+      }),
+      // Average call duration
+      prisma.outboundCall.aggregate({
+        where: {
+          agent: { organizationId },
+          createdAt: { gte: startDate },
+          duration: { gt: 0 },
+        },
+        _avg: { duration: true },
+      }),
+    ]);
+
+    // Calculate answer rate
+    const answerRate = totalCalls > 0
+      ? Math.round((completedCalls / totalCalls) * 10000) / 100
+      : 0;
+
+    // Build outcome summary
+    const outcomes: Record<string, number> = {};
+    outcomeData.forEach(o => {
+      outcomes[o.outcome || 'unknown'] = o._count.id;
+    });
+
+    // Build sentiment summary
+    const sentiments: Record<string, number> = {};
+    sentimentData.forEach(s => {
+      sentiments[s.sentiment || 'unknown'] = s._count.id;
+    });
+
+    // Calculate interested/conversion metrics
+    const interestedCount = outcomes['INTERESTED'] || 0;
+    const appointmentsBooked = outcomes['APPOINTMENT_BOOKED'] || 0;
+    const conversionRate = completedCalls > 0
+      ? Math.round((interestedCount / completedCalls) * 10000) / 100
+      : 0;
+
+    return {
+      period: { days, startDate, endDate: new Date() },
+      overview: {
+        totalCalls,
+        completedCalls,
+        answerRate,
+        avgDuration: Math.round(avgDurationResult._avg.duration || 0),
+        activeAgents: agentCount,
+      },
+      outcomes: {
+        distribution: outcomes,
+        topOutcome: outcomeData.sort((a, b) => b._count.id - a._count.id)[0]?.outcome || 'N/A',
+        interestedCount,
+        appointmentsBooked,
+        conversionRate,
+      },
+      sentiment: {
+        distribution: sentiments,
+        positive: sentiments['positive'] || 0,
+        neutral: sentiments['neutral'] || 0,
+        negative: sentiments['negative'] || 0,
+      },
+      performance: {
+        callsPerDay: Math.round(totalCalls / days),
+        avgCallDuration: Math.round(avgDurationResult._avg.duration || 0),
       },
     };
   }

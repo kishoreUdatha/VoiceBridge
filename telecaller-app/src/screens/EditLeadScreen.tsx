@@ -140,7 +140,7 @@ const EditLeadScreen: React.FC<Props> = ({ route, navigation }) => {
         {/* Name Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Name *</Text>
-          <View style={[styles.inputContainer, errors.name && styles.inputError]}>
+          <View style={[styles.inputContainer, errors.name ? styles.inputError : undefined]}>
             <Icon name="account" size={20} color="#6B7280" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
@@ -156,7 +156,7 @@ const EditLeadScreen: React.FC<Props> = ({ route, navigation }) => {
         {/* Phone Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Phone *</Text>
-          <View style={[styles.inputContainer, errors.phone && styles.inputError]}>
+          <View style={[styles.inputContainer, errors.phone ? styles.inputError : undefined]}>
             <Icon name="phone" size={20} color="#6B7280" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
@@ -173,7 +173,7 @@ const EditLeadScreen: React.FC<Props> = ({ route, navigation }) => {
         {/* Email Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Email</Text>
-          <View style={[styles.inputContainer, errors.email && styles.inputError]}>
+          <View style={[styles.inputContainer, errors.email ? styles.inputError : undefined]}>
             <Icon name="email" size={20} color="#6B7280" style={styles.inputIcon} />
             <TextInput
               style={styles.input}

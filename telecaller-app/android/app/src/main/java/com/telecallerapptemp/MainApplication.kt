@@ -10,6 +10,8 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
 import com.telecallerapptemp.callrecording.CallRecordingPackage
+import com.telecallerapptemp.calllog.CallLogPackage
+import com.telecallerapptemp.accessibility.AccessibilityPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -19,6 +21,8 @@ class MainApplication : Application(), ReactApplication {
         PackageList(this).packages.apply {
           // Packages that cannot be autolinked yet can be added manually here
           add(CallRecordingPackage())
+          add(CallLogPackage())
+          add(AccessibilityPackage())
         }
 
       override fun getJSMainModuleName(): String = "index"

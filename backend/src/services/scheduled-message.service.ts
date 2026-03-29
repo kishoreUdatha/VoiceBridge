@@ -1,10 +1,10 @@
-import { PrismaClient, ScheduledMessageType, ScheduledMessageStatus } from '@prisma/client';
+import { ScheduledMessageType, ScheduledMessageStatus } from '@prisma/client';
+import { prisma } from '../config/database';
 import { AppError } from '../utils/errors';
 import { templateService } from './template.service';
 import { exotelService } from '../integrations/exotel.service';
 import { webhookService, WEBHOOK_EVENTS } from './webhook.service';
 
-const prisma = new PrismaClient();
 
 interface CreateScheduledMessageParams {
   organizationId: string;

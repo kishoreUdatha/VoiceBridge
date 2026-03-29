@@ -3,9 +3,8 @@
  * Handles real-time call event logging and retrieval
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 
-const prisma = new PrismaClient();
 
 /**
  * Log a call event

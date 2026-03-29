@@ -4,7 +4,8 @@ import { prisma } from '../config/database';
 import { AdPlatform, LeadSource, LeadPriority } from '@prisma/client';
 import { externalLeadImportService } from '../services/external-lead-import.service';
 
-const LINKEDIN_API_URL = 'https://api.linkedin.com/v2';
+// Use config for API URL
+const getLinkedInApiUrl = () => `${config.apiUrls.linkedin}/${config.apiVersions.linkedin}`;
 
 interface LinkedInLeadData {
   id: string;
@@ -61,12 +62,18 @@ export class LinkedInService {
   /**
    * Verify LinkedIn webhook signature
    * LinkedIn uses HMAC-SHA256 for webhook signatures
+   * Uses timing-safe comparison to prevent timing attacks
    */
   verifyWebhookSignature(payload: string, signature: string): boolean {
     const clientSecret = config.linkedin.clientSecret;
     if (!clientSecret) {
-      console.warn('[LinkedIn] Client secret not configured - skipping signature verification');
-      return true; // Allow in development
+      console.error('[LinkedIn] SECURITY: Client secret not configured - rejecting webhook');
+      return false; // NEVER allow unsigned webhooks in any environment
+    }
+
+    if (!signature) {
+      console.error('[LinkedIn] SECURITY: No signature provided in webhook request');
+      return false;
     }
 
     try {
@@ -76,7 +83,19 @@ export class LinkedInService {
         .update(payload)
         .digest('hex');
 
-      return signature === expectedSignature || signature === `sha256=${expectedSignature}`;
+      // Handle both with and without sha256= prefix
+      const cleanSignature = signature.replace('sha256=', '');
+
+      // Use timing-safe comparison to prevent timing attacks
+      const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+      const receivedBuffer = Buffer.from(cleanSignature, 'hex');
+
+      if (expectedBuffer.length !== receivedBuffer.length) {
+        console.warn('[LinkedIn] Signature length mismatch');
+        return false;
+      }
+
+      return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
     } catch (error) {
       console.error('[LinkedIn] Signature verification error:', error);
       return false;
@@ -334,7 +353,7 @@ export class LinkedInService {
       throw new Error('LinkedIn access token not set');
     }
 
-    const response = await axios.get(`${LINKEDIN_API_URL}/adCampaignsV2`, {
+    const response = await axios.get(`${getLinkedInApiUrl()}/adCampaignsV2`, {
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
       },
@@ -396,7 +415,7 @@ export class LinkedInService {
       throw new Error('LinkedIn access token not set');
     }
 
-    const response = await axios.get(`${LINKEDIN_API_URL}/leadGenForms`, {
+    const response = await axios.get(`${getLinkedInApiUrl()}/leadGenForms`, {
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
       },
@@ -417,7 +436,7 @@ export class LinkedInService {
       throw new Error('LinkedIn access token not set');
     }
 
-    const response = await axios.get(`${LINKEDIN_API_URL}/adAccountsV2`, {
+    const response = await axios.get(`${getLinkedInApiUrl()}/adAccountsV2`, {
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
       },
@@ -441,7 +460,7 @@ export class LinkedInService {
       throw new Error('LinkedIn access token not set');
     }
 
-    const response = await axios.get(`${LINKEDIN_API_URL}/leadGenForms/${formId}`, {
+    const response = await axios.get(`${getLinkedInApiUrl()}/leadGenForms/${formId}`, {
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
       },
@@ -467,7 +486,7 @@ export class LinkedInService {
       throw new Error('LinkedIn access token not set');
     }
 
-    const response = await axios.get(`${LINKEDIN_API_URL}/leadGenFormResponses`, {
+    const response = await axios.get(`${getLinkedInApiUrl()}/leadGenFormResponses`, {
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
       },

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
@@ -21,24 +22,71 @@ import {
   formatPhoneNumber,
 } from '../utils/formatters';
 import { Call, CallOutcome, RootStackParamList } from '../types';
+import DateRangeFilter, { DateRangeType } from '../components/DateRangeFilter';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const OUTCOME_FILTERS: { label: string; value: CallOutcome | undefined }[] = [
-  { label: 'All', value: undefined },
-  { label: 'Interested', value: 'INTERESTED' },
-  { label: 'Not Int.', value: 'NOT_INTERESTED' },
-  { label: 'Callback', value: 'CALLBACK' },
-  { label: 'Converted', value: 'CONVERTED' },
+interface OutcomeFilter {
+  label: string;
+  value: CallOutcome | 'ALL' | 'PENDING';
+  icon: string;
+  color: string;
+}
+
+const OUTCOME_FILTERS: OutcomeFilter[] = [
+  { label: 'All', value: 'ALL', icon: 'format-list-bulleted', color: '#6366F1' },
+  { label: 'Pending', value: 'PENDING', icon: 'clock-outline', color: '#F97316' },
+  { label: 'Interested', value: 'INTERESTED', icon: 'thumb-up', color: '#10B981' },
+  { label: 'Not Interested', value: 'NOT_INTERESTED', icon: 'thumb-down', color: '#EF4444' },
+  { label: 'Callback', value: 'CALLBACK', icon: 'phone-return', color: '#F59E0B' },
+  { label: 'Converted', value: 'CONVERTED', icon: 'check-circle', color: '#8B5CF6' },
+  { label: 'No Answer', value: 'NO_ANSWER', icon: 'phone-missed', color: '#6B7280' },
 ];
+
+// Helper function to get date range
+const getDateRange = (rangeType: DateRangeType, customDates?: { startDate: Date | null; endDate: Date | null }) => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  switch (rangeType) {
+    case 'today':
+      return { startDate: today.toISOString(), endDate: now.toISOString() };
+    case 'yesterday':
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return { startDate: yesterday.toISOString(), endDate: today.toISOString() };
+    case 'thisWeek':
+      const weekStart = new Date(today);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      return { startDate: weekStart.toISOString(), endDate: now.toISOString() };
+    case 'thisMonth':
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { startDate: monthStart.toISOString(), endDate: now.toISOString() };
+    case 'custom':
+      if (customDates?.startDate && customDates?.endDate) {
+        return {
+          startDate: customDates.startDate.toISOString(),
+          endDate: customDates.endDate.toISOString(),
+        };
+      }
+      return null;
+    default:
+      return null;
+  }
+};
 
 const HistoryScreen: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigation = useNavigation<NavigationProp>();
-  const { calls, isLoading, pagination } = useAppSelector((state) => state.calls);
+  const { calls, isLoading, pagination, outcomeCounts } = useAppSelector((state) => state.calls);
 
-  const [activeFilter, setActiveFilter] = useState<CallOutcome | undefined>(undefined);
+  const [activeFilter, setActiveFilter] = useState<CallOutcome | 'ALL' | 'PENDING'>('ALL');
   const [expandedCallId, setExpandedCallId] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRangeType>('all');
+  const [customDates, setCustomDates] = useState<{ startDate: Date | null; endDate: Date | null }>({
+    startDate: null,
+    endDate: null,
+  });
 
   const hasInitializedRef = useRef(false);
   const isLoadingRef = useRef(false);
@@ -51,10 +99,27 @@ const HistoryScreen: React.FC = () => {
       if (refresh) {
         currentPageRef.current = 1;
       }
+
+      let filters: { outcome?: string; startDate?: string; endDate?: string } | undefined = {};
+
+      // Add outcome filter
+      if (activeFilter === 'PENDING') {
+        filters.outcome = 'PENDING';
+      } else if (activeFilter !== 'ALL') {
+        filters.outcome = activeFilter;
+      }
+
+      // Add date range filter
+      const dates = getDateRange(dateRange, customDates);
+      if (dates) {
+        filters.startDate = dates.startDate;
+        filters.endDate = dates.endDate;
+      }
+
       await dispatch(
         fetchCalls({
           page,
-          filters: activeFilter ? { outcome: activeFilter } : undefined,
+          filters: Object.keys(filters).length > 0 ? filters : undefined,
           refresh,
         })
       );
@@ -62,7 +127,7 @@ const HistoryScreen: React.FC = () => {
         currentPageRef.current = page;
       }
     },
-    [dispatch, activeFilter]
+    [dispatch, activeFilter, dateRange, customDates]
   );
 
   useEffect(() => {
@@ -99,18 +164,32 @@ const HistoryScreen: React.FC = () => {
   }, [isLoading, pagination.hasMore, loadCalls, calls.length]);
 
   const handleFilterChange = useCallback(
-    (outcome: CallOutcome | undefined) => {
+    (outcome: CallOutcome | 'ALL' | 'PENDING') => {
       setActiveFilter(outcome);
-      dispatch(
-        fetchCalls({
-          page: 1,
-          filters: outcome ? { outcome } : undefined,
-          refresh: true,
-        })
-      );
+      currentPageRef.current = 1;
+      // loadCalls will be triggered by useEffect
     },
-    [dispatch]
+    []
   );
+
+  const handleDateRangeChange = useCallback(
+    (range: DateRangeType, dates?: { startDate: Date | null; endDate: Date | null }) => {
+      setDateRange(range);
+      if (dates) {
+        setCustomDates(dates);
+      }
+      currentPageRef.current = 1;
+      // loadCalls will be triggered by useEffect
+    },
+    []
+  );
+
+  // Reload when filters change
+  useEffect(() => {
+    if (hasInitializedRef.current) {
+      loadCalls(true);
+    }
+  }, [activeFilter, dateRange, customDates]);
 
   const toggleExpand = useCallback((callId: string) => {
     setExpandedCallId((prev) => (prev === callId ? null : callId));
@@ -244,35 +323,66 @@ const HistoryScreen: React.FC = () => {
     );
   };
 
+  const getFilterCount = (value: CallOutcome | 'ALL' | 'PENDING'): number => {
+    return outcomeCounts[value] || 0;
+  };
+
   return (
     <View style={styles.container}>
-      {/* Filters */}
+      {/* Date Range Filter */}
+      <DateRangeFilter
+        selectedRange={dateRange}
+        onRangeChange={handleDateRangeChange}
+        customDates={customDates}
+      />
+
+      {/* Status Filter Tabs */}
       <View style={styles.filtersContainer}>
-        <FlatList
+        <ScrollView
           horizontal
-          data={OUTCOME_FILTERS}
-          keyExtractor={(item) => item.label}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filtersList}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                activeFilter === item.value && styles.filterButtonActive,
-              ]}
-              onPress={() => handleFilterChange(item.value)}
-            >
-              <Text
+        >
+          {OUTCOME_FILTERS.map((filter) => {
+            const isActive = activeFilter === filter.value;
+            const count = getFilterCount(filter.value);
+
+            return (
+              <TouchableOpacity
+                key={filter.value}
                 style={[
-                  styles.filterText,
-                  activeFilter === item.value && styles.filterTextActive,
+                  styles.filterTab,
+                  isActive && { backgroundColor: filter.color + '15', borderColor: filter.color },
                 ]}
+                onPress={() => handleFilterChange(filter.value)}
               >
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
+                <Icon
+                  name={filter.icon}
+                  size={16}
+                  color={isActive ? filter.color : '#6B7280'}
+                />
+                <Text
+                  style={[
+                    styles.filterTabText,
+                    isActive && { color: filter.color, fontWeight: '600' },
+                  ]}
+                >
+                  {filter.label}
+                </Text>
+                {count > 0 && (
+                  <View
+                    style={[
+                      styles.filterBadge,
+                      { backgroundColor: isActive ? filter.color : '#9CA3AF' },
+                    ]}
+                  >
+                    <Text style={styles.filterBadgeText}>{count}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {/* Call List */}
@@ -310,29 +420,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    paddingVertical: 8,
   },
   filtersList: {
     paddingHorizontal: 12,
-    paddingVertical: 12,
     gap: 8,
   },
-  filterButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
+  filterTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
     backgroundColor: '#F3F4F6',
-    marginHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    marginRight: 8,
+    gap: 6,
   },
-  filterButtonActive: {
-    backgroundColor: '#3B82F6',
-  },
-  filterText: {
+  filterTabText: {
     fontSize: 13,
-    color: '#4B5563',
+    color: '#6B7280',
   },
-  filterTextActive: {
+  filterBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  filterBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
     color: '#FFFFFF',
-    fontWeight: '500',
   },
   listContent: {
     padding: 16,

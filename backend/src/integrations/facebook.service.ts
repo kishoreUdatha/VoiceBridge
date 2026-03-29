@@ -91,30 +91,77 @@ export class FacebookService {
 
   /**
    * Verify signature with organization-specific app secret
+   * Uses timing-safe comparison to prevent timing attacks
    */
   verifySignatureWithSecret(payload: string, signature: string, appSecret: string): boolean {
-    if (!appSecret) return false;
-    const expectedSignature = crypto
-      .createHmac('sha256', appSecret)
-      .update(payload)
-      .digest('hex');
-    return `sha256=${expectedSignature}` === signature;
+    if (!appSecret) {
+      console.error('[Facebook] SECURITY: No app secret provided for signature verification');
+      return false;
+    }
+    if (!signature) {
+      console.error('[Facebook] SECURITY: No signature provided in webhook request');
+      return false;
+    }
+
+    try {
+      const expectedSignature = crypto
+        .createHmac('sha256', appSecret)
+        .update(payload)
+        .digest('hex');
+
+      const cleanSignature = signature.replace('sha256=', '');
+
+      // Use timing-safe comparison
+      const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+      const receivedBuffer = Buffer.from(cleanSignature, 'hex');
+
+      if (expectedBuffer.length !== receivedBuffer.length) {
+        return false;
+      }
+
+      return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+    } catch (error) {
+      console.error('[Facebook] Signature verification error:', error);
+      return false;
+    }
   }
 
   /**
    * Legacy: Verify signature with env/instance app secret
+   * Uses timing-safe comparison to prevent timing attacks
    */
   verifySignature(payload: string, signature: string): boolean {
     const secret = this.appSecret || config.facebook.appSecret || '';
     if (!secret) {
-      console.warn('[Facebook] No app secret configured for signature verification');
+      console.error('[Facebook] SECURITY: No app secret configured for signature verification');
       return false;
     }
-    const expectedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(payload)
-      .digest('hex');
-    return `sha256=${expectedSignature}` === signature;
+    if (!signature) {
+      console.error('[Facebook] SECURITY: No signature provided in webhook request');
+      return false;
+    }
+
+    try {
+      const expectedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(payload)
+        .digest('hex');
+
+      const cleanSignature = signature.replace('sha256=', '');
+
+      // Use timing-safe comparison
+      const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+      const receivedBuffer = Buffer.from(cleanSignature, 'hex');
+
+      if (expectedBuffer.length !== receivedBuffer.length) {
+        return false;
+      }
+
+      return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+    } catch (error) {
+      console.error('[Facebook] Signature verification error:', error);
+      return false;
+    }
   }
 
   async handleWebhook(payload: Record<string, unknown>, organizationId: string) {

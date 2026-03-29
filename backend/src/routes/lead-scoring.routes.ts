@@ -1,24 +1,240 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { body, param, query } from 'express-validator';
+import rateLimit from 'express-rate-limit';
+import { prisma } from '../config/database';
 import { leadScoringService } from '../services/advanced-features.service';
-import { authenticate } from '../middlewares/auth';
+import { authenticate, authorize } from '../middlewares/auth';
+import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import OpenAI from 'openai';
 
 const router = Router();
-const prisma = new PrismaClient();
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
-// All routes require authentication
+// Rate limiter for scoring operations
+const scoringLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute
+  message: { success: false, message: 'Too many scoring requests' },
+});
+
+// All routes require authentication and tenant context
 router.use(authenticate);
+router.use(tenantMiddleware);
+router.use(scoringLimiter);
+
+// Default scoring rules
+const DEFAULT_SCORING_RULES = [
+  {
+    id: 'rule_email',
+    name: 'Has Email',
+    category: 'demographic',
+    condition: 'email_exists',
+    points: 20,
+    description: 'Lead has email address',
+    isActive: true,
+  },
+  {
+    id: 'rule_phone',
+    name: 'Has Phone',
+    category: 'demographic',
+    condition: 'phone_exists',
+    points: 20,
+    description: 'Lead has phone number',
+    isActive: true,
+  },
+  {
+    id: 'rule_full_name',
+    name: 'Full Name Provided',
+    category: 'demographic',
+    condition: 'full_name_exists',
+    points: 15,
+    description: 'Lead has first and last name',
+    isActive: true,
+  },
+  {
+    id: 'rule_location',
+    name: 'Location Provided',
+    category: 'demographic',
+    condition: 'location_exists',
+    points: 15,
+    description: 'Lead has city or state',
+    isActive: true,
+  },
+  {
+    id: 'rule_course_interest',
+    name: 'Course Interest',
+    category: 'demographic',
+    condition: 'course_selected',
+    points: 15,
+    description: 'Lead has shown interest in specific course',
+    isActive: true,
+  },
+  {
+    id: 'rule_call_answered',
+    name: 'Answered Call',
+    category: 'behavior',
+    condition: 'call_answered',
+    points: 25,
+    description: 'Lead answered phone call',
+    isActive: true,
+  },
+  {
+    id: 'rule_call_duration',
+    name: 'Long Call Duration',
+    category: 'behavior',
+    condition: 'call_duration_gt_60',
+    points: 20,
+    description: 'Call lasted more than 60 seconds',
+    isActive: true,
+  },
+  {
+    id: 'rule_positive_sentiment',
+    name: 'Positive Sentiment',
+    category: 'behavior',
+    condition: 'sentiment_positive',
+    points: 30,
+    description: 'AI detected positive sentiment in call',
+    isActive: true,
+  },
+  {
+    id: 'rule_email_opened',
+    name: 'Email Opened',
+    category: 'behavior',
+    condition: 'email_opened',
+    points: 10,
+    description: 'Lead opened marketing email',
+    isActive: true,
+  },
+  {
+    id: 'rule_whatsapp_reply',
+    name: 'WhatsApp Reply',
+    category: 'behavior',
+    condition: 'whatsapp_replied',
+    points: 20,
+    description: 'Lead replied to WhatsApp message',
+    isActive: true,
+  },
+  {
+    id: 'rule_form_submission',
+    name: 'Form Submission',
+    category: 'engagement',
+    condition: 'form_submitted',
+    points: 25,
+    description: 'Lead submitted inquiry form',
+    isActive: true,
+  },
+  {
+    id: 'rule_ad_source',
+    name: 'Paid Ad Source',
+    category: 'source',
+    condition: 'source_paid_ad',
+    points: 15,
+    description: 'Lead came from paid advertising',
+    isActive: true,
+  },
+];
+
+/**
+ * @api {get} /lead-scoring/rules Get Scoring Rules
+ */
+router.get(
+  '/rules',
+  asyncHandler(async (req, res) => {
+    const { organizationId } = req.user!;
+
+    // Try to get organization-specific rules from settings
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true },
+    });
+
+    let rules = DEFAULT_SCORING_RULES;
+
+    // If organization has custom rules, merge them
+    const settings = organization?.settings as Record<string, any> | null;
+    if (settings?.leadScoringRules) {
+      const customRules = typeof settings.leadScoringRules === 'string'
+        ? JSON.parse(settings.leadScoringRules)
+        : settings.leadScoringRules;
+      if (Array.isArray(customRules) && customRules.length > 0) {
+        rules = customRules;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: rules,
+      meta: {
+        totalRules: rules.length,
+        activeRules: rules.filter((r: any) => r.isActive).length,
+        categories: [...new Set(rules.map((r: any) => r.category))],
+      },
+    });
+  })
+);
+
+/**
+ * @api {put} /lead-scoring/rules Update Scoring Rules
+ */
+router.put(
+  '/rules',
+  authorize('admin', 'manager'),
+  validate([
+    body('rules').isArray({ min: 1, max: 50 }).withMessage('Rules must be an array with 1-50 items'),
+    body('rules.*.id').trim().notEmpty().isLength({ max: 50 }).withMessage('Invalid rule ID'),
+    body('rules.*.name').trim().notEmpty().isLength({ max: 100 }).withMessage('Rule name required (max 100 chars)'),
+    body('rules.*.category').trim().isLength({ max: 50 }).withMessage('Invalid category'),
+    body('rules.*.condition').trim().isLength({ max: 100 }).withMessage('Invalid condition'),
+    body('rules.*.points').isInt({ min: -100, max: 100 }).withMessage('Points must be between -100 and 100'),
+    body('rules.*.isActive').isBoolean().withMessage('isActive must be boolean'),
+  ]),
+  asyncHandler(async (req, res) => {
+    const { organizationId } = req.user!;
+    const { rules } = req.body;
+
+    // Get current settings and merge with new rules
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true },
+    });
+
+    const currentSettings = (organization?.settings as Record<string, any>) || {};
+    const updatedSettings = { ...currentSettings, leadScoringRules: rules };
+
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: { settings: updatedSettings },
+    });
+
+    res.json({
+      success: true,
+      message: 'Scoring rules updated',
+      data: rules,
+    });
+  })
+);
 
 /**
  * @api {get} /lead-scoring/leads Get Scored Leads
  */
 router.get(
   '/leads',
+  validate([
+    query('grade').optional().isIn(['A', 'B', 'C', 'D', 'F']).withMessage('Invalid grade'),
+    query('minScore').optional().isInt({ min: 0, max: 100 }).withMessage('Min score must be 0-100'),
+    query('maxScore').optional().isInt({ min: 0, max: 100 }).withMessage('Max score must be 0-100'),
+    query('aiClassification').optional().isIn(['hot_lead', 'warm_lead', 'cold_lead', 'not_qualified'])
+      .withMessage('Invalid AI classification'),
+    query('sortBy').optional().isIn(['overallScore', 'demographicScore', 'behaviorScore', 'createdAt'])
+      .withMessage('Invalid sort field'),
+    query('sortOrder').optional().isIn(['asc', 'desc']).withMessage('Sort order must be asc or desc'),
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+  ]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const {
@@ -88,7 +304,25 @@ router.get(
  */
 router.get(
   '/leads/:leadId',
+  validate([
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+  ]),
   asyncHandler(async (req, res) => {
+    const { organizationId } = req.user!;
+
+    // Verify lead belongs to organization
+    const lead = await prisma.lead.findFirst({
+      where: { id: req.params.leadId, organizationId },
+      select: { id: true },
+    });
+
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found',
+      });
+    }
+
     const score = await leadScoringService.getLeadScore(req.params.leadId);
 
     if (!score) {
@@ -107,9 +341,18 @@ router.get(
  */
 router.post(
   '/classify/:callId',
+  validate([
+    param('callId').isUUID().withMessage('Invalid call ID'),
+  ]),
   asyncHandler(async (req, res) => {
-    const call = await prisma.outboundCall.findUnique({
-      where: { id: req.params.callId },
+    const { organizationId } = req.user!;
+
+    // Verify call belongs to organization via agent
+    const call = await prisma.outboundCall.findFirst({
+      where: {
+        id: req.params.callId,
+        agent: { organizationId },
+      },
       include: { agent: true },
     });
 
@@ -312,13 +555,16 @@ router.get(
  */
 router.get(
   '/top',
+  validate([
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+  ]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { limit = '20' } = req.query;
 
     const topLeads = await leadScoringService.getTopLeads(
       organizationId,
-      parseInt(limit as string)
+      Math.min(parseInt(limit as string), 100)
     );
 
     res.json({ success: true, data: topLeads });
@@ -330,9 +576,15 @@ router.get(
  */
 router.post(
   '/recalculate/:leadId',
+  validate([
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+  ]),
   asyncHandler(async (req, res) => {
-    const lead = await prisma.lead.findUnique({
-      where: { id: req.params.leadId },
+    const { organizationId } = req.user!;
+
+    // Verify lead belongs to organization
+    const lead = await prisma.lead.findFirst({
+      where: { id: req.params.leadId, organizationId },
       include: {
         callLogs: { orderBy: { createdAt: 'desc' }, take: 1 },
       },

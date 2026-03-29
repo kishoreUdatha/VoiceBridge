@@ -3,11 +3,11 @@
  * Handles sales conversations: qualify, pitch, handle objections, close
  */
 
-import { PrismaClient, AgentType } from '@prisma/client';
+import { AgentType } from '@prisma/client';
+import { prisma } from '../config/database';
 import OpenAI from 'openai';
 import { AgentContext, AgentResponse, QuoteData } from './specialized-agent.types';
 
-const prisma = new PrismaClient();
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })

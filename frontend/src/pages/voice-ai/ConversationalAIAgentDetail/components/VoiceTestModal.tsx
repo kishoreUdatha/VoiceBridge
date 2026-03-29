@@ -4,7 +4,7 @@
  * With fallback to push-to-talk for browsers that don't support continuous recognition
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   X,
   Mic,
@@ -69,7 +69,7 @@ export function VoiceTestModal({
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState('');
   const [textInput, setTextInput] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
+  const [, setIsRecording] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
 
   const recognitionRef = useRef<any>(null);
@@ -84,9 +84,9 @@ export function VoiceTestModal({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
-  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTranscriptRef = useRef<string>('');
-  const keepaliveIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const keepaliveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recognitionStartTimeRef = useRef<number>(0);
 
   // Keep refs in sync

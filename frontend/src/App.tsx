@@ -36,6 +36,7 @@ import {
   ManualCallQueuePage,
   CampaignAnalytics,
 } from './pages/outbound-calls';
+import { CallSummaryPage } from './pages/call-summary';
 import {
   AdvancedDashboardPage,
   ScheduledCallsPage,
@@ -47,6 +48,8 @@ import {
   LeadScoringPage,
 } from './pages/advanced';
 import { TelecallerQueuePage } from './pages/telecaller-queue';
+import { AssignedDataPage } from './pages/assigned-data';
+import QualifiedLeadsPage from './pages/qualified-leads/QualifiedLeadsPage';
 import {
   TelecallerDashboard,
   TelecallerCallPage,
@@ -57,10 +60,10 @@ import {
   HybridInboxPage,
   InboundCallsPage,
 } from './pages/hybrid-agent';
-import { AutoAssignSettingsPage, SmsSettingsPage, InstitutionSettingsPage, WhatsAppSettingsPage, VoiceMinutesPage, NotificationChannelsPage, CalendarSettingsPage, EmailSequencesPage, CRMIntegrationPage, PostCallMessagingPage } from './pages/settings';
+import { AutoAssignSettingsPage, SmsSettingsPage, InstitutionSettingsPage, WhatsAppSettingsPage, VoiceMinutesPage, NotificationChannelsPage, CalendarSettingsPage, EmailSequencesPage, CRMIntegrationPage, PostCallMessagingPage, IntegrationCredentialsPage } from './pages/settings';
 import IntegrationSettingsPage from './pages/settings/IntegrationSettingsPage';
 import { ReportsPage } from './pages/reports';
-import { SocialMediaAdsPage, InstagramLeadSetupPage, AdIntegrationsPage, FacebookSetupPage, LinkedInSetupPage, GoogleAdsSetupPage, YouTubeSetupPage, TwitterSetupPage, TikTokSetupPage } from './pages/ads';
+import { SocialMediaAdsPage, InstagramLeadSetupPage, AdIntegrationsPage, FacebookSetupPage, LinkedInSetupPage, GoogleAdsSetupPage, YouTubeSetupPage, TwitterSetupPage, TikTokSetupPage, WebhookUrlsPage } from './pages/ads';
 import { ApifyDashboardPage, ApifyJobsPage, ApifySmartScrapePage, ApifyRecordsPage } from './pages/apify';
 import { PricingPage } from './pages/pricing';
 import { CheckoutPage, SubscriptionManagementPage, SuccessPage } from './pages/subscription';
@@ -120,9 +123,26 @@ import {
 } from './pages/super-admin';
 import { superAdminService } from './services/super-admin.service';
 
+// Loading spinner for auth initialization
+function AuthLoadingSpinner() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+        <p className="text-slate-500 text-sm">Checking authentication...</p>
+      </div>
+    </div>
+  );
+}
+
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, isInitialized } = useSelector((state: RootState) => state.auth);
+
+  // Wait for auth check to complete before deciding
+  if (!isInitialized) {
+    return <AuthLoadingSpinner />;
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -133,7 +153,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 // Public Route Component (redirects to dashboard if authenticated)
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, isInitialized } = useSelector((state: RootState) => state.auth);
+
+  // Wait for auth check to complete before deciding
+  if (!isInitialized) {
+    return <AuthLoadingSpinner />;
+  }
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
@@ -144,7 +169,12 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 // Home Route - shows landing page for guests, redirects to dashboard for authenticated
 function HomeRoute() {
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, isInitialized } = useSelector((state: RootState) => state.auth);
+
+  // Wait for auth check to complete before deciding
+  if (!isInitialized) {
+    return <AuthLoadingSpinner />;
+  }
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
@@ -164,16 +194,29 @@ function SuperAdminProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Catch All Route - redirects unmatched routes to home
+function CatchAllRedirect() {
+  return <Navigate to="/" replace />;
+}
+
 function App() {
   const dispatch = useDispatch<AppDispatch>();
-  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, user, isInitialized } = useSelector((state: RootState) => state.auth);
 
-  // Fetch current user on app load if authenticated but user data is missing
+  // Check auth status on app initialization (validates httpOnly cookies)
   useEffect(() => {
-    if (isAuthenticated && !user) {
+    if (!isInitialized) {
+      // On initial load, check if httpOnly cookie auth is valid
       dispatch(fetchCurrentUser());
     }
-  }, [dispatch, isAuthenticated, user]);
+  }, [dispatch, isInitialized]);
+
+  // Fetch current user if authenticated but user data is missing (rare edge case)
+  useEffect(() => {
+    if (isAuthenticated && !user && isInitialized) {
+      dispatch(fetchCurrentUser());
+    }
+  }, [dispatch, isAuthenticated, user, isInitialized]);
 
   return (
     <Routes>
@@ -252,6 +295,8 @@ function App() {
 
         <Route path="outbound-calls" element={<OutboundCallsPage />} />
         <Route path="outbound-calls/calls/:id" element={<CallDetailsPage />} />
+        <Route path="outbound-calls/calls/:id/summary" element={<CallSummaryPage />} />
+        <Route path="outbound-calls/telecaller-calls/:id/summary" element={<CallSummaryPage />} />
         <Route path="outbound-calls/single" element={<MakeSingleCallPage />} />
         <Route path="outbound-calls/campaigns/create" element={<CreateCampaignPage />} />
         <Route path="outbound-calls/campaigns/:id" element={<CampaignDetailsPage />} />
@@ -266,26 +311,30 @@ function App() {
         <Route path="advanced/realtime" element={<RealTimeDashboardPage />} />
         <Route path="advanced/lead-scoring" element={<LeadScoringPage />} />
         <Route path="telecaller-queue" element={<TelecallerQueuePage />} />
+        <Route path="assigned-data" element={<AssignedDataPage />} />
+        <Route path="qualified-leads" element={<QualifiedLeadsPage />} />
         <Route path="telecaller-app" element={<TelecallerDashboard />} />
         <Route path="telecaller-app/call/:leadId" element={<TelecallerCallPage />} />
         <Route path="telecaller-app/calls" element={<TelecallerCallHistory />} />
         <Route path="hybrid-inbox" element={<HybridInboxPage />} />
         <Route path="call-history" element={<InboundCallsPage />} />
         <Route path="transfer-config" element={<TransferConfigPage />} />
-        <Route path="/settings/auto-assign" element={<AutoAssignSettingsPage />} />
-        <Route path="/settings/sms" element={<SmsSettingsPage />} />
-        <Route path="/settings/institution" element={<InstitutionSettingsPage />} />
-        <Route path="/settings/whatsapp" element={<WhatsAppSettingsPage />} />
-        <Route path="/settings/voice-minutes" element={<VoiceMinutesPage />} />
-        <Route path="/settings/notifications" element={<NotificationChannelsPage />} />
-        <Route path="/settings/calendar" element={<CalendarSettingsPage />} />
-        <Route path="/settings/email-sequences" element={<EmailSequencesPage />} />
-        <Route path="/settings/crm-integration" element={<CRMIntegrationPage />} />
-        <Route path="/settings/integrations" element={<IntegrationSettingsPage />} />
-        <Route path="/settings/post-call-messaging" element={<PostCallMessagingPage />} />
+        <Route path="settings/auto-assign" element={<AutoAssignSettingsPage />} />
+        <Route path="settings/sms" element={<SmsSettingsPage />} />
+        <Route path="settings/institution" element={<InstitutionSettingsPage />} />
+        <Route path="settings/whatsapp" element={<WhatsAppSettingsPage />} />
+        <Route path="settings/integrations" element={<IntegrationCredentialsPage />} />
+        <Route path="settings/voice-minutes" element={<VoiceMinutesPage />} />
+        <Route path="settings/notifications" element={<NotificationChannelsPage />} />
+        <Route path="settings/calendar" element={<CalendarSettingsPage />} />
+        <Route path="settings/email-sequences" element={<EmailSequencesPage />} />
+        <Route path="settings/crm-integration" element={<CRMIntegrationPage />} />
+        <Route path="settings/integrations-advanced" element={<IntegrationSettingsPage />} />
+        <Route path="settings/post-call-messaging" element={<PostCallMessagingPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="social-media-ads" element={<SocialMediaAdsPage />} />
         <Route path="ad-integrations" element={<AdIntegrationsPage />} />
+        <Route path="webhook-urls" element={<WebhookUrlsPage />} />
         <Route path="instagram-setup" element={<InstagramLeadSetupPage />} />
         <Route path="facebook-setup" element={<FacebookSetupPage />} />
         <Route path="linkedin-setup" element={<LinkedInSetupPage />} />
@@ -299,9 +348,9 @@ function App() {
         <Route path="apify-jobs" element={<ApifyJobsPage />} />
         <Route path="apify-smart" element={<ApifySmartScrapePage />} />
         <Route path="apify-records/:jobId" element={<ApifyRecordsPage />} />
-        <Route path="/subscription" element={<SubscriptionManagementPage />} />
-        <Route path="/subscription/checkout" element={<CheckoutPage />} />
-        <Route path="/subscription/success" element={<SuccessPage />} />
+        <Route path="subscription" element={<SubscriptionManagementPage />} />
+        <Route path="subscription/checkout" element={<CheckoutPage />} />
+        <Route path="subscription/success" element={<SuccessPage />} />
         <Route path="voice-ai/realtime" element={<RealtimeVoiceDemo />} />
 
         {/* Partner Routes */}
@@ -399,7 +448,7 @@ function App() {
       </Route>
 
       {/* Catch all */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<CatchAllRedirect />} />
     </Routes>
   );
 }

@@ -1,9 +1,80 @@
 import { Router, Response } from 'express';
+import { body, param, query } from 'express-validator';
 import { callQueueService } from '../services/call-queue.service';
 import { authenticate } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 import { ApiResponse } from '../utils/apiResponse';
-import { AgentStatus } from '@prisma/client';
+import { AgentStatus, QueueRoutingStrategy } from '@prisma/client';
+
+// Validation rules
+const createQueueValidation = [
+  body('name').trim().notEmpty().withMessage('Queue name is required')
+    .isLength({ max: 100 }).withMessage('Queue name must be at most 100 characters'),
+  body('description').optional().trim().isLength({ max: 500 }).withMessage('Description must be at most 500 characters'),
+  body('routingStrategy').optional().isIn(Object.values(QueueRoutingStrategy)).withMessage('Invalid routing strategy'),
+  body('maxWaitTime').optional().isInt({ min: 0 }).withMessage('Max wait time must be a positive integer'),
+  body('maxQueueSize').optional().isInt({ min: 1 }).withMessage('Max queue size must be a positive integer'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
+];
+
+const updateQueueValidation = [
+  param('id').isUUID().withMessage('Invalid queue ID'),
+  body('name').optional().trim().notEmpty().withMessage('Queue name cannot be empty')
+    .isLength({ max: 100 }).withMessage('Queue name must be at most 100 characters'),
+  body('description').optional().trim().isLength({ max: 500 }).withMessage('Description must be at most 500 characters'),
+  body('routingStrategy').optional().isIn(Object.values(QueueRoutingStrategy)).withMessage('Invalid routing strategy'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
+];
+
+const uuidParamValidation = [
+  param('id').isUUID().withMessage('Invalid ID'),
+];
+
+const addMemberValidation = [
+  param('id').isUUID().withMessage('Invalid queue ID'),
+  body('userId').isUUID().withMessage('Valid user ID is required'),
+  body('priority').optional().isInt({ min: 1, max: 100 }).withMessage('Priority must be between 1 and 100'),
+  body('maxConcurrentCalls').optional().isInt({ min: 1, max: 10 }).withMessage('Max concurrent calls must be between 1 and 10'),
+  body('wrapUpTime').optional().isInt({ min: 0 }).withMessage('Wrap up time must be a positive integer'),
+  body('skills').optional().isArray().withMessage('Skills must be an array'),
+];
+
+const updateStatusValidation = [
+  param('id').isUUID().withMessage('Invalid queue ID'),
+  param('userId').isUUID().withMessage('Invalid user ID'),
+  body('status').isIn(Object.values(AgentStatus)).withMessage('Invalid agent status'),
+];
+
+const addEntryValidation = [
+  param('id').isUUID().withMessage('Invalid queue ID'),
+  body('callerNumber').trim().notEmpty().withMessage('Caller number is required')
+    .matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone number format'),
+  body('callerId').optional().trim().isLength({ max: 100 }).withMessage('Caller ID must be at most 100 characters'),
+  body('leadId').optional().isUUID().withMessage('Invalid lead ID'),
+  body('inboundCallId').optional().isUUID().withMessage('Invalid inbound call ID'),
+  body('priority').optional().isIn(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).withMessage('Invalid priority'),
+];
+
+const updateEntryStatusValidation = [
+  param('entryId').isUUID().withMessage('Invalid entry ID'),
+  body('status').notEmpty().withMessage('Status is required'),
+  body('assignedAgentId').optional().isUUID().withMessage('Invalid agent ID'),
+];
+
+const transferValidation = [
+  param('entryId').isUUID().withMessage('Invalid entry ID'),
+  body('toAgentUserId').optional().isUUID().withMessage('Invalid agent user ID'),
+  body('toNumber').optional().matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone number format'),
+];
+
+const scheduleValidation = [
+  param('id').isUUID().withMessage('Invalid queue ID'),
+  body('dayOfWeek').isInt({ min: 0, max: 6 }).withMessage('Day of week must be between 0 and 6'),
+  body('startTime').matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Invalid start time format (HH:MM)'),
+  body('endTime').matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Invalid end time format (HH:MM)'),
+  body('timezone').optional().isString().withMessage('Timezone must be a string'),
+];
 
 const router = Router();
 
@@ -27,7 +98,7 @@ router.get('/', async (req: TenantRequest, res: Response) => {
 });
 
 // Get single queue
-router.get('/:id', async (req: TenantRequest, res: Response) => {
+router.get('/:id', validate(uuidParamValidation), async (req: TenantRequest, res: Response) => {
   try {
     const queue = await callQueueService.getQueueById(req.params.id, req.organizationId!);
     return ApiResponse.success(res, queue);
@@ -37,7 +108,7 @@ router.get('/:id', async (req: TenantRequest, res: Response) => {
 });
 
 // Create queue
-router.post('/', async (req: TenantRequest, res: Response) => {
+router.post('/', validate(createQueueValidation), async (req: TenantRequest, res: Response) => {
   try {
     const queue = await callQueueService.createQueue({
       organizationId: req.organizationId!,
@@ -50,7 +121,7 @@ router.post('/', async (req: TenantRequest, res: Response) => {
 });
 
 // Update queue
-router.put('/:id', async (req: TenantRequest, res: Response) => {
+router.put('/:id', validate(updateQueueValidation), async (req: TenantRequest, res: Response) => {
   try {
     const queue = await callQueueService.updateQueue(
       req.params.id,
@@ -64,7 +135,7 @@ router.put('/:id', async (req: TenantRequest, res: Response) => {
 });
 
 // Delete queue
-router.delete('/:id', async (req: TenantRequest, res: Response) => {
+router.delete('/:id', validate(uuidParamValidation), async (req: TenantRequest, res: Response) => {
   try {
     await callQueueService.deleteQueue(req.params.id, req.organizationId!);
     return ApiResponse.success(res, { message: 'Queue deleted successfully' });
@@ -74,7 +145,7 @@ router.delete('/:id', async (req: TenantRequest, res: Response) => {
 });
 
 // Get queue stats (real-time)
-router.get('/:id/stats', async (req: TenantRequest, res: Response) => {
+router.get('/:id/stats', validate(uuidParamValidation), async (req: TenantRequest, res: Response) => {
   try {
     const stats = await callQueueService.getQueueStats(req.params.id);
     return ApiResponse.success(res, stats);
@@ -86,7 +157,7 @@ router.get('/:id/stats', async (req: TenantRequest, res: Response) => {
 // ==================== Queue Members ====================
 
 // Add member to queue
-router.post('/:id/members', async (req: TenantRequest, res: Response) => {
+router.post('/:id/members', validate(addMemberValidation), async (req: TenantRequest, res: Response) => {
   try {
     const { userId, priority, maxConcurrentCalls, wrapUpTime, skills } = req.body;
 
@@ -106,7 +177,10 @@ router.post('/:id/members', async (req: TenantRequest, res: Response) => {
 });
 
 // Remove member from queue
-router.delete('/:id/members/:userId', async (req: TenantRequest, res: Response) => {
+router.delete('/:id/members/:userId', validate([
+  param('id').isUUID().withMessage('Invalid queue ID'),
+  param('userId').isUUID().withMessage('Invalid user ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     await callQueueService.removeMember(req.params.id, req.params.userId);
     return ApiResponse.success(res, { message: 'Member removed from queue' });
@@ -116,7 +190,7 @@ router.delete('/:id/members/:userId', async (req: TenantRequest, res: Response) 
 });
 
 // Update agent status
-router.put('/:id/members/:userId/status', async (req: TenantRequest, res: Response) => {
+router.put('/:id/members/:userId/status', validate(updateStatusValidation), async (req: TenantRequest, res: Response) => {
   try {
     const { status } = req.body;
 
@@ -137,7 +211,9 @@ router.put('/:id/members/:userId/status', async (req: TenantRequest, res: Respon
 });
 
 // Get agent's queues
-router.get('/agent/:userId/queues', async (req: TenantRequest, res: Response) => {
+router.get('/agent/:userId/queues', validate([
+  param('userId').isUUID().withMessage('Invalid user ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const queues = await callQueueService.getAgentQueues(req.params.userId);
     return ApiResponse.success(res, queues);
@@ -149,7 +225,7 @@ router.get('/agent/:userId/queues', async (req: TenantRequest, res: Response) =>
 // ==================== Queue Entries ====================
 
 // Add caller to queue (typically called by IVR webhook)
-router.post('/:id/entries', async (req: TenantRequest, res: Response) => {
+router.post('/:id/entries', validate(addEntryValidation), async (req: TenantRequest, res: Response) => {
   try {
     const { callerNumber, callerId, leadId, inboundCallId, priority, ivrData } = req.body;
 
@@ -170,7 +246,7 @@ router.post('/:id/entries', async (req: TenantRequest, res: Response) => {
 });
 
 // Update queue entry status
-router.put('/entries/:entryId/status', async (req: TenantRequest, res: Response) => {
+router.put('/entries/:entryId/status', validate(updateEntryStatusValidation), async (req: TenantRequest, res: Response) => {
   try {
     const { status, assignedAgentId } = req.body;
 
@@ -187,7 +263,9 @@ router.put('/entries/:entryId/status', async (req: TenantRequest, res: Response)
 });
 
 // Remove from queue
-router.delete('/entries/:entryId', async (req: TenantRequest, res: Response) => {
+router.delete('/entries/:entryId', validate([
+  param('entryId').isUUID().withMessage('Invalid entry ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     await callQueueService.removeFromQueue(req.params.entryId);
     return ApiResponse.success(res, { message: 'Entry removed from queue' });
@@ -199,7 +277,7 @@ router.delete('/entries/:entryId', async (req: TenantRequest, res: Response) => 
 // ==================== Routing ====================
 
 // Route next call from queue
-router.post('/:id/route', async (req: TenantRequest, res: Response) => {
+router.post('/:id/route', validate(uuidParamValidation), async (req: TenantRequest, res: Response) => {
   try {
     const agent = await callQueueService.routeCall(req.params.id);
 
@@ -216,7 +294,11 @@ router.post('/:id/route', async (req: TenantRequest, res: Response) => {
 // ==================== Transfers ====================
 
 // Warm transfer
-router.post('/entries/:entryId/warm-transfer', async (req: TenantRequest, res: Response) => {
+router.post('/entries/:entryId/warm-transfer', validate([
+  param('entryId').isUUID().withMessage('Invalid entry ID'),
+  body('toAgentUserId').isUUID().withMessage('Valid agent user ID is required'),
+  body('consultFirst').optional().isBoolean().withMessage('consultFirst must be a boolean'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { toAgentUserId, consultFirst } = req.body;
 
@@ -233,7 +315,10 @@ router.post('/entries/:entryId/warm-transfer', async (req: TenantRequest, res: R
 });
 
 // Cold transfer
-router.post('/entries/:entryId/cold-transfer', async (req: TenantRequest, res: Response) => {
+router.post('/entries/:entryId/cold-transfer', validate([
+  param('entryId').isUUID().withMessage('Invalid entry ID'),
+  body('toNumber').matches(/^[\d+\-() ]{7,20}$/).withMessage('Valid phone number is required'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { toNumber } = req.body;
 
@@ -248,7 +333,7 @@ router.post('/entries/:entryId/cold-transfer', async (req: TenantRequest, res: R
 // ==================== Schedules ====================
 
 // Set schedule for queue
-router.post('/:id/schedules', async (req: TenantRequest, res: Response) => {
+router.post('/:id/schedules', validate(scheduleValidation), async (req: TenantRequest, res: Response) => {
   try {
     const { dayOfWeek, startTime, endTime, timezone } = req.body;
 
@@ -267,7 +352,7 @@ router.post('/:id/schedules', async (req: TenantRequest, res: Response) => {
 });
 
 // Check if queue is open
-router.get('/:id/is-open', async (req: TenantRequest, res: Response) => {
+router.get('/:id/is-open', validate(uuidParamValidation), async (req: TenantRequest, res: Response) => {
   try {
     const isOpen = await callQueueService.isQueueOpen(req.params.id);
     return ApiResponse.success(res, { isOpen });

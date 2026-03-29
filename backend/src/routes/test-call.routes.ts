@@ -1,11 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { exotelService } from '../integrations/exotel.service';
 import { voiceAIService } from '../integrations/voice-ai.service';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { config } from '../config';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const VOICE_PROVIDER = process.env.VOICE_PROVIDER || 'exotel';
 

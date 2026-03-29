@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -29,10 +29,13 @@ import {
   DocumentArrowUpIcon,
   EyeIcon,
   ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   ShieldCheckIcon,
   FunnelIcon,
   TrophyIcon,
   MagnifyingGlassCircleIcon,
+  BoltIcon,
 } from '@heroicons/react/24/outline';
 
 interface NavItem {
@@ -56,6 +59,8 @@ const WhatsAppIcon = ({ className }: { className?: string }) => (
 // Main Navigation - Core daily workflow (visible to all)
 const mainNavigation: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, roles: ['admin', 'manager', 'counselor', 'telecaller'] },
+  { name: 'Assigned Data', href: '/assigned-data', icon: DocumentArrowUpIcon, roles: ['telecaller', 'counselor'] },
+  { name: 'My Conversions', href: '/qualified-leads', icon: TrophyIcon, roles: ['telecaller'] },
   { name: 'Leads', href: '/leads', icon: UserGroupIcon, roles: ['admin', 'manager', 'counselor', 'telecaller'] },
   { name: 'Inbox', href: '/hybrid-inbox', icon: ChatBubbleLeftRightIcon, roles: ['admin', 'manager', 'counselor', 'telecaller'] },
 ];
@@ -84,6 +89,7 @@ const messagingNavigation: NavItem[] = [
 const dataNavigation: NavItem[] = [
   { name: 'Import Data', href: '/raw-imports', icon: DocumentArrowUpIcon, roles: ['admin', 'manager'] },
   { name: 'Ad Integrations', href: '/ad-integrations', icon: ArrowPathRoundedSquareIcon, roles: ['admin', 'manager'] },
+  { name: 'Webhook URLs', href: '/webhook-urls', icon: KeyIcon, roles: ['admin'] },
   { name: 'Web Scraping', href: '/apify-dashboard', icon: MagnifyingGlassCircleIcon, roles: ['admin', 'manager'] },
 ];
 
@@ -98,11 +104,14 @@ const analyticsNavigation: NavItem[] = [
 // Settings - All Configuration (consolidated)
 const settingsNavigation: NavItem[] = [
   { name: 'Users', href: '/users', icon: UsersIcon, roles: ['admin'] },
+  { name: 'Organization', href: '/settings/institution', icon: Cog6ToothIcon, roles: ['admin'] },
+  { name: 'API Credentials', href: '/settings/integrations', icon: KeyIcon, roles: ['admin'] },
   { name: 'WhatsApp', href: '/settings/whatsapp', icon: WhatsAppIcon, roles: ['admin', 'manager'] },
-  { name: 'Integrations', href: '/settings/crm-integration', icon: ArrowPathRoundedSquareIcon, roles: ['admin', 'manager'] },
+  { name: 'SMS', href: '/settings/sms', icon: ChatBubbleLeftRightIcon, roles: ['admin', 'manager'] },
+  { name: 'Auto-Assign', href: '/settings/auto-assign', icon: BoltIcon, roles: ['admin', 'manager'] },
+  { name: 'CRM Integrations', href: '/settings/crm-integration', icon: ArrowPathRoundedSquareIcon, roles: ['admin', 'manager'] },
   { name: 'Compliance', href: '/compliance', icon: ShieldCheckIcon, roles: ['admin', 'manager'] },
   { name: 'Subscription', href: '/subscription', icon: CreditCardIcon, roles: ['admin', 'manager'] },
-  { name: 'API Keys', href: '/api-keys', icon: KeyIcon, roles: ['admin'] },
 ];
 
 // Routes where top header should be hidden
@@ -111,11 +120,24 @@ const headerHiddenRoutes = ['/voice-ai/create', '/voice-ai/create-from-template'
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  // Collapsible sidebar state - persisted in localStorage
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('sidebarCollapsed');
+    return saved === 'true';
+  });
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useSelector((state: RootState) => state.auth);
   const { t } = useTranslation(['navigation', 'common']);
+
+  // Persist sidebar collapsed state
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  // Toggle sidebar collapsed state
+  const toggleSidebar = () => setSidebarCollapsed(!sidebarCollapsed);
 
   // Check if current route should hide header
   const hideHeader = headerHiddenRoutes.some(route => location.pathname.startsWith(route));
@@ -126,6 +148,9 @@ export default function DashboardLayout() {
   const isAdmin = userRole === 'admin';
   const isManager = userRole === 'manager';
   const showAdvancedSections = isAdmin || isManager;
+
+  // Check if telecaller/counselor on dashboard (for dark theme header)
+  const isTelecallerDashboard = (userRole === 'telecaller' || userRole === 'counselor') && location.pathname === '/dashboard';
 
   // Filter navigation based on user role
   const filterByRole = (items: NavItem[]) => {
@@ -146,6 +171,7 @@ export default function DashboardLayout() {
     navigate('/login');
   };
 
+  // NavItem for expanded sidebar
   const NavItem = ({ item, onClick }: { item: NavItem; onClick?: () => void }) => (
     <NavLink
       to={item.href}
@@ -156,6 +182,27 @@ export default function DashboardLayout() {
     >
       <item.icon className="sidebar-link-icon" />
       <span>{item.name}</span>
+    </NavLink>
+  );
+
+  // NavItem for collapsed sidebar - icons only with tooltip
+  const NavItemCollapsed = ({ item }: { item: NavItem }) => (
+    <NavLink
+      to={item.href}
+      className={({ isActive }) =>
+        `group relative flex items-center justify-center p-2.5 rounded-lg transition-all duration-200 ${
+          isActive
+            ? 'bg-primary-600/20 text-primary-400'
+            : 'text-slate-400 hover:text-white hover:bg-slate-800'
+        }`
+      }
+      title={item.name}
+    >
+      <item.icon className="h-5 w-5" />
+      {/* Tooltip */}
+      <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 shadow-lg">
+        {item.name}
+      </div>
     </NavLink>
   );
 
@@ -285,125 +332,220 @@ export default function DashboardLayout() {
         </div>
       </div>
 
-      {/* Desktop sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-52 lg:flex-col">
+      {/* Desktop sidebar - Collapsible */}
+      <div className={`hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col transition-all duration-300 ${
+        sidebarCollapsed ? 'lg:w-16' : 'lg:w-52'
+      }`}>
         <div className="flex min-h-0 flex-1 flex-col bg-slate-900">
-          {/* Logo */}
-          <div className="flex h-14 items-center px-4 border-b border-slate-800">
+          {/* Logo - Clickable to toggle collapse */}
+          <div
+            className="flex h-14 items-center justify-between px-3 border-b border-slate-800 cursor-pointer hover:bg-slate-800/50 transition-colors"
+            onClick={toggleSidebar}
+          >
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
-                <SparklesIcon className="w-4 h-4 text-white" />
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0">
+                <SparklesIcon className="w-5 h-5 text-white" />
               </div>
-              <span className="text-lg font-bold text-white">CRM Pro</span>
+              {!sidebarCollapsed && (
+                <span className="text-lg font-bold text-white whitespace-nowrap">CRM Pro</span>
+              )}
             </div>
+            {!sidebarCollapsed && (
+              <ChevronLeftIcon className="w-4 h-4 text-slate-400" />
+            )}
+            {sidebarCollapsed && (
+              <ChevronRightIcon className="w-4 h-4 text-slate-400 absolute right-3" />
+            )}
           </div>
 
-          {/* Navigation - Clean & Organized */}
-          <nav className="flex-1 px-2 py-3 space-y-4 overflow-y-auto scrollbar-hide">
-            {/* Main Navigation */}
-            <div className="space-y-1">
+          {/* Navigation - Collapsed View (Icons Only) */}
+          {sidebarCollapsed ? (
+            <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto scrollbar-hide">
+              {/* Main Navigation */}
               {filteredMain.map((item) => (
-                <NavItem key={item.name} item={item} />
+                <NavItemCollapsed key={item.name} item={item} />
               ))}
-            </div>
 
-            {/* Voice AI Section */}
-            {showAdvancedSections && filteredVoiceAI.length > 0 && (
-              <div>
-                <div className="px-2.5 py-1 text-[10px] font-semibold text-violet-400 uppercase tracking-wider">
-                  Voice AI
-                </div>
-                <div className="mt-1 space-y-1">
-                  {filteredVoiceAI.map((item) => (
-                    <NavItem key={item.name} item={item} />
-                  ))}
-                </div>
-              </div>
-            )}
+              {/* Divider */}
+              {showAdvancedSections && filteredVoiceAI.length > 0 && (
+                <div className="my-2 border-t border-slate-700/50" />
+              )}
 
-            {/* Calls Section */}
-            {filteredCalls.length > 0 && (
-              <div>
-                <div className="px-2.5 py-1 text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">
-                  Calls
-                </div>
-                <div className="mt-1 space-y-1">
-                  {filteredCalls.map((item) => (
-                    <NavItem key={item.name} item={item} />
-                  ))}
-                </div>
-              </div>
-            )}
+              {/* Voice AI */}
+              {showAdvancedSections && filteredVoiceAI.map((item) => (
+                <NavItemCollapsed key={item.name} item={item} />
+              ))}
 
-            {/* Messaging Section */}
-            {filteredMessaging.length > 0 && (
-              <div>
-                <div className="px-2.5 py-1 text-[10px] font-semibold text-green-400 uppercase tracking-wider">
-                  Messaging
-                </div>
-                <div className="mt-1 space-y-1">
-                  {filteredMessaging.map((item) => (
-                    <NavItem key={item.name} item={item} />
-                  ))}
-                </div>
-              </div>
-            )}
+              {/* Divider */}
+              {filteredCalls.length > 0 && (
+                <div className="my-2 border-t border-slate-700/50" />
+              )}
 
-            {/* Data Section */}
-            {showAdvancedSections && filteredData.length > 0 && (
-              <div>
-                <div className="px-2.5 py-1 text-[10px] font-semibold text-sky-400 uppercase tracking-wider">
-                  Data
-                </div>
-                <div className="mt-1 space-y-1">
-                  {filteredData.map((item) => (
-                    <NavItem key={item.name} item={item} />
-                  ))}
-                </div>
-              </div>
-            )}
+              {/* Calls */}
+              {filteredCalls.map((item) => (
+                <NavItemCollapsed key={item.name} item={item} />
+              ))}
 
-            {/* Analytics Section */}
-            {showAdvancedSections && filteredAnalytics.length > 0 && (
-              <div>
-                <div className="px-2.5 py-1 text-[10px] font-semibold text-amber-400 uppercase tracking-wider">
-                  Analytics
-                </div>
-                <div className="mt-1 space-y-1">
-                  {filteredAnalytics.map((item) => (
-                    <NavItem key={item.name} item={item} />
-                  ))}
-                </div>
-              </div>
-            )}
+              {/* Divider */}
+              {filteredMessaging.length > 0 && (
+                <div className="my-2 border-t border-slate-700/50" />
+              )}
 
-            {/* Settings Section */}
-            {showAdvancedSections && filteredSettings.length > 0 && (
-              <div>
-                <div className="px-2.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Settings
-                </div>
-                <div className="mt-1 space-y-1">
-                  {filteredSettings.map((item) => (
-                    <NavItem key={item.name} item={item} />
-                  ))}
-                </div>
+              {/* Messaging */}
+              {filteredMessaging.map((item) => (
+                <NavItemCollapsed key={item.name} item={item} />
+              ))}
+
+              {/* Divider */}
+              {showAdvancedSections && filteredData.length > 0 && (
+                <div className="my-2 border-t border-slate-700/50" />
+              )}
+
+              {/* Data */}
+              {showAdvancedSections && filteredData.map((item) => (
+                <NavItemCollapsed key={item.name} item={item} />
+              ))}
+
+              {/* Divider */}
+              {showAdvancedSections && filteredAnalytics.length > 0 && (
+                <div className="my-2 border-t border-slate-700/50" />
+              )}
+
+              {/* Analytics */}
+              {showAdvancedSections && filteredAnalytics.map((item) => (
+                <NavItemCollapsed key={item.name} item={item} />
+              ))}
+
+              {/* Divider */}
+              {showAdvancedSections && filteredSettings.length > 0 && (
+                <div className="my-2 border-t border-slate-700/50" />
+              )}
+
+              {/* Settings */}
+              {showAdvancedSections && filteredSettings.map((item) => (
+                <NavItemCollapsed key={item.name} item={item} />
+              ))}
+            </nav>
+          ) : (
+            /* Navigation - Expanded View (Full Labels) */
+            <nav className="flex-1 px-2 py-3 space-y-4 overflow-y-auto scrollbar-hide">
+              {/* Main Navigation */}
+              <div className="space-y-1">
+                {filteredMain.map((item) => (
+                  <NavItem key={item.name} item={item} />
+                ))}
               </div>
-            )}
-          </nav>
+
+              {/* Voice AI Section */}
+              {showAdvancedSections && filteredVoiceAI.length > 0 && (
+                <div>
+                  <div className="px-2.5 py-1 text-[10px] font-semibold text-violet-400 uppercase tracking-wider">
+                    Voice AI
+                  </div>
+                  <div className="mt-1 space-y-1">
+                    {filteredVoiceAI.map((item) => (
+                      <NavItem key={item.name} item={item} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Calls Section */}
+              {filteredCalls.length > 0 && (
+                <div>
+                  <div className="px-2.5 py-1 text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">
+                    Calls
+                  </div>
+                  <div className="mt-1 space-y-1">
+                    {filteredCalls.map((item) => (
+                      <NavItem key={item.name} item={item} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Messaging Section */}
+              {filteredMessaging.length > 0 && (
+                <div>
+                  <div className="px-2.5 py-1 text-[10px] font-semibold text-green-400 uppercase tracking-wider">
+                    Messaging
+                  </div>
+                  <div className="mt-1 space-y-1">
+                    {filteredMessaging.map((item) => (
+                      <NavItem key={item.name} item={item} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Data Section */}
+              {showAdvancedSections && filteredData.length > 0 && (
+                <div>
+                  <div className="px-2.5 py-1 text-[10px] font-semibold text-sky-400 uppercase tracking-wider">
+                    Data
+                  </div>
+                  <div className="mt-1 space-y-1">
+                    {filteredData.map((item) => (
+                      <NavItem key={item.name} item={item} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Analytics Section */}
+              {showAdvancedSections && filteredAnalytics.length > 0 && (
+                <div>
+                  <div className="px-2.5 py-1 text-[10px] font-semibold text-amber-400 uppercase tracking-wider">
+                    Analytics
+                  </div>
+                  <div className="mt-1 space-y-1">
+                    {filteredAnalytics.map((item) => (
+                      <NavItem key={item.name} item={item} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Settings Section */}
+              {showAdvancedSections && filteredSettings.length > 0 && (
+                <div>
+                  <div className="px-2.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Settings
+                  </div>
+                  <div className="mt-1 space-y-1">
+                    {filteredSettings.map((item) => (
+                      <NavItem key={item.name} item={item} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </nav>
+          )}
         </div>
       </div>
 
       {/* Main content */}
-      <div className={`lg:pl-52 min-h-screen ${hideHeader ? 'bg-white overflow-hidden scrollbar-hide' : ''}`}>
+      <div className={`min-h-screen transition-all duration-300 ${
+        sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-52'
+      } ${hideHeader ? 'bg-white overflow-hidden scrollbar-hide' : ''} ${
+        isTelecallerDashboard ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900' : ''
+      }`}>
         {/* Top bar - Compact (hidden on certain routes) */}
         {!hideHeader && (
-        <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-slate-200/60">
+        <header className={`sticky top-0 z-30 ${
+          isTelecallerDashboard
+            ? 'bg-transparent border-0'
+            : 'bg-white/95 backdrop-blur-sm border-b border-slate-200/60'
+        }`}>
           <div className="flex h-11 items-center justify-between px-3 sm:px-4 lg:px-6">
             {/* Mobile menu button */}
             <button
               type="button"
-              className="lg:hidden p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+              className={`lg:hidden p-1.5 rounded-lg transition-colors ${
+                isTelecallerDashboard
+                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'
+              }`}
               onClick={() => setSidebarOpen(true)}
             >
               <Bars3Icon className="h-5 w-5" />
@@ -421,7 +563,11 @@ export default function DashboardLayout() {
               <LanguageSwitcher variant="compact" />
 
               {/* Notifications */}
-              <button className="relative p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors">
+              <button className={`relative p-1.5 rounded-lg transition-colors ${
+                isTelecallerDashboard
+                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'
+              }`}>
                 <BellIcon className="h-5 w-5" />
                 <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-danger-500 rounded-full"></span>
               </button>
@@ -430,12 +576,16 @@ export default function DashboardLayout() {
               <div className="relative">
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-1.5 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                  className={`flex items-center gap-1.5 p-1 rounded-lg transition-colors ${
+                    isTelecallerDashboard ? 'hover:bg-slate-800' : 'hover:bg-slate-100'
+                  }`}
                 >
                   <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-xs font-semibold text-white">
                     {user?.firstName?.[0]}{user?.lastName?.[0]}
                   </div>
-                  <ChevronDownIcon className="h-4 w-4 text-slate-400 hidden sm:block" />
+                  <ChevronDownIcon className={`h-4 w-4 hidden sm:block ${
+                    isTelecallerDashboard ? 'text-slate-400' : 'text-slate-400'
+                  }`} />
                 </button>
 
                 {/* Dropdown */}
@@ -476,7 +626,13 @@ export default function DashboardLayout() {
         )}
 
         {/* Page content */}
-        <main className={hideHeader ? "min-h-screen bg-white overflow-x-hidden" : "py-4 px-4 sm:px-5 lg:px-6"}>
+        <main className={
+          hideHeader
+            ? "min-h-screen bg-white overflow-x-hidden"
+            : isTelecallerDashboard
+              ? "p-0 bg-transparent"
+              : "py-4 px-4 sm:px-5 lg:px-6"
+        }>
           <Outlet />
         </main>
       </div>

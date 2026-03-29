@@ -88,6 +88,10 @@ export class ApiResponse {
     return this.error(res, message, 403);
   }
 
+  static badRequest(res: Response, message = 'Bad request'): Response {
+    return this.error(res, message, 400);
+  }
+
   static validationError(res: Response, errors: unknown): Response {
     return this.error(res, 'Validation failed', 422, errors);
   }

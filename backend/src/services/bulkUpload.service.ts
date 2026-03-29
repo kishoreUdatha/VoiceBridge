@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { prisma } from '../config/database';
 import { LeadSource, LeadPriority } from '@prisma/client';
 import { BadRequestError } from '../utils/errors';
@@ -41,29 +41,108 @@ interface LeadWithAssignment {
 
 export class BulkUploadService {
   // Parse Excel/CSV file
-  parseFile(buffer: Buffer, mimetype: string): ParsedLead[] {
-    let workbook: XLSX.WorkBook;
+  async parseFile(buffer: Buffer, mimetype: string): Promise<ParsedLead[]> {
+    const workbook = new ExcelJS.Workbook();
 
     try {
       if (mimetype === 'text/csv') {
+        // For CSV, parse manually since exceljs csv.read requires a stream
         const csvContent = buffer.toString('utf-8');
-        workbook = XLSX.read(csvContent, { type: 'string' });
+        const lines = csvContent.split(/\r?\n/).filter(line => line.trim());
+        if (lines.length < 2) {
+          throw new BadRequestError('File is empty or has no valid data rows');
+        }
+
+        // Parse CSV header and rows
+        const headers = this.parseCSVLine(lines[0]);
+        const jsonData: Record<string, unknown>[] = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const values = this.parseCSVLine(lines[i]);
+          const row: Record<string, unknown> = {};
+          headers.forEach((header, index) => {
+            row[header] = values[index] || '';
+          });
+          jsonData.push(row);
+        }
+
+        return this.mapToLeads(jsonData);
       } else {
-        workbook = XLSX.read(buffer, { type: 'buffer' });
+        // Pass buffer directly - exceljs accepts Node.js Buffer
+        await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
       }
     } catch (error) {
+      if (error instanceof BadRequestError) throw error;
       throw new BadRequestError('Failed to parse file. Please ensure it is a valid Excel or CSV file.');
     }
 
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet || worksheet.rowCount < 2) {
+      throw new BadRequestError('File is empty or has no valid data rows');
+    }
+
+    // Convert worksheet to JSON
+    const jsonData: Record<string, unknown>[] = [];
+    const headers: string[] = [];
+
+    // Get headers from first row
+    worksheet.getRow(1).eachCell((cell, colNumber) => {
+      headers[colNumber - 1] = String(cell.value || `Column${colNumber}`);
+    });
+
+    // Get data rows
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return; // Skip header row
+
+      const rowData: Record<string, unknown> = {};
+      row.eachCell((cell, colNumber) => {
+        const header = headers[colNumber - 1] || `Column${colNumber}`;
+        rowData[header] = cell.value ?? '';
+      });
+
+      // Fill in missing columns with empty string
+      headers.forEach(header => {
+        if (!(header in rowData)) {
+          rowData[header] = '';
+        }
+      });
+
+      jsonData.push(rowData);
+    });
 
     if (jsonData.length === 0) {
       throw new BadRequestError('File is empty or has no valid data rows');
     }
 
-    return this.mapToLeads(jsonData as Record<string, unknown>[]);
+    return this.mapToLeads(jsonData);
+  }
+
+  // Helper to parse CSV line handling quoted values
+  private parseCSVLine(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+
+    result.push(current.trim());
+    return result;
   }
 
   // Map raw data to lead format
@@ -530,7 +609,7 @@ export class BulkUploadService {
     assignedById?: string
   ): Promise<BulkUploadResult> {
     // 1. Parse file
-    const parsedLeads = this.parseFile(buffer, mimetype);
+    const parsedLeads = await this.parseFile(buffer, mimetype);
 
     // 2. Validate leads
     const { valid, invalid } = this.validateLeads(parsedLeads);
@@ -590,7 +669,7 @@ export class BulkUploadService {
     insertedRecords: number;
   }> {
     // 1. Parse file
-    const parsedRecords = this.parseFile(buffer, mimetype);
+    const parsedRecords = await this.parseFile(buffer, mimetype);
 
     // 2. Validate records
     const { valid, invalid } = this.validateLeads(parsedRecords);

@@ -15,24 +15,37 @@ export const authApi = {
    */
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
     try {
-      const response = await api.post<ApiResponse<AuthResponse>>('/auth/login', {
+      const response = await api.post<ApiResponse<any>>('/auth/login', {
         email: credentials.email,
         password: credentials.password,
       });
 
-      const { user, accessToken, refreshToken } = response.data.data;
-      const token = accessToken;
+      const { user: rawUser, accessToken, refreshToken } = response.data.data;
+      const token = accessToken || response.data.data.token || '';
+
+      // Use user data directly from backend (firstName, lastName format)
+      const user: User = {
+        id: rawUser.id,
+        email: rawUser.email,
+        firstName: rawUser.firstName || '',
+        lastName: rawUser.lastName || '',
+        organizationId: rawUser.organizationId,
+        organizationName: rawUser.organizationName,
+        role: rawUser.role || 'telecaller',
+        avatar: rawUser.avatar,
+        createdAt: rawUser.createdAt,
+      };
 
       // Store tokens
       await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-      await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+      await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken || '');
       await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
 
       if (credentials.rememberMe) {
         await AsyncStorage.setItem(STORAGE_KEYS.REMEMBER_ME, 'true');
       }
 
-      return { user, token, refreshToken };
+      return { user, token, refreshToken: refreshToken || '' };
     } catch (error) {
       throw new Error(getErrorMessage(error));
     }
@@ -112,7 +125,8 @@ export const authApi = {
   getCurrentUser: async (): Promise<User | null> => {
     try {
       const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
-      return userData ? JSON.parse(userData) : null;
+      if (!userData) return null;
+      return JSON.parse(userData);
     } catch (error) {
       console.error('Error getting current user:', error);
       return null;

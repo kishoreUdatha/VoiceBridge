@@ -22,7 +22,6 @@ import {
   Upload,
   FileEdit,
   CheckCircle2,
-  Clock,
   AlertCircle,
   X,
 } from 'lucide-react';
@@ -144,7 +143,7 @@ export function ConversationalAIAgentDetail() {
   const [preChatFormEnabled, setPreChatFormEnabled] = useState(false);
   const [preChatFormTitle, setPreChatFormTitle] = useState('Before we start');
   const [preChatFormSubtitle, setPreChatFormSubtitle] = useState('Please provide your details');
-  const [createLeadFromForm, setCreateLeadFromForm] = useState(true);
+  const [, setCreateLeadFromForm] = useState(true);
   const [preChatFormFields, setPreChatFormFields] = useState<Array<{ name: string; label: string; type: string; required: boolean }>>([
     { name: 'name', label: 'Name', type: 'text', required: true },
     { name: 'email', label: 'Email', type: 'email', required: true },
@@ -173,7 +172,7 @@ export function ConversationalAIAgentDetail() {
 
   // Publish state
   const [publishStatus, setPublishStatus] = useState<PublishStatusType>('DRAFT');
-  const [publishedAt, setPublishedAt] = useState<string | null>(null);
+  const [, setPublishedAt] = useState<string | null>(null);
   const [versionNumber, setVersionNumber] = useState(1);
   const [isPublishing, setIsPublishing] = useState(false);
 
@@ -255,19 +254,12 @@ export function ConversationalAIAgentDetail() {
     }
   }, []);
 
-  // Real-time sync hook
-  const { isConnected: isRealtimeConnected, viewerCount, broadcastUpdate } = useAgentRealtime({
-    agentId: agentId || '',
-    onFieldUpdate: handleRealtimeFieldUpdate,
-    onFullReload: (agentData) => {
-      setAgent(agentData);
-      // Reload all fields
-      setSystemPrompt(agentData.systemPrompt || '');
-      setGreeting(agentData.greeting || '');
-      if (agentData.temperature) setTemperature(agentData.temperature * 100);
-    },
-    userName: 'User', // Could be from auth context
-  });
+  // Real-time sync hook - Disabled due to socket connection causing page redirect issues
+  // TODO: Fix useAgentRealtime hook's socket initialization to not interfere with page rendering
+  // The hook's socket.connectAsync() was causing the page to redirect to dashboard
+  const isRealtimeConnected = false;
+  const viewerCount = 0;
+  const broadcastUpdate = (_field: string, _value: any) => {};
 
   // Agent analytics hook - fetch real analytics data
   const {
@@ -757,7 +749,7 @@ export function ConversationalAIAgentDetail() {
       const allSources = [...knowledgeSources, ...newSources];
       setKnowledgeSources(allSources);
       await saveAgentConfig({ documents: allSources });
-      toast.warning('Files added (metadata only - upload service unavailable)');
+      toast('Files added (metadata only - upload service unavailable)', { icon: '⚠️' });
     }
   };
 

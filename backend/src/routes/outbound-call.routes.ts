@@ -1,11 +1,21 @@
 import { Router, Request, Response } from 'express';
+import { body, param, query } from 'express-validator';
+import { Prisma } from '@prisma/client';
 import { outboundCallService } from '../integrations/outbound-call.service';
-import { authenticate } from '../middlewares/auth';
+import { authenticate, authorize } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 import { ApiResponse } from '../utils/apiResponse';
 import { voiceMinutesService } from '../services/voice-minutes.service';
+import { canAccessLead, hasElevatedAccess } from '../utils/leadAccess';
 
 const router = Router();
+
+// Helper to validate UUID format (for webhook callId params)
+const isValidUUID = (str: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+};
 
 // ==================== WEBHOOKS (No Auth - Called by Twilio) ====================
 
@@ -40,6 +50,18 @@ router.post('/inbound', async (req: Request, res: Response) => {
 router.post('/inbound/continue/:callId', async (req: Request, res: Response) => {
   try {
     const { callId } = req.params;
+
+    // SECURITY: Validate callId format to prevent injection
+    if (!isValidUUID(callId)) {
+      console.error(`Invalid callId format: ${callId}`);
+      res.set('Content-Type', 'text/xml');
+      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+        <Response>
+          <Say>Invalid request. Goodbye.</Say>
+          <Hangup/>
+        </Response>`);
+    }
+
     const twiml = await outboundCallService.continueInboundCall(callId);
 
     res.set('Content-Type', 'text/xml');
@@ -59,6 +81,18 @@ router.post('/inbound/continue/:callId', async (req: Request, res: Response) => 
 router.post('/twiml/:callId', async (req: Request, res: Response) => {
   try {
     const { callId } = req.params;
+
+    // SECURITY: Validate callId format to prevent injection
+    if (!isValidUUID(callId)) {
+      console.error(`Invalid callId format: ${callId}`);
+      res.set('Content-Type', 'text/xml');
+      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+        <Response>
+          <Say>Invalid request. Goodbye.</Say>
+          <Hangup/>
+        </Response>`);
+    }
+
     const twiml = await outboundCallService.generateTwiML(callId);
 
     res.set('Content-Type', 'text/xml');
@@ -79,6 +113,17 @@ router.post('/webhook/speech/:callId', async (req: Request, res: Response) => {
   try {
     const { callId } = req.params;
     const { SpeechResult, Confidence, Digits } = req.body;
+
+    // SECURITY: Validate callId format to prevent injection
+    if (!isValidUUID(callId)) {
+      console.error(`Invalid callId format: ${callId}`);
+      res.set('Content-Type', 'text/xml');
+      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+        <Response>
+          <Say>Invalid request. Goodbye.</Say>
+          <Hangup/>
+        </Response>`);
+    }
 
     console.log(`Input received for call ${callId}: Speech="${SpeechResult}" Digits="${Digits}" (confidence: ${Confidence})`);
 
@@ -114,6 +159,17 @@ router.post('/webhook/callflow/:callId', async (req: Request, res: Response) => 
   try {
     const { callId } = req.params;
     const { SpeechResult, Confidence, Digits } = req.body;
+
+    // SECURITY: Validate callId format to prevent injection
+    if (!isValidUUID(callId)) {
+      console.error(`[CallFlow] Invalid callId format: ${callId}`);
+      res.set('Content-Type', 'text/xml');
+      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+        <Response>
+          <Say>Invalid request. Goodbye.</Say>
+          <Hangup/>
+        </Response>`);
+    }
 
     console.log(`[CallFlow] Input received for call ${callId}: Speech="${SpeechResult}" Digits="${Digits}" (confidence: ${Confidence})`);
 
@@ -192,6 +248,12 @@ router.post('/webhook/transfer-status/:callId', async (req: Request, res: Respon
     const { callId } = req.params;
     const { DialCallStatus, DialCallDuration } = req.body;
 
+    // SECURITY: Validate callId format to prevent injection
+    if (!isValidUUID(callId)) {
+      console.error(`Invalid callId format: ${callId}`);
+      return res.status(400).send('Invalid callId');
+    }
+
     console.log(`Transfer status for call ${callId}: ${DialCallStatus}`);
 
     await outboundCallService.handleTransferStatus(callId, {
@@ -212,6 +274,17 @@ router.post('/webhook/consent/:callId', async (req: Request, res: Response) => {
     const { callId } = req.params;
     const { Digits, SpeechResult } = req.body;
     const defaultConsent = req.query.defaultConsent === 'true';
+
+    // SECURITY: Validate callId format to prevent injection
+    if (!isValidUUID(callId)) {
+      console.error(`Invalid callId format: ${callId}`);
+      res.set('Content-Type', 'text/xml');
+      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+        <Response>
+          <Say>Invalid request. Goodbye.</Say>
+          <Hangup/>
+        </Response>`);
+    }
 
     console.log(`Consent response for call ${callId}: Digits=${Digits}, Speech=${SpeechResult}, Default=${defaultConsent}`);
 
@@ -242,13 +315,16 @@ router.use(tenantMiddleware);
 // ==================== CAMPAIGNS ====================
 
 // Create campaign
-router.post('/campaigns', async (req: TenantRequest, res: Response) => {
+router.post('/campaigns', validate([
+  body('agentId').isUUID().withMessage('Valid agent ID is required'),
+  body('name').trim().notEmpty().withMessage('Name is required')
+    .isLength({ max: 200 }).withMessage('Name too long'),
+  body('description').optional().trim().isLength({ max: 2000 }).withMessage('Description too long'),
+  body('contacts').isArray({ min: 1, max: 10000 }).withMessage('Contacts array is required (1-10000)'),
+  body('callingMode').optional().isIn(['AUTOMATIC', 'MANUAL']),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { agentId, name, description, contacts, settings, scheduledAt, callingMode } = req.body;
-
-    if (!agentId || !name || !contacts || !Array.isArray(contacts) || contacts.length === 0) {
-      return ApiResponse.error(res, 'Agent ID, name, and contacts array are required', 400);
-    }
 
     const campaign = await outboundCallService.createCampaign({
       organizationId: req.organization!.id,
@@ -278,9 +354,18 @@ router.get('/campaigns', async (req: TenantRequest, res: Response) => {
 });
 
 // Get campaign
-router.get('/campaigns/:id', async (req: TenantRequest, res: Response) => {
+router.get('/campaigns/:id', validate([
+  param('id').isUUID().withMessage('Invalid campaign ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
-    const campaign = await outboundCallService.getCampaign(req.params.id);
+    // SECURITY: Verify campaign belongs to user's organization
+    const campaign = await prisma.outboundCallCampaign.findFirst({
+      where: { id: req.params.id, organizationId: req.organization!.id },
+      include: {
+        agent: { select: { id: true, name: true, industry: true } },
+        _count: { select: { contacts: true, calls: true } },
+      },
+    });
 
     if (!campaign) {
       return ApiResponse.error(res, 'Campaign not found', 404);
@@ -293,8 +378,18 @@ router.get('/campaigns/:id', async (req: TenantRequest, res: Response) => {
 });
 
 // Start campaign
-router.post('/campaigns/:id/start', async (req: TenantRequest, res: Response) => {
+router.post('/campaigns/:id/start', validate([
+  param('id').isUUID().withMessage('Invalid campaign ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
+    // SECURITY: Verify campaign belongs to user's organization
+    const existing = await prisma.outboundCallCampaign.findFirst({
+      where: { id: req.params.id, organizationId: req.organization!.id },
+    });
+    if (!existing) {
+      return ApiResponse.error(res, 'Campaign not found', 404);
+    }
+
     const campaign = await outboundCallService.startCampaign(req.params.id);
     ApiResponse.success(res, 'Campaign started', campaign);
   } catch (error) {
@@ -303,8 +398,18 @@ router.post('/campaigns/:id/start', async (req: TenantRequest, res: Response) =>
 });
 
 // Pause campaign
-router.post('/campaigns/:id/pause', async (req: TenantRequest, res: Response) => {
+router.post('/campaigns/:id/pause', validate([
+  param('id').isUUID().withMessage('Invalid campaign ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
+    // SECURITY: Verify campaign belongs to user's organization
+    const existing = await prisma.outboundCallCampaign.findFirst({
+      where: { id: req.params.id, organizationId: req.organization!.id },
+    });
+    if (!existing) {
+      return ApiResponse.error(res, 'Campaign not found', 404);
+    }
+
     const campaign = await outboundCallService.pauseCampaign(req.params.id);
     ApiResponse.success(res, 'Campaign paused', campaign);
   } catch (error) {
@@ -313,8 +418,18 @@ router.post('/campaigns/:id/pause', async (req: TenantRequest, res: Response) =>
 });
 
 // Resume campaign
-router.post('/campaigns/:id/resume', async (req: TenantRequest, res: Response) => {
+router.post('/campaigns/:id/resume', validate([
+  param('id').isUUID().withMessage('Invalid campaign ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
+    // SECURITY: Verify campaign belongs to user's organization
+    const existing = await prisma.outboundCallCampaign.findFirst({
+      where: { id: req.params.id, organizationId: req.organization!.id },
+    });
+    if (!existing) {
+      return ApiResponse.error(res, 'Campaign not found', 404);
+    }
+
     const campaign = await outboundCallService.resumeCampaign(req.params.id);
     ApiResponse.success(res, 'Campaign resumed', campaign);
   } catch (error) {
@@ -323,7 +438,12 @@ router.post('/campaigns/:id/resume', async (req: TenantRequest, res: Response) =
 });
 
 // Update campaign
-router.put('/campaigns/:id', async (req: TenantRequest, res: Response) => {
+router.put('/campaigns/:id', validate([
+  param('id').isUUID().withMessage('Invalid campaign ID'),
+  body('name').optional().trim().notEmpty().isLength({ max: 200 }).withMessage('Name too long'),
+  body('description').optional().trim().isLength({ max: 2000 }).withMessage('Description too long'),
+  body('callingMode').optional().isIn(['AUTOMATIC', 'MANUAL']),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { name, description, settings, scheduledAt, callingMode } = req.body;
@@ -369,7 +489,9 @@ router.put('/campaigns/:id', async (req: TenantRequest, res: Response) => {
 });
 
 // Delete campaign
-router.delete('/campaigns/:id', async (req: TenantRequest, res: Response) => {
+router.delete('/campaigns/:id', authorize('admin', 'manager'), validate([
+  param('id').isUUID().withMessage('Invalid campaign ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -427,13 +549,15 @@ router.delete('/campaigns/:id', async (req: TenantRequest, res: Response) => {
 // ==================== SINGLE CALLS ====================
 
 // Make a single call
-router.post('/call', async (req: TenantRequest, res: Response) => {
+router.post('/call', validate([
+  body('agentId').isUUID().withMessage('Valid agent ID is required'),
+  body('phone').trim().notEmpty().withMessage('Phone number is required')
+    .isLength({ max: 20 }).withMessage('Phone number too long'),
+  body('leadId').optional().isUUID().withMessage('Invalid lead ID'),
+  body('contactName').optional().trim().isLength({ max: 200 }).withMessage('Contact name too long'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { agentId, phone, leadId, contactName, customData } = req.body;
-
-    if (!agentId || !phone) {
-      return ApiResponse.error(res, 'Agent ID and phone number are required', 400);
-    }
 
     // Check voice minutes availability
     const usageCheck = await voiceMinutesService.checkUsage(
@@ -460,9 +584,22 @@ router.post('/call', async (req: TenantRequest, res: Response) => {
 });
 
 // Get call details
-router.get('/calls/:id', async (req: TenantRequest, res: Response) => {
+router.get('/calls/:id', validate([
+  param('id').isUUID().withMessage('Invalid call ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
-    const call = await outboundCallService.getCall(req.params.id);
+    // SECURITY: Get call and verify it belongs to user's organization via agent
+    const call = await prisma.outboundCall.findFirst({
+      where: {
+        id: req.params.id,
+        agent: { organizationId: req.organization!.id },
+      },
+      include: {
+        agent: { select: { id: true, name: true, industry: true } },
+        contact: true,
+        campaign: { select: { id: true, name: true } },
+      },
+    });
 
     if (!call) {
       return ApiResponse.error(res, 'Call not found', 404);
@@ -474,7 +611,335 @@ router.get('/calls/:id', async (req: TenantRequest, res: Response) => {
   }
 });
 
-// List calls
+// Get enhanced call summary for call summary page
+router.get('/calls/:id/summary', validate([
+  param('id').isUUID().withMessage('Invalid call ID'),
+]), async (req: TenantRequest, res: Response) => {
+  try {
+    // SECURITY: Get call and verify it belongs to user's organization via agent
+    const call = await prisma.outboundCall.findFirst({
+      where: {
+        id: req.params.id,
+        agent: { organizationId: req.organization!.id },
+      },
+      select: {
+        existingLeadId: true,
+        generatedLeadId: true,
+      },
+    });
+
+    if (!call) {
+      return ApiResponse.error(res, 'Call not found', 404);
+    }
+
+    // Role-based access check: if call is linked to a lead, verify user can access that lead
+    const leadId = call.existingLeadId || call.generatedLeadId;
+    if (leadId && !hasElevatedAccess(req.user!.role)) {
+      const canAccess = await canAccessLead(leadId, {
+        userId: req.user!.id,
+        organizationId: req.organization!.id,
+        role: req.user!.role,
+      });
+      if (!canAccess) {
+        return ApiResponse.error(res, 'Call not found', 404);
+      }
+    }
+
+    // Re-fetch with full data after access check
+    const fullCall = await prisma.outboundCall.findFirst({
+      where: {
+        id: req.params.id,
+        agent: { organizationId: req.organization!.id },
+      },
+      include: {
+        agent: {
+          select: {
+            id: true,
+            name: true,
+            industry: true,
+          },
+        },
+        contact: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            email: true,
+          },
+        },
+        campaign: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        existingLead: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            alternatePhone: true,
+            source: true,
+            priority: true,
+            city: true,
+            state: true,
+            country: true,
+            stage: { select: { name: true } },
+            subStage: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    if (!fullCall) {
+      return ApiResponse.error(res, 'Call not found', 404);
+    }
+
+    // Build contact info from available sources
+    const contactInfo = {
+      name: fullCall.contact?.name ||
+            (fullCall.existingLead ? `${fullCall.existingLead.firstName || ''} ${fullCall.existingLead.lastName || ''}`.trim() : null) ||
+            'Unknown Contact',
+      phone: fullCall.phoneNumber,
+      email: fullCall.contact?.email || fullCall.existingLead?.email || null,
+      // Additional lead details
+      alternatePhone: fullCall.existingLead?.alternatePhone || null,
+      source: fullCall.existingLead?.source || null,
+      priority: fullCall.existingLead?.priority || null,
+      city: fullCall.existingLead?.city || null,
+      state: fullCall.existingLead?.state || null,
+      country: fullCall.existingLead?.country || null,
+      stage: fullCall.existingLead?.stage?.name || null,
+      subStage: fullCall.existingLead?.subStage?.name || null,
+      leadId: fullCall.existingLead?.id || fullCall.leadId || null,
+    };
+
+    // Parse transcript
+    const transcript = (fullCall.transcript as any[]) || [];
+
+    // Build enhanced transcript with timestamps if not already stored
+    let enhancedTranscript = fullCall.enhancedTranscript as any[];
+    if (!enhancedTranscript || enhancedTranscript.length === 0) {
+      const avgMessageDuration = (fullCall.duration || 120) / Math.max(transcript.length, 1);
+      enhancedTranscript = transcript.map((msg, index) => ({
+        role: msg.role,
+        content: msg.content,
+        startTimeSeconds: Math.round(index * avgMessageDuration),
+        sentiment: 'neutral',
+      }));
+    }
+
+    // Calculate speaking time breakdown if not stored
+    const agentSpeakingTime = fullCall.agentSpeakingTime || Math.round((fullCall.duration || 120) * 0.45);
+    const customerSpeakingTime = fullCall.customerSpeakingTime || Math.round((fullCall.duration || 120) * 0.35);
+    const nonSpeechTime = fullCall.nonSpeechTime || Math.round((fullCall.duration || 120) * 0.20);
+
+    // Fetch previous calls for the same lead (lead journey)
+    // Role-based: Telecallers only see calls linked to leads assigned to them
+    let leadJourney: any[] = [];
+    if (fullCall.phoneNumber) {
+      // Build where clause based on role
+      const isElevated = hasElevatedAccess(req.user!.role);
+
+      // For non-elevated users, only show calls linked to leads they have access to
+      const whereClause: any = {
+        phoneNumber: fullCall.phoneNumber,
+        agent: { organizationId: req.organization!.id },
+        id: { not: fullCall.id }, // Exclude current call
+      };
+
+      // If not elevated, filter to only calls linked to leads assigned to this user
+      if (!isElevated) {
+        whereClause.OR = [
+          // Calls linked to leads assigned to this user
+          {
+            existingLead: {
+              assignments: {
+                some: {
+                  assignedToId: req.user!.id,
+                  isActive: true,
+                },
+              },
+            },
+          },
+          // Calls without a lead (org-level access)
+          {
+            existingLeadId: null,
+            generatedLeadId: null,
+          },
+        ];
+      }
+
+      const previousCalls = await prisma.outboundCall.findMany({
+        where: whereClause,
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          createdAt: true,
+          duration: true,
+          outcome: true,
+          sentiment: true,
+          summary: true,
+          isFollowUpCall: true,
+          followUpNumber: true,
+          extractedData: true,
+          agent: {
+            select: { name: true },
+          },
+        },
+      });
+
+      leadJourney = previousCalls.map((prevCall, index) => ({
+        id: prevCall.id,
+        callNumber: index + 1,
+        date: prevCall.createdAt.toISOString(),
+        duration: prevCall.duration || 0,
+        outcome: prevCall.outcome || 'UNKNOWN',
+        sentiment: prevCall.sentiment || 'neutral',
+        summary: prevCall.summary || '',
+        isFollowUp: prevCall.isFollowUpCall || false,
+        followUpNumber: prevCall.followUpNumber || index + 1,
+        agentName: prevCall.agent?.name || 'AI Agent',
+        extractedData: prevCall.extractedData || null,
+      }));
+    }
+
+    // Calculate current call number in journey
+    const currentCallNumber = leadJourney.length + 1;
+
+    const summaryData = {
+      id: fullCall.id,
+      phoneNumber: fullCall.phoneNumber,
+      direction: fullCall.direction,
+      contact: contactInfo,
+      duration: fullCall.duration || 0,
+      recordingUrl: fullCall.recordingUrl,
+      summary: fullCall.summary || 'No summary available',
+      sentiment: fullCall.sentiment || 'neutral',
+      sentimentIntensity: fullCall.sentimentIntensity || 'medium',
+      outcome: fullCall.outcome || 'NEEDS_FOLLOWUP',
+      outcomeNotes: fullCall.outcomeNotes,
+      callQualityScore: fullCall.callQualityScore || 50,
+      keyQuestionsAsked: (fullCall.keyQuestionsAsked as string[]) || [],
+      keyIssuesDiscussed: (fullCall.keyIssuesDiscussed as string[]) || [],
+      agentSpeakingTime,
+      customerSpeakingTime,
+      nonSpeechTime,
+      enhancedTranscript,
+      agent: fullCall.agent,
+      campaign: fullCall.campaign,
+      leadId: fullCall.existingLeadId || fullCall.generatedLeadId,
+      createdAt: fullCall.createdAt.toISOString(),
+      answeredAt: fullCall.answeredAt?.toISOString(),
+      endedAt: fullCall.endedAt?.toISOString(),
+      // AI Coaching data
+      coachingPositiveHighlights: (fullCall as any).coachingPositiveHighlights || [],
+      coachingAreasToImprove: (fullCall as any).coachingAreasToImprove || [],
+      coachingNextCallTips: (fullCall as any).coachingNextCallTips || [],
+      coachingSummary: (fullCall as any).coachingSummary || null,
+      coachingTalkListenFeedback: (fullCall as any).coachingTalkListenFeedback || null,
+      coachingEmpathyScore: (fullCall as any).coachingEmpathyScore || null,
+      coachingObjectionScore: (fullCall as any).coachingObjectionScore || null,
+      coachingClosingScore: (fullCall as any).coachingClosingScore || null,
+      // Extracted data from conversation
+      extractedData: (fullCall as any).extractedData || null,
+      // Lead journey - previous calls to this contact
+      leadJourney,
+      currentCallNumber,
+      totalCallsToLead: currentCallNumber,
+      isFollowUpCall: fullCall.isFollowUpCall || leadJourney.length > 0,
+    };
+
+    ApiResponse.success(res, 'Call summary retrieved', summaryData);
+  } catch (error) {
+    console.error('Get call summary error:', error);
+    ApiResponse.error(res, (error as Error).message, 500);
+  }
+});
+
+// Get Smart Call Prep suggestions for a lead/phone number
+router.get('/call-prep/:phoneNumber', async (req: TenantRequest, res: Response) => {
+  try {
+    const { phoneNumber } = req.params;
+    const { leadName } = req.query;
+
+    // Import the AI service
+    const { generateCallPrepSuggestions } = await import('../services/voicebot-ai.service');
+
+    // Find all previous calls to this phone number
+    const previousCalls = await prisma.outboundCall.findMany({
+      where: {
+        phoneNumber: phoneNumber,
+        agent: { organizationId: req.organization!.id },
+        status: 'COMPLETED',
+        NOT: { transcript: { equals: Prisma.DbNull } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5, // Last 5 calls
+      select: {
+        id: true,
+        transcript: true,
+        summary: true,
+        sentiment: true,
+        outcome: true,
+        createdAt: true,
+        duration: true,
+      },
+    });
+
+    if (previousCalls.length === 0) {
+      return ApiResponse.success(res, 'No previous calls found', {
+        hasPreviousCalls: false,
+        prep: {
+          recommendedOpening: `Hi${leadName ? ` ${leadName}` : ''}, this is your agent calling. How are you doing today?`,
+          thingsToAvoid: [],
+          talkingPoints: ['Introduce yourself and your company', 'Ask about their needs', 'Present your solution'],
+          objectionPrep: [],
+          leadContext: {
+            interestLevel: 'medium',
+            mainConcerns: [],
+            decisionMakerStatus: 'Unknown',
+            preferredChannel: 'Phone',
+            bestTimeToCall: 'Anytime',
+          },
+          previousCallsSummary: 'This is the first call to this contact.',
+          confidenceScore: 30,
+        },
+      });
+    }
+
+    // Format calls for AI analysis
+    const callsForAnalysis = previousCalls.map(call => ({
+      transcript: (call.transcript as Array<{ role: string; content: string }>) || [],
+      summary: call.summary || '',
+      sentiment: call.sentiment || 'neutral',
+      outcome: call.outcome || 'NEEDS_FOLLOWUP',
+      createdAt: call.createdAt,
+      duration: call.duration || 0,
+    }));
+
+    // Generate call prep suggestions
+    const prep = await generateCallPrepSuggestions(
+      (leadName as string) || 'Customer',
+      phoneNumber,
+      callsForAnalysis
+    );
+
+    ApiResponse.success(res, 'Call prep suggestions generated', {
+      hasPreviousCalls: true,
+      totalPreviousCalls: previousCalls.length,
+      lastCallDate: previousCalls[0]?.createdAt,
+      prep,
+    });
+  } catch (error) {
+    console.error('Get call prep error:', error);
+    ApiResponse.error(res, (error as Error).message, 500);
+  }
+});
+
+// List calls (with role-based filtering)
 router.get('/calls', async (req: TenantRequest, res: Response) => {
   try {
     const {
@@ -488,6 +953,12 @@ router.get('/calls', async (req: TenantRequest, res: Response) => {
       offset,
     } = req.query;
 
+    const userRole = req.user!.role;
+    const userId = req.user!.id;
+
+    // For non-elevated roles, only show calls for leads assigned to them
+    const assignedToUserId = hasElevatedAccess(userRole) ? undefined : userId;
+
     const result = await outboundCallService.listCalls({
       organizationId: req.organization!.id,
       agentId: agentId as string,
@@ -498,6 +969,7 @@ router.get('/calls', async (req: TenantRequest, res: Response) => {
       dateTo: dateTo ? new Date(dateTo as string) : undefined,
       limit: limit ? parseInt(limit as string) : 50,
       offset: offset ? parseInt(offset as string) : 0,
+      assignedToUserId, // Role-based filter
     });
 
     ApiResponse.success(res, 'Calls retrieved', result);
@@ -524,7 +996,9 @@ router.get('/analytics', async (req: TenantRequest, res: Response) => {
 });
 
 // Get campaign-specific analytics
-router.get('/campaigns/:id/analytics', async (req: TenantRequest, res: Response) => {
+router.get('/campaigns/:id/analytics', validate([
+  param('id').isUUID().withMessage('Invalid campaign ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -664,17 +1138,19 @@ router.get('/campaigns/:id/analytics', async (req: TenantRequest, res: Response)
 
 // ==================== MANUAL CALL QUEUE ====================
 
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import { prisma } from '../config/database';
 
 // Get manual call queue for a campaign
-router.get('/campaigns/:id/queue', async (req: TenantRequest, res: Response) => {
+router.get('/campaigns/:id/queue', validate([
+  param('id').isUUID().withMessage('Invalid campaign ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.query;
 
-    const campaign = await prisma.outboundCallCampaign.findUnique({
-      where: { id },
+    // SECURITY: Verify campaign belongs to user's organization
+    const campaign = await prisma.outboundCallCampaign.findFirst({
+      where: { id, organizationId: req.organization!.id },
       include: { agent: true },
     });
 
@@ -746,13 +1222,16 @@ router.get('/campaigns/:id/queue', async (req: TenantRequest, res: Response) => 
 });
 
 // Manually trigger a call for a specific contact in queue
-router.post('/campaigns/:campaignId/queue/:contactId/call', async (req: TenantRequest, res: Response) => {
+router.post('/campaigns/:campaignId/queue/:contactId/call', validate([
+  param('campaignId').isUUID().withMessage('Invalid campaign ID'),
+  param('contactId').isUUID().withMessage('Invalid contact ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { campaignId, contactId } = req.params;
 
-    // Get campaign and contact
-    const campaign = await prisma.outboundCallCampaign.findUnique({
-      where: { id: campaignId },
+    // SECURITY: Verify campaign belongs to user's organization
+    const campaign = await prisma.outboundCallCampaign.findFirst({
+      where: { id: campaignId, organizationId: req.organization!.id },
       include: { agent: true },
     });
 
@@ -760,8 +1239,9 @@ router.post('/campaigns/:campaignId/queue/:contactId/call', async (req: TenantRe
       return ApiResponse.error(res, 'Campaign not found', 404);
     }
 
-    const contact = await prisma.outboundCallContact.findUnique({
-      where: { id: contactId },
+    // SECURITY: Verify contact belongs to this campaign
+    const contact = await prisma.outboundCallContact.findFirst({
+      where: { id: contactId, campaignId },
     });
 
     if (!contact) {
@@ -800,10 +1280,30 @@ router.post('/campaigns/:campaignId/queue/:contactId/call', async (req: TenantRe
 });
 
 // Skip a contact in queue
-router.post('/campaigns/:campaignId/queue/:contactId/skip', async (req: TenantRequest, res: Response) => {
+router.post('/campaigns/:campaignId/queue/:contactId/skip', validate([
+  param('campaignId').isUUID().withMessage('Invalid campaign ID'),
+  param('contactId').isUUID().withMessage('Invalid contact ID'),
+  body('reason').optional().trim().isLength({ max: 500 }).withMessage('Reason too long'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { campaignId, contactId } = req.params;
     const { reason } = req.body;
+
+    // SECURITY: Verify campaign belongs to user's organization
+    const campaign = await prisma.outboundCallCampaign.findFirst({
+      where: { id: campaignId, organizationId: req.organization!.id },
+    });
+    if (!campaign) {
+      return ApiResponse.error(res, 'Campaign not found', 404);
+    }
+
+    // Verify contact belongs to this campaign
+    const existingContact = await prisma.outboundCallContact.findFirst({
+      where: { id: contactId, campaignId },
+    });
+    if (!existingContact) {
+      return ApiResponse.error(res, 'Contact not found', 404);
+    }
 
     const contact = await prisma.outboundCallContact.update({
       where: { id: contactId },
@@ -825,13 +1325,30 @@ router.post('/campaigns/:campaignId/queue/:contactId/skip', async (req: TenantRe
 });
 
 // Schedule a contact for later
-router.post('/campaigns/:campaignId/queue/:contactId/schedule', async (req: TenantRequest, res: Response) => {
+router.post('/campaigns/:campaignId/queue/:contactId/schedule', validate([
+  param('campaignId').isUUID().withMessage('Invalid campaign ID'),
+  param('contactId').isUUID().withMessage('Invalid contact ID'),
+  body('scheduledAt').isISO8601().withMessage('Valid scheduled time is required'),
+  body('notes').optional().trim().isLength({ max: 1000 }).withMessage('Notes too long'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { campaignId, contactId } = req.params;
     const { scheduledAt, notes } = req.body;
 
-    if (!scheduledAt) {
-      return ApiResponse.error(res, 'Scheduled time is required', 400);
+    // SECURITY: Verify campaign belongs to user's organization
+    const campaign = await prisma.outboundCallCampaign.findFirst({
+      where: { id: campaignId, organizationId: req.organization!.id },
+    });
+    if (!campaign) {
+      return ApiResponse.error(res, 'Campaign not found', 404);
+    }
+
+    // Verify contact belongs to this campaign
+    const existingContact = await prisma.outboundCallContact.findFirst({
+      where: { id: contactId, campaignId },
+    });
+    if (!existingContact) {
+      return ApiResponse.error(res, 'Contact not found', 404);
     }
 
     const contact = await prisma.outboundCallContact.update({
@@ -854,13 +1371,26 @@ router.post('/campaigns/:campaignId/queue/:contactId/schedule', async (req: Tena
 });
 
 // Mark contact as Do Not Call
-router.post('/campaigns/:campaignId/queue/:contactId/dnc', async (req: TenantRequest, res: Response) => {
+router.post('/campaigns/:campaignId/queue/:contactId/dnc', validate([
+  param('campaignId').isUUID().withMessage('Invalid campaign ID'),
+  param('contactId').isUUID().withMessage('Invalid contact ID'),
+  body('reason').optional().trim().isLength({ max: 500 }).withMessage('Reason too long'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { campaignId, contactId } = req.params;
     const { reason } = req.body;
 
-    const contact = await prisma.outboundCallContact.findUnique({
-      where: { id: contactId },
+    // SECURITY: Verify campaign belongs to user's organization
+    const campaign = await prisma.outboundCallCampaign.findFirst({
+      where: { id: campaignId, organizationId: req.organization!.id },
+    });
+    if (!campaign) {
+      return ApiResponse.error(res, 'Campaign not found', 404);
+    }
+
+    // Verify contact belongs to this campaign
+    const contact = await prisma.outboundCallContact.findFirst({
+      where: { id: contactId, campaignId },
     });
 
     if (!contact) {
@@ -900,9 +1430,19 @@ router.post('/campaigns/:campaignId/queue/:contactId/dnc', async (req: TenantReq
 });
 
 // Get next contact in queue (for quick calling)
-router.get('/campaigns/:id/queue/next', async (req: TenantRequest, res: Response) => {
+router.get('/campaigns/:id/queue/next', validate([
+  param('id').isUUID().withMessage('Invalid campaign ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { id } = req.params;
+
+    // SECURITY: Verify campaign belongs to user's organization
+    const campaign = await prisma.outboundCallCampaign.findFirst({
+      where: { id, organizationId: req.organization!.id },
+    });
+    if (!campaign) {
+      return ApiResponse.error(res, 'Campaign not found', 404);
+    }
 
     const nextContact = await prisma.outboundCallContact.findFirst({
       where: {
@@ -964,7 +1504,16 @@ router.get('/transfer-configs', async (req: TenantRequest, res: Response) => {
 });
 
 // Create transfer config
-router.post('/transfer-configs', async (req: TenantRequest, res: Response) => {
+router.post('/transfer-configs', validate([
+  body('agentId').optional().isUUID().withMessage('Invalid agent ID'),
+  body('name').trim().notEmpty().withMessage('Name is required')
+    .isLength({ max: 200 }).withMessage('Name too long'),
+  body('triggerKeywords').optional().isArray({ max: 50 }).withMessage('Too many trigger keywords'),
+  body('transferType').optional().isIn(['PHONE', 'SIP', 'QUEUE']),
+  body('transferTo').optional().trim().isLength({ max: 100 }),
+  body('transferMessage').optional().trim().isLength({ max: 1000 }),
+  body('fallbackMessage').optional().trim().isLength({ max: 1000 }),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const {
       agentId,
@@ -978,10 +1527,6 @@ router.post('/transfer-configs', async (req: TenantRequest, res: Response) => {
       fallbackMessage,
       voicemailEnabled,
     } = req.body;
-
-    if (!name) {
-      return ApiResponse.error(res, 'Name is required', 400);
-    }
 
     const config = await prisma.transferConfig.create({
       data: {
@@ -1006,14 +1551,50 @@ router.post('/transfer-configs', async (req: TenantRequest, res: Response) => {
 });
 
 // Update transfer config
-router.put('/transfer-configs/:id', async (req: TenantRequest, res: Response) => {
+router.put('/transfer-configs/:id', validate([
+  param('id').isUUID().withMessage('Invalid config ID'),
+  body('name').optional().trim().notEmpty().isLength({ max: 200 }).withMessage('Name too long'),
+  body('transferTo').optional().trim().isLength({ max: 100 }),
+  body('transferMessage').optional().trim().isLength({ max: 1000 }),
+  body('fallbackMessage').optional().trim().isLength({ max: 1000 }),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+
+    // SECURITY: Verify config belongs to user's organization
+    const existing = await prisma.transferConfig.findFirst({
+      where: { id, organizationId: req.organization!.id },
+    });
+    if (!existing) {
+      return ApiResponse.error(res, 'Transfer config not found', 404);
+    }
+
+    // Only allow specific fields to be updated
+    const {
+      name,
+      triggerKeywords,
+      triggerSentiment,
+      maxAITurns,
+      transferType,
+      transferTo,
+      transferMessage,
+      fallbackMessage,
+      voicemailEnabled,
+    } = req.body;
 
     const config = await prisma.transferConfig.update({
       where: { id },
-      data: updateData,
+      data: {
+        ...(name !== undefined && { name }),
+        ...(triggerKeywords !== undefined && { triggerKeywords }),
+        ...(triggerSentiment !== undefined && { triggerSentiment }),
+        ...(maxAITurns !== undefined && { maxAITurns }),
+        ...(transferType !== undefined && { transferType }),
+        ...(transferTo !== undefined && { transferTo }),
+        ...(transferMessage !== undefined && { transferMessage }),
+        ...(fallbackMessage !== undefined && { fallbackMessage }),
+        ...(voicemailEnabled !== undefined && { voicemailEnabled }),
+      },
     });
 
     ApiResponse.success(res, 'Transfer config updated', config);
@@ -1023,9 +1604,19 @@ router.put('/transfer-configs/:id', async (req: TenantRequest, res: Response) =>
 });
 
 // Delete transfer config
-router.delete('/transfer-configs/:id', async (req: TenantRequest, res: Response) => {
+router.delete('/transfer-configs/:id', authorize('admin', 'manager'), validate([
+  param('id').isUUID().withMessage('Invalid config ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { id } = req.params;
+
+    // SECURITY: Verify config belongs to user's organization
+    const existing = await prisma.transferConfig.findFirst({
+      where: { id, organizationId: req.organization!.id },
+    });
+    if (!existing) {
+      return ApiResponse.error(res, 'Transfer config not found', 404);
+    }
 
     await prisma.transferConfig.delete({
       where: { id },

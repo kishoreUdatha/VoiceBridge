@@ -3,13 +3,12 @@
  * Handles survey and feedback collection conversations
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import OpenAI from 'openai';
 import { emailService } from '../integrations/email.service';
 import { communicationService } from './communication.service';
 import { AgentContext, AgentResponse } from './specialized-agent.types';
 
-const prisma = new PrismaClient();
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })

@@ -2,12 +2,14 @@ import { Router, Response, NextFunction } from 'express';
 import { telecallerQueueService } from '../services/telecallerQueue.service';
 import { ApiResponse } from '../utils/apiResponse';
 import { authenticate, AuthenticatedRequest } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
 import { TelecallerQueueStatus, TelecallerOutcome } from '@prisma/client';
 
 const router = Router();
 
-// All routes require authentication
+// All routes require authentication and tenant context
 router.use(authenticate);
+router.use(tenantMiddleware);
 
 /**
  * GET /api/telecaller-queue

@@ -8,3 +8,4 @@ export { default as CalendarSettingsPage } from './CalendarSettingsPage';
 export { default as EmailSequencesPage } from './EmailSequencesPage';
 export { default as CRMIntegrationPage } from './CRMIntegrationPage';
 export { default as PostCallMessagingPage } from './PostCallMessagingPage';
+export { default as IntegrationCredentialsPage } from './IntegrationCredentialsPage';

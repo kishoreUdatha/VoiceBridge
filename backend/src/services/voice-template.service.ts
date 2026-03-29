@@ -1,8 +1,8 @@
-import { PrismaClient, VoiceAgentIndustry, Prisma } from '@prisma/client';
+import { VoiceAgentIndustry, Prisma } from '@prisma/client';
+import { prisma } from '../config/database';
 import { AppError } from '../utils/errors';
 import { industryTemplates } from '../integrations/voice-ai.service';
 
-const prisma = new PrismaClient();
 
 // Default industry templates (used when creating new organization templates)
 const DEFAULT_INDUSTRY_CONFIG = {

@@ -2,11 +2,10 @@ import { Router, Request, Response } from 'express';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { handleExotelWebSocket, getActiveSessionsCount } from '../services/exotel-voicebot.service';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { config } from '../config';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 /**
  * Voice Bot WebSocket Routes
@@ -16,27 +15,109 @@ const prisma = new PrismaClient();
 let wss: WebSocketServer | null = null;
 
 /**
+ * Validate WebSocket connection for Voice Bot
+ * Ensures the agent exists and the connection is authorized
+ */
+async function validateWebSocketConnection(
+  agentId: string,
+  callId: string,
+  headers: Record<string, string | string[] | undefined>
+): Promise<{ valid: boolean; error?: string; agent?: { id: string; organizationId: string } }> {
+  // Validate agentId is provided
+  if (!agentId) {
+    return { valid: false, error: 'Agent ID is required' };
+  }
+
+  // Validate callId is provided
+  if (!callId) {
+    return { valid: false, error: 'Call ID is required' };
+  }
+
+  try {
+    // Verify agent exists and is active
+    const agent = await prisma.voiceAgent.findUnique({
+      where: { id: agentId },
+      select: { id: true, isActive: true, organizationId: true },
+    });
+
+    if (!agent) {
+      console.warn(`[VoiceBot] SECURITY: Connection attempt with invalid agent ID: ${agentId}`);
+      return { valid: false, error: 'Invalid agent ID' };
+    }
+
+    if (!agent.isActive) {
+      console.warn(`[VoiceBot] SECURITY: Connection attempt with inactive agent: ${agentId}`);
+      return { valid: false, error: 'Agent is not active' };
+    }
+
+    // Log successful validation (for audit trail)
+    console.info(`[VoiceBot] Connection validated - Agent: ${agentId}, Call: ${callId}, Org: ${agent.organizationId}`);
+
+    return { valid: true, agent: { id: agent.id, organizationId: agent.organizationId } };
+  } catch (error) {
+    console.error('[VoiceBot] Error validating connection:', error);
+    return { valid: false, error: 'Validation error' };
+  }
+}
+
+/**
  * Initialize WebSocket server for Voice Bot
+ * Includes authentication and security validations
  */
 export function initializeVoiceBotWebSocket(server: Server): void {
   wss = new WebSocketServer({
     server,
     path: '/voice-stream',
+    // Verify client during upgrade
+    verifyClient: async (info, callback) => {
+      const url = new URL(info.req.url || '', `http://${info.req.headers.host}`);
+      const agentId = url.searchParams.get('agentId') || '';
+      const callId = url.searchParams.get('callId') || '';
+
+      // Allow health checks without full validation
+      if (url.pathname === '/voice-stream/health') {
+        callback(true);
+        return;
+      }
+
+      // Validate the connection
+      const validation = await validateWebSocketConnection(
+        agentId,
+        callId,
+        info.req.headers as Record<string, string | string[] | undefined>
+      );
+
+      if (!validation.valid) {
+        console.warn(`[VoiceBot] SECURITY: Rejected WebSocket connection - ${validation.error}`);
+        callback(false, 401, validation.error || 'Unauthorized');
+        return;
+      }
+
+      callback(true);
+    },
   });
 
-  console.log('[VoiceBot] WebSocket server initialized on /voice-stream');
+  console.log('[VoiceBot] WebSocket server initialized on /voice-stream (with authentication)');
 
   wss.on('connection', async (ws: WebSocket, req) => {
-    console.log('[VoiceBot] New WebSocket connection');
-    console.log('[VoiceBot] URL:', req.url);
-    console.log('[VoiceBot] Headers:', JSON.stringify(req.headers, null, 2));
-
     // Parse query parameters from URL
     const url = new URL(req.url || '', `http://${req.headers.host}`);
     const callId = url.searchParams.get('callId') || `call_${Date.now()}`;
     const agentId = url.searchParams.get('agentId') || '';
 
-    console.log(`[VoiceBot] Call ID: ${callId}, Agent ID: ${agentId}`);
+    // Log connection (without sensitive headers)
+    console.log(`[VoiceBot] WebSocket connected - Call: ${callId}, Agent: ${agentId}`);
+
+    // Set connection timeout (prevent hanging connections)
+    const connectionTimeout = setTimeout(() => {
+      console.warn(`[VoiceBot] Connection timeout - Call: ${callId}`);
+      ws.close(1000, 'Connection timeout');
+    }, 30 * 60 * 1000); // 30 minutes max
+
+    ws.on('close', () => {
+      clearTimeout(connectionTimeout);
+      console.log(`[VoiceBot] WebSocket closed - Call: ${callId}`);
+    });
 
     // Handle the connection
     await handleExotelWebSocket(ws, callId, agentId);

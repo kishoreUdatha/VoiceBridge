@@ -19,7 +19,7 @@
  */
 
 import * as WebSocket from 'ws';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 
 // Import extracted services
 import {
@@ -69,7 +69,6 @@ import {
   AgentDocument,
 } from './voicebot-document.service';
 
-const prisma = new PrismaClient();
 
 /**
  * Handle new WebSocket connection from Exotel

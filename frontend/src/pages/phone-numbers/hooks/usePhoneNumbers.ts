@@ -38,9 +38,7 @@ export function usePhoneNumbers() {
   const loadAgents = async () => {
     try {
       const response = await fetch('/api/voice-ai/agents', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-        },
+        credentials: 'include', // Send cookies for authentication
       });
       const data = await response.json();
       if (data.success) {

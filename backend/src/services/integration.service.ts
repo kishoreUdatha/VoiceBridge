@@ -3,11 +3,10 @@
  * Handles OAuth flows, API calls, and integration management for Voice AI agents
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import axios from 'axios';
 import * as crypto from 'crypto';
 
-const prisma = new PrismaClient();
 
 // Encryption key for storing sensitive credentials
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-encryption-key-32char!!';

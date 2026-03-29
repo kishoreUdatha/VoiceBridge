@@ -1,13 +1,16 @@
 import { Router, Response } from 'express';
-import { authenticate, AuthenticatedRequest } from '../middlewares/auth';
-import { PrismaClient } from '@prisma/client';
+import { body, param } from 'express-validator';
+import { authenticate, authorize, AuthenticatedRequest } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
+import { prisma } from '../config/database';
 import axios from 'axios';
 
 const router = Router();
-const prisma = new PrismaClient();
 
-// All routes require authentication
+// All routes require authentication and tenant context
 router.use(authenticate);
+router.use(tenantMiddleware);
 
 // Get all CRM integrations
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
@@ -26,7 +29,9 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // Get single CRM integration
-router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:id', validate([
+  param('id').isUUID().withMessage('Invalid integration ID'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user!.organizationId;
     const integration = await prisma.crmIntegration.findFirst({
@@ -45,25 +50,17 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // Create CRM integration
-router.post('/', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', authorize('admin'), validate([
+  body('name').trim().notEmpty().withMessage('Name is required')
+    .isLength({ max: 100 }).withMessage('Name too long'),
+  body('type').isIn(['SALESFORCE', 'HUBSPOT', 'ZOHO', 'CUSTOM']).withMessage('Invalid type'),
+  body('webhookUrl').isURL().withMessage('Valid webhook URL is required'),
+  body('apiKey').optional().trim().isLength({ max: 500 }).withMessage('API key too long'),
+  body('fieldMappings').optional().isArray({ max: 50 }).withMessage('Too many field mappings'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user!.organizationId;
     const { name, type, webhookUrl, apiKey, fieldMappings } = req.body;
-
-    if (!name || !type || !webhookUrl) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name, type, and webhookUrl are required',
-      });
-    }
-
-    const validTypes = ['SALESFORCE', 'HUBSPOT', 'ZOHO', 'CUSTOM'];
-    if (!validTypes.includes(type)) {
-      return res.status(400).json({
-        success: false,
-        message: `Type must be one of: ${validTypes.join(', ')}`,
-      });
-    }
 
     const integration = await prisma.crmIntegration.create({
       data: {
@@ -85,7 +82,15 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // Update CRM integration
-router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:id', authorize('admin'), validate([
+  param('id').isUUID().withMessage('Invalid integration ID'),
+  body('name').optional().trim().notEmpty().withMessage('Name cannot be empty')
+    .isLength({ max: 100 }).withMessage('Name too long'),
+  body('webhookUrl').optional().isURL().withMessage('Valid webhook URL is required'),
+  body('apiKey').optional().trim().isLength({ max: 500 }).withMessage('API key too long'),
+  body('fieldMappings').optional().isArray({ max: 50 }).withMessage('Too many field mappings'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be boolean'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user!.organizationId;
     const { name, webhookUrl, apiKey, fieldMappings, isActive } = req.body;
@@ -101,10 +106,10 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
     const updated = await prisma.crmIntegration.update({
       where: { id: req.params.id },
       data: {
-        name: name || integration.name,
-        webhookUrl: webhookUrl || integration.webhookUrl,
+        name: name !== undefined ? name : integration.name,
+        webhookUrl: webhookUrl !== undefined ? webhookUrl : integration.webhookUrl,
         apiKey: apiKey !== undefined ? apiKey : integration.apiKey,
-        fieldMappings: fieldMappings || integration.fieldMappings,
+        fieldMappings: fieldMappings !== undefined ? fieldMappings : integration.fieldMappings,
         isActive: isActive !== undefined ? isActive : integration.isActive,
       },
     });
@@ -117,7 +122,9 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // Delete CRM integration
-router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', authorize('admin'), validate([
+  param('id').isUUID().withMessage('Invalid integration ID'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user!.organizationId;
 
@@ -141,7 +148,9 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // Test CRM integration webhook
-router.post('/:id/test', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/test', authorize('admin'), validate([
+  param('id').isUUID().withMessage('Invalid integration ID'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user!.organizationId;
 
@@ -212,14 +221,13 @@ router.post('/:id/test', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // Sync lead to external CRM
-router.post('/:id/sync-lead', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/sync-lead', validate([
+  param('id').isUUID().withMessage('Invalid integration ID'),
+  body('leadId').isUUID().withMessage('Valid lead ID is required'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user!.organizationId;
     const { leadId } = req.body;
-
-    if (!leadId) {
-      return res.status(400).json({ success: false, message: 'Lead ID is required' });
-    }
 
     const integration = await prisma.crmIntegration.findFirst({
       where: { id: req.params.id, organizationId, isActive: true },

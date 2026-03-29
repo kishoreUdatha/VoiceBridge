@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { prisma } from '../config/database';
 import { usageTrackingService, UsageType } from '../services/usage-tracking.service';
 
 /**
@@ -88,9 +89,6 @@ export const checkSubscription = async (req: Request, res: Response, next: NextF
     if (!organizationId) {
       return next();
     }
-
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
 
     const org = await prisma.organization.findUnique({
       where: { id: organizationId },

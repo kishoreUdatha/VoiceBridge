@@ -58,14 +58,9 @@ export function useWebRTC(options: UseWebRTCOptions = {}) {
   const connectSignaling = useCallback(() => {
     if (socketRef.current?.connected) return;
 
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-      updateState({ error: 'Authentication required' });
-      return;
-    }
-
+    // Use cookies for authentication instead of localStorage
     const socket = io(SOCKET_URL, {
-      auth: { token },
+      withCredentials: true, // Send cookies for authentication
       transports: ['websocket', 'polling'],
     });
 

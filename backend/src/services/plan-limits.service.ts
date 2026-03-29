@@ -3,10 +3,9 @@
  * Handles all plan limit checking and enforcement
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { PLANS, getPlan, isUnlimited, type PlanId } from '../config/plans.config';
 
-const prisma = new PrismaClient();
 
 export interface LimitCheckResult {
   allowed: boolean;

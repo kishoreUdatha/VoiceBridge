@@ -3,7 +3,8 @@
  * Handles CRUD operations for structured call flows
  */
 
-import { PrismaClient, CallOutcome } from '@prisma/client';
+import { CallOutcome } from '@prisma/client';
+import { prisma } from '../config/database';
 import {
   CallFlowNode,
   CallFlowEdge,
@@ -16,7 +17,6 @@ import {
 } from './call-flow.types';
 import { callFlowExecutorService } from './call-flow-executor.service';
 
-const prisma = new PrismaClient();
 
 // Re-export types for convenience
 export * from './call-flow.types';
@@ -315,7 +315,8 @@ export async function getAnalytics(
   });
 
   const totalCalls = logs.length;
-  const outcomes = logs.reduce((acc, log) => {
+  type LogItem = typeof logs[0];
+  const outcomes = logs.reduce((acc: Record<string, number>, log: LogItem) => {
     if (log.outcome) {
       acc[log.outcome] = (acc[log.outcome] || 0) + 1;
     }
@@ -323,10 +324,10 @@ export async function getAnalytics(
   }, {} as Record<string, number>);
 
   const successOutcomes = (flow.successOutcomes as string[]) || [];
-  const successfulCalls = logs.filter(l => l.outcome && successOutcomes.includes(l.outcome)).length;
+  const successfulCalls = logs.filter((l: LogItem) => l.outcome && successOutcomes.includes(l.outcome)).length;
 
-  const avgDuration = logs.reduce((sum, l) => sum + (l.duration || 0), 0) / (totalCalls || 1);
-  const avgQuality = logs.reduce((sum, l) => sum + (l.qualityScore || 0), 0) / (totalCalls || 1);
+  const avgDuration = logs.reduce((sum: number, l: LogItem) => sum + (l.duration || 0), 0) / (totalCalls || 1);
+  const avgQuality = logs.reduce((sum: number, l: LogItem) => sum + (l.qualityScore || 0), 0) / (totalCalls || 1);
 
   const sentiments = logs.reduce((acc, log) => {
     if (log.sentiment) {

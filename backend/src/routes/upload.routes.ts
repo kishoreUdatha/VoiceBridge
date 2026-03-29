@@ -1,13 +1,50 @@
 import { Router, Request, Response } from 'express';
+import { body, param } from 'express-validator';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 import { s3Service } from '../integrations/s3.service';
 import { config } from '../config';
 
 const router = Router();
+
+// All routes require authentication and tenant context
+router.use(authenticate);
+router.use(tenantMiddleware);
+
+// Allowed folders for uploads (whitelist approach)
+const ALLOWED_FOLDERS = ['uploads', 'documents', 'images', 'audio', 'video', 'attachments', 'temp'];
+
+// Sanitize folder path to prevent path traversal
+function sanitizeFolderPath(folder: string): string {
+  if (!folder) return 'uploads';
+  // Remove any path traversal attempts
+  const sanitized = folder
+    .replace(/\.\./g, '')
+    .replace(/[\/\\]+/g, '/')
+    .replace(/^\/+|\/+$/g, '')
+    .toLowerCase();
+  // Only allow whitelisted folders
+  if (!ALLOWED_FOLDERS.includes(sanitized.split('/')[0])) {
+    return 'uploads';
+  }
+  return sanitized;
+}
+
+// Sanitize file name
+function sanitizeFileName(fileName: string): string {
+  if (!fileName) return `${uuidv4()}.bin`;
+  // Remove path components and dangerous characters
+  const baseName = path.basename(fileName);
+  const sanitized = baseName
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .substring(0, 200); // Limit length
+  return sanitized || `${uuidv4()}.bin`;
+}
 
 // Configure multer for memory storage (for S3 uploads)
 const memoryStorage = multer.memoryStorage();
@@ -64,7 +101,7 @@ const upload = multer({
 });
 
 // Upload single file
-router.post('/single', authenticate, upload.single('file'), async (req: Request, res: Response) => {
+router.post('/single', upload.single('file'), async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
@@ -118,7 +155,7 @@ router.post('/single', authenticate, upload.single('file'), async (req: Request,
 });
 
 // Upload multiple files
-router.post('/multiple', authenticate, upload.array('files', 10), async (req: Request, res: Response) => {
+router.post('/multiple', upload.array('files', 10), async (req: Request, res: Response) => {
   try {
     const files = req.files as Express.Multer.File[];
 
@@ -166,7 +203,12 @@ router.post('/multiple', authenticate, upload.array('files', 10), async (req: Re
 });
 
 // Get presigned upload URL (for direct client-to-S3 uploads)
-router.post('/presigned-url', authenticate, async (req: Request, res: Response) => {
+router.post('/presigned-url', validate([
+  body('fileName').trim().notEmpty().withMessage('fileName is required')
+    .isLength({ max: 200 }).withMessage('fileName must be at most 200 characters'),
+  body('folder').optional().trim().isLength({ max: 50 }).withMessage('folder must be at most 50 characters'),
+  body('contentType').optional().trim().isLength({ max: 100 }).withMessage('Invalid content type'),
+]), async (req: Request, res: Response) => {
   try {
     if (!s3Service.isEnabled()) {
       return res.status(400).json({
@@ -177,13 +219,27 @@ router.post('/presigned-url', authenticate, async (req: Request, res: Response) 
 
     const { folder, fileName, contentType } = req.body;
 
-    if (!fileName) {
-      return res.status(400).json({ success: false, message: 'fileName is required' });
+    // Sanitize inputs to prevent path traversal
+    const safeFolder = sanitizeFolderPath(folder);
+    const safeFileName = sanitizeFileName(fileName);
+
+    // Validate content type against allowed list
+    const allowedContentTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'application/pdf', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/csv', 'text/plain', 'audio/mpeg', 'audio/wav', 'video/mp4', 'video/webm'
+    ];
+
+    if (contentType && !allowedContentTypes.includes(contentType)) {
+      return res.status(400).json({ success: false, message: 'Invalid content type' });
     }
 
     const result = await s3Service.generateUploadUrl(
-      folder || 'uploads',
-      fileName,
+      safeFolder,
+      safeFileName,
       contentType
     );
 
@@ -198,7 +254,10 @@ router.post('/presigned-url', authenticate, async (req: Request, res: Response) 
 });
 
 // Get presigned download URL
-router.get('/download-url/:key', authenticate, async (req: Request, res: Response) => {
+router.get('/download-url/:key', validate([
+  param('key').trim().notEmpty().withMessage('Key is required')
+    .isLength({ max: 500 }).withMessage('Key too long'),
+]), async (req: Request, res: Response) => {
   try {
     if (!s3Service.isEnabled()) {
       return res.status(400).json({
@@ -208,6 +267,12 @@ router.get('/download-url/:key', authenticate, async (req: Request, res: Respons
     }
 
     const { key } = req.params;
+
+    // Validate key doesn't contain path traversal attempts
+    if (key.includes('..') || key.startsWith('/')) {
+      return res.status(400).json({ success: false, message: 'Invalid key' });
+    }
+
     const url = await s3Service.getSignedDownloadUrl(key);
 
     return res.json({ success: true, url });
@@ -218,7 +283,7 @@ router.get('/download-url/:key', authenticate, async (req: Request, res: Respons
 });
 
 // Delete file
-router.delete('/:key', authenticate, async (req: Request, res: Response) => {
+router.delete('/:key', async (req: Request, res: Response) => {
   try {
     const { key } = req.params;
 

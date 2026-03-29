@@ -1,21 +1,73 @@
 import { Router } from 'express';
+import { body, param, query } from 'express-validator';
+import rateLimit from 'express-rate-limit';
 import { partnerService } from '../services/partner.service';
-import { authenticate } from '../middlewares/auth';
+import { authenticate, authorize } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AppError } from '../utils/errors';
 
 const router = Router();
 
+// All routes require authentication and tenant context
+router.use(authenticate);
+router.use(tenantMiddleware);
+
+// Rate limiter for payout requests
+const payoutLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 payout requests per hour
+  message: { success: false, message: 'Too many payout requests' },
+});
+
+// Validation rules
+const applyPartnershipValidation = [
+  body('companyName').optional().trim().isLength({ max: 200 }).withMessage('Company name too long'),
+  body('contactEmail').optional().trim().isEmail().withMessage('Invalid email'),
+  body('contactPhone').optional().trim().matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone'),
+  body('website').optional().trim().isURL().withMessage('Invalid website URL'),
+  body('description').optional().trim().isLength({ max: 2000 }).withMessage('Description too long'),
+];
+
+const updateProfileValidation = [
+  body('companyName').optional().trim().isLength({ max: 200 }).withMessage('Company name too long'),
+  body('contactEmail').optional().trim().isEmail().withMessage('Invalid email'),
+  body('contactPhone').optional().trim().matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone'),
+  body('website').optional().trim().isURL().withMessage('Invalid website URL'),
+  body('description').optional().trim().isLength({ max: 2000 }).withMessage('Description too long'),
+];
+
+const paginationValidation = [
+  query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+];
+
+const bankDetailsValidation = [
+  body('bankName').trim().notEmpty().withMessage('Bank name is required')
+    .isLength({ max: 100 }).withMessage('Bank name too long'),
+  body('accountNumber').trim().notEmpty().withMessage('Account number is required')
+    .isLength({ max: 50 }).withMessage('Account number too long'),
+  body('ifscCode').optional().trim().isLength({ max: 20 }).withMessage('Invalid IFSC code'),
+  body('accountHolderName').trim().notEmpty().withMessage('Account holder name is required')
+    .isLength({ max: 100 }).withMessage('Account holder name too long'),
+];
+
 // Apply for partnership
 router.post(
   '/apply',
-  authenticate,
+  validate(applyPartnershipValidation),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
+    const { companyName, contactEmail, contactPhone, website, description } = req.body;
 
     const partner = await partnerService.applyForPartnership({
       organizationId,
-      ...req.body,
+      companyName,
+      contactEmail,
+      contactPhone,
+      website,
+      description,
     });
 
     res.status(201).json({
@@ -29,7 +81,6 @@ router.post(
 // Get current partner profile
 router.get(
   '/profile',
-  authenticate,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
 
@@ -49,9 +100,10 @@ router.get(
 // Update partner profile
 router.put(
   '/profile',
-  authenticate,
+  validate(updateProfileValidation),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
+    const { companyName, contactEmail, contactPhone, website, description } = req.body;
 
     const partner = await partnerService.getPartnerByOrgId(organizationId);
 
@@ -59,7 +111,13 @@ router.put(
       throw new AppError('Partner profile not found', 404);
     }
 
-    const updated = await partnerService.updatePartner(partner.id, req.body);
+    const updated = await partnerService.updatePartner(partner.id, {
+      companyName,
+      contactEmail,
+      contactPhone,
+      website,
+      description,
+    });
 
     res.json({
       success: true,
@@ -72,21 +130,41 @@ router.put(
 // Get partner dashboard
 router.get(
   '/dashboard',
-  authenticate,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
 
     const partner = await partnerService.getPartnerByOrgId(organizationId);
 
     if (!partner) {
-      throw new AppError('Partner profile not found', 404);
+      // Return default dashboard for non-partners
+      return res.json({
+        success: true,
+        data: {
+          isPartner: false,
+          status: 'not_enrolled',
+          message: 'You are not enrolled in the partner program. Apply to become a partner.',
+          stats: {
+            totalCustomers: 0,
+            activeCustomers: 0,
+            totalRevenue: 0,
+            pendingCommissions: 0,
+            paidCommissions: 0,
+          },
+          benefits: [
+            { name: 'Revenue Share', description: 'Earn up to 30% commission on referrals' },
+            { name: 'Priority Support', description: 'Get dedicated partner support' },
+            { name: 'Co-Marketing', description: 'Access to marketing materials and co-branding' },
+            { name: 'Early Access', description: 'Be first to try new features' },
+          ],
+        },
+      });
     }
 
     const dashboard = await partnerService.getPartnerDashboard(partner.id);
 
     res.json({
       success: true,
-      data: dashboard,
+      data: { ...dashboard, isPartner: true },
     });
   })
 );
@@ -94,7 +172,10 @@ router.get(
 // Get partner customers
 router.get(
   '/customers',
-  authenticate,
+  validate([
+    ...paginationValidation,
+    query('status').optional().isIn(['active', 'inactive', 'pending']).withMessage('Invalid status'),
+  ]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { status, page, limit } = req.query;
@@ -122,7 +203,10 @@ router.get(
 // Add customer
 router.post(
   '/customers',
-  authenticate,
+  validate([
+    body('customerOrgId').isUUID().withMessage('Invalid customer organization ID'),
+    body('planId').optional().isUUID().withMessage('Invalid plan ID'),
+  ]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { customerOrgId, planId } = req.body;
@@ -146,7 +230,9 @@ router.post(
 // Remove customer
 router.delete(
   '/customers/:customerOrgId',
-  authenticate,
+  validate([
+    param('customerOrgId').isUUID().withMessage('Invalid customer organization ID'),
+  ]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { customerOrgId } = req.params;
@@ -169,7 +255,12 @@ router.delete(
 // Get commissions
 router.get(
   '/commissions',
-  authenticate,
+  validate([
+    ...paginationValidation,
+    query('status').optional().isIn(['pending', 'approved', 'paid', 'rejected']).withMessage('Invalid status'),
+    query('startDate').optional().isISO8601().withMessage('Invalid start date'),
+    query('endDate').optional().isISO8601().withMessage('Invalid end date'),
+  ]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { status, startDate, endDate, page, limit } = req.query;
@@ -200,7 +291,10 @@ router.get(
 // Get payouts
 router.get(
   '/payouts',
-  authenticate,
+  validate([
+    ...paginationValidation,
+    query('status').optional().isIn(['pending', 'processing', 'completed', 'failed']).withMessage('Invalid status'),
+  ]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { status, page, limit } = req.query;
@@ -228,7 +322,7 @@ router.get(
 // Request payout
 router.post(
   '/payouts/request',
-  authenticate,
+  payoutLimiter,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
 
@@ -248,10 +342,10 @@ router.post(
   })
 );
 
-// Get bank details
+// Get bank details (admin only - sensitive financial data)
 router.get(
   '/bank-details',
-  authenticate,
+  authorize('admin'),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
 
@@ -270,12 +364,14 @@ router.get(
   })
 );
 
-// Update bank details
+// Update bank details (admin only - sensitive financial data)
 router.put(
   '/bank-details',
-  authenticate,
+  authorize('admin'),
+  validate(bankDetailsValidation),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
+    const { bankName, accountNumber, ifscCode, accountHolderName } = req.body;
 
     const partner = await partnerService.getPartnerByOrgId(organizationId);
 
@@ -283,7 +379,12 @@ router.put(
       throw new AppError('Partner profile not found', 404);
     }
 
-    const bankDetails = await partnerService.updateBankDetails(partner.id, req.body);
+    const bankDetails = await partnerService.updateBankDetails(partner.id, {
+      bankName,
+      accountNumber,
+      ifscCode,
+      accountHolderName,
+    });
 
     res.json({
       success: true,
@@ -298,13 +399,15 @@ router.put(
 // List all partners (admin)
 router.get(
   '/admin/list',
-  authenticate,
+  authorize('admin', 'super_admin'),
+  validate([
+    ...paginationValidation,
+    query('status').optional().isIn(['pending', 'approved', 'rejected', 'suspended']).withMessage('Invalid status'),
+    query('tier').optional().isIn(['bronze', 'silver', 'gold', 'platinum']).withMessage('Invalid tier'),
+    query('type').optional().isIn(['reseller', 'referral', 'affiliate']).withMessage('Invalid type'),
+    query('search').optional().trim().isLength({ max: 100 }).withMessage('Search query too long'),
+  ]),
   asyncHandler(async (req, res) => {
-    // Check if user is admin
-    if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
-      throw new AppError('Not authorized', 403);
-    }
-
     const { status, tier, type, page, limit, search } = req.query;
 
     const result = await partnerService.listPartners({
@@ -327,12 +430,11 @@ router.get(
 // Get partner details (admin)
 router.get(
   '/admin/:partnerId',
-  authenticate,
+  authorize('admin', 'super_admin'),
+  validate([
+    param('partnerId').isUUID().withMessage('Invalid partner ID'),
+  ]),
   asyncHandler(async (req, res) => {
-    if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
-      throw new AppError('Not authorized', 403);
-    }
-
     const partner = await partnerService.getPartnerById(req.params.partnerId);
 
     if (!partner) {
@@ -349,12 +451,11 @@ router.get(
 // Approve partner (admin)
 router.post(
   '/admin/:partnerId/approve',
-  authenticate,
+  authorize('admin', 'super_admin'),
+  validate([
+    param('partnerId').isUUID().withMessage('Invalid partner ID'),
+  ]),
   asyncHandler(async (req, res) => {
-    if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
-      throw new AppError('Not authorized', 403);
-    }
-
     const partner = await partnerService.approvePartner(
       req.params.partnerId,
       req.user!.id
@@ -371,12 +472,12 @@ router.post(
 // Reject partner (admin)
 router.post(
   '/admin/:partnerId/reject',
-  authenticate,
+  authorize('admin', 'super_admin'),
+  validate([
+    param('partnerId').isUUID().withMessage('Invalid partner ID'),
+    body('reason').optional().trim().isLength({ max: 1000 }).withMessage('Reason too long'),
+  ]),
   asyncHandler(async (req, res) => {
-    if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
-      throw new AppError('Not authorized', 403);
-    }
-
     const { reason } = req.body;
 
     const partner = await partnerService.rejectPartner(req.params.partnerId, reason);
@@ -392,12 +493,12 @@ router.post(
 // Update partner tier (admin)
 router.put(
   '/admin/:partnerId/tier',
-  authenticate,
+  authorize('admin', 'super_admin'),
+  validate([
+    param('partnerId').isUUID().withMessage('Invalid partner ID'),
+    body('tier').isIn(['bronze', 'silver', 'gold', 'platinum']).withMessage('Invalid tier'),
+  ]),
   asyncHandler(async (req, res) => {
-    if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
-      throw new AppError('Not authorized', 403);
-    }
-
     const { tier } = req.body;
 
     const partner = await partnerService.updatePartnerTier(req.params.partnerId, tier);
@@ -413,12 +514,14 @@ router.put(
 // Process payout (admin)
 router.post(
   '/admin/payouts/:payoutId/process',
-  authenticate,
+  authorize('admin', 'super_admin'),
+  validate([
+    param('payoutId').isUUID().withMessage('Invalid payout ID'),
+    body('transactionId').trim().notEmpty().withMessage('Transaction ID is required')
+      .isLength({ max: 100 }).withMessage('Transaction ID too long'),
+    body('paymentMethod').isIn(['bank_transfer', 'paypal', 'upi', 'check']).withMessage('Invalid payment method'),
+  ]),
   asyncHandler(async (req, res) => {
-    if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
-      throw new AppError('Not authorized', 403);
-    }
-
     const { transactionId, paymentMethod } = req.body;
 
     const payout = await partnerService.processPayout(req.params.payoutId, {

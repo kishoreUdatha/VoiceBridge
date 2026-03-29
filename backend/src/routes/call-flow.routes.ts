@@ -4,13 +4,17 @@
  */
 
 import { Router, Response } from 'express';
-import { authenticate, AuthenticatedRequest } from '../middlewares/auth';
+import { body, param, query } from 'express-validator';
+import { authenticate, authorize, AuthenticatedRequest } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 import { callFlowService } from '../services/call-flow.service';
 
 const router = Router();
 
-// All routes require authentication
+// All routes require authentication and tenant context
 router.use(authenticate);
+router.use(tenantMiddleware);
 
 /**
  * GET /api/call-flows
@@ -50,7 +54,9 @@ router.get('/templates', async (req: AuthenticatedRequest, res: Response) => {
  * GET /api/call-flows/:id
  * Get a single call flow
  */
-router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:id', validate([
+  param('id').isUUID().withMessage('Invalid call flow ID'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
     if (!organizationId) {
@@ -73,7 +79,14 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
  * POST /api/call-flows
  * Create a new call flow
  */
-router.post('/', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', authorize('admin', 'manager'), validate([
+  body('name').trim().notEmpty().withMessage('Name is required')
+    .isLength({ max: 100 }).withMessage('Name too long'),
+  body('description').optional().trim().isLength({ max: 1000 }).withMessage('Description too long'),
+  body('nodes').optional().isArray({ max: 100 }).withMessage('Too many nodes'),
+  body('edges').optional().isArray({ max: 200 }).withMessage('Too many edges'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be boolean'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
     const userId = req.user?.id;
@@ -81,7 +94,15 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    const callFlow = await callFlowService.createCallFlow(organizationId, userId, req.body);
+    const { name, description, nodes, edges, isActive } = req.body;
+
+    const callFlow = await callFlowService.createCallFlow(organizationId, userId, {
+      name,
+      description,
+      nodes,
+      edges,
+      isActive,
+    });
     res.status(201).json({ success: true, data: callFlow });
   } catch (error: any) {
     console.error('[CallFlow] Error creating call flow:', error);
@@ -93,14 +114,30 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
  * PUT /api/call-flows/:id
  * Update a call flow
  */
-router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:id', authorize('admin', 'manager'), validate([
+  param('id').isUUID().withMessage('Invalid call flow ID'),
+  body('name').optional().trim().notEmpty().withMessage('Name cannot be empty')
+    .isLength({ max: 100 }).withMessage('Name too long'),
+  body('description').optional().trim().isLength({ max: 1000 }).withMessage('Description too long'),
+  body('nodes').optional().isArray({ max: 100 }).withMessage('Too many nodes'),
+  body('edges').optional().isArray({ max: 200 }).withMessage('Too many edges'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be boolean'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
     if (!organizationId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    const callFlow = await callFlowService.updateCallFlow(req.params.id, organizationId, req.body);
+    const { name, description, nodes, edges, isActive } = req.body;
+
+    const callFlow = await callFlowService.updateCallFlow(req.params.id, organizationId, {
+      name,
+      description,
+      nodes,
+      edges,
+      isActive,
+    });
     res.json({ success: true, data: callFlow });
   } catch (error: any) {
     console.error('[CallFlow] Error updating call flow:', error);
@@ -112,7 +149,9 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
  * DELETE /api/call-flows/:id
  * Delete a call flow
  */
-router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', authorize('admin'), validate([
+  param('id').isUUID().withMessage('Invalid call flow ID'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
     if (!organizationId) {
@@ -131,7 +170,10 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
  * POST /api/call-flows/:id/duplicate
  * Duplicate a call flow
  */
-router.post('/:id/duplicate', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/duplicate', authorize('admin', 'manager'), validate([
+  param('id').isUUID().withMessage('Invalid call flow ID'),
+  body('name').optional().trim().isLength({ max: 100 }).withMessage('Name too long'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
     const userId = req.user?.id;
@@ -139,11 +181,13 @@ router.post('/:id/duplicate', async (req: AuthenticatedRequest, res: Response) =
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
+    const { name } = req.body;
+
     const callFlow = await callFlowService.duplicateCallFlow(
       req.params.id,
       organizationId,
       userId,
-      req.body.name
+      name
     );
     res.status(201).json({ success: true, data: callFlow });
   } catch (error: any) {
@@ -156,7 +200,10 @@ router.post('/:id/duplicate', async (req: AuthenticatedRequest, res: Response) =
  * POST /api/call-flows/:id/assign
  * Assign call flow to a voice agent
  */
-router.post('/:id/assign', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/assign', authorize('admin', 'manager'), validate([
+  param('id').isUUID().withMessage('Invalid call flow ID'),
+  body('agentId').isUUID().withMessage('Valid agent ID is required'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
     if (!organizationId) {
@@ -164,9 +211,6 @@ router.post('/:id/assign', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const { agentId } = req.body;
-    if (!agentId) {
-      return res.status(400).json({ success: false, message: 'Agent ID required' });
-    }
 
     const agent = await callFlowService.assignToAgent(req.params.id, agentId, organizationId);
     res.json({ success: true, data: agent });
@@ -180,7 +224,12 @@ router.post('/:id/assign', async (req: AuthenticatedRequest, res: Response) => {
  * POST /api/call-flows/from-template
  * Create a call flow from a template
  */
-router.post('/from-template', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/from-template', authorize('admin', 'manager'), validate([
+  body('templateId').trim().notEmpty().withMessage('Template ID is required')
+    .isLength({ max: 100 }).withMessage('Template ID too long'),
+  body('name').trim().notEmpty().withMessage('Name is required')
+    .isLength({ max: 100 }).withMessage('Name too long'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
     const userId = req.user?.id;
@@ -189,9 +238,6 @@ router.post('/from-template', async (req: AuthenticatedRequest, res: Response) =
     }
 
     const { templateId, name } = req.body;
-    if (!templateId || !name) {
-      return res.status(400).json({ success: false, message: 'Template ID and name required' });
-    }
 
     const callFlow = await callFlowService.createFromTemplate(templateId, organizationId, userId, name);
     res.status(201).json({ success: true, data: callFlow });
@@ -205,7 +251,11 @@ router.post('/from-template', async (req: AuthenticatedRequest, res: Response) =
  * GET /api/call-flows/:id/analytics
  * Get analytics for a call flow
  */
-router.get('/:id/analytics', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:id/analytics', validate([
+  param('id').isUUID().withMessage('Invalid call flow ID'),
+  query('startDate').optional().isISO8601().withMessage('Invalid start date'),
+  query('endDate').optional().isISO8601().withMessage('Invalid end date'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
     if (!organizationId) {
@@ -232,7 +282,11 @@ router.get('/:id/analytics', async (req: AuthenticatedRequest, res: Response) =>
  * POST /api/call-flows/:id/execute
  * Execute/test a call flow with simulated inputs
  */
-router.post('/:id/execute', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/execute', validate([
+  param('id').isUUID().withMessage('Invalid call flow ID'),
+  body('simulatedInputs').optional().isArray({ max: 100 }).withMessage('Too many simulated inputs'),
+  body('initialVariables').optional().isObject().withMessage('Initial variables must be an object'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
     if (!organizationId) {
@@ -274,7 +328,11 @@ router.post('/:id/execute', async (req: AuthenticatedRequest, res: Response) => 
  * POST /api/call-flows/:id/init-session
  * Initialize a call flow execution session for a real call
  */
-router.post('/:id/init-session', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/init-session', validate([
+  param('id').isUUID().withMessage('Invalid call flow ID'),
+  body('sessionId').isUUID().withMessage('Valid session ID is required'),
+  body('initialVariables').optional().isObject().withMessage('Initial variables must be an object'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
     if (!organizationId) {
@@ -288,10 +346,6 @@ router.post('/:id/init-session', async (req: AuthenticatedRequest, res: Response
     }
 
     const { sessionId, initialVariables = {} } = req.body;
-
-    if (!sessionId) {
-      return res.status(400).json({ success: false, message: 'Session ID is required' });
-    }
 
     // Initialize execution context
     const context = await callFlowService.initializeExecution(
@@ -329,7 +383,14 @@ router.post('/:id/init-session', async (req: AuthenticatedRequest, res: Response
  * POST /api/call-flows/:id/process-input
  * Process user input in an active call flow session
  */
-router.post('/:id/process-input', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/process-input', validate([
+  param('id').isUUID().withMessage('Invalid call flow ID'),
+  body('context').isObject().withMessage('Execution context is required'),
+  body('context.callFlowId').isUUID().withMessage('Invalid call flow ID in context'),
+  body('context.sessionId').isUUID().withMessage('Invalid session ID in context'),
+  body('userInput').trim().notEmpty().withMessage('User input is required')
+    .isLength({ max: 5000 }).withMessage('User input too long'),
+]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
     if (!organizationId) {
@@ -337,14 +398,6 @@ router.post('/:id/process-input', async (req: AuthenticatedRequest, res: Respons
     }
 
     const { context, userInput } = req.body;
-
-    if (!context) {
-      return res.status(400).json({ success: false, message: 'Execution context is required' });
-    }
-
-    if (!userInput) {
-      return res.status(400).json({ success: false, message: 'User input is required' });
-    }
 
     // Process the user input
     const result = await callFlowService.processNode(context, userInput);

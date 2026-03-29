@@ -2,10 +2,13 @@
 export interface User {
   id: string;
   email: string;
-  name: string;
-  role: 'ADMIN' | 'MANAGER' | 'TELECALLER';
+  firstName: string;
+  lastName: string;
+  organizationId?: string;
+  organizationName?: string;
+  role: string;
   avatar?: string;
-  createdAt: string;
+  createdAt?: string;
 }
 
 export interface AuthState {
@@ -26,6 +29,7 @@ export interface LoginCredentials {
 export interface AuthResponse {
   user: User;
   token: string;
+  accessToken?: string;
   refreshToken: string;
 }
 
@@ -159,7 +163,11 @@ export type RootStackParamList = {
   Login: undefined;
   Main: undefined;
   Call: { lead: Lead };
+  CallAssignedData: { data: AssignedData };
+  SmartCallPrep: { lead: Lead };
   Outcome: { call: Call; recordingPath?: string };
+  OutcomeAssignedData: { callId: string; data: AssignedData; recordingPath?: string };
+  CallAnalysis: { callId: string; duration: number; recordingPath?: string };
   LeadDetail: { leadId: string };
   EditLead: { leadId: string };
   CreateLead: undefined;
@@ -167,6 +175,11 @@ export type RootStackParamList = {
   Notifications: undefined;
   Profile: undefined;
   AIAnalysis: { callId: string };
+  AssignedData: undefined;
+  QualifiedLeads: undefined;
+  Performance: undefined;
+  FollowUps: undefined;
+  NotificationSettings: undefined;
 };
 
 // Lead Form Data
@@ -182,10 +195,58 @@ export interface LeadFormData {
 
 export type MainTabParamList = {
   Dashboard: undefined;
+  AssignedData: undefined;
   Leads: undefined;
   History: undefined;
   Settings: undefined;
 };
+
+// Assigned Data (Raw Import Record) Types
+export type AssignedDataStatus =
+  | 'PENDING'
+  | 'ASSIGNED'
+  | 'CALLING'
+  | 'INTERESTED'
+  | 'NOT_INTERESTED'
+  | 'NO_ANSWER'
+  | 'CALLBACK_REQUESTED'
+  | 'CONVERTED';
+
+export interface AssignedData {
+  id: string;
+  firstName: string;
+  lastName?: string;
+  email?: string;
+  phone: string;
+  alternatePhone?: string;
+  status: AssignedDataStatus;
+  notes?: string;
+  callSummary?: string;
+  callSentiment?: 'positive' | 'neutral' | 'negative';
+  interestLevel?: 'high' | 'medium' | 'low';
+  callAttempts: number;
+  lastCallAt?: string;
+  assignedAt?: string;
+  customFields?: {
+    aiAnalyzed?: boolean;
+    lastCallOutcome?: string;
+    buyingSignals?: string[];
+    objections?: string[];
+    [key: string]: any;
+  };
+  bulkImport?: { fileName: string };
+  assignedBy?: { firstName: string; lastName: string };
+}
+
+export interface AssignedDataStats {
+  total: number;
+  assigned: number;
+  interested: number;
+  notInterested: number;
+  noAnswer: number;
+  callback: number;
+  converted: number;
+}
 
 // Storage Keys
 export const STORAGE_KEYS = {

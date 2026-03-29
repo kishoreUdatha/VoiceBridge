@@ -2,31 +2,21 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
-// Create a separate axios instance for super admin
+// Create a separate axios instance for super admin with httpOnly cookie auth
 const superAdminApi = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Send cookies for authentication
 });
-
-// Request interceptor to add super admin auth token
-superAdminApi.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('superAdminToken');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
 
 // Response interceptor for error handling
 superAdminApi.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Clear any legacy localStorage items
       localStorage.removeItem('superAdminToken');
       localStorage.removeItem('superAdmin');
       window.location.href = '/super-admin/login';
@@ -106,31 +96,46 @@ export interface RevenueData {
 }
 
 export const superAdminService = {
-  // Auth
+  // Auth - tokens are now in httpOnly cookies, only store non-sensitive admin info
   async login(email: string, password: string) {
     const response = await superAdminApi.post('/super-admin/login', { email, password });
-    const { accessToken, refreshToken, admin } = response.data;
+    const { admin } = response.data;
 
-    localStorage.setItem('superAdminToken', accessToken);
-    localStorage.setItem('superAdminRefreshToken', refreshToken);
-    localStorage.setItem('superAdmin', JSON.stringify(admin));
+    // Only store non-sensitive admin info in sessionStorage (not tokens)
+    sessionStorage.setItem('superAdmin', JSON.stringify(admin));
+    // Clear any legacy localStorage items
+    localStorage.removeItem('superAdminToken');
+    localStorage.removeItem('superAdminRefreshToken');
 
     return response.data;
   },
 
   async logout() {
+    try {
+      await superAdminApi.post('/super-admin/logout');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+    sessionStorage.removeItem('superAdmin');
+    // Clear any legacy localStorage items
     localStorage.removeItem('superAdminToken');
     localStorage.removeItem('superAdminRefreshToken');
     localStorage.removeItem('superAdmin');
   },
 
   getCurrentAdmin(): SuperAdmin | null {
-    const admin = localStorage.getItem('superAdmin');
+    const admin = sessionStorage.getItem('superAdmin');
     return admin ? JSON.parse(admin) : null;
   },
 
-  isAuthenticated(): boolean {
-    return !!localStorage.getItem('superAdminToken');
+  async isAuthenticated(): Promise<boolean> {
+    try {
+      // Verify auth status with server
+      await superAdminApi.get('/super-admin/me');
+      return true;
+    } catch {
+      return false;
+    }
   },
 
   // Dashboard Stats
@@ -182,32 +187,27 @@ export const superAdminService = {
     return response.data;
   },
 
-  // Impersonation
+  // Impersonation - tokens handled via httpOnly cookies
   async impersonateUser(userId: string) {
     const response = await superAdminApi.post(`/super-admin/impersonate/${userId}`);
 
-    // Store impersonation data
-    const { accessToken, user } = response.data;
-    localStorage.setItem('impersonationToken', accessToken);
-    localStorage.setItem('impersonatedUser', JSON.stringify(user));
-    localStorage.setItem('isImpersonating', 'true');
+    // Store non-sensitive impersonation info in sessionStorage
+    const { user } = response.data;
+    sessionStorage.setItem('impersonatedUser', JSON.stringify(user));
+    sessionStorage.setItem('isImpersonating', 'true');
+    // Clear any legacy localStorage items
+    localStorage.removeItem('impersonationToken');
 
     return response.data;
   },
 
   async exitImpersonation() {
-    const token = localStorage.getItem('impersonationToken');
-    if (!token) {
-      throw new Error('Not in impersonation mode');
-    }
+    const response = await superAdminApi.post('/super-admin/exit-impersonation');
 
-    const response = await axios.post(
-      `${API_BASE_URL}/super-admin/exit-impersonation`,
-      {},
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    // Restore super admin session
+    // Clear impersonation state
+    sessionStorage.removeItem('impersonatedUser');
+    sessionStorage.removeItem('isImpersonating');
+    // Clear any legacy localStorage items
     localStorage.removeItem('impersonationToken');
     localStorage.removeItem('impersonatedUser');
     localStorage.removeItem('isImpersonating');
@@ -216,7 +216,7 @@ export const superAdminService = {
   },
 
   isImpersonating(): boolean {
-    return localStorage.getItem('isImpersonating') === 'true';
+    return sessionStorage.getItem('isImpersonating') === 'true';
   },
 
   getImpersonatedUser() {

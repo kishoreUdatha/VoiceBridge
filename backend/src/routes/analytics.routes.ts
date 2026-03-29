@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { analyticsService } from '../services/analytics.service';
 import { authenticate } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
 import { asyncHandler } from '../utils/asyncHandler';
 
 const router = Router();
 
-// All routes require authentication
+// All routes require authentication and tenant context
 router.use(authenticate);
+router.use(tenantMiddleware);
 
 /**
  * Helper to parse date range from query

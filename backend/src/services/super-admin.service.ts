@@ -1,12 +1,11 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { config } from '../config';
 import { emailService } from '../integrations/email.service';
 
-const prisma = new PrismaClient();
 
 class SuperAdminService {
   /**
@@ -776,7 +775,7 @@ class SuperAdminService {
   /**
    * Export organizations to XLSX
    */
-  async exportOrganizations() {
+  async exportOrganizations(): Promise<Buffer> {
     const organizations = await prisma.organization.findMany({
       include: {
         _count: { select: { users: true, leads: true } },
@@ -789,31 +788,52 @@ class SuperAdminService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const data = organizations.map((org) => ({
-      'Organization ID': org.id,
-      Name: org.name,
-      Slug: org.slug,
-      Email: org.email || '',
-      Phone: org.phone || '',
-      'Active Plan': org.activePlanId || 'starter',
-      Status: org.isActive ? 'Active' : 'Inactive',
-      Users: org._count.users,
-      Leads: org._count.leads,
-      'Created At': org.createdAt.toISOString(),
-      'Subscription Status': org.subscriptions[0]?.status || 'None',
-    }));
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Organizations');
 
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Organizations');
+    // Add headers
+    worksheet.columns = [
+      { header: 'Organization ID', key: 'id', width: 40 },
+      { header: 'Name', key: 'name', width: 30 },
+      { header: 'Slug', key: 'slug', width: 20 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Phone', key: 'phone', width: 15 },
+      { header: 'Active Plan', key: 'plan', width: 15 },
+      { header: 'Status', key: 'status', width: 10 },
+      { header: 'Users', key: 'users', width: 10 },
+      { header: 'Leads', key: 'leads', width: 10 },
+      { header: 'Created At', key: 'createdAt', width: 25 },
+      { header: 'Subscription Status', key: 'subscriptionStatus', width: 20 },
+    ];
 
-    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    // Add data rows
+    organizations.forEach((org) => {
+      worksheet.addRow({
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        email: org.email || '',
+        phone: org.phone || '',
+        plan: org.activePlanId || 'starter',
+        status: org.isActive ? 'Active' : 'Inactive',
+        users: org._count.users,
+        leads: org._count.leads,
+        createdAt: org.createdAt.toISOString(),
+        subscriptionStatus: org.subscriptions[0]?.status || 'None',
+      });
+    });
+
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 
   /**
    * Export revenue report to XLSX
    */
-  async exportRevenueReport(months: number = 12) {
+  async exportRevenueReport(months: number = 12): Promise<Buffer> {
     const revenueData = await this.getRevenueAnalytics(months);
 
     // Get detailed invoice data
@@ -836,37 +856,56 @@ class SuperAdminService {
     });
     const invOrgMap = new Map(invOrgs.map(o => [o.id, o.name]));
 
-    const workbook = XLSX.utils.book_new();
+    const workbook = new ExcelJS.Workbook();
 
     // Summary sheet
-    const summaryData = revenueData.map((r) => ({
-      Month: `${r.month} ${r.year}`,
-      Revenue: r.revenue,
-      Transactions: r.transactions,
-    }));
-    const summarySheet = XLSX.utils.json_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Monthly Summary');
+    const summarySheet = workbook.addWorksheet('Monthly Summary');
+    summarySheet.columns = [
+      { header: 'Month', key: 'month', width: 15 },
+      { header: 'Revenue', key: 'revenue', width: 15 },
+      { header: 'Transactions', key: 'transactions', width: 15 },
+    ];
+    revenueData.forEach((r) => {
+      summarySheet.addRow({
+        month: `${r.month} ${r.year}`,
+        revenue: r.revenue,
+        transactions: r.transactions,
+      });
+    });
+    summarySheet.getRow(1).font = { bold: true };
 
     // Detailed invoices sheet
-    const invoiceData = invoices.map((inv) => ({
-      'Invoice ID': inv.id,
-      Organization: invOrgMap.get(inv.organizationId) || 'Unknown',
-      Amount: inv.totalAmount,
-      Currency: inv.currency,
-      Status: inv.status,
-      'Paid At': inv.paidAt?.toISOString() || '',
-      Plan: inv.planName || '',
-    }));
-    const invoiceSheet = XLSX.utils.json_to_sheet(invoiceData);
-    XLSX.utils.book_append_sheet(workbook, invoiceSheet, 'Invoice Details');
+    const invoiceSheet = workbook.addWorksheet('Invoice Details');
+    invoiceSheet.columns = [
+      { header: 'Invoice ID', key: 'id', width: 40 },
+      { header: 'Organization', key: 'organization', width: 30 },
+      { header: 'Amount', key: 'amount', width: 15 },
+      { header: 'Currency', key: 'currency', width: 10 },
+      { header: 'Status', key: 'status', width: 15 },
+      { header: 'Paid At', key: 'paidAt', width: 25 },
+      { header: 'Plan', key: 'plan', width: 15 },
+    ];
+    invoices.forEach((inv) => {
+      invoiceSheet.addRow({
+        id: inv.id,
+        organization: invOrgMap.get(inv.organizationId) || 'Unknown',
+        amount: inv.totalAmount,
+        currency: inv.currency,
+        status: inv.status,
+        paidAt: inv.paidAt?.toISOString() || '',
+        plan: inv.planName || '',
+      });
+    });
+    invoiceSheet.getRow(1).font = { bold: true };
 
-    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 
   /**
    * Export usage statistics to XLSX
    */
-  async exportUsageReport() {
+  async exportUsageReport(): Promise<Buffer> {
     const now = new Date();
     const usageData = await prisma.usageTracking.findMany({
       where: {
@@ -884,22 +923,37 @@ class SuperAdminService {
     });
     const usageOrgMap = new Map(usageOrgs.map(o => [o.id, o]));
 
-    const data = usageData.map((u) => ({
-      Organization: usageOrgMap.get(u.organizationId)?.name || 'Unknown',
-      Plan: usageOrgMap.get(u.organizationId)?.activePlanId || 'starter',
-      Month: `${u.month}/${u.year}`,
-      Leads: u.leadsCount,
-      'AI Calls': u.aiCallsCount,
-      SMS: u.smsCount,
-      Emails: u.emailsCount,
-      'Storage (MB)': u.storageUsedMb,
-    }));
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Usage Statistics');
 
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Usage Statistics');
+    worksheet.columns = [
+      { header: 'Organization', key: 'organization', width: 30 },
+      { header: 'Plan', key: 'plan', width: 15 },
+      { header: 'Month', key: 'month', width: 10 },
+      { header: 'Leads', key: 'leads', width: 10 },
+      { header: 'AI Calls', key: 'aiCalls', width: 10 },
+      { header: 'SMS', key: 'sms', width: 10 },
+      { header: 'Emails', key: 'emails', width: 10 },
+      { header: 'Storage (MB)', key: 'storage', width: 15 },
+    ];
 
-    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    usageData.forEach((u) => {
+      worksheet.addRow({
+        organization: usageOrgMap.get(u.organizationId)?.name || 'Unknown',
+        plan: usageOrgMap.get(u.organizationId)?.activePlanId || 'starter',
+        month: `${u.month}/${u.year}`,
+        leads: u.leadsCount,
+        aiCalls: u.aiCallsCount,
+        sms: u.smsCount,
+        emails: u.emailsCount,
+        storage: u.storageUsedMb,
+      });
+    });
+
+    worksheet.getRow(1).font = { bold: true };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 
   /**
@@ -909,7 +963,7 @@ class SuperAdminService {
     startDate?: Date;
     endDate?: Date;
     organizationId?: string;
-  }) {
+  }): Promise<Buffer> {
     const where: any = {};
 
     if (params.startDate || params.endDate) {
@@ -928,24 +982,41 @@ class SuperAdminService {
       take: 10000, // Limit to prevent memory issues
     });
 
-    const data = logs.map((log) => ({
-      'Log ID': log.id,
-      'Actor Type': log.actorType,
-      'Actor Email': log.actorEmail || '',
-      Action: log.action,
-      Description: log.description || '',
-      'Target Type': log.targetType || '',
-      'Target ID': log.targetId || '',
-      'Organization ID': log.organizationId || '',
-      'IP Address': log.ipAddress || '',
-      'Created At': log.createdAt.toISOString(),
-    }));
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Audit Logs');
 
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Audit Logs');
+    worksheet.columns = [
+      { header: 'Log ID', key: 'id', width: 40 },
+      { header: 'Actor Type', key: 'actorType', width: 15 },
+      { header: 'Actor Email', key: 'actorEmail', width: 30 },
+      { header: 'Action', key: 'action', width: 20 },
+      { header: 'Description', key: 'description', width: 40 },
+      { header: 'Target Type', key: 'targetType', width: 15 },
+      { header: 'Target ID', key: 'targetId', width: 40 },
+      { header: 'Organization ID', key: 'organizationId', width: 40 },
+      { header: 'IP Address', key: 'ipAddress', width: 15 },
+      { header: 'Created At', key: 'createdAt', width: 25 },
+    ];
 
-    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    logs.forEach((log) => {
+      worksheet.addRow({
+        id: log.id,
+        actorType: log.actorType,
+        actorEmail: log.actorEmail || '',
+        action: log.action,
+        description: log.description || '',
+        targetType: log.targetType || '',
+        targetId: log.targetId || '',
+        organizationId: log.organizationId || '',
+        ipAddress: log.ipAddress || '',
+        createdAt: log.createdAt.toISOString(),
+      });
+    });
+
+    worksheet.getRow(1).font = { bold: true };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 }
 

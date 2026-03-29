@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import * as crypto from 'crypto';
 import { AppError } from '../utils/errors';
 
-const prisma = new PrismaClient();
 
 // Webhook Event Types
 export const WEBHOOK_EVENTS = {
@@ -70,6 +69,9 @@ interface CreateWebhookParams {
   url: string;
   events: WebhookEvent[];
   description?: string;
+  isActive?: boolean;
+  secret?: string;
+  headers?: Record<string, string>;
 }
 
 interface TriggerWebhookParams {

@@ -173,6 +173,39 @@ router.post(
   rawImportController.bulkDeleteRecords.bind(rawImportController)
 );
 
+// Add manual record to a bulk import
+const addManualRecordValidation = [
+  body('bulkImportId').isUUID().withMessage('Valid bulk import ID is required'),
+  body('firstName').notEmpty().withMessage('First name is required'),
+  body('phone').notEmpty().withMessage('Phone number is required'),
+  body('lastName').optional().isString(),
+  body('email').optional().isEmail().withMessage('Invalid email format'),
+  body('alternatePhone').optional().isString(),
+  body('customFields').optional().isObject(),
+];
+
+router.post(
+  '/records/add-manual',
+  authorize('admin'),
+  validate(addManualRecordValidation),
+  rawImportController.addManualRecord.bind(rawImportController)
+);
+
+// Add multiple manual records to a bulk import
+const addBulkManualRecordsValidation = [
+  body('bulkImportId').isUUID().withMessage('Valid bulk import ID is required'),
+  body('records').isArray({ min: 1 }).withMessage('At least one record is required'),
+  body('records.*.firstName').notEmpty().withMessage('First name is required for each record'),
+  body('records.*.phone').notEmpty().withMessage('Phone number is required for each record'),
+];
+
+router.post(
+  '/records/add-manual-bulk',
+  authorize('admin'),
+  validate(addBulkManualRecordsValidation),
+  rawImportController.addBulkManualRecords.bind(rawImportController)
+);
+
 // Test endpoint to simulate external leads (for testing purposes)
 const simulateLeadValidation = [
   body('source').isIn([

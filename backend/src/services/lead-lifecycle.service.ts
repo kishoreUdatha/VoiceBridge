@@ -18,8 +18,32 @@ import {
   ActivityType,
   FollowUpType,
   FollowUpStatus,
-  CallOutcome
+  CallOutcome,
+  LeadStage
 } from '@prisma/client';
+
+// Stage slugs used for automatic progression
+const STAGE_SLUGS = {
+  NEW: 'NEW',
+  CONTACTED: 'CONTACTED',
+  QUALIFIED: 'QUALIFIED',
+  NEGOTIATION: 'NEGOTIATION',
+  FOLLOW_UP: 'FOLLOW_UP',
+  WON: 'WON',
+  LOST: 'LOST',
+} as const;
+
+// Stage progression order (by slug)
+const STAGE_ORDER = [
+  STAGE_SLUGS.NEW,
+  STAGE_SLUGS.CONTACTED,
+  STAGE_SLUGS.QUALIFIED,
+  STAGE_SLUGS.NEGOTIATION,
+  STAGE_SLUGS.FOLLOW_UP,
+  STAGE_SLUGS.WON,
+];
+
+const POSITIVE_OUTCOMES: CallOutcome[] = ['INTERESTED', 'CALLBACK_REQUESTED', 'CONVERTED'];
 
 interface QualificationData {
   name?: string;
@@ -212,6 +236,19 @@ class LeadLifecycleService {
       where: { organizationId, isDefault: true },
     });
 
+    // Determine initial stage based on call outcome
+    let initialStageSlug: string = STAGE_SLUGS.NEW;
+    if (callData.outcome === 'CONVERTED') {
+      initialStageSlug = STAGE_SLUGS.WON;
+    } else if (callData.outcome === 'NOT_INTERESTED') {
+      initialStageSlug = STAGE_SLUGS.LOST;
+    } else if (POSITIVE_OUTCOMES.includes(callData.outcome as CallOutcome)) {
+      initialStageSlug = STAGE_SLUGS.CONTACTED;
+    }
+
+    // Get the appropriate stage for this organization
+    const initialStage = await this.getStageBySlug(organizationId, initialStageSlug);
+
     const lead = await prisma.lead.create({
       data: {
         organizationId,
@@ -221,7 +258,7 @@ class LeadLifecycleService {
         email: qualification.email,
         source: 'AI_CALL' as any,
         sourceDetails: `AI Voice Agent Call - ${callData.campaignId ? 'Campaign' : 'Direct'}`,
-        stageId: defaultStage?.id,
+        stageId: initialStage?.id || defaultStage?.id,
         city: qualification.city || qualification.location,
         customFields: {
           aiCallData: {
@@ -236,6 +273,19 @@ class LeadLifecycleService {
         lastContactedAt: new Date(),
       },
     });
+
+    // Log initial stage if not NEW
+    if (initialStageSlug !== STAGE_SLUGS.NEW) {
+      await this.logActivity(lead.id, userId, ActivityType.STAGE_CHANGED,
+        `Initial stage set to ${initialStageSlug}`, {
+          previousStage: 'NEW',
+          newStage: initialStageSlug,
+          trigger: 'AUTO_PROGRESSION',
+          callOutcome: callData.outcome,
+          reason: this.getStageChangeReason(callData.outcome, initialStageSlug),
+        }
+      );
+    }
 
     return lead;
   }
@@ -269,7 +319,7 @@ class LeadLifecycleService {
     });
 
     // Update lead with merged data
-    const lead = await prisma.lead.update({
+    let lead = await prisma.lead.update({
       where: { id: existingLead.id },
       data: {
         // Update fields if new data is better
@@ -304,6 +354,35 @@ class LeadLifecycleService {
           fieldsUpdated: Object.keys(qualification),
         }
       );
+    }
+
+    // Get current stage slug for progression logic
+    const currentStage = existingLead.stageId
+      ? await prisma.leadStage.findUnique({ where: { id: existingLead.stageId } })
+      : null;
+    const currentStageSlug = currentStage?.slug || null;
+
+    // Automatic stage progression based on call outcome
+    const newStageSlug = await this.determineNewStage(
+      lead.organizationId,
+      currentStageSlug,
+      callData.outcome,
+      (existingLead.totalCalls || 0) + 1,
+      callData.sentiment
+    );
+
+    if (newStageSlug && newStageSlug !== currentStageSlug) {
+      await this.updateLeadStage(
+        lead.id,
+        lead.organizationId,
+        newStageSlug,
+        currentStageSlug,
+        callData.outcome,
+        userId
+      );
+
+      // Update the returned lead object with new stage
+      lead = await prisma.lead.findUniqueOrThrow({ where: { id: lead.id } });
     }
 
     return lead;
@@ -587,7 +666,7 @@ class LeadLifecycleService {
     });
 
     // Queue the call
-    await jobQueueService.addJob('OUTBOUND_CALL', {
+    await jobQueueService.addJob('SCHEDULED_CALL', {
       callId: call.id,
       phoneNumber: lead.phone,
       agentId: voiceAgentId,
@@ -726,6 +805,166 @@ class LeadLifecycleService {
     }
 
     return normalized;
+  }
+
+  /**
+   * Get or create a lead stage by slug
+   */
+  private async getStageBySlug(
+    organizationId: string,
+    slug: string
+  ): Promise<LeadStage | null> {
+    // Try to find existing stage
+    let stage = await prisma.leadStage.findFirst({
+      where: { organizationId, slug, isActive: true },
+    });
+
+    if (!stage) {
+      // Create the stage if it doesn't exist
+      const stageConfig: Record<string, { name: string; color: string; order: number }> = {
+        NEW: { name: 'New', color: '#3B82F6', order: 1 },
+        CONTACTED: { name: 'Contacted', color: '#8B5CF6', order: 2 },
+        QUALIFIED: { name: 'Qualified', color: '#10B981', order: 3 },
+        NEGOTIATION: { name: 'Negotiation', color: '#F59E0B', order: 4 },
+        FOLLOW_UP: { name: 'Follow Up', color: '#6366F1', order: 5 },
+        WON: { name: 'Won', color: '#22C55E', order: 6 },
+        LOST: { name: 'Lost', color: '#EF4444', order: 7 },
+      };
+
+      const config = stageConfig[slug];
+      if (config) {
+        stage = await prisma.leadStage.create({
+          data: {
+            organizationId,
+            slug,
+            name: config.name,
+            color: config.color,
+            order: config.order,
+            isDefault: slug === 'NEW',
+          },
+        });
+      }
+    }
+
+    return stage;
+  }
+
+  /**
+   * Determine new lead stage based on call outcome and current state
+   * Implements automatic stage progression rules
+   */
+  private async determineNewStage(
+    organizationId: string,
+    currentStageSlug: string | null,
+    callOutcome: CallOutcome | null | undefined,
+    totalCalls: number,
+    sentiment?: string | null
+  ): Promise<string | null> {
+    if (!callOutcome) return null;
+
+    // Direct conversion - always move to WON
+    if (callOutcome === 'CONVERTED') {
+      return STAGE_SLUGS.WON;
+    }
+
+    // Not interested - move to LOST
+    if (callOutcome === 'NOT_INTERESTED') {
+      return STAGE_SLUGS.LOST;
+    }
+
+    // For positive outcomes, determine progression
+    if (POSITIVE_OUTCOMES.includes(callOutcome)) {
+      const currentIndex = currentStageSlug
+        ? STAGE_ORDER.indexOf(currentStageSlug as any)
+        : -1;
+
+      // If already WON or LOST, don't change
+      if (currentStageSlug === STAGE_SLUGS.WON || currentStageSlug === STAGE_SLUGS.LOST) {
+        return null;
+      }
+
+      // First positive call - move to CONTACTED
+      if (currentIndex < 1) {
+        return STAGE_SLUGS.CONTACTED;
+      }
+
+      // Multiple positive calls - progress further
+      // 2+ positive calls with positive sentiment -> QUALIFIED
+      if (totalCalls >= 2 && sentiment === 'positive' && currentIndex < 2) {
+        return STAGE_SLUGS.QUALIFIED;
+      }
+
+      // 3+ positive calls -> NEGOTIATION
+      if (totalCalls >= 3 && currentIndex < 3) {
+        return STAGE_SLUGS.NEGOTIATION;
+      }
+    }
+
+    // No stage change needed
+    return null;
+  }
+
+  /**
+   * Update lead stage and log the change
+   */
+  private async updateLeadStage(
+    leadId: string,
+    organizationId: string,
+    newStageSlug: string,
+    previousStageSlug: string | null,
+    callOutcome: CallOutcome | null | undefined,
+    userId?: string
+  ): Promise<void> {
+    // Get or create the new stage
+    const newStage = await this.getStageBySlug(organizationId, newStageSlug);
+    if (!newStage) {
+      console.error(`[LeadLifecycle] Could not find/create stage: ${newStageSlug}`);
+      return;
+    }
+
+    // Update lead stage
+    await prisma.lead.update({
+      where: { id: leadId },
+      data: { stageId: newStage.id },
+    });
+
+    // Log status change activity
+    await this.logActivity(leadId, userId, ActivityType.STAGE_CHANGED,
+      `Stage changed: ${previousStageSlug || 'NEW'} → ${newStageSlug}`, {
+        previousStage: previousStageSlug || 'NEW',
+        newStage: newStageSlug,
+        trigger: 'AUTO_PROGRESSION',
+        callOutcome,
+        reason: this.getStageChangeReason(callOutcome, newStageSlug),
+      }
+    );
+
+    console.log(`[LeadLifecycle] Auto-progressed lead ${leadId}: ${previousStageSlug || 'NEW'} → ${newStageSlug} (outcome: ${callOutcome})`);
+  }
+
+  /**
+   * Get human-readable reason for stage change
+   */
+  private getStageChangeReason(
+    outcome: CallOutcome | null | undefined,
+    newStageSlug: string
+  ): string {
+    if (newStageSlug === STAGE_SLUGS.WON) {
+      return 'Lead converted during call';
+    }
+    if (newStageSlug === STAGE_SLUGS.LOST) {
+      return 'Lead expressed no interest';
+    }
+    if (newStageSlug === STAGE_SLUGS.CONTACTED) {
+      return 'First successful contact made';
+    }
+    if (newStageSlug === STAGE_SLUGS.QUALIFIED) {
+      return 'Multiple positive interactions - lead qualified';
+    }
+    if (newStageSlug === STAGE_SLUGS.NEGOTIATION) {
+      return 'Strong interest shown - entering negotiation';
+    }
+    return `Auto-progressed based on ${outcome} outcome`;
   }
 }
 

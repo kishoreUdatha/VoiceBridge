@@ -7,13 +7,20 @@
  * - Lead creation vs update logic
  * - Automatic follow-up scheduling (AI or Human)
  * - Qualification data merging across multiple calls
+ *
+ * Enhanced with automatic AI analysis on call completion:
+ * - Call quality scoring
+ * - Key questions/issues extraction
+ * - Per-message sentiment analysis
+ * - Speaking time breakdown
  */
 
 import OpenAI from 'openai';
-import { PrismaClient, CallOutcome } from '@prisma/client';
+import { CallOutcome } from '@prisma/client';
+import { prisma } from '../config/database';
 import { leadLifecycleService } from './lead-lifecycle.service';
+import { analyzeCallEnhanced, generateCoachingSuggestions, extractCallData, EnhancedCallAnalysisResult, CoachingSuggestions, ExtractedCallData } from './voicebot-ai.service';
 
-const prisma = new PrismaClient();
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -23,6 +30,13 @@ class CallFinalizationService {
   /**
    * Finalize a completed call - generate summary, create/update lead
    * Now uses Lead Lifecycle Service for intelligent lead management
+   *
+   * Enhanced: Uses AI to analyze call with detailed metrics including:
+   * - Call quality score (0-100)
+   * - Key questions asked by agent
+   * - Key issues discussed
+   * - Per-message sentiment analysis
+   * - Speaking time breakdown (agent/customer/silence)
    */
   async finalizeCall(callId: string) {
     const call = await prisma.outboundCall.findUnique({
@@ -35,25 +49,88 @@ class CallFinalizationService {
     const transcript = call.transcript as any[];
     if (!transcript || transcript.length === 0) return;
 
-    // Generate summary
-    const summary = await this.generateSummary(transcript);
+    console.log(`[CallFinalization] Starting enhanced AI analysis for call ${callId}`);
 
-    // Analyze sentiment
-    const sentiment = await this.analyzeSentiment(transcript);
+    // Use enhanced AI analysis to get all metrics in one call
+    const enhancedAnalysis: EnhancedCallAnalysisResult = await analyzeCallEnhanced(
+      transcript,
+      [], // mood history (can be extracted from session if available)
+      'neutral', // default mood
+      call.duration || 0
+    );
 
-    // Determine outcome
-    const outcome = await this.determineOutcome(transcript);
+    console.log(`[CallFinalization] Enhanced analysis complete:`, {
+      callQualityScore: enhancedAnalysis.callQualityScore,
+      sentiment: enhancedAnalysis.sentiment,
+      outcome: enhancedAnalysis.outcome,
+      keyQuestionsCount: enhancedAnalysis.keyQuestionsAsked.length,
+      keyIssuesCount: enhancedAnalysis.keyIssuesDiscussed.length,
+    });
 
-    // Update call with analysis results
+    // Generate AI coaching suggestions for agent improvement
+    console.log(`[CallFinalization] Generating coaching suggestions for call ${callId}`);
+    const coachingSuggestions: CoachingSuggestions = await generateCoachingSuggestions(
+      transcript,
+      enhancedAnalysis.outcome,
+      enhancedAnalysis.sentiment,
+      enhancedAnalysis.agentSpeakingTime,
+      enhancedAnalysis.customerSpeakingTime
+    );
+
+    console.log(`[CallFinalization] Coaching suggestions generated:`, {
+      positiveHighlights: coachingSuggestions.positiveHighlights.length,
+      areasToImprove: coachingSuggestions.areasToImprove.length,
+      empathyScore: coachingSuggestions.empathyScore,
+    });
+
+    // Extract structured data from conversation (name, interests, callback, etc.)
+    console.log(`[CallFinalization] Extracting structured call data for call ${callId}`);
+    const extractedData: ExtractedCallData = await extractCallData(
+      transcript,
+      call.agent?.industry || undefined
+    );
+
+    console.log(`[CallFinalization] Extracted data:`, {
+      itemsCount: extractedData.items.length,
+      callbackRequested: extractedData.callbackRequested,
+    });
+
+    // Update call with all analysis results (basic + enhanced + coaching + extracted data)
     const updatedCall = await prisma.outboundCall.update({
       where: { id: callId },
       data: {
-        summary,
-        sentiment,
-        outcome,
+        // Basic analysis fields
+        summary: enhancedAnalysis.summary,
+        sentiment: enhancedAnalysis.sentiment,
+        outcome: enhancedAnalysis.outcome as CallOutcome,
+
+        // Enhanced analysis fields
+        callQualityScore: enhancedAnalysis.callQualityScore,
+        keyQuestionsAsked: enhancedAnalysis.keyQuestionsAsked,
+        keyIssuesDiscussed: enhancedAnalysis.keyIssuesDiscussed,
+        sentimentIntensity: enhancedAnalysis.sentimentIntensity,
+        agentSpeakingTime: enhancedAnalysis.agentSpeakingTime,
+        customerSpeakingTime: enhancedAnalysis.customerSpeakingTime,
+        nonSpeechTime: enhancedAnalysis.nonSpeechTime,
+        enhancedTranscript: enhancedAnalysis.enhancedTranscript as any,
+
+        // AI Coaching fields
+        coachingPositiveHighlights: coachingSuggestions.positiveHighlights as any,
+        coachingAreasToImprove: coachingSuggestions.areasToImprove as any,
+        coachingNextCallTips: coachingSuggestions.nextCallTips,
+        coachingSummary: coachingSuggestions.coachingSummary,
+        coachingTalkListenFeedback: coachingSuggestions.talkListenFeedback,
+        coachingEmpathyScore: coachingSuggestions.empathyScore,
+        coachingObjectionScore: coachingSuggestions.objectionHandlingScore,
+        coachingClosingScore: coachingSuggestions.closingScore,
+
+        // Extracted structured data from conversation
+        extractedData: extractedData as any,
       },
       include: { agent: true },
     });
+
+    console.log(`[CallFinalization] Call ${callId} updated with enhanced analysis and coaching data`);
 
     // Check if this call was for a RawImportRecord
     await this.updateRawImportRecordFromCall(updatedCall);
@@ -312,6 +389,7 @@ INTERESTED, NOT_INTERESTED, CALLBACK_REQUESTED, NEEDS_FOLLOWUP, CONVERTED`,
       // Create call log entry
       await prisma.callLog.create({
         data: {
+          organizationId: call.agent?.organizationId,
           leadId,
           callerId: call.agent?.organizationId || call.agentId,
           phoneNumber: call.phoneNumber,
@@ -430,6 +508,7 @@ INTERESTED, NOT_INTERESTED, CALLBACK_REQUESTED, NEEDS_FOLLOWUP, CONVERTED`,
       // Create call log
       await prisma.callLog.create({
         data: {
+          organizationId: call.agent.organizationId,
           leadId: lead.id,
           callerId: call.agent.organizationId,
           phoneNumber: call.phoneNumber,

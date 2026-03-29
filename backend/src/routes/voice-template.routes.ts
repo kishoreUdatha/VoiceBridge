@@ -2,6 +2,7 @@ import { Router } from 'express';
 import OpenAI, { toFile } from 'openai';
 import { voiceTemplateService } from '../services/voice-template.service';
 import { authenticate } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AppError } from '../utils/errors';
 import { sarvamService } from '../integrations/sarvam.service';
@@ -15,8 +16,9 @@ const openai = process.env.OPENAI_API_KEY
 
 const router = Router();
 
-// All routes require authentication
+// All routes require authentication and tenant context
 router.use(authenticate);
+router.use(tenantMiddleware);
 
 /**
  * @api {get} /voice-templates List Templates
@@ -924,8 +926,8 @@ IMPORTANT EMAIL CAPTURE - Ask users to spell letter by letter:
     }
 
     // Also handle "capital U", "small a" patterns
-    processedMessage = processedMessage.replace(/\b(?:capital|big|upper)\s+([a-zA-Z])\b/gi, (_, letter) => letter.toUpperCase());
-    processedMessage = processedMessage.replace(/\b(?:small|little|lower)\s+([a-zA-Z])\b/gi, (_, letter) => letter.toLowerCase());
+    processedMessage = processedMessage.replace(/\b(?:capital|big|upper)\s+([a-zA-Z])\b/gi, (_: string, letter: string) => letter.toUpperCase());
+    processedMessage = processedMessage.replace(/\b(?:small|little|lower)\s+([a-zA-Z])\b/gi, (_: string, letter: string) => letter.toLowerCase());
 
     // Handle common letter mishearings from speech-to-text
     const letterMishearings: Record<string, string> = {
@@ -994,8 +996,8 @@ IMPORTANT EMAIL CAPTURE - Ask users to spell letter by letter:
     // Handle spelled out letters with spaces: "K I S H O R E" → "kishore"
     // Match 3+ single letters separated by spaces
     processedMessage = processedMessage.replace(/\b([a-zA-Z])\s+([a-zA-Z])\s+([a-zA-Z])(?:\s+([a-zA-Z]))?(?:\s+([a-zA-Z]))?(?:\s+([a-zA-Z]))?(?:\s+([a-zA-Z]))?(?:\s+([a-zA-Z]))?(?:\s+([a-zA-Z]))?(?:\s+([a-zA-Z]))?\b/gi,
-      (match, ...letters) => {
-        const validLetters = letters.filter(l => l && typeof l === 'string' && l.length === 1);
+      (match: string, ...letters: (string | undefined)[]) => {
+        const validLetters = letters.filter((l): l is string => l !== undefined && typeof l === 'string' && l.length === 1);
         if (validLetters.length >= 3) {
           return validLetters.join('').toLowerCase();
         }
@@ -1004,7 +1006,7 @@ IMPORTANT EMAIL CAPTURE - Ask users to spell letter by letter:
     );
 
     // Handle letters with hyphens: "K-I-S-H-O-R-E" → "kishore"
-    processedMessage = processedMessage.replace(/\b([a-zA-Z])(?:\s*-\s*([a-zA-Z]))+\b/gi, (match) => {
+    processedMessage = processedMessage.replace(/\b([a-zA-Z])(?:\s*-\s*([a-zA-Z]))+\b/gi, (match: string) => {
       return match.replace(/[\s-]+/g, '').toLowerCase();
     });
 

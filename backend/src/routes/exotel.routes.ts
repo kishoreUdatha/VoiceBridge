@@ -11,13 +11,12 @@ import { agentOrchestrator } from '../services/specialized-agents.service';
 import { authenticate } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { ApiResponse } from '../utils/apiResponse';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import OpenAI from 'openai';
 import axios from 'axios';
 import { config } from '../config';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Initialize OpenAI only if API key is available
 const openai = process.env.OPENAI_API_KEY
@@ -247,6 +246,7 @@ async function finalizeExotelCall(callId: string) {
         // Create call log for the lead
         await prisma.callLog.create({
           data: {
+            organizationId: call.agent.organizationId,
             leadId: existingLead.id,
             callerId: call.agentId,
             phoneNumber: call.phoneNumber,
@@ -300,6 +300,7 @@ async function finalizeExotelCall(callId: string) {
         // Create call log for the new lead
         await prisma.callLog.create({
           data: {
+            organizationId: call.agent.organizationId,
             leadId: newLead.id,
             callerId: call.agentId,
             phoneNumber: call.phoneNumber,

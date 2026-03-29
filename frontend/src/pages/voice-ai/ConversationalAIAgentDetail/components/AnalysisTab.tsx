@@ -185,7 +185,7 @@ export function AnalysisTab({
                     <XAxis dataKey="hour" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
                     <Tooltip
                       contentStyle={{ fontSize: 11, borderRadius: 6, padding: '4px 8px' }}
-                      formatter={(value: number) => [`${value} calls`]}
+                      formatter={(value) => [`${value} calls`]}
                     />
                     <Bar dataKey="calls" fill="#3B82F6" radius={[2, 2, 0, 0]} />
                   </BarChart>

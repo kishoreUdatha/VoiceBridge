@@ -3,13 +3,13 @@
  * Handles voice session lifecycle: start, process, end, transcripts
  */
 
-import { PrismaClient, VoiceSessionStatus } from '@prisma/client';
+import { VoiceSessionStatus } from '@prisma/client';
+import { prisma } from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
 import OpenAI from 'openai';
 import { parseVariables, extractInstitutionContext, extractLeadContext, VariableContext } from '../utils/variableParser';
 import { createLeadFromSession } from './voice-lead-integration.service';
 
-const prisma = new PrismaClient();
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })

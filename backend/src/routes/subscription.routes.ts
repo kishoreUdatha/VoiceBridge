@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { body, param, query } from 'express-validator';
 import { authenticate, authorize, AuthenticatedRequest } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
 import { validate } from '../middlewares/validate';
 import subscriptionService, { PLANS, ADD_ONS } from '../services/subscription.service';
 
@@ -30,6 +31,7 @@ router.get(
 router.get(
   '/current',
   authenticate,
+  tenantMiddleware,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const subscription = await subscriptionService.getSubscription(req.user!.organizationId);
 
@@ -44,6 +46,7 @@ router.get(
 router.get(
   '/usage',
   authenticate,
+  tenantMiddleware,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const usage = await subscriptionService.getUsage(req.user!.organizationId);
 
@@ -58,6 +61,7 @@ router.get(
 router.post(
   '/create',
   authenticate,
+  tenantMiddleware,
   authorize('admin'),
   validate([
     body('planId').isIn(['free', 'starter', 'growth', 'business', 'enterprise']),
@@ -85,6 +89,7 @@ router.post(
 router.post(
   '/verify',
   authenticate,
+  tenantMiddleware,
   validate([
     body('razorpayOrderId').notEmpty(),
     body('razorpayPaymentId').notEmpty(),
@@ -111,6 +116,7 @@ router.post(
 router.post(
   '/upgrade',
   authenticate,
+  tenantMiddleware,
   authorize('admin'),
   validate([
     body('planId').isIn(['free', 'starter', 'growth', 'business', 'enterprise']),
@@ -136,6 +142,7 @@ router.post(
 router.post(
   '/downgrade',
   authenticate,
+  tenantMiddleware,
   authorize('admin'),
   validate([
     body('planId').isIn(['free', 'starter', 'growth', 'business']),
@@ -159,6 +166,7 @@ router.post(
 router.post(
   '/cancel',
   authenticate,
+  tenantMiddleware,
   authorize('admin'),
   validate([
     body('reason').optional().isString(),
@@ -182,6 +190,7 @@ router.post(
 router.post(
   '/reactivate',
   authenticate,
+  tenantMiddleware,
   authorize('admin'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const result = await subscriptionService.reactivateSubscription(
@@ -199,6 +208,7 @@ router.post(
 router.get(
   '/billing-history',
   authenticate,
+  tenantMiddleware,
   authorize('admin'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const history = await subscriptionService.getBillingHistory(req.user!.organizationId);
@@ -214,6 +224,7 @@ router.get(
 router.get(
   '/invoice/:subscriptionId',
   authenticate,
+  tenantMiddleware,
   authorize('admin'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const invoice = await subscriptionService.generateInvoice(req.params.subscriptionId);
@@ -229,6 +240,7 @@ router.get(
 router.post(
   '/add-users',
   authenticate,
+  tenantMiddleware,
   authorize('admin'),
   validate([
     body('additionalUsers').isInt({ min: 1 }),
@@ -252,6 +264,7 @@ router.post(
 router.post(
   '/add-on',
   authenticate,
+  tenantMiddleware,
   authorize('admin'),
   validate([
     body('addOnType').isIn(['voiceMinutes', 'aiCalls', 'sms', 'whatsapp', 'storage', 'leads', 'phoneNumbers', 'voiceAgents', 'users']),
@@ -277,6 +290,7 @@ router.post(
 router.post(
   '/add-on/verify',
   authenticate,
+  tenantMiddleware,
   validate([
     body('razorpayOrderId').notEmpty(),
     body('razorpayPaymentId').notEmpty(),

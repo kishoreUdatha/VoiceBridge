@@ -30,9 +30,15 @@ import CreateLeadScreen from '../screens/CreateLeadScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AIAnalysisScreen from '../screens/AIAnalysisScreen';
-
-// API URL - using ADB reverse (localhost forwarded through USB)
-const API_URL = 'http://localhost:3001/api';
+import SmartCallPrepScreen from '../screens/SmartCallPrepScreen';
+import AssignedDataScreen from '../screens/AssignedDataScreen';
+import CallAssignedDataScreen from '../screens/CallAssignedDataScreen';
+import QualifiedLeadsScreen from '../screens/QualifiedLeadsScreen';
+import PerformanceScreen from '../screens/PerformanceScreen';
+import CallAnalysisScreen from '../screens/CallAnalysisScreen';
+import FollowUpsScreen from '../screens/FollowUpsScreen';
+import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
+import api from '../api';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -50,43 +56,59 @@ const LoginScreen: React.FC<{ onLoginSuccess: () => void }> = ({ onLoginSuccess 
     }
 
     setLoading(true);
-    console.log('Attempting login with:', email);
-    console.log('API URL:', `${API_URL}/auth/login`);
+    console.log('[Login] Attempting login with:', email);
 
     try {
-      // Use fetch instead of axios for better RN compatibility
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          password: password,
-        }),
+      // Use axios api instance for consistent URL handling and interceptors
+      const response = await api.post('/auth/login', {
+        email: email.trim().toLowerCase(),
+        password: password,
       });
 
-      console.log('Fetch response status:', response.status);
-      const data = await response.json();
-      console.log('Login response:', data);
+      console.log('[Login] Response status:', response.status);
+      const data = response.data;
+      console.log('[Login] Response data:', data);
 
-      if (data.success && data.data.accessToken) {
-        // Save token using correct storage keys
-        await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.data.accessToken);
-        await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(data.data.user));
-        if (data.data.refreshToken) {
-          await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, data.data.refreshToken);
+      // Handle both response formats: { accessToken } or { data: { accessToken } }
+      const responseData = data.data || data;
+      const accessToken = responseData.accessToken || responseData.token;
+
+      if (data.success !== false && accessToken) {
+        // Save tokens using correct storage keys
+        await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, accessToken);
+
+        if (responseData.user) {
+          await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(responseData.user));
+        }
+        if (responseData.refreshToken) {
+          await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, responseData.refreshToken);
         }
 
-        Alert.alert('Success', 'Login successful!', [
-          { text: 'OK', onPress: onLoginSuccess }
-        ]);
+        console.log('[Login] Login successful, navigating...');
+        onLoginSuccess();
       } else {
-        Alert.alert('Login Failed', data.message || 'Unknown error');
+        Alert.alert('Login Failed', data.message || 'Invalid credentials');
       }
     } catch (error: any) {
-      console.log('Login error:', error.toString());
-      const message = error.message || 'Login failed. Please check your credentials.';
+      console.log('[Login] Error:', error);
+      let message = 'Login failed. Please check your credentials.';
+
+      if (error.response) {
+        // Server responded with error
+        const status = error.response.status;
+        const serverMessage = error.response.data?.message;
+
+        if (status === 429) {
+          message = 'Too many attempts. Please wait a minute and try again.';
+        } else if (status === 401) {
+          message = 'Invalid email or password.';
+        } else if (serverMessage) {
+          message = serverMessage;
+        }
+      } else if (error.message?.includes('Network Error') || error.message?.includes('timeout')) {
+        message = 'Cannot connect to server. Please check:\n• Internet connection\n• Phone is on same WiFi as server\n• Server is running';
+      }
+
       Alert.alert('Login Failed', message);
     } finally {
       setLoading(false);
@@ -149,6 +171,9 @@ const MainTabNavigator: React.FC = () => {
             case 'Dashboard':
               iconName = focused ? 'view-dashboard' : 'view-dashboard-outline';
               break;
+            case 'AssignedData':
+              iconName = focused ? 'clipboard-text' : 'clipboard-text-outline';
+              break;
             case 'Leads':
               iconName = focused ? 'account-group' : 'account-group-outline';
               break;
@@ -175,7 +200,7 @@ const MainTabNavigator: React.FC = () => {
           height: 60,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: '500',
         },
         headerStyle: {
@@ -190,7 +215,12 @@ const MainTabNavigator: React.FC = () => {
       <Tab.Screen
         name="Dashboard"
         component={DashboardScreen}
-        options={{ title: 'Dashboard' }}
+        options={{ title: 'Dashboard', headerShown: false }}
+      />
+      <Tab.Screen
+        name="AssignedData"
+        component={AssignedDataScreen}
+        options={{ title: 'To Call', headerTitle: 'Assigned Data' }}
       />
       <Tab.Screen
         name="Leads"
@@ -200,7 +230,7 @@ const MainTabNavigator: React.FC = () => {
       <Tab.Screen
         name="History"
         component={HistoryScreen}
-        options={{ title: 'Call History' }}
+        options={{ title: 'History' }}
       />
       <Tab.Screen
         name="Settings"
@@ -280,9 +310,19 @@ const AppNavigator: React.FC = () => {
               options={{ headerShown: false }}
             />
             <Stack.Screen
+              name="SmartCallPrep"
+              component={SmartCallPrepScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
               name="Call"
               component={CallScreen}
               options={{ title: 'Active Call', headerBackVisible: false }}
+            />
+            <Stack.Screen
+              name="CallAssignedData"
+              component={CallAssignedDataScreen}
+              options={{ title: 'Calling...', headerBackVisible: false }}
             />
             <Stack.Screen
               name="Outcome"
@@ -323,6 +363,31 @@ const AppNavigator: React.FC = () => {
               name="AIAnalysis"
               component={AIAnalysisScreen}
               options={{ title: 'AI Analysis' }}
+            />
+            <Stack.Screen
+              name="QualifiedLeads"
+              component={QualifiedLeadsScreen}
+              options={{ title: 'My Qualified Leads' }}
+            />
+            <Stack.Screen
+              name="Performance"
+              component={PerformanceScreen}
+              options={{ title: 'My Performance' }}
+            />
+            <Stack.Screen
+              name="CallAnalysis"
+              component={CallAnalysisScreen}
+              options={{ title: 'Call Analysis', headerBackVisible: false }}
+            />
+            <Stack.Screen
+              name="FollowUps"
+              component={FollowUpsScreen}
+              options={{ title: 'Follow-ups' }}
+            />
+            <Stack.Screen
+              name="NotificationSettings"
+              component={NotificationSettingsScreen}
+              options={{ title: 'Notifications' }}
             />
           </>
         )}

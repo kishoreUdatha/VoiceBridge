@@ -4,6 +4,7 @@ import { bulkUploadService } from '../services/bulkUpload.service';
 import { ApiResponse } from '../utils/apiResponse';
 import { TenantRequest } from '../middlewares/tenant';
 import { LeadSource, LeadPriority } from '@prisma/client';
+import { hasElevatedAccess, getLeadAccessContext } from '../utils/leadAccess';
 
 export class LeadController {
   async create(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
@@ -33,16 +34,26 @@ export class LeadController {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
+      const userRole = req.user!.role;
+      const userId = req.user!.id;
+
+      // For telecallers/counselors, force filter to only their assigned leads
+      let assignedToIdFilter = req.query.assignedToId as string | undefined;
+      if (!hasElevatedAccess(userRole)) {
+        // Non-elevated users can only see their own assigned leads
+        assignedToIdFilter = userId;
+      }
 
       const filter = {
         organizationId: req.organizationId!,
         stageId: req.query.stageId as string | undefined,
         source: req.query.source as LeadSource | undefined,
         priority: req.query.priority as LeadPriority | undefined,
-        assignedToId: req.query.assignedToId as string | undefined,
+        assignedToId: assignedToIdFilter,
         search: req.query.search as string | undefined,
         dateFrom: req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined,
         dateTo: req.query.dateTo ? new Date(req.query.dateTo as string) : undefined,
+        isConverted: req.query.isConverted === 'true' ? true : req.query.isConverted === 'false' ? false : undefined,
       };
 
       const { leads, total } = await leadService.findAll(filter, page, limit);
@@ -91,7 +102,13 @@ export class LeadController {
 
   async getStats(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const stats = await leadService.getStats(req.organizationId!);
+      const userRole = req.user!.role;
+      const userId = req.user!.id;
+
+      // For telecallers/counselors, only show stats for their assigned leads
+      const assignedToId = hasElevatedAccess(userRole) ? undefined : userId;
+
+      const stats = await leadService.getStats(req.organizationId!, assignedToId);
 
       ApiResponse.success(res, 'Lead statistics retrieved successfully', stats);
     } catch (error) {

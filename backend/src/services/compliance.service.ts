@@ -1,6 +1,6 @@
-import { PrismaClient, ConsentType } from '@prisma/client';
+import { ConsentType } from '@prisma/client';
+import { prisma } from '../config/database';
 
-const prisma = new PrismaClient();
 
 // ==================== TYPES ====================
 

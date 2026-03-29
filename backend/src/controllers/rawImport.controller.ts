@@ -223,6 +223,47 @@ export class RawImportController {
       next(error);
     }
   }
+
+  // ==================== MANUAL RECORD ADDITION ====================
+
+  async addManualRecord(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { bulkImportId, firstName, lastName, email, phone, alternatePhone, customFields } = req.body;
+
+      const record = await rawImportService.addManualRecord(
+        bulkImportId,
+        req.organizationId!,
+        {
+          firstName,
+          lastName,
+          email,
+          phone,
+          alternatePhone,
+          customFields,
+        }
+      );
+
+      ApiResponse.created(res, 'Record added successfully', record);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async addBulkManualRecords(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { bulkImportId, records } = req.body;
+
+      const result = await rawImportService.addBulkManualRecords(
+        bulkImportId,
+        req.organizationId!,
+        records
+      );
+
+      ApiResponse.created(res, `${result.count} records added successfully`, result);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const rawImportController = new RawImportController();

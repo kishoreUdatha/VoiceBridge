@@ -2,7 +2,8 @@ import { Router, Response } from 'express';
 import { authenticate } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { ApiResponse } from '../utils/apiResponse';
-import { PrismaClient, AgentType } from '@prisma/client';
+import { prisma } from '../config/database';
+import { AgentType } from '@prisma/client';
 import {
   agentOrchestrator,
   salesAgentService,
@@ -14,7 +15,6 @@ import {
 } from '../services/specialized-agents.service';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // All routes require authentication
 router.use(authenticate);

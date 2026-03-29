@@ -67,7 +67,7 @@ router.get(
 
 router.get(
   '/:id',
-  param('id').isUUID().withMessage('Invalid user ID'),
+  validate([param('id').isUUID().withMessage('Invalid user ID')]),
   userController.findById.bind(userController)
 );
 
@@ -81,7 +81,7 @@ router.put(
 router.delete(
   '/:id',
   authorize('admin'),
-  param('id').isUUID().withMessage('Invalid user ID'),
+  validate([param('id').isUUID().withMessage('Invalid user ID')]),
   userController.delete.bind(userController)
 );
 

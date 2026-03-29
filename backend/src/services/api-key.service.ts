@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import crypto from 'crypto';
 import { AppError } from '../utils/errors';
 
-const prisma = new PrismaClient();
 
 // API Key Permissions
 export const API_PERMISSIONS = {

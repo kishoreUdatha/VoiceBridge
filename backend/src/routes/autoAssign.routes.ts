@@ -3,13 +3,15 @@ import { body } from 'express-validator';
 import { leadAutoAssignService } from '../services/leadAutoAssign.service';
 import { ApiResponse } from '../utils/apiResponse';
 import { authenticate, authorize, AuthenticatedRequest } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
 import { validate } from '../middlewares/validate';
 import { prisma } from '../config/database';
 
 const router = Router();
 
-// All routes require authentication and admin/manager role
+// All routes require authentication, tenant context, and admin/manager role
 router.use(authenticate);
+router.use(tenantMiddleware);
 router.use(authorize('admin', 'manager'));
 
 /**

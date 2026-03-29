@@ -1,9 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import OpenAI from 'openai';
 import { exotelService } from './exotel.service';
 import { outboundCallService } from './outbound-call.service';
 
-const prisma = new PrismaClient();
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })

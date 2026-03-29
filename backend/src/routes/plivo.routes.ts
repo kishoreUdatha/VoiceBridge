@@ -189,6 +189,7 @@ router.post('/call/make', async (req: TenantRequest, res: Response) => {
       to,
       leadId,
       callerId: req.user!.id,
+      organizationId: req.user!.organizationId,
       callType,
     }, answerUrl);
 

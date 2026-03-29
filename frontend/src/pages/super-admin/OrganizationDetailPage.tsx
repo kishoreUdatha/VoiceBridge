@@ -119,12 +119,8 @@ export default function OrganizationDetailPage() {
     setImpersonating(userId);
     try {
       await superAdminService.impersonateUser(userId);
-      // Redirect to tenant dashboard with impersonation token
-      const token = localStorage.getItem('impersonationToken');
-      if (token) {
-        localStorage.setItem('accessToken', token);
-        window.location.href = '/dashboard';
-      }
+      // Redirect to tenant dashboard - cookies are set by the backend
+      window.location.href = '/dashboard';
     } catch (error) {
       console.error('Failed to impersonate:', error);
       alert('Failed to impersonate user');

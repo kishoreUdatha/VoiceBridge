@@ -15,6 +15,34 @@ if (isProduction && !isValidConfig) {
   process.exit(1);
 }
 
+// Production security checks
+if (isProduction) {
+  const criticalMissing: string[] = [];
+
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    criticalMissing.push('JWT_SECRET (must be at least 32 characters)');
+  }
+  if (!process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET.length < 32) {
+    criticalMissing.push('JWT_REFRESH_SECRET (must be at least 32 characters)');
+  }
+  if (!process.env.CREDENTIALS_ENCRYPTION_KEY) {
+    criticalMissing.push('CREDENTIALS_ENCRYPTION_KEY');
+  }
+  if (!process.env.FRONTEND_URL || process.env.FRONTEND_URL.includes('localhost')) {
+    console.warn('⚠️  WARNING: FRONTEND_URL should be set to production domain');
+  }
+  if (!process.env.CORS_ORIGINS) {
+    console.warn('⚠️  WARNING: CORS_ORIGINS should be explicitly set in production');
+  }
+
+  if (criticalMissing.length > 0) {
+    console.error('🔴 CRITICAL: Missing required production environment variables:');
+    criticalMissing.forEach(v => console.error(`   - ${v}`));
+    console.error('Application cannot start in production without these. Exiting.');
+    process.exit(1);
+  }
+}
+
 // Log configured features
 const configuredFeatures = getConfiguredFeatures();
 if (configuredFeatures.length > 0) {
@@ -61,10 +89,40 @@ export const config = {
   },
 
   jwt: {
-    secret: process.env.JWT_SECRET || 'default-secret-change-me',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'default-refresh-secret-change-me',
+    secret: (() => {
+      const secret = process.env.JWT_SECRET;
+      if (!secret && isProduction) {
+        throw new Error('FATAL: JWT_SECRET environment variable is required in production');
+      }
+      if (!secret) {
+        console.warn('WARNING: Using default JWT_SECRET - set JWT_SECRET env var for production');
+        return 'dev-only-secret-' + Math.random().toString(36).substring(7);
+      }
+      return secret;
+    })(),
+    refreshSecret: (() => {
+      const secret = process.env.JWT_REFRESH_SECRET;
+      if (!secret && isProduction) {
+        throw new Error('FATAL: JWT_REFRESH_SECRET environment variable is required in production');
+      }
+      if (!secret) {
+        console.warn('WARNING: Using default JWT_REFRESH_SECRET - set JWT_REFRESH_SECRET env var for production');
+        return 'dev-only-refresh-' + Math.random().toString(36).substring(7);
+      }
+      return secret;
+    })(),
     expiry: process.env.JWT_EXPIRY || '15m',
     refreshExpiry: process.env.JWT_REFRESH_EXPIRY || '7d',
+  },
+
+  // Cookie settings for secure token storage
+  cookie: {
+    httpOnly: true,
+    secure: isProduction, // Only send over HTTPS in production
+    sameSite: (isProduction ? 'strict' : 'lax') as 'strict' | 'lax' | 'none',
+    domain: process.env.COOKIE_DOMAIN || undefined,
+    accessTokenMaxAge: 15 * 60 * 1000, // 15 minutes in ms
+    refreshTokenMaxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
   },
 
   razorpay: {
@@ -148,11 +206,31 @@ export const config = {
     googleAds: process.env.GOOGLE_ADS_API_VERSION || 'v15',
   },
 
+  // External API URLs (configurable for proxies/custom endpoints)
+  apiUrls: {
+    facebookGraph: process.env.FACEBOOK_GRAPH_URL || 'https://graph.facebook.com',
+    linkedin: process.env.LINKEDIN_API_URL || 'https://api.linkedin.com',
+    apify: process.env.APIFY_API_URL || 'https://api.apify.com/v2',
+    elevenlabs: process.env.ELEVENLABS_API_URL || 'https://api.elevenlabs.io/v1',
+    openai: process.env.OPENAI_API_URL || 'https://api.openai.com/v1',
+    huggingface: process.env.HUGGINGFACE_API_URL || 'https://api-inference.huggingface.co',
+  },
+
   // Sarvam AI (Indian language support)
   sarvam: {
     apiKey: process.env.SARVAM_API_KEY,
     apiUrl: process.env.SARVAM_API_URL || 'https://api.sarvam.ai',
     ttsPace: parseFloat(process.env.SARVAM_TTS_PACE || '1.10'),
+  },
+
+  // ElevenLabs TTS
+  elevenlabs: {
+    apiKey: process.env.ELEVENLABS_API_KEY,
+  },
+
+  // Apify Web Scraping
+  apify: {
+    apiKey: process.env.APIFY_API_KEY,
   },
 
   // Voice AI settings

@@ -3,7 +3,8 @@
  * Handles call flow execution engine and node processing
  */
 
-import { PrismaClient, CallOutcome } from '@prisma/client';
+import { CallOutcome } from '@prisma/client';
+import { prisma } from '../config/database';
 import {
   CallFlowNode,
   CallFlowEdge,
@@ -12,7 +13,6 @@ import {
   FlowTestResult,
 } from './call-flow.types';
 
-const prisma = new PrismaClient();
 
 /**
  * Initialize a new execution context for a call flow

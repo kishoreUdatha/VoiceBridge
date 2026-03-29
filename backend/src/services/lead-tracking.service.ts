@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import crypto from 'crypto';
 import { adInteractionService } from './ad-interaction.service';
 
-const prisma = new PrismaClient();
 
 // Lead sources
 export const LEAD_SOURCES = {

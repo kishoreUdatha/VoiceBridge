@@ -1,14 +1,13 @@
 import { Router, Response } from 'express';
 import { body, param, query } from 'express-validator';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { leadController } from '../controllers/lead.controller';
 import { validate } from '../middlewares/validate';
 import { authenticate, authorize } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { uploadSpreadsheet } from '../middlewares/upload';
 import { ApiResponse } from '../utils/apiResponse';
-
-const prisma = new PrismaClient();
+import { canAccessLead, hasElevatedAccess } from '../utils/leadAccess';
 
 const router = Router();
 
@@ -67,8 +66,53 @@ const listLeadsValidation = [
   query('dateTo').optional().isISO8601(),
 ];
 
+// Lead stages/statuses
+const LEAD_STAGES = [
+  { id: 'NEW', name: 'New', color: '#3B82F6', order: 1 },
+  { id: 'CONTACTED', name: 'Contacted', color: '#8B5CF6', order: 2 },
+  { id: 'QUALIFIED', name: 'Qualified', color: '#10B981', order: 3 },
+  { id: 'NEGOTIATION', name: 'Negotiation', color: '#F59E0B', order: 4 },
+  { id: 'FOLLOW_UP', name: 'Follow Up', color: '#6366F1', order: 5 },
+  { id: 'WON', name: 'Won', color: '#22C55E', order: 6 },
+  { id: 'LOST', name: 'Lost', color: '#EF4444', order: 7 },
+];
+
+/**
+ * Role-based middleware for lead access
+ * - Admin/Manager: Can access any lead in the organization
+ * - Telecaller/Counselor: Can only access leads assigned to them
+ */
+const checkLeadAccess = async (req: TenantRequest, res: Response, next: Function) => {
+  try {
+    const leadId = req.params.id;
+    const userId = req.user!.id;
+    const organizationId = req.organizationId!;
+    const role = req.user!.role;
+
+    // Admin/Manager can access any lead in the organization
+    if (hasElevatedAccess(role)) {
+      return next();
+    }
+
+    // Telecaller/Counselor can only access leads assigned to them
+    const hasAccess = await canAccessLead(leadId, { userId, organizationId, role });
+    if (!hasAccess) {
+      return ApiResponse.notFound(res, 'Lead not found');
+    }
+
+    next();
+  } catch (error) {
+    ApiResponse.error(res, 'Access check failed', 500);
+  }
+};
+
 // Routes
 router.get('/stats', leadController.getStats.bind(leadController));
+
+// Get available lead stages/statuses
+router.get('/stages', (req: TenantRequest, res: Response) => {
+  ApiResponse.success(res, 'Lead stages retrieved', LEAD_STAGES);
+});
 
 router.post(
   '/bulk-upload',
@@ -81,15 +125,14 @@ router.post(
 router.post(
   '/assign-bulk',
   authorize('admin'),
-  [
+  validate([
     body('source').optional().isIn([
       'MANUAL', 'BULK_UPLOAD', 'FORM', 'LANDING_PAGE', 'CHATBOT',
       'AD_FACEBOOK', 'AD_INSTAGRAM', 'AD_LINKEDIN', 'REFERRAL', 'WEBSITE', 'OTHER'
     ]),
     body('counselorIds').isArray({ min: 1 }).withMessage('At least one counselor is required'),
     body('counselorIds.*').isUUID().withMessage('Invalid counselor ID'),
-  ],
-  validate([]),
+  ]),
   leadController.assignBulk.bind(leadController)
 );
 
@@ -107,13 +150,15 @@ router.get(
 
 router.get(
   '/:id',
-  param('id').isUUID().withMessage('Invalid lead ID'),
+  validate([param('id').isUUID().withMessage('Invalid lead ID')]),
+  checkLeadAccess, // Reuse the same access check for reading
   leadController.findById.bind(leadController)
 );
 
 router.put(
   '/:id',
   validate(updateLeadValidation),
+  checkLeadAccess,
   leadController.update.bind(leadController)
 );
 
@@ -121,13 +166,14 @@ router.put(
 router.patch(
   '/:id',
   validate(updateLeadValidation),
+  checkLeadAccess,
   leadController.update.bind(leadController)
 );
 
 router.delete(
   '/:id',
   authorize('admin'),
-  param('id').isUUID().withMessage('Invalid lead ID'),
+  validate([param('id').isUUID().withMessage('Invalid lead ID')]),
   leadController.delete.bind(leadController)
 );
 
@@ -141,25 +187,17 @@ router.put(
 // Add note to lead
 router.post(
   '/:id/notes',
-  [
+  validate([
     param('id').isUUID().withMessage('Invalid lead ID'),
-    body('content').trim().notEmpty().withMessage('Note content is required'),
-  ],
-  validate([]),
+    body('content').trim().notEmpty().withMessage('Note content is required')
+      .isLength({ max: 5000 }).withMessage('Note must be at most 5000 characters'),
+  ]),
+  checkLeadAccess, // Role-based access check
   async (req: TenantRequest, res: Response) => {
     try {
       const { id } = req.params;
       const { content } = req.body;
       const userId = req.user!.id;
-
-      // Verify lead exists and belongs to org
-      const lead = await prisma.lead.findFirst({
-        where: { id, organizationId: req.organization!.id },
-      });
-
-      if (!lead) {
-        return ApiResponse.error(res, 'Lead not found', 404);
-      }
 
       const note = await prisma.leadNote.create({
         data: {
@@ -195,7 +233,8 @@ router.post(
 // Get lead notes
 router.get(
   '/:id/notes',
-  param('id').isUUID().withMessage('Invalid lead ID'),
+  validate([param('id').isUUID().withMessage('Invalid lead ID')]),
+  checkLeadAccess, // Role-based access check
   async (req: TenantRequest, res: Response) => {
     try {
       const { id } = req.params;

@@ -1,10 +1,12 @@
 import { Router, Response, NextFunction } from 'express';
 import { body, param, query } from 'express-validator';
 import { authenticate, AuthenticatedRequest } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
 import { validate } from '../middlewares/validate';
 import { prisma } from '../config/database';
 import { uploadMiddleware } from '../middlewares/upload';
 import { uploadToS3, deleteFromS3 } from '../services/s3.service';
+import { canAccessLead, LeadAccessContext, hasElevatedAccess } from '../utils/leadAccess';
 
 const router = Router();
 
@@ -14,18 +16,40 @@ const asyncHandler = (fn: (req: AuthenticatedRequest, res: Response, next: NextF
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 
-// Apply authentication to all routes
+/**
+ * Role-aware lead access verification
+ *
+ * Access rules:
+ * - Admin/Manager: Can access any lead in their organization
+ * - Counselor/Telecaller: Can only access leads assigned to them
+ */
+const verifyLeadAccess = async (leadId: string, req: AuthenticatedRequest): Promise<boolean> => {
+  const context: LeadAccessContext = {
+    userId: req.user!.id,
+    organizationId: req.user!.organizationId,
+    role: req.user!.role,
+  };
+  return canAccessLead(leadId, context);
+};
+
+// Apply authentication and tenant middleware to all routes
 router.use(authenticate);
+router.use(tenantMiddleware);
 
 // ==================== NOTES ====================
 
 // Get notes for a lead
 router.get(
   '/:leadId/notes',
-  param('leadId').isUUID(),
-  validate([]),
+  validate([param('leadId').isUUID().withMessage('Invalid lead ID')]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     const notes = await prisma.leadNote.findMany({
       where: { leadId },
@@ -44,14 +68,21 @@ router.get(
 // Create note
 router.post(
   '/:leadId/notes',
-  param('leadId').isUUID(),
   validate([
-    body('content').trim().notEmpty().withMessage('Note content is required'),
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    body('content').trim().notEmpty().withMessage('Note content is required')
+      .isLength({ max: 10000 }).withMessage('Note content too long'),
     body('isPinned').optional().isBoolean(),
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
     const { content, isPinned } = req.body;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     const note = await prisma.leadNote.create({
       data: {
@@ -86,14 +117,29 @@ router.post(
 router.put(
   '/:leadId/notes/:noteId',
   validate([
-    param('leadId').isUUID(),
-    param('noteId').isUUID(),
-    body('content').optional().trim().notEmpty(),
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    param('noteId').isUUID().withMessage('Invalid note ID'),
+    body('content').optional().trim().notEmpty()
+      .isLength({ max: 10000 }).withMessage('Note content too long'),
     body('isPinned').optional().isBoolean(),
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { noteId } = req.params;
+    const { leadId, noteId } = req.params;
     const { content, isPinned } = req.body;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    // Verify note belongs to this lead
+    const existingNote = await prisma.leadNote.findFirst({
+      where: { id: noteId, leadId },
+    });
+    if (!existingNote) {
+      return res.status(404).json({ success: false, message: 'Note not found' });
+    }
 
     const note = await prisma.leadNote.update({
       where: { id: noteId },
@@ -115,9 +161,26 @@ router.put(
 // Delete note
 router.delete(
   '/:leadId/notes/:noteId',
-  validate([param('leadId').isUUID(), param('noteId').isUUID()]),
+  validate([
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    param('noteId').isUUID().withMessage('Invalid note ID'),
+  ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { noteId } = req.params;
+    const { leadId, noteId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    // Verify note belongs to this lead
+    const existingNote = await prisma.leadNote.findFirst({
+      where: { id: noteId, leadId },
+    });
+    if (!existingNote) {
+      return res.status(404).json({ success: false, message: 'Note not found' });
+    }
 
     await prisma.leadNote.delete({ where: { id: noteId } });
 
@@ -130,10 +193,15 @@ router.delete(
 // Get tasks for a lead
 router.get(
   '/:leadId/tasks',
-  param('leadId').isUUID(),
-  validate([]),
+  validate([param('leadId').isUUID().withMessage('Invalid lead ID')]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     const tasks = await prisma.leadTask.findMany({
       where: { leadId },
@@ -155,10 +223,11 @@ router.get(
 // Create task
 router.post(
   '/:leadId/tasks',
-  param('leadId').isUUID(),
   validate([
-    body('title').trim().notEmpty().withMessage('Task title is required'),
-    body('description').optional().trim(),
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    body('title').trim().notEmpty().withMessage('Task title is required')
+      .isLength({ max: 500 }).withMessage('Title too long'),
+    body('description').optional().trim().isLength({ max: 5000 }).withMessage('Description too long'),
     body('dueDate').optional().isISO8601(),
     body('priority').optional().isIn(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
     body('assigneeId').optional().isUUID(),
@@ -166,6 +235,12 @@ router.post(
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
     const { title, description, dueDate, priority, assigneeId } = req.body;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     const task = await prisma.leadTask.create({
       data: {
@@ -206,10 +281,11 @@ router.post(
 router.put(
   '/:leadId/tasks/:taskId',
   validate([
-    param('leadId').isUUID(),
-    param('taskId').isUUID(),
-    body('title').optional().trim().notEmpty(),
-    body('description').optional().trim(),
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    param('taskId').isUUID().withMessage('Invalid task ID'),
+    body('title').optional().trim().notEmpty()
+      .isLength({ max: 500 }).withMessage('Title too long'),
+    body('description').optional().trim().isLength({ max: 5000 }).withMessage('Description too long'),
     body('dueDate').optional().isISO8601(),
     body('priority').optional().isIn(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
     body('status').optional().isIn(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
@@ -218,6 +294,20 @@ router.put(
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId, taskId } = req.params;
     const { title, description, dueDate, priority, status, assigneeId } = req.body;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    // Verify task belongs to this lead
+    const existingTask = await prisma.leadTask.findFirst({
+      where: { id: taskId, leadId },
+    });
+    if (!existingTask) {
+      return res.status(404).json({ success: false, message: 'Task not found' });
+    }
 
     const updateData: any = {};
     if (title) updateData.title = title;
@@ -265,9 +355,26 @@ router.put(
 // Delete task
 router.delete(
   '/:leadId/tasks/:taskId',
-  validate([param('leadId').isUUID(), param('taskId').isUUID()]),
+  validate([
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    param('taskId').isUUID().withMessage('Invalid task ID'),
+  ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { taskId } = req.params;
+    const { leadId, taskId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    // Verify task belongs to this lead
+    const existingTask = await prisma.leadTask.findFirst({
+      where: { id: taskId, leadId },
+    });
+    if (!existingTask) {
+      return res.status(404).json({ success: false, message: 'Task not found' });
+    }
 
     await prisma.leadTask.delete({ where: { id: taskId } });
 
@@ -280,10 +387,15 @@ router.delete(
 // Get follow-ups for a lead
 router.get(
   '/:leadId/follow-ups',
-  param('leadId').isUUID(),
-  validate([]),
+  validate([param('leadId').isUUID().withMessage('Invalid lead ID')]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     const followUps = await prisma.followUp.findMany({
       where: { leadId },
@@ -305,16 +417,22 @@ router.get(
 // Create follow-up
 router.post(
   '/:leadId/follow-ups',
-  param('leadId').isUUID(),
   validate([
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
     body('scheduledAt').isISO8601().withMessage('Scheduled date is required'),
-    body('message').optional().trim(),
-    body('notes').optional().trim(),
+    body('message').optional().trim().isLength({ max: 2000 }).withMessage('Message too long'),
+    body('notes').optional().trim().isLength({ max: 5000 }).withMessage('Notes too long'),
     body('assigneeId').optional().isUUID(),
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
     const { scheduledAt, message, notes, assigneeId } = req.body;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     const followUp = await prisma.followUp.create({
       data: {
@@ -354,17 +472,31 @@ router.post(
 router.put(
   '/:leadId/follow-ups/:followUpId',
   validate([
-    param('leadId').isUUID(),
-    param('followUpId').isUUID(),
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    param('followUpId').isUUID().withMessage('Invalid follow-up ID'),
     body('scheduledAt').optional().isISO8601(),
-    body('message').optional().trim(),
-    body('notes').optional().trim(),
+    body('message').optional().trim().isLength({ max: 2000 }).withMessage('Message too long'),
+    body('notes').optional().trim().isLength({ max: 5000 }).withMessage('Notes too long'),
     body('status').optional().isIn(['UPCOMING', 'COMPLETED', 'MISSED', 'RESCHEDULED']),
     body('assigneeId').optional().isUUID(),
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId, followUpId } = req.params;
     const { scheduledAt, message, notes, status, assigneeId } = req.body;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    // Verify follow-up belongs to this lead
+    const existingFollowUp = await prisma.followUp.findFirst({
+      where: { id: followUpId, leadId },
+    });
+    if (!existingFollowUp) {
+      return res.status(404).json({ success: false, message: 'Follow-up not found' });
+    }
 
     const updateData: any = {};
     if (scheduledAt) updateData.scheduledAt = new Date(scheduledAt);
@@ -411,9 +543,26 @@ router.put(
 // Delete follow-up
 router.delete(
   '/:leadId/follow-ups/:followUpId',
-  validate([param('leadId').isUUID(), param('followUpId').isUUID()]),
+  validate([
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    param('followUpId').isUUID().withMessage('Invalid follow-up ID'),
+  ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { followUpId } = req.params;
+    const { leadId, followUpId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    // Verify follow-up belongs to this lead
+    const existingFollowUp = await prisma.followUp.findFirst({
+      where: { id: followUpId, leadId },
+    });
+    if (!existingFollowUp) {
+      return res.status(404).json({ success: false, message: 'Follow-up not found' });
+    }
 
     await prisma.followUp.delete({ where: { id: followUpId } });
 
@@ -426,10 +575,15 @@ router.delete(
 // Get attachments for a lead
 router.get(
   '/:leadId/attachments',
-  param('leadId').isUUID(),
-  validate([]),
+  validate([param('leadId').isUUID().withMessage('Invalid lead ID')]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     const attachments = await prisma.leadAttachment.findMany({
       where: { leadId },
@@ -443,10 +597,16 @@ router.get(
 // Upload attachment
 router.post(
   '/:leadId/attachments',
-  param('leadId').isUUID(),
+  validate([param('leadId').isUUID().withMessage('Invalid lead ID')]),
   uploadMiddleware.single('file'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
@@ -487,24 +647,36 @@ router.post(
 // Delete attachment
 router.delete(
   '/:leadId/attachments/:attachmentId',
-  validate([param('leadId').isUUID(), param('attachmentId').isUUID()]),
+  validate([
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    param('attachmentId').isUUID().withMessage('Invalid attachment ID'),
+  ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { attachmentId } = req.params;
+    const { leadId, attachmentId } = req.params;
+    const organizationId = req.user!.organizationId;
 
-    const attachment = await prisma.leadAttachment.findUnique({
-      where: { id: attachmentId },
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    // Verify attachment belongs to this lead
+    const attachment = await prisma.leadAttachment.findFirst({
+      where: { id: attachmentId, leadId },
     });
 
-    if (attachment) {
-      // Delete from S3
-      try {
-        await deleteFromS3(attachment.fileUrl);
-      } catch (error) {
-        console.error('Failed to delete from S3:', error);
-      }
-
-      await prisma.leadAttachment.delete({ where: { id: attachmentId } });
+    if (!attachment) {
+      return res.status(404).json({ success: false, message: 'Attachment not found' });
     }
+
+    // Delete from S3
+    try {
+      await deleteFromS3(attachment.fileUrl);
+    } catch (error) {
+      console.error('Failed to delete from S3:', error);
+    }
+
+    await prisma.leadAttachment.delete({ where: { id: attachmentId } });
 
     res.json({ success: true, message: 'Attachment deleted' });
   })
@@ -515,10 +687,15 @@ router.delete(
 // Get queries for a lead
 router.get(
   '/:leadId/queries',
-  param('leadId').isUUID(),
-  validate([]),
+  validate([param('leadId').isUUID().withMessage('Invalid lead ID')]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     const queries = await prisma.leadQuery.findMany({
       where: { leadId },
@@ -532,13 +709,20 @@ router.get(
 // Create query
 router.post(
   '/:leadId/queries',
-  param('leadId').isUUID(),
   validate([
-    body('query').trim().notEmpty().withMessage('Query content is required'),
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    body('query').trim().notEmpty().withMessage('Query content is required')
+      .isLength({ max: 5000 }).withMessage('Query too long'),
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
     const { query: queryText } = req.body;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     const leadQuery = await prisma.leadQuery.create({
       data: {
@@ -555,14 +739,28 @@ router.post(
 router.put(
   '/:leadId/queries/:queryId',
   validate([
-    param('leadId').isUUID(),
-    param('queryId').isUUID(),
-    body('response').optional().trim(),
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    param('queryId').isUUID().withMessage('Invalid query ID'),
+    body('response').optional().trim().isLength({ max: 10000 }).withMessage('Response too long'),
     body('status').optional().isIn(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']),
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { queryId } = req.params;
+    const { leadId, queryId } = req.params;
     const { response, status } = req.body;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    // Verify query belongs to this lead
+    const existingQuery = await prisma.leadQuery.findFirst({
+      where: { id: queryId, leadId },
+    });
+    if (!existingQuery) {
+      return res.status(404).json({ success: false, message: 'Query not found' });
+    }
 
     const updateData: any = {};
     if (response !== undefined) updateData.response = response;
@@ -585,9 +783,26 @@ router.put(
 // Delete query
 router.delete(
   '/:leadId/queries/:queryId',
-  validate([param('leadId').isUUID(), param('queryId').isUUID()]),
+  validate([
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    param('queryId').isUUID().withMessage('Invalid query ID'),
+  ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { queryId } = req.params;
+    const { leadId, queryId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    // Verify query belongs to this lead
+    const existingQuery = await prisma.leadQuery.findFirst({
+      where: { id: queryId, leadId },
+    });
+    if (!existingQuery) {
+      return res.status(404).json({ success: false, message: 'Query not found' });
+    }
 
     await prisma.leadQuery.delete({ where: { id: queryId } });
 
@@ -600,10 +815,15 @@ router.delete(
 // Get applications for a lead
 router.get(
   '/:leadId/applications',
-  param('leadId').isUUID(),
-  validate([]),
+  validate([param('leadId').isUUID().withMessage('Invalid lead ID')]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     const applications = await prisma.leadApplication.findMany({
       where: { leadId },
@@ -617,14 +837,20 @@ router.get(
 // Create application
 router.post(
   '/:leadId/applications',
-  param('leadId').isUUID(),
   validate([
-    body('programName').optional().trim(),
-    body('documents').optional().isArray(),
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    body('programName').optional().trim().isLength({ max: 500 }).withMessage('Program name too long'),
+    body('documents').optional().isArray({ max: 50 }).withMessage('Too many documents'),
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
     const { programName, documents } = req.body;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     // Generate application number
     const count = await prisma.leadApplication.count();
@@ -647,15 +873,29 @@ router.post(
 router.put(
   '/:leadId/applications/:applicationId',
   validate([
-    param('leadId').isUUID(),
-    param('applicationId').isUUID(),
-    body('programName').optional().trim(),
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    param('applicationId').isUUID().withMessage('Invalid application ID'),
+    body('programName').optional().trim().isLength({ max: 500 }).withMessage('Program name too long'),
     body('status').optional().isIn(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'ENROLLED']),
-    body('documents').optional().isArray(),
+    body('documents').optional().isArray({ max: 50 }).withMessage('Too many documents'),
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId, applicationId } = req.params;
     const { programName, status, documents } = req.body;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    // Verify application belongs to this lead
+    const existingApplication = await prisma.leadApplication.findFirst({
+      where: { id: applicationId, leadId },
+    });
+    if (!existingApplication) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
 
     const updateData: any = {};
     if (programName !== undefined) updateData.programName = programName;
@@ -692,9 +932,26 @@ router.put(
 // Delete application
 router.delete(
   '/:leadId/applications/:applicationId',
-  validate([param('leadId').isUUID(), param('applicationId').isUUID()]),
+  validate([
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    param('applicationId').isUUID().withMessage('Invalid application ID'),
+  ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { applicationId } = req.params;
+    const { leadId, applicationId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    // Verify application belongs to this lead
+    const existingApplication = await prisma.leadApplication.findFirst({
+      where: { id: applicationId, leadId },
+    });
+    if (!existingApplication) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
 
     await prisma.leadApplication.delete({ where: { id: applicationId } });
 
@@ -714,8 +971,14 @@ router.get(
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
+    const organizationId = req.user!.organizationId;
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     try {
       const activities = await prisma.leadActivity.findMany({
@@ -749,8 +1012,9 @@ router.post(
   '/:leadId/activities',
   validate([
     param('leadId').isUUID().withMessage('Invalid lead ID'),
-    body('title').trim().notEmpty().withMessage('Activity title is required'),
-    body('description').optional().trim(),
+    body('title').trim().notEmpty().withMessage('Activity title is required')
+      .isLength({ max: 500 }).withMessage('Title too long'),
+    body('description').optional().trim().isLength({ max: 5000 }).withMessage('Description too long'),
     body('type').optional().isIn([
       'LEAD_CREATED', 'STAGE_CHANGED', 'SUBSTAGE_CHANGED', 'ASSIGNMENT_CHANGED',
       'NOTE_ADDED', 'CALL_MADE', 'SMS_SENT', 'EMAIL_SENT', 'WHATSAPP_SENT',
@@ -762,6 +1026,12 @@ router.post(
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
     const { title, description, type, metadata } = req.body;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     try {
       const activity = await prisma.leadActivity.create({
@@ -798,14 +1068,24 @@ router.get(
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
+    const organizationId = req.user!.organizationId;
 
     try {
-      const lead = await prisma.lead.findUnique({
-        where: { id: leadId },
+      // SECURITY: Role-based access check
+      if (!await verifyLeadAccess(leadId, req)) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
+
+      const lead = await prisma.lead.findFirst({
+        where: { id: leadId, organizationId },
         select: { interests: true },
       });
 
-      res.json({ success: true, data: lead?.interests || [] });
+      if (!lead) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
+
+      res.json({ success: true, data: lead.interests || [] });
     } catch (error) {
       console.error('Error fetching interests:', error);
       res.status(500).json({ success: false, message: 'Failed to fetch interests' });
@@ -818,13 +1098,19 @@ router.put(
   '/:leadId/interests',
   validate([
     param('leadId').isUUID().withMessage('Invalid lead ID'),
-    body('interests').isArray().withMessage('Interests must be an array'),
+    body('interests').isArray({ max: 100 }).withMessage('Interests must be an array'),
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
     const { interests } = req.body;
+    const organizationId = req.user!.organizationId;
 
     try {
+      // SECURITY: Verify lead belongs to user's organization
+      if (!await verifyLeadAccess(leadId, req)) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
+
       const lead = await prisma.lead.update({
         where: { id: leadId },
         data: { interests },
@@ -844,10 +1130,15 @@ router.put(
 // Get call logs for a lead
 router.get(
   '/:leadId/calls',
-  param('leadId').isUUID(),
-  validate([]),
+  validate([param('leadId').isUUID().withMessage('Invalid lead ID')]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     const calls = await prisma.callLog.findMany({
       where: { leadId },
@@ -873,6 +1164,12 @@ router.get(
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     try {
       const messages = await prisma.whatsappLog.findMany({
@@ -898,21 +1195,32 @@ router.post(
   '/:leadId/whatsapp',
   validate([
     param('leadId').isUUID().withMessage('Invalid lead ID'),
-    body('message').trim().notEmpty().withMessage('Message is required'),
+    body('message').trim().notEmpty().withMessage('Message is required')
+      .isLength({ max: 4096 }).withMessage('Message too long'),
     body('mediaUrl').optional().isURL(),
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
     const { message, mediaUrl } = req.body;
+    const organizationId = req.user!.organizationId;
 
     try {
-      // Get lead phone number
-      const lead = await prisma.lead.findUnique({
-        where: { id: leadId },
+      // SECURITY: Role-based access check
+      if (!await verifyLeadAccess(leadId, req)) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
+
+      // Get lead details for sending message
+      const lead = await prisma.lead.findFirst({
+        where: { id: leadId, organizationId },
         select: { phone: true, firstName: true, lastName: true },
       });
 
-      if (!lead || !lead.phone) {
+      if (!lead) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
+
+      if (!lead.phone) {
         return res.status(400).json({ success: false, message: 'Lead phone number not found' });
       }
 
@@ -979,6 +1287,12 @@ router.get(
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     try {
       const messages = await prisma.smsLog.findMany({
@@ -1004,20 +1318,31 @@ router.post(
   '/:leadId/sms',
   validate([
     param('leadId').isUUID().withMessage('Invalid lead ID'),
-    body('message').trim().notEmpty().withMessage('Message is required'),
+    body('message').trim().notEmpty().withMessage('Message is required')
+      .isLength({ max: 1600 }).withMessage('Message too long'),
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
     const { message } = req.body;
+    const organizationId = req.user!.organizationId;
 
     try {
-      // Get lead phone number
-      const lead = await prisma.lead.findUnique({
-        where: { id: leadId },
+      // SECURITY: Role-based access check
+      if (!await verifyLeadAccess(leadId, req)) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
+
+      // Get lead details for sending message
+      const lead = await prisma.lead.findFirst({
+        where: { id: leadId, organizationId },
         select: { phone: true },
       });
 
-      if (!lead || !lead.phone) {
+      if (!lead) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
+
+      if (!lead.phone) {
         return res.status(400).json({ success: false, message: 'Lead phone number not found' });
       }
 
@@ -1076,21 +1401,30 @@ router.post(
 // Create call log
 router.post(
   '/:leadId/calls',
-  param('leadId').isUUID(),
   validate([
-    body('phoneNumber').trim().notEmpty(),
+    param('leadId').isUUID().withMessage('Invalid lead ID'),
+    body('phoneNumber').trim().notEmpty().withMessage('Phone number is required')
+      .isLength({ max: 20 }).withMessage('Phone number too long'),
     body('direction').isIn(['INBOUND', 'OUTBOUND']),
     body('callType').optional().isIn(['MANUAL', 'AI', 'IVRS', 'PERSONAL']),
     body('status').optional().isIn(['INITIATED', 'RINGING', 'IN_PROGRESS', 'COMPLETED', 'MISSED', 'FAILED', 'BUSY', 'NO_ANSWER']),
-    body('duration').optional().isInt({ min: 0 }),
-    body('notes').optional().trim(),
+    body('duration').optional().isInt({ min: 0, max: 86400 }),
+    body('notes').optional().trim().isLength({ max: 5000 }).withMessage('Notes too long'),
+    body('recordingUrl').optional().isURL(),
   ]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { leadId } = req.params;
     const { phoneNumber, direction, callType, status, duration, notes, recordingUrl } = req.body;
+    const organizationId = req.user!.organizationId;
+
+    // SECURITY: Verify lead belongs to user's organization
+    if (!await verifyLeadAccess(leadId, req)) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
 
     const call = await prisma.callLog.create({
       data: {
+        organizationId: req.user!.organizationId,
         leadId,
         callerId: req.user!.id,
         phoneNumber,

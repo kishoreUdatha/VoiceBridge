@@ -2,7 +2,7 @@
  * Lead Detail Modals - Extracted modal components
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface ModalWrapperProps {
   isOpen: boolean;
@@ -427,5 +427,293 @@ export function SmsModal({ isOpen, onClose, onSubmit, phone }: SmsModalProps) {
         <button onClick={handleSubmit} disabled={!message.trim()} className="btn btn-primary">Send SMS</button>
       </div>
     </ModalWrapper>
+  );
+}
+
+interface EditLeadModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: EditLeadFormData) => void;
+  lead: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    email?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    address?: string;
+    pincode?: string;
+    company?: string;
+    designation?: string;
+    source?: string;
+    priority?: string;
+  } | null;
+}
+
+export interface EditLeadFormData {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  city: string;
+  state: string;
+  country: string;
+  address: string;
+  pincode: string;
+  company: string;
+  designation: string;
+  source: string;
+  priority: string;
+}
+
+export function EditLeadModal({ isOpen, onClose, onSubmit, lead }: EditLeadModalProps) {
+  const [form, setForm] = useState<EditLeadFormData>({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    email: '',
+    city: '',
+    state: '',
+    country: '',
+    address: '',
+    pincode: '',
+    company: '',
+    designation: '',
+    source: '',
+    priority: '',
+  });
+
+  // Reset form when modal opens with lead data
+  useEffect(() => {
+    if (isOpen && lead) {
+      setForm({
+        firstName: lead.firstName || '',
+        lastName: lead.lastName || '',
+        phone: lead.phone || '',
+        email: lead.email || '',
+        city: lead.city || '',
+        state: lead.state || '',
+        country: lead.country || '',
+        address: lead.address || '',
+        pincode: lead.pincode || '',
+        company: lead.company || '',
+        designation: lead.designation || '',
+        source: lead.source || '',
+        priority: lead.priority || '',
+      });
+    }
+  }, [isOpen, lead]);
+
+  const handleSubmit = () => {
+    onSubmit(form);
+    onClose();
+  };
+
+  const handleChange = (field: keyof EditLeadFormData, value: string) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold mb-4">Edit Lead Details</h3>
+
+        <div className="grid grid-cols-2 gap-4">
+          {/* Personal Info */}
+          <div className="col-span-2">
+            <p className="text-sm font-medium text-slate-700 mb-2">Personal Information</p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">First Name *</label>
+            <input
+              type="text"
+              value={form.firstName}
+              onChange={(e) => handleChange('firstName', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="First Name"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Last Name</label>
+            <input
+              type="text"
+              value={form.lastName}
+              onChange={(e) => handleChange('lastName', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Last Name"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Phone *</label>
+            <input
+              type="tel"
+              value={form.phone}
+              onChange={(e) => handleChange('phone', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="+91 98765 43210"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Email</label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => handleChange('email', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="email@example.com"
+            />
+          </div>
+
+          {/* Work Info */}
+          <div className="col-span-2 mt-2">
+            <p className="text-sm font-medium text-slate-700 mb-2">Work Information</p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Company</label>
+            <input
+              type="text"
+              value={form.company}
+              onChange={(e) => handleChange('company', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Company Name"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Designation</label>
+            <input
+              type="text"
+              value={form.designation}
+              onChange={(e) => handleChange('designation', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Job Title"
+            />
+          </div>
+
+          {/* Address Info */}
+          <div className="col-span-2 mt-2">
+            <p className="text-sm font-medium text-slate-700 mb-2">Address</p>
+          </div>
+
+          <div className="col-span-2">
+            <label className="block text-xs text-slate-500 mb-1">Street Address</label>
+            <input
+              type="text"
+              value={form.address}
+              onChange={(e) => handleChange('address', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Street Address"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">City</label>
+            <input
+              type="text"
+              value={form.city}
+              onChange={(e) => handleChange('city', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="City"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">State</label>
+            <input
+              type="text"
+              value={form.state}
+              onChange={(e) => handleChange('state', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="State"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Country</label>
+            <input
+              type="text"
+              value={form.country}
+              onChange={(e) => handleChange('country', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Country"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Pincode</label>
+            <input
+              type="text"
+              value={form.pincode}
+              onChange={(e) => handleChange('pincode', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Pincode"
+            />
+          </div>
+
+          {/* Lead Info */}
+          <div className="col-span-2 mt-2">
+            <p className="text-sm font-medium text-slate-700 mb-2">Lead Information</p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Source</label>
+            <select
+              value={form.source}
+              onChange={(e) => handleChange('source', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">Select Source</option>
+              <option value="MANUAL">Manual</option>
+              <option value="WEBSITE">Website</option>
+              <option value="FACEBOOK">Facebook</option>
+              <option value="INSTAGRAM">Instagram</option>
+              <option value="GOOGLE">Google Ads</option>
+              <option value="LINKEDIN">LinkedIn</option>
+              <option value="REFERRAL">Referral</option>
+              <option value="WALK_IN">Walk In</option>
+              <option value="PHONE">Phone Inquiry</option>
+              <option value="EMAIL">Email Inquiry</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Priority</label>
+            <select
+              value={form.priority}
+              onChange={(e) => handleChange('priority', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">Select Priority</option>
+              <option value="LOW">Low</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HIGH">High</option>
+              <option value="URGENT">Urgent</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!form.firstName.trim() || !form.phone.trim()}
+            className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

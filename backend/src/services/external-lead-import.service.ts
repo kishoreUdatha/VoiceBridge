@@ -15,13 +15,22 @@ export interface ExternalLeadData {
   email?: string;
   phone: string;
   alternatePhone?: string;
-  source: 'AD_FACEBOOK' | 'AD_INSTAGRAM' | 'AD_GOOGLE' | 'AD_LINKEDIN' | 'FORM' | 'LANDING_PAGE' | 'WEBSITE' | 'WHATSAPP' | 'API' | 'APIFY';
+  source: 'AD_FACEBOOK' | 'AD_INSTAGRAM' | 'AD_GOOGLE' | 'AD_LINKEDIN' | 'AD_TIKTOK' | 'AD_TWITTER' | 'AD_YOUTUBE' | 'FORM' | 'LANDING_PAGE' | 'WEBSITE' | 'WHATSAPP' | 'API' | 'APIFY';
   sourceDetails?: string;
   campaignName?: string;
   customFields?: Record<string, any>;
+  // Business/company fields
+  companyName?: string;
+  website?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  industry?: string;
 }
 
-interface ImportResult {
+export interface ImportResult {
+  id?: string;
   rawImportRecord: any;
   bulkImport: any;
   isDuplicate: boolean;
@@ -54,6 +63,7 @@ class ExternalLeadImportService {
 
       if (existingRecord) {
         return {
+          id: existingRecord.id,
           rawImportRecord: existingRecord,
           bulkImport: null,
           isDuplicate: true,
@@ -156,6 +166,7 @@ class ExternalLeadImportService {
     console.log(`[ExternalLeadImport] Created RawImportRecord ${rawImportRecord.id} from ${leadData.source}`);
 
     return {
+      id: rawImportRecord.id,
       rawImportRecord,
       bulkImport,
       isDuplicate: false,

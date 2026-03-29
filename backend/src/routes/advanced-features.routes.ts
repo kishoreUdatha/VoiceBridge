@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { body, param, query } from 'express-validator';
-import { authenticate } from '../middlewares/auth';
+import rateLimit from 'express-rate-limit';
+import { authenticate, authorize } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { validate } from '../middlewares/validate';
 import { ApiResponse } from '../utils/apiResponse';
@@ -18,6 +19,20 @@ import { jobQueueService } from '../services/job-queue.service';
 import { fileCleanupService } from '../services/file-cleanup.service';
 
 const router = Router();
+
+// Rate limiter for bulk operations
+const bulkOperationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 bulk operations per hour
+  message: { success: false, message: 'Too many bulk operations' },
+});
+
+// Rate limiter for cleanup operations
+const cleanupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 cleanup operations per hour
+  message: { success: false, message: 'Too many cleanup operations' },
+});
 
 // All routes require authentication
 router.use(authenticate);
@@ -97,8 +112,8 @@ router.post(
   }
 );
 
-// Process decay for all leads in the organization
-router.post('/score-decay/process-all', async (req: TenantRequest, res: Response) => {
+// Process decay for all leads in the organization (admin only - expensive operation)
+router.post('/score-decay/process-all', authorize('admin'), async (req: TenantRequest, res: Response) => {
   try {
     const result = await scoreDecayService.processOrganizationDecay(req.organization!.id);
     return ApiResponse.success(res, result);
@@ -347,18 +362,32 @@ router.delete('/dnc-list/:phoneNumber', async (req: TenantRequest, res: Response
 // Create follow-up rule
 router.post(
   '/follow-up-rules',
+  authorize('admin', 'manager'),
   validate([
-    body('name').notEmpty().withMessage('Rule name is required'),
-    body('triggerEvent').notEmpty().withMessage('Trigger event is required'),
-    body('delayMinutes').isInt({ min: 0 }).withMessage('Delay must be a non-negative integer'),
-    body('action').notEmpty().withMessage('Action is required'),
+    body('name').trim().notEmpty().withMessage('Rule name is required')
+      .isLength({ max: 100 }).withMessage('Name too long'),
+    body('triggerEvent').trim().notEmpty().withMessage('Trigger event is required')
+      .isLength({ max: 50 }).withMessage('Trigger event too long'),
+    body('delayMinutes').isInt({ min: 0, max: 43200 }).withMessage('Delay must be between 0 and 43200 minutes'),
+    body('action').trim().notEmpty().withMessage('Action is required')
+      .isLength({ max: 50 }).withMessage('Action too long'),
     body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
+    body('conditions').optional().isObject().withMessage('Conditions must be an object'),
+    body('actionConfig').optional().isObject().withMessage('Action config must be an object'),
   ]),
   async (req: TenantRequest, res: Response) => {
     try {
+      const { name, triggerEvent, delayMinutes, action, isActive, conditions, actionConfig } = req.body;
+
       const rule = await autoFollowUpService.createRule({
         organizationId: req.organization!.id,
-        ...req.body,
+        name,
+        triggerEvent,
+        delayMinutes,
+        action,
+        isActive,
+        conditions,
+        actionConfig,
       });
 
       return ApiResponse.created(res, rule);
@@ -381,15 +410,33 @@ router.get('/follow-up-rules', async (req: TenantRequest, res: Response) => {
 // Update follow-up rule
 router.put(
   '/follow-up-rules/:id',
+  authorize('admin', 'manager'),
   validate([
     param('id').isUUID().withMessage('Invalid rule ID'),
-    body('name').optional().notEmpty().withMessage('Rule name cannot be empty'),
-    body('delayMinutes').optional().isInt({ min: 0 }).withMessage('Delay must be a non-negative integer'),
+    body('name').optional().trim().notEmpty().withMessage('Rule name cannot be empty')
+      .isLength({ max: 100 }).withMessage('Name too long'),
+    body('triggerEvent').optional().trim().isLength({ max: 50 }).withMessage('Trigger event too long'),
+    body('delayMinutes').optional().isInt({ min: 0, max: 43200 }).withMessage('Delay must be between 0 and 43200 minutes'),
+    body('action').optional().trim().isLength({ max: 50 }).withMessage('Action too long'),
     body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
+    body('conditions').optional().isObject().withMessage('Conditions must be an object'),
+    body('actionConfig').optional().isObject().withMessage('Action config must be an object'),
   ]),
   async (req: TenantRequest, res: Response) => {
     try {
-      const rule = await autoFollowUpService.updateRule(req.params.id, req.body);
+      const { name, triggerEvent, delayMinutes, action, isActive, conditions, actionConfig } = req.body;
+
+      // Build update object with only provided fields
+      const updateData: Record<string, any> = {};
+      if (name !== undefined) updateData.name = name;
+      if (triggerEvent !== undefined) updateData.triggerEvent = triggerEvent;
+      if (delayMinutes !== undefined) updateData.delayMinutes = delayMinutes;
+      if (action !== undefined) updateData.action = action;
+      if (isActive !== undefined) updateData.isActive = isActive;
+      if (conditions !== undefined) updateData.conditions = conditions;
+      if (actionConfig !== undefined) updateData.actionConfig = actionConfig;
+
+      const rule = await autoFollowUpService.updateRule(req.params.id, updateData);
       return ApiResponse.success(res, rule);
     } catch (error) {
       ApiResponse.error(res, (error as Error).message, 500);
@@ -421,13 +468,23 @@ router.post(
     body('scheduledAt').isISO8601().withMessage('Valid scheduled time is required'),
     body('duration').optional().isInt({ min: 5, max: 480 }).withMessage('Duration must be between 5 and 480 minutes'),
     body('type').optional().isIn(['CALL', 'VIDEO', 'IN_PERSON']).withMessage('Invalid appointment type'),
-    body('notes').optional().isString(),
+    body('notes').optional().trim().isLength({ max: 2000 }).withMessage('Notes too long'),
+    body('title').optional().trim().isLength({ max: 200 }).withMessage('Title too long'),
+    body('location').optional().trim().isLength({ max: 500 }).withMessage('Location too long'),
   ]),
   async (req: TenantRequest, res: Response) => {
     try {
+      const { leadId, scheduledAt, duration, type, notes, title, location } = req.body;
+
       const appointment = await appointmentService.bookAppointment({
         organizationId: req.organization!.id,
-        ...req.body,
+        leadId,
+        scheduledAt: new Date(scheduledAt),
+        duration,
+        type,
+        notes,
+        title,
+        location,
       });
 
       return ApiResponse.created(res, appointment);
@@ -494,17 +551,29 @@ router.put(
 // Create webhook
 router.post(
   '/webhooks',
+  authorize('admin'),
   validate([
-    body('name').notEmpty().withMessage('Webhook name is required'),
+    body('name').trim().notEmpty().withMessage('Webhook name is required')
+      .isLength({ max: 100 }).withMessage('Name too long'),
     body('url').isURL().withMessage('Valid URL is required'),
-    body('events').isArray({ min: 1 }).withMessage('At least one event is required'),
+    body('events').isArray({ min: 1, max: 20 }).withMessage('Events must be an array with 1-20 items'),
+    body('events.*').isString().isLength({ max: 50 }).withMessage('Invalid event name'),
     body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
+    body('secret').optional().trim().isLength({ max: 200 }).withMessage('Secret too long'),
+    body('headers').optional().isObject().withMessage('Headers must be an object'),
   ]),
   async (req: TenantRequest, res: Response) => {
     try {
+      const { name, url, events, isActive, secret, headers } = req.body;
+
       const webhook = await webhookService.createWebhook({
         organizationId: req.organization!.id,
-        ...req.body,
+        name,
+        url,
+        events,
+        isActive,
+        secret,
+        headers,
       });
 
       return ApiResponse.created(res, webhook);
@@ -643,17 +712,19 @@ router.get('/jobs/queue/stats', async (req: TenantRequest, res: Response) => {
 });
 
 // Bulk email job
-router.post('/jobs/bulk-email', async (req: TenantRequest, res: Response) => {
+router.post('/jobs/bulk-email', authorize('admin'), bulkOperationLimiter, validate([
+  body('recipients').isArray({ min: 1, max: 1000 }).withMessage('Recipients must be an array with 1-1000 items'),
+  body('recipients.*.email').isEmail().withMessage('Invalid email in recipients'),
+  body('subject').trim().notEmpty().isLength({ max: 500 }).withMessage('Subject required and max 500 chars'),
+  body('body').trim().notEmpty().isLength({ max: 50000 }).withMessage('Body required and max 50000 chars'),
+  body('html').optional().isLength({ max: 100000 }).withMessage('HTML too long'),
+]), async (req: TenantRequest, res: Response) => {
   try {
-    const { recipients, subject, body, html } = req.body;
-
-    if (!recipients || !Array.isArray(recipients) || !subject || !body) {
-      return ApiResponse.error(res, 'Recipients array, subject, and body are required', 400);
-    }
+    const { recipients, subject, body: emailBody, html } = req.body;
 
     const jobId = await jobQueueService.addJob(
       'BULK_EMAIL',
-      { recipients, subject, body, html, userId: req.user!.id },
+      { recipients, subject, body: emailBody, html, userId: req.user!.id },
       { organizationId: req.organization!.id, userId: req.user!.id }
     );
 
@@ -664,13 +735,13 @@ router.post('/jobs/bulk-email', async (req: TenantRequest, res: Response) => {
 });
 
 // Bulk SMS job
-router.post('/jobs/bulk-sms', async (req: TenantRequest, res: Response) => {
+router.post('/jobs/bulk-sms', authorize('admin'), bulkOperationLimiter, validate([
+  body('recipients').isArray({ min: 1, max: 1000 }).withMessage('Recipients must be an array with 1-1000 items'),
+  body('recipients.*.phone').matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone in recipients'),
+  body('message').trim().notEmpty().isLength({ max: 1000 }).withMessage('Message required and max 1000 chars'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { recipients, message } = req.body;
-
-    if (!recipients || !Array.isArray(recipients) || !message) {
-      return ApiResponse.error(res, 'Recipients array and message are required', 400);
-    }
 
     const jobId = await jobQueueService.addJob(
       'BULK_SMS',
@@ -685,13 +756,12 @@ router.post('/jobs/bulk-sms', async (req: TenantRequest, res: Response) => {
 });
 
 // CSV import job
-router.post('/jobs/csv-import', async (req: TenantRequest, res: Response) => {
+router.post('/jobs/csv-import', authorize('admin'), bulkOperationLimiter, validate([
+  body('records').isArray({ min: 1, max: 10000 }).withMessage('Records must be an array with 1-10000 items'),
+  body('mappings').isObject().withMessage('Field mappings are required'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { records, mappings } = req.body;
-
-    if (!records || !Array.isArray(records) || !mappings) {
-      return ApiResponse.error(res, 'Records array and field mappings are required', 400);
-    }
 
     const jobId = await jobQueueService.addJob(
       'CSV_IMPORT',
@@ -706,13 +776,14 @@ router.post('/jobs/csv-import', async (req: TenantRequest, res: Response) => {
 });
 
 // Report generation job
-router.post('/jobs/report', async (req: TenantRequest, res: Response) => {
+router.post('/jobs/report', authorize('admin', 'manager'), validate([
+  body('reportType').trim().notEmpty().isLength({ max: 50 }).withMessage('Report type required'),
+  body('dateFrom').isISO8601().withMessage('Invalid dateFrom'),
+  body('dateTo').isISO8601().withMessage('Invalid dateTo'),
+  body('filters').optional().isObject().withMessage('Filters must be an object'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { reportType, dateFrom, dateTo, filters } = req.body;
-
-    if (!reportType || !dateFrom || !dateTo) {
-      return ApiResponse.error(res, 'Report type, dateFrom, and dateTo are required', 400);
-    }
 
     const jobId = await jobQueueService.addJob(
       'REPORT_GENERATION',
@@ -727,9 +798,10 @@ router.post('/jobs/report', async (req: TenantRequest, res: Response) => {
 });
 
 // ==================== FILE CLEANUP ====================
+// All cleanup operations require admin authorization
 
 // Get cleanup preview
-router.get('/cleanup/preview', async (req: TenantRequest, res: Response) => {
+router.get('/cleanup/preview', authorize('admin'), async (req: TenantRequest, res: Response) => {
   try {
     const preview = await fileCleanupService.getCleanupPreview();
     return ApiResponse.success(res, preview);
@@ -739,7 +811,7 @@ router.get('/cleanup/preview', async (req: TenantRequest, res: Response) => {
 });
 
 // Get storage stats
-router.get('/cleanup/storage-stats', async (req: TenantRequest, res: Response) => {
+router.get('/cleanup/storage-stats', authorize('admin'), async (req: TenantRequest, res: Response) => {
   try {
     const stats = await fileCleanupService.getLocalStorageStats();
     return ApiResponse.success(res, stats);
@@ -749,7 +821,7 @@ router.get('/cleanup/storage-stats', async (req: TenantRequest, res: Response) =
 });
 
 // Run full cleanup
-router.post('/cleanup/run', async (req: TenantRequest, res: Response) => {
+router.post('/cleanup/run', authorize('admin'), cleanupLimiter, async (req: TenantRequest, res: Response) => {
   try {
     const result = await fileCleanupService.runFullCleanup();
     return ApiResponse.success(res, result);
@@ -759,7 +831,7 @@ router.post('/cleanup/run', async (req: TenantRequest, res: Response) => {
 });
 
 // Cleanup temp files only
-router.post('/cleanup/temp-files', async (req: TenantRequest, res: Response) => {
+router.post('/cleanup/temp-files', authorize('admin'), cleanupLimiter, async (req: TenantRequest, res: Response) => {
   try {
     const result = await fileCleanupService.cleanupTempFiles();
     return ApiResponse.success(res, result);
@@ -769,7 +841,7 @@ router.post('/cleanup/temp-files', async (req: TenantRequest, res: Response) => 
 });
 
 // Cleanup orphaned attachments
-router.post('/cleanup/orphaned-files', async (req: TenantRequest, res: Response) => {
+router.post('/cleanup/orphaned-files', authorize('admin'), cleanupLimiter, async (req: TenantRequest, res: Response) => {
   try {
     const result = await fileCleanupService.cleanupOrphanedAttachments();
     return ApiResponse.success(res, result);
@@ -779,7 +851,7 @@ router.post('/cleanup/orphaned-files', async (req: TenantRequest, res: Response)
 });
 
 // Cleanup old tracking events
-router.post('/cleanup/tracking-events', async (req: TenantRequest, res: Response) => {
+router.post('/cleanup/tracking-events', authorize('admin'), cleanupLimiter, async (req: TenantRequest, res: Response) => {
   try {
     const result = await fileCleanupService.cleanupOldEmailTrackingEvents();
     return ApiResponse.success(res, result);
@@ -789,7 +861,7 @@ router.post('/cleanup/tracking-events', async (req: TenantRequest, res: Response
 });
 
 // Cleanup old webhook logs
-router.post('/cleanup/webhook-logs', async (req: TenantRequest, res: Response) => {
+router.post('/cleanup/webhook-logs', authorize('admin'), cleanupLimiter, async (req: TenantRequest, res: Response) => {
   try {
     const result = await fileCleanupService.cleanupOldWebhookLogs();
     return ApiResponse.success(res, result);
@@ -799,7 +871,7 @@ router.post('/cleanup/webhook-logs', async (req: TenantRequest, res: Response) =
 });
 
 // Schedule cleanup as job
-router.post('/cleanup/schedule', async (req: TenantRequest, res: Response) => {
+router.post('/cleanup/schedule', authorize('admin'), cleanupLimiter, async (req: TenantRequest, res: Response) => {
   try {
     const jobId = await jobQueueService.addJob(
       'CLEANUP_FILES',

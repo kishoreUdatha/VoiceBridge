@@ -81,19 +81,22 @@ export const CallMonitoringPage: React.FC = () => {
 
   const loadData = async () => {
     try {
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
       const [callsRes, agentsRes] = await Promise.all([
-        fetch('/api/monitoring/active-calls'),
-        fetch('/api/call-queues/agents/status'),
+        fetch(`${apiUrl}/monitoring/active-calls`, { credentials: 'include' }),
+        fetch(`${apiUrl}/call-queues/agents/status`, { credentials: 'include' }),
       ]);
 
       if (callsRes.ok) {
         const data = await callsRes.json();
-        setActiveCalls(data.data || []);
+        const calls = data?.data || data || [];
+        setActiveCalls(Array.isArray(calls) ? calls : []);
       }
 
       if (agentsRes.ok) {
         const data = await agentsRes.json();
-        setAgentStatuses(data.data || []);
+        const agents = data?.data || data || [];
+        setAgentStatuses(Array.isArray(agents) ? agents : []);
       }
     } catch (error) {
       console.error('Failed to load monitoring data:', error);
@@ -196,10 +199,10 @@ export const CallMonitoringPage: React.FC = () => {
     }
   };
 
-  const filteredCalls = activeCalls.filter((call) => {
+  const filteredCalls = (Array.isArray(activeCalls) ? activeCalls : []).filter((call) => {
     const matchesSearch =
-      call.agentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      call.callerNumber.includes(searchQuery) ||
+      call.agentName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      call.callerNumber?.includes(searchQuery) ||
       (call.callerName && call.callerName.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesStatus = statusFilter === 'all' || call.status === statusFilter;
@@ -207,7 +210,7 @@ export const CallMonitoringPage: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const filteredAgents = agentStatuses.filter((agent) => {
+  const filteredAgents = (Array.isArray(agentStatuses) ? agentStatuses : []).filter((agent) => {
     if (statusFilter === 'all') return true;
     return agent.status === statusFilter;
   });

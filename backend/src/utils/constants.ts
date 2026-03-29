@@ -86,14 +86,11 @@ export const API_VERSIONS = {
 };
 
 // ==================== API ENDPOINTS ====================
-// Note: Use config.apiVersions for runtime-configurable versions
+// Note: Use getApiEndpoint() for runtime-configurable URLs and versions
+// These are deprecated - use config.apiUrls instead
 
 export const API_ENDPOINTS = {
-  // Use getApiEndpoint() function for dynamic version support
-  FACEBOOK_GRAPH: `https://graph.facebook.com/${API_VERSIONS.FACEBOOK_GRAPH}`,
-  LINKEDIN: `https://api.linkedin.com/${API_VERSIONS.LINKEDIN}`,
-  SARVAM: 'https://api.sarvam.ai',
-  ELEVENLABS: 'https://api.elevenlabs.io/v1',
+  // DEPRECATED: Use getApiEndpoint() or config.apiUrls for dynamic support
   EXOTEL: (subdomain: string) => `https://${subdomain}`,
 };
 
@@ -101,17 +98,21 @@ export const API_ENDPOINTS = {
  * Get API endpoint with configurable version
  * Import config at runtime to avoid circular dependencies
  */
-export function getApiEndpoint(service: 'facebook' | 'linkedin' | 'whatsapp'): string {
+export function getApiEndpoint(service: 'facebook' | 'linkedin' | 'whatsapp' | 'sarvam' | 'elevenlabs'): string {
   // Lazy import to avoid circular dependency
   const { config } = require('../config');
 
   switch (service) {
     case 'facebook':
-      return `https://graph.facebook.com/${config.apiVersions.facebook}`;
+      return `${config.apiUrls.facebookGraph}/${config.apiVersions.facebook}`;
     case 'linkedin':
-      return `https://api.linkedin.com/${config.apiVersions.linkedin}`;
+      return `${config.apiUrls.linkedin}/${config.apiVersions.linkedin}`;
     case 'whatsapp':
-      return `https://graph.facebook.com/${config.apiVersions.whatsapp}`;
+      return `${config.apiUrls.facebookGraph}/${config.apiVersions.whatsapp}`;
+    case 'sarvam':
+      return config.sarvam.apiUrl;
+    case 'elevenlabs':
+      return config.apiUrls.elevenlabs;
     default:
       throw new Error(`Unknown service: ${service}`);
   }

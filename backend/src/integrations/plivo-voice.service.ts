@@ -1,9 +1,8 @@
 import * as plivo from 'plivo';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import OpenAI from 'openai';
 import { config } from '../config';
 
-const prisma = new PrismaClient();
 
 // Plivo client initialization
 const getPlivoClient = () => {

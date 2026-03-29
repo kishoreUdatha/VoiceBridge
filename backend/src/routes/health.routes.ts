@@ -3,6 +3,7 @@ import { prisma } from '../config/database';
 import { circuitBreakerRegistry, CircuitState } from '../utils/circuitBreaker';
 import { webhookRetryQueue } from '../utils/retry';
 import { validateConfig, getConfiguredFeatures, isFeatureConfigured } from '../utils/configValidator';
+import { authenticate, authorize } from '../middlewares/auth';
 
 const router = Router();
 
@@ -144,8 +145,9 @@ router.get('/retry-queue', (req: Request, res: Response) => {
 
 /**
  * Force close a circuit breaker (admin only)
+ * Protected endpoint - requires ADMIN role
  */
-router.post('/circuit-breakers/:name/close', (req: Request, res: Response) => {
+router.post('/circuit-breakers/:name/close', authenticate, authorize('ADMIN'), (req: Request, res: Response) => {
   const { name } = req.params;
   const breaker = circuitBreakerRegistry.get(name);
 
@@ -166,8 +168,9 @@ router.post('/circuit-breakers/:name/close', (req: Request, res: Response) => {
 
 /**
  * Force open a circuit breaker (admin only - for maintenance)
+ * Protected endpoint - requires ADMIN role
  */
-router.post('/circuit-breakers/:name/open', (req: Request, res: Response) => {
+router.post('/circuit-breakers/:name/open', authenticate, authorize('ADMIN'), (req: Request, res: Response) => {
   const { name } = req.params;
   const breaker = circuitBreakerRegistry.get(name);
 
@@ -188,8 +191,9 @@ router.post('/circuit-breakers/:name/open', (req: Request, res: Response) => {
 
 /**
  * Reset all circuit breakers (admin only)
+ * Protected endpoint - requires ADMIN role
  */
-router.post('/circuit-breakers/reset-all', (req: Request, res: Response) => {
+router.post('/circuit-breakers/reset-all', authenticate, authorize('ADMIN'), (req: Request, res: Response) => {
   circuitBreakerRegistry.resetAll();
   res.json({
     success: true,

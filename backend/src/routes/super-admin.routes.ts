@@ -1,7 +1,56 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { body, param, query } from 'express-validator';
 import jwt from 'jsonwebtoken';
 import { superAdminService } from '../services/super-admin.service';
 import { config } from '../config';
+import { validate } from '../middlewares/validate';
+import { prisma } from '../config/database';
+
+// Validation rules
+const setupValidation = [
+  body('email').trim().isEmail().withMessage('Valid email is required').normalizeEmail(),
+  body('password').isLength({ min: 12 }).withMessage('Password must be at least 12 characters')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+    .withMessage('Password must contain uppercase, lowercase, number, and special character'),
+  body('firstName').trim().notEmpty().withMessage('First name is required'),
+  body('lastName').trim().notEmpty().withMessage('Last name is required'),
+  body('phone').optional().trim().matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone format'),
+  body('setupKey').notEmpty().withMessage('Setup key is required'),
+];
+
+const loginValidation = [
+  body('email').trim().isEmail().withMessage('Valid email is required'),
+  body('password').notEmpty().withMessage('Password is required'),
+];
+
+const planValidation = [
+  body('slug').trim().notEmpty().withMessage('Plan slug is required')
+    .matches(/^[a-z0-9-]+$/).withMessage('Slug must be lowercase alphanumeric with hyphens'),
+  body('name').trim().notEmpty().withMessage('Plan name is required'),
+  body('price').isInt({ min: 0 }).withMessage('Price must be a non-negative integer'),
+  body('interval').optional().isIn(['monthly', 'yearly']).withMessage('Invalid interval'),
+  body('features').optional().isObject().withMessage('Features must be an object'),
+];
+
+const createOrgValidation = [
+  body('organizationName').trim().notEmpty().withMessage('Organization name is required')
+    .isLength({ max: 200 }).withMessage('Organization name must be at most 200 characters'),
+  body('slug').trim().notEmpty().withMessage('Slug is required')
+    .matches(/^[a-z0-9-]+$/).withMessage('Slug must be lowercase alphanumeric with hyphens'),
+  body('adminEmail').trim().isEmail().withMessage('Valid admin email is required'),
+  body('adminFirstName').trim().notEmpty().withMessage('Admin first name is required'),
+  body('adminLastName').trim().notEmpty().withMessage('Admin last name is required'),
+  body('planId').optional().isUUID().withMessage('Invalid plan ID'),
+];
+
+const bulkEmailValidation = [
+  body('subject').trim().notEmpty().withMessage('Subject is required')
+    .isLength({ max: 500 }).withMessage('Subject must be at most 500 characters'),
+  body('body').trim().notEmpty().withMessage('Body is required')
+    .isLength({ max: 50000 }).withMessage('Body must be at most 50000 characters'),
+  body('html').optional().isString().withMessage('HTML must be a string'),
+  body('filter').optional().isObject().withMessage('Filter must be an object'),
+];
 
 const router = Router();
 
@@ -34,13 +83,20 @@ const verifySuperAdmin = async (req: Request, res: Response, next: NextFunction)
 /**
  * POST /super-admin/setup - First time setup (create super admin)
  */
-router.post('/setup', async (req: Request, res: Response) => {
+router.post('/setup', validate(setupValidation), async (req: Request, res: Response) => {
   try {
     const { email, password, firstName, lastName, phone, setupKey } = req.body;
 
-    // Verify setup key (should be set in environment)
-    const validSetupKey = process.env.SUPER_ADMIN_SETUP_KEY || 'enterprise-setup-2024';
-    if (setupKey !== validSetupKey) {
+    // Verify setup key (MUST be set in environment - no default allowed)
+    const validSetupKey = process.env.SUPER_ADMIN_SETUP_KEY;
+    if (!validSetupKey) {
+      console.error('SECURITY: SUPER_ADMIN_SETUP_KEY not configured - setup endpoint disabled');
+      return res.status(503).json({
+        success: false,
+        message: 'Super admin setup is not configured. Contact system administrator.'
+      });
+    }
+    if (!setupKey || setupKey !== validSetupKey) {
       return res.status(403).json({ success: false, message: 'Invalid setup key' });
     }
 
@@ -72,7 +128,7 @@ router.post('/setup', async (req: Request, res: Response) => {
 /**
  * POST /super-admin/login
  */
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', validate(loginValidation), async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
     const result = await superAdminService.login(email, password);
@@ -111,9 +167,11 @@ router.get('/stats', verifySuperAdmin, async (req: Request, res: Response) => {
 /**
  * GET /super-admin/revenue - Get revenue analytics
  */
-router.get('/revenue', verifySuperAdmin, async (req: Request, res: Response) => {
+router.get('/revenue', verifySuperAdmin, validate([
+  query('months').optional().isInt({ min: 1, max: 120 }).withMessage('Months must be between 1 and 120'),
+]), async (req: Request, res: Response) => {
   try {
-    const months = parseInt(req.query.months as string) || 12;
+    const months = Math.min(parseInt(req.query.months as string) || 12, 120);
     const data = await superAdminService.getRevenueAnalytics(months);
     res.json({ success: true, data });
   } catch (error: any) {
@@ -145,7 +203,9 @@ router.get('/organizations', verifySuperAdmin, async (req: Request, res: Respons
 /**
  * GET /super-admin/organizations/:id - Get organization details
  */
-router.get('/organizations/:id', verifySuperAdmin, async (req: Request, res: Response) => {
+router.get('/organizations/:id', verifySuperAdmin, validate([
+  param('id').isUUID().withMessage('Invalid organization ID'),
+]), async (req: Request, res: Response) => {
   try {
     const org = await superAdminService.getOrganizationDetails(req.params.id);
     res.json({ success: true, organization: org });
@@ -157,7 +217,13 @@ router.get('/organizations/:id', verifySuperAdmin, async (req: Request, res: Res
 /**
  * PATCH /super-admin/organizations/:id - Update organization
  */
-router.patch('/organizations/:id', verifySuperAdmin, async (req: Request, res: Response) => {
+router.patch('/organizations/:id', verifySuperAdmin, validate([
+  param('id').isUUID().withMessage('Invalid organization ID'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be boolean'),
+  body('activePlanId').optional().isUUID().withMessage('Invalid plan ID'),
+  body('subscriptionStatus').optional().isIn(['ACTIVE', 'INACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELLED'])
+    .withMessage('Invalid subscription status'),
+]), async (req: Request, res: Response) => {
   try {
     const { isActive, activePlanId, subscriptionStatus } = req.body;
     const org = await superAdminService.updateOrganization(req.params.id, {
@@ -212,9 +278,6 @@ router.get('/audit-logs', verifySuperAdmin, async (req: Request, res: Response) 
  */
 router.get('/plans', verifySuperAdmin, async (req: Request, res: Response) => {
   try {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-
     const plans = await prisma.planDefinition.findMany({
       orderBy: { sortOrder: 'asc' },
     });
@@ -228,15 +291,23 @@ router.get('/plans', verifySuperAdmin, async (req: Request, res: Response) => {
 /**
  * POST /super-admin/plans - Create/update plan
  */
-router.post('/plans', verifySuperAdmin, async (req: Request, res: Response) => {
+router.post('/plans', verifySuperAdmin, validate(planValidation), async (req: Request, res: Response) => {
   try {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
+    const { slug, name, monthlyPrice, yearlyPrice, features, description, sortOrder, isActive, maxUsers, maxLeads } = req.body;
 
     const plan = await prisma.planDefinition.upsert({
-      where: { slug: req.body.slug },
-      update: req.body,
-      create: req.body,
+      where: { slug },
+      update: { name, monthlyPrice, yearlyPrice, features, description, sortOrder, isActive, maxUsers, maxLeads },
+      create: { slug, name, monthlyPrice: monthlyPrice || 0, yearlyPrice: yearlyPrice || 0, features, description, sortOrder, isActive, maxUsers, maxLeads },
+    });
+
+    // Log audit
+    await superAdminService.createAuditLog({
+      actorType: 'superadmin',
+      actorId: (req as any).superAdmin.id,
+      action: 'plan_updated',
+      description: `Plan "${slug}" created/updated`,
+      changes: { slug, name, monthlyPrice },
     });
 
     res.json({ success: true, plan });
@@ -250,16 +321,9 @@ router.post('/plans', verifySuperAdmin, async (req: Request, res: Response) => {
 /**
  * POST /super-admin/organizations - Create organization manually
  */
-router.post('/organizations', verifySuperAdmin, async (req: Request, res: Response) => {
+router.post('/organizations', verifySuperAdmin, validate(createOrgValidation), async (req: Request, res: Response) => {
   try {
     const { organizationName, slug, adminEmail, adminFirstName, adminLastName, planId } = req.body;
-
-    if (!organizationName || !slug || !adminEmail || !adminFirstName || !adminLastName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required fields: organizationName, slug, adminEmail, adminFirstName, adminLastName',
-      });
-    }
 
     const result = await superAdminService.createOrganization({
       organizationName,
@@ -294,7 +358,9 @@ router.post('/organizations', verifySuperAdmin, async (req: Request, res: Respon
 /**
  * POST /super-admin/impersonate/:userId - Login as any user
  */
-router.post('/impersonate/:userId', verifySuperAdmin, async (req: Request, res: Response) => {
+router.post('/impersonate/:userId', verifySuperAdmin, validate([
+  param('userId').isUUID().withMessage('Invalid user ID'),
+]), async (req: Request, res: Response) => {
   try {
     const superAdminId = (req as any).superAdmin.id;
     const result = await superAdminService.impersonateUser(req.params.userId, superAdminId);
@@ -360,16 +426,9 @@ router.post('/exit-impersonation', async (req: Request, res: Response) => {
 /**
  * POST /super-admin/bulk-email - Send bulk email to organizations
  */
-router.post('/bulk-email', verifySuperAdmin, async (req: Request, res: Response) => {
+router.post('/bulk-email', verifySuperAdmin, validate(bulkEmailValidation), async (req: Request, res: Response) => {
   try {
     const { subject, body, html, filter } = req.body;
-
-    if (!subject || !body) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required fields: subject, body',
-      });
-    }
 
     const result = await superAdminService.sendBulkEmailToOrganizations({
       subject,

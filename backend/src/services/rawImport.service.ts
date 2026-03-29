@@ -717,6 +717,165 @@ export class RawImportService {
       deletedRecordsCount: deletedRecords.count,
     };
   }
+
+  // ==================== MANUAL RECORD ADDITION ====================
+
+  async addManualRecord(
+    bulkImportId: string,
+    organizationId: string,
+    data: {
+      firstName: string;
+      lastName?: string;
+      email?: string;
+      phone: string;
+      alternatePhone?: string;
+      customFields?: Record<string, any>;
+    }
+  ) {
+    // Verify bulk import exists and belongs to organization
+    const bulkImport = await prisma.bulkImport.findFirst({
+      where: { id: bulkImportId, organizationId },
+    });
+
+    if (!bulkImport) {
+      throw new NotFoundError('Bulk import not found');
+    }
+
+    // Check for duplicate phone in this organization
+    const existingRecord = await prisma.rawImportRecord.findFirst({
+      where: {
+        organizationId,
+        phone: data.phone,
+      },
+    });
+
+    if (existingRecord) {
+      throw new BadRequestError(`Phone number ${data.phone} already exists in raw imports`);
+    }
+
+    // Check for duplicate in leads
+    const existingLead = await prisma.lead.findFirst({
+      where: {
+        organizationId,
+        phone: data.phone,
+      },
+    });
+
+    if (existingLead) {
+      throw new BadRequestError(`Phone number ${data.phone} already exists as a lead`);
+    }
+
+    // Create the record
+    const record = await prisma.rawImportRecord.create({
+      data: {
+        bulkImportId,
+        organizationId,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        alternatePhone: data.alternatePhone,
+        customFields: data.customFields || {},
+        status: 'PENDING',
+      },
+    });
+
+    // Update bulk import validRows count
+    await prisma.bulkImport.update({
+      where: { id: bulkImportId },
+      data: {
+        validRows: { increment: 1 },
+        totalRows: { increment: 1 },
+      },
+    });
+
+    return record;
+  }
+
+  async addBulkManualRecords(
+    bulkImportId: string,
+    organizationId: string,
+    records: Array<{
+      firstName: string;
+      lastName?: string;
+      email?: string;
+      phone: string;
+      alternatePhone?: string;
+      customFields?: Record<string, any>;
+    }>
+  ) {
+    // Verify bulk import exists and belongs to organization
+    const bulkImport = await prisma.bulkImport.findFirst({
+      where: { id: bulkImportId, organizationId },
+    });
+
+    if (!bulkImport) {
+      throw new NotFoundError('Bulk import not found');
+    }
+
+    // Get all existing phones in organization
+    const phones = records.map(r => r.phone);
+
+    const existingRawRecords = await prisma.rawImportRecord.findMany({
+      where: {
+        organizationId,
+        phone: { in: phones },
+      },
+      select: { phone: true },
+    });
+
+    const existingLeads = await prisma.lead.findMany({
+      where: {
+        organizationId,
+        phone: { in: phones },
+      },
+      select: { phone: true },
+    });
+
+    const existingPhones = new Set([
+      ...existingRawRecords.map(r => r.phone),
+      ...existingLeads.map(l => l.phone),
+    ]);
+
+    // Filter out duplicates
+    const uniqueRecords = records.filter(r => !existingPhones.has(r.phone));
+    const duplicateCount = records.length - uniqueRecords.length;
+
+    if (uniqueRecords.length === 0) {
+      throw new BadRequestError('All phone numbers already exist');
+    }
+
+    // Create records
+    const createdRecords = await prisma.rawImportRecord.createMany({
+      data: uniqueRecords.map(record => ({
+        bulkImportId,
+        organizationId,
+        firstName: record.firstName,
+        lastName: record.lastName,
+        email: record.email,
+        phone: record.phone,
+        alternatePhone: record.alternatePhone,
+        customFields: record.customFields || {},
+        status: 'PENDING' as RawImportRecordStatus,
+      })),
+    });
+
+    // Update bulk import counts
+    await prisma.bulkImport.update({
+      where: { id: bulkImportId },
+      data: {
+        validRows: { increment: createdRecords.count },
+        totalRows: { increment: records.length },
+        duplicateRows: { increment: duplicateCount },
+      },
+    });
+
+    return {
+      count: createdRecords.count,
+      duplicateCount,
+      totalSubmitted: records.length,
+    };
+  }
 }
 
 export const rawImportService = new RawImportService();

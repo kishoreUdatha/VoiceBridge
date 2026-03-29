@@ -27,9 +27,14 @@ interface UpdateIvrFlowInput {
 
 interface CreateIvrNodeInput {
   organizationId: string;
+  flowId?: string;
   name: string;
+  label?: string;
   type: IvrNodeType;
+  position?: { x: number; y: number };
+  data?: Prisma.InputJsonValue;
   config?: Prisma.InputJsonValue;
+  connections?: Array<{ targetNodeId: string; condition?: string }>;
   audioUrl?: string;
   ttsText?: string;
   ttsVoice?: string;

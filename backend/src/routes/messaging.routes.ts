@@ -3,32 +3,75 @@
  * Handles SMS, WhatsApp, and Email sending for telecaller app
  */
 
-import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { authenticate } from '../middlewares/auth';
+import { Router, Response } from 'express';
+import { body, param, query } from 'express-validator';
+import rateLimit from 'express-rate-limit';
+import { prisma } from '../config/database';
+import { authenticate, AuthenticatedRequest } from '../middlewares/auth';
+import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 import { createWhatsAppService } from '../integrations/whatsapp.service';
 
-const router = Router();
-const prisma = new PrismaClient();
+// Rate limiter for messaging endpoints
+const messagingRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 messages per minute per IP
+  message: { success: false, message: 'Too many messages sent. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-// Apply authentication to all routes
+// Validation rules
+const smsValidation = [
+  body('to').trim().notEmpty().withMessage('Phone number is required')
+    .matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone number format'),
+  body('message').trim().notEmpty().withMessage('Message is required')
+    .isLength({ max: 1600 }).withMessage('Message must be at most 1600 characters'),
+  body('leadId').optional().isUUID().withMessage('Invalid lead ID'),
+];
+
+const whatsappValidation = [
+  body('to').trim().notEmpty().withMessage('Phone number is required')
+    .matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone number format'),
+  body('message').trim().notEmpty().withMessage('Message is required')
+    .isLength({ max: 4096 }).withMessage('Message must be at most 4096 characters'),
+  body('leadId').optional().isUUID().withMessage('Invalid lead ID'),
+  body('templateId').optional().isString().withMessage('Invalid template ID'),
+];
+
+const emailValidation = [
+  body('to').trim().isEmail().withMessage('Valid email address is required'),
+  body('subject').optional().trim().isLength({ max: 500 }).withMessage('Subject must be at most 500 characters'),
+  body('body').trim().notEmpty().withMessage('Email body is required')
+    .isLength({ max: 50000 }).withMessage('Email body must be at most 50000 characters'),
+  body('leadId').optional().isUUID().withMessage('Invalid lead ID'),
+];
+
+const quickSendValidation = [
+  body('type').isIn(['SMS', 'WHATSAPP', 'EMAIL']).withMessage('Valid message type is required'),
+  body('leadId').isUUID().withMessage('Valid lead ID is required'),
+  body('phone').optional().matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone number format'),
+  body('email').optional().isEmail().withMessage('Invalid email format'),
+];
+
+const router = Router();
+
+// Apply authentication and tenant middleware to all routes
 router.use(authenticate);
+router.use(tenantMiddleware);
 
 /**
  * Send SMS
  * POST /api/messaging/sms
  */
-router.post('/sms', async (req: Request, res: Response) => {
+router.post('/sms', messagingRateLimiter, validate(smsValidation), async (req: TenantRequest, res: Response) => {
   try {
     const { to, message, leadId } = req.body;
-    const userId = (req as any).user?.id;
-    const organizationId = (req as any).user?.organizationId;
+    const userId = req.user?.id;
+    const organizationId = req.organizationId;
 
-    if (!to || !message) {
-      return res.status(400).json({
-        success: false,
-        message: 'Phone number and message are required',
-      });
+    if (!organizationId) {
+      return res.status(401).json({ success: false, message: 'Organization not found' });
     }
 
     // Log the message attempt
@@ -93,17 +136,14 @@ router.post('/sms', async (req: Request, res: Response) => {
  * Send WhatsApp
  * POST /api/messaging/whatsapp
  */
-router.post('/whatsapp', async (req: Request, res: Response) => {
+router.post('/whatsapp', messagingRateLimiter, validate(whatsappValidation), async (req: TenantRequest, res: Response) => {
   try {
     const { to, message, leadId, templateId } = req.body;
-    const userId = (req as any).user?.id;
-    const organizationId = (req as any).user?.organizationId;
+    const userId = req.user?.id;
+    const organizationId = req.organizationId;
 
-    if (!to || !message) {
-      return res.status(400).json({
-        success: false,
-        message: 'Phone number and message are required',
-      });
+    if (!organizationId) {
+      return res.status(401).json({ success: false, message: 'Organization not found' });
     }
 
     // Log the message attempt
@@ -168,17 +208,14 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
  * Send Email
  * POST /api/messaging/email
  */
-router.post('/email', async (req: Request, res: Response) => {
+router.post('/email', messagingRateLimiter, validate(emailValidation), async (req: TenantRequest, res: Response) => {
   try {
     const { to, subject, body, leadId } = req.body;
-    const userId = (req as any).user?.id;
-    const organizationId = (req as any).user?.organizationId;
+    const userId = req.user?.id;
+    const organizationId = req.organizationId;
 
-    if (!to || !body) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email address and body are required',
-      });
+    if (!organizationId) {
+      return res.status(401).json({ success: false, message: 'Organization not found' });
     }
 
     // Log the message attempt
@@ -243,22 +280,19 @@ router.post('/email', async (req: Request, res: Response) => {
  * Quick Send - Uses default template
  * POST /api/messaging/quick-send
  */
-router.post('/quick-send', async (req: Request, res: Response) => {
+router.post('/quick-send', messagingRateLimiter, validate(quickSendValidation), async (req: TenantRequest, res: Response) => {
   try {
     const { type, leadId, phone, email } = req.body;
-    const userId = (req as any).user?.id;
-    const organizationId = (req as any).user?.organizationId;
+    const userId = req.user?.id;
+    const organizationId = req.organizationId;
 
-    if (!type || !leadId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Message type and leadId are required',
-      });
+    if (!organizationId) {
+      return res.status(401).json({ success: false, message: 'Organization not found' });
     }
 
-    // Get lead info
-    const lead = await prisma.lead.findUnique({
-      where: { id: leadId },
+    // SECURITY: Get lead with organization verification
+    const lead = await prisma.lead.findFirst({
+      where: { id: leadId, organizationId },
       select: { firstName: true, lastName: true, phone: true, email: true },
     });
 
@@ -340,10 +374,15 @@ router.post('/quick-send', async (req: Request, res: Response) => {
     });
 
     // Log activity
+    const activityTypeMap: Record<string, 'SMS_SENT' | 'WHATSAPP_SENT' | 'EMAIL_SENT'> = {
+      SMS: 'SMS_SENT',
+      WHATSAPP: 'WHATSAPP_SENT',
+      EMAIL: 'EMAIL_SENT',
+    };
     await prisma.leadActivity.create({
       data: {
         leadId,
-        type: `${type}_SENT`,
+        type: activityTypeMap[type] || 'CUSTOM',
         title: `Quick ${type} Sent`,
         description: 'Automated message during call',
         userId,
@@ -372,10 +411,12 @@ router.post('/quick-send', async (req: Request, res: Response) => {
  * Get message templates
  * GET /api/messaging/templates
  */
-router.get('/templates', async (req: Request, res: Response) => {
+router.get('/templates', validate([
+  query('type').optional().isIn(['SMS', 'WHATSAPP', 'EMAIL']).withMessage('Invalid template type'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { type } = req.query;
-    const organizationId = (req as any).user?.organizationId;
+    const organizationId = req.organizationId;
 
     const where: any = { organizationId };
     if (type) {

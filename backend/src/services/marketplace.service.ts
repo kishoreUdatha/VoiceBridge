@@ -14,6 +14,7 @@ interface CreateAgentTemplateDto {
   creatorId: string;
   creatorType?: string;
   name: string;
+  slug?: string;
   description: string;
   shortDescription?: string;
   industry: VoiceAgentIndustry;

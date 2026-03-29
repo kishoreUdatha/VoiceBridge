@@ -1,4 +1,4 @@
-import { Platform, PermissionsAndroid, Alert, Linking } from 'react-native';
+import { Platform, PermissionsAndroid, Alert, Linking, Permission } from 'react-native';
 
 export type PermissionType =
   | 'RECORD_AUDIO'
@@ -9,7 +9,7 @@ export type PermissionType =
   | 'READ_EXTERNAL_STORAGE'
   | 'WRITE_EXTERNAL_STORAGE';
 
-const PERMISSION_MAP: Record<PermissionType, string> = {
+const PERMISSION_MAP: Record<PermissionType, Permission> = {
   RECORD_AUDIO: PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
   READ_PHONE_STATE: PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
   CALL_PHONE: PermissionsAndroid.PERMISSIONS.CALL_PHONE,

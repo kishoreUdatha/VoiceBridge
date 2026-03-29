@@ -1,7 +1,7 @@
-import { PrismaClient, PhoneNumberStatus, PhoneNumberType, PhoneNumberProvider } from '@prisma/client';
+import { PhoneNumberStatus, PhoneNumberType, PhoneNumberProvider } from '@prisma/client';
+import { prisma } from '../config/database';
 import { AppError } from '../utils/errors';
 
-const prisma = new PrismaClient();
 
 interface CreatePhoneNumberInput {
   organizationId: string;

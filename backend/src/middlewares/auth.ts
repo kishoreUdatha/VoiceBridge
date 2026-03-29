@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken } from '../utils/jwt';
 import { ApiResponse } from '../utils/apiResponse';
 import { prisma } from '../config/database';
+import { getAccessToken } from '../utils/cookies';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -22,14 +23,13 @@ export async function authenticate(
   next: NextFunction
 ): Promise<void> {
   try {
-    const authHeader = req.headers.authorization;
+    // Get token from cookie or Authorization header
+    const token = getAccessToken(req);
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       ApiResponse.unauthorized(res, 'No token provided');
       return;
     }
-
-    const token = authHeader.split(' ')[1];
 
     const decoded = verifyAccessToken(token);
 
@@ -106,15 +106,14 @@ export async function optionalAuth(
   next: NextFunction
 ): Promise<void> {
   try {
-    const authHeader = req.headers.authorization;
+    // Get token from cookie or Authorization header
+    const token = getAccessToken(req);
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       // No token, continue without user
       next();
       return;
     }
-
-    const token = authHeader.split(' ')[1];
 
     const decoded = verifyAccessToken(token);
 

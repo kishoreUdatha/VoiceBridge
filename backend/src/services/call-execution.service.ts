@@ -3,7 +3,7 @@
  * Handles making calls, TwiML generation, and consent handling
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config';
 import { exotelService } from '../integrations/exotel.service';
@@ -12,7 +12,6 @@ import { complianceService } from './compliance.service';
 import { parseVariables, extractInstitutionContext, VariableContext } from '../utils/variableParser';
 import { getLanguageConfig, generateExoML, isHindiLanguage } from '../config/language.config';
 
-const prisma = new PrismaClient();
 
 const CALL_PROVIDER = process.env.CALL_PROVIDER || process.env.VOICE_PROVIDER || 'exotel';
 

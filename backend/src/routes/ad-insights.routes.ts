@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
 import { asyncHandler } from '../utils/asyncHandler';
 import { adInsightsSyncService } from '../services/ad-insights-sync.service';
 import { jobQueueService } from '../services/job-queue.service';
@@ -7,13 +8,16 @@ import { prisma } from '../config/database';
 
 const router = Router();
 
+// All routes require authentication and tenant context
+router.use(authenticate);
+router.use(tenantMiddleware);
+
 /**
  * @api {post} /ad-insights/sync Trigger Manual Sync
  * Manually trigger ad insights sync for the organization
  */
 router.post(
   '/sync',
-  authenticate,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { platform } = req.body;
@@ -41,7 +45,6 @@ router.post(
  */
 router.post(
   '/sync/async',
-  authenticate,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
 
@@ -63,7 +66,6 @@ router.post(
  */
 router.get(
   '/sync/status',
-  authenticate,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
 
@@ -82,7 +84,6 @@ router.get(
  */
 router.get(
   '/campaigns/:id/metrics',
-  authenticate,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { id } = req.params;
@@ -130,7 +131,6 @@ router.get(
  */
 router.get(
   '/campaigns',
-  authenticate,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { platform, status } = req.query;
@@ -185,7 +185,6 @@ router.get(
  */
 router.get(
   '/summary',
-  authenticate,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { startDate, endDate } = req.query;

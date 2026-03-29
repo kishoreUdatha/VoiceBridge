@@ -1,7 +1,7 @@
-import { PrismaClient, OtpPurpose, OtpChannel, OtpIdentifierType } from '@prisma/client';
+import { OtpPurpose, OtpChannel, OtpIdentifierType } from '@prisma/client';
+import { prisma } from '../config/database';
 import crypto from 'crypto';
 
-const prisma = new PrismaClient();
 
 // OTP Configuration
 const OTP_LENGTH = 6;

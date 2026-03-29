@@ -5,43 +5,69 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { body, param, query } from 'express-validator';
+import rateLimit from 'express-rate-limit';
 import { authenticate } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 import { ApiResponse } from '../utils/apiResponse';
 import { conversationalAIService } from '../integrations/conversational-ai.service';
 import { prisma } from '../config/database';
+import { VoiceAgentIndustry } from '@prisma/client';
 
 const router = Router();
+
+// Rate limiter for public endpoints
+const publicEndpointLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute
+  message: { success: false, message: 'Too many requests, please try again later' },
+});
+
+// Rate limiter for agent creation
+const agentCreationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20, // 20 agent creations per hour
+  message: { success: false, message: 'Too many agent creation requests' },
+});
 
 // ==================== PUBLIC ENDPOINTS ====================
 
 /**
  * Get signed WebSocket URL for an agent (for widget/frontend)
  */
-router.get('/agents/:agentId/websocket-url', async (req: Request, res: Response) => {
-  try {
-    const { agentId } = req.params;
+router.get(
+  '/agents/:agentId/websocket-url',
+  publicEndpointLimiter,
+  validate([
+    param('agentId').trim().notEmpty().withMessage('Agent ID is required')
+      .isLength({ max: 100 }).withMessage('Invalid agent ID'),
+  ]),
+  async (req: Request, res: Response) => {
+    try {
+      const { agentId } = req.params;
 
-    if (!conversationalAIService.isAvailable()) {
-      return ApiResponse.error(res, 'Conversational AI API not configured', 503);
+      if (!conversationalAIService.isAvailable()) {
+        return ApiResponse.error(res, 'Conversational AI API not configured', 503);
+      }
+
+      const signedUrl = await conversationalAIService.getAgentWebSocketUrl(agentId);
+
+      ApiResponse.success(res, 'WebSocket URL generated', {
+        signedUrl,
+        agentId,
+        expiresIn: 300,
+      });
+    } catch (error) {
+      ApiResponse.error(res, (error as Error).message, 500);
     }
-
-    const signedUrl = await conversationalAIService.getAgentWebSocketUrl(agentId);
-
-    ApiResponse.success(res, 'WebSocket URL generated', {
-      signedUrl,
-      agentId,
-      expiresIn: 300,
-    });
-  } catch (error) {
-    ApiResponse.error(res, (error as Error).message, 500);
   }
-});
+);
 
 /**
  * Check Conversational AI service status
  */
-router.get('/status', async (req: Request, res: Response) => {
+router.get('/status', publicEndpointLimiter, async (req: Request, res: Response) => {
   try {
     const isAvailable = conversationalAIService.isAvailable();
 
@@ -77,25 +103,52 @@ router.use(tenantMiddleware);
 /**
  * Create a new agent
  */
-router.post('/agents', async (req: TenantRequest, res: Response) => {
-  try {
-    const {
-      name,
-      industry,
-      useCase,
-      systemPrompt,
-      firstMessage,
-      voiceId,
-      language,
-      llm,
-      website,
-      mainGoal,
-      knowledgeBase,
-    } = req.body;
-
-    if (!name || !mainGoal) {
-      return ApiResponse.error(res, 'Name and mainGoal are required', 400);
-    }
+router.post(
+  '/agents',
+  agentCreationLimiter,
+  validate([
+    body('name').trim().notEmpty().withMessage('Name is required')
+      .isLength({ max: 100 }).withMessage('Name must be at most 100 characters'),
+    body('mainGoal').trim().notEmpty().withMessage('Main goal is required')
+      .isLength({ max: 2000 }).withMessage('Main goal must be at most 2000 characters'),
+    body('industry').optional().trim().isLength({ max: 50 }).withMessage('Invalid industry'),
+    body('useCase').optional().trim().isLength({ max: 50 }).withMessage('Invalid use case'),
+    body('systemPrompt').optional().trim().isLength({ max: 10000 }).withMessage('System prompt must be at most 10000 characters'),
+    body('firstMessage').optional().trim().isLength({ max: 1000 }).withMessage('First message must be at most 1000 characters'),
+    body('voiceId').optional().trim().isLength({ max: 100 }).withMessage('Invalid voice ID'),
+    body('language').optional().trim().isLength({ min: 2, max: 10 }).withMessage('Invalid language code'),
+    body('llm').optional().trim().isLength({ max: 50 }).withMessage('Invalid LLM'),
+    body('website').optional().trim().isURL().withMessage('Invalid website URL'),
+    body('knowledgeBase').optional().custom((value) => {
+      // Allow string or object, but limit size
+      if (typeof value === 'string') {
+        if (value.length > 50000) {
+          throw new Error('Knowledge base string must be at most 50000 characters');
+        }
+      } else if (typeof value === 'object') {
+        const jsonStr = JSON.stringify(value);
+        if (jsonStr.length > 100000) {
+          throw new Error('Knowledge base object too large');
+        }
+      }
+      return true;
+    }),
+  ]),
+  async (req: TenantRequest, res: Response) => {
+    try {
+      const {
+        name,
+        industry,
+        useCase,
+        systemPrompt,
+        firstMessage,
+        voiceId,
+        language,
+        llm,
+        website,
+        mainGoal,
+        knowledgeBase,
+      } = req.body;
 
     // Generate system prompt if not provided
     const finalSystemPrompt = systemPrompt || generateSystemPrompt(industry, useCase, mainGoal);
@@ -169,15 +222,20 @@ router.post('/agents', async (req: TenantRequest, res: Response) => {
 /**
  * Sync agent to Conversational AI platform
  */
-router.post('/agents/:agentId/sync', async (req: TenantRequest, res: Response) => {
-  try {
-    const { agentId } = req.params;
+router.post(
+  '/agents/:agentId/sync',
+  validate([
+    param('agentId').isUUID().withMessage('Invalid agent ID'),
+  ]),
+  async (req: TenantRequest, res: Response) => {
+    try {
+      const { agentId } = req.params;
 
-    if (!conversationalAIService.isAvailable()) {
-      return ApiResponse.error(res, 'Conversational AI API not configured', 503);
-    }
+      if (!conversationalAIService.isAvailable()) {
+        return ApiResponse.error(res, 'Conversational AI API not configured', 503);
+      }
 
-    const agent = await prisma.voiceAgent.findFirst({
+      const agent = await prisma.voiceAgent.findFirst({
       where: {
         id: agentId,
         organizationId: req.organizationId,
@@ -204,13 +262,49 @@ router.post('/agents/:agentId/sync', async (req: TenantRequest, res: Response) =
  */
 router.get('/agents', async (req: TenantRequest, res: Response) => {
   try {
+    // Get voice agents from database that have conversational AI metadata
+    const dbAgents = await prisma.voiceAgent.findMany({
+      where: {
+        organizationId: req.organizationId!,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        industry: true,
+        isActive: true,
+        createdAt: true,
+        metadata: true,
+      },
+      take: 50,
+    });
+
+    // Filter agents that have conversationalAIAgentId in metadata
+    const conversationalAgents = dbAgents.filter(a => {
+      const meta = a.metadata as any;
+      return meta?.conversationalAIAgentId || meta?.provider === 'conversational-ai';
+    });
+
     if (!conversationalAIService.isAvailable()) {
-      return ApiResponse.error(res, 'Conversational AI API not configured', 503);
+      // Return database agents even if API not configured
+      return ApiResponse.success(res, 'Agents retrieved (API not configured)', {
+        agents: conversationalAgents.map(a => ({
+          id: (a.metadata as any)?.conversationalAIAgentId || a.id,
+          voiceBridgeId: a.id,
+          name: a.name,
+          industry: a.industry,
+          isActive: a.isActive,
+          source: 'database',
+        })),
+        totalAgents: conversationalAgents.length,
+        apiConfigured: false,
+        message: 'Configure ElevenLabs API key to enable real-time voice conversations',
+      });
     }
 
     const agents = await conversationalAIService.listAgents();
 
-    ApiResponse.success(res, 'Agents retrieved', { agents });
+    ApiResponse.success(res, 'Agents retrieved', { agents, apiConfigured: true });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -219,16 +313,22 @@ router.get('/agents', async (req: TenantRequest, res: Response) => {
 /**
  * Get conversations for an agent
  */
-router.get('/agents/:agentId/conversations', async (req: TenantRequest, res: Response) => {
-  try {
-    const { agentId } = req.params;
-    const limit = parseInt(req.query.limit as string) || 20;
+router.get(
+  '/agents/:agentId/conversations',
+  validate([
+    param('agentId').isUUID().withMessage('Invalid agent ID'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+  ]),
+  async (req: TenantRequest, res: Response) => {
+    try {
+      const { agentId } = req.params;
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
 
-    if (!conversationalAIService.isAvailable()) {
-      return ApiResponse.error(res, 'Conversational AI API not configured', 503);
-    }
+      if (!conversationalAIService.isAvailable()) {
+        return ApiResponse.error(res, 'Conversational AI API not configured', 503);
+      }
 
-    const agent = await prisma.voiceAgent.findFirst({
+      const agent = await prisma.voiceAgent.findFirst({
       where: {
         id: agentId,
         organizationId: req.organizationId,
@@ -278,8 +378,8 @@ function generateFirstMessage(agentName: string): string {
   return `[warmly] Hello there! My name is ${agentName}, and I'm here to help you today. How can I assist you?`;
 }
 
-function mapIndustry(industry: string): string {
-  const mapping: Record<string, string> = {
+function mapIndustry(industry: string): VoiceAgentIndustry {
+  const mapping: Record<string, VoiceAgentIndustry> = {
     education: 'EDUCATION',
     real_estate: 'REAL_ESTATE',
     healthcare: 'HEALTHCARE',

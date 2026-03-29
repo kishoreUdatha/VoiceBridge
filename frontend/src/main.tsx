@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import App from './App';
 import { store } from './store';
+import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 
 // Initialize i18n
@@ -22,11 +23,12 @@ const LoadingSpinner = () => (
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <Suspense fallback={<LoadingSpinner />}>
-      <Provider store={store}>
-        <BrowserRouter>
-          <App />
-          <Toaster
+    <ErrorBoundary>
+      <Suspense fallback={<LoadingSpinner />}>
+        <Provider store={store}>
+          <BrowserRouter>
+            <App />
+            <Toaster
             position="top-right"
             toastOptions={{
               duration: 4000,
@@ -48,8 +50,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               },
             }}
           />
-        </BrowserRouter>
-      </Provider>
-    </Suspense>
+          </BrowserRouter>
+        </Provider>
+      </Suspense>
+    </ErrorBoundary>
   </React.StrictMode>
 );

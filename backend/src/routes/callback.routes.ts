@@ -1,9 +1,42 @@
 import { Router, Response } from 'express';
+import { body, param, query } from 'express-validator';
 import { callbackService } from '../services/callback.service';
 import { authenticate } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 import { ApiResponse } from '../utils/apiResponse';
 import { CallbackStatus, CallbackSource } from '@prisma/client';
+
+// Validation rules
+const createCallbackValidation = [
+  body('phoneNumber').trim().notEmpty().withMessage('Phone number is required')
+    .matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone number format'),
+  body('contactName').optional().trim().isLength({ max: 100 }).withMessage('Contact name must be at most 100 characters'),
+  body('leadId').optional().isUUID().withMessage('Invalid lead ID'),
+  body('source').optional().isIn(Object.values(CallbackSource)).withMessage('Invalid callback source'),
+  body('scheduledAt').optional().isISO8601().withMessage('Invalid scheduled date'),
+  body('notes').optional().trim().isLength({ max: 1000 }).withMessage('Notes must be at most 1000 characters'),
+  body('priority').optional().isIn(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).withMessage('Invalid priority'),
+];
+
+const updateStatusValidation = [
+  param('id').isUUID().withMessage('Invalid callback ID'),
+  body('status').isIn(Object.values(CallbackStatus)).withMessage('Invalid status'),
+  body('notes').optional().trim().isLength({ max: 1000 }).withMessage('Notes must be at most 1000 characters'),
+];
+
+const rescheduleValidation = [
+  param('id').isUUID().withMessage('Invalid callback ID'),
+  body('scheduledAt').isISO8601().withMessage('Invalid scheduled date'),
+  body('reason').optional().trim().isLength({ max: 500 }).withMessage('Reason must be at most 500 characters'),
+];
+
+const paginationValidation = [
+  query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+  query('status').optional().isIn(Object.values(CallbackStatus)).withMessage('Invalid status'),
+  query('search').optional().trim().isLength({ max: 200 }).withMessage('Search must be at most 200 characters'),
+];
 
 const router = Router();
 
@@ -11,7 +44,7 @@ router.use(authenticate);
 router.use(tenantMiddleware);
 
 // Get all callbacks
-router.get('/', async (req: TenantRequest, res: Response) => {
+router.get('/', validate(paginationValidation), async (req: TenantRequest, res: Response) => {
   try {
     const {
       page = 1,
@@ -61,7 +94,9 @@ router.get('/pending', async (req: TenantRequest, res: Response) => {
 });
 
 // Get single callback
-router.get('/:id', async (req: TenantRequest, res: Response) => {
+router.get('/:id', validate([
+  param('id').isUUID().withMessage('Invalid callback ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const callback = await callbackService.getCallbackById(
       req.params.id,
@@ -74,7 +109,7 @@ router.get('/:id', async (req: TenantRequest, res: Response) => {
 });
 
 // Schedule new callback
-router.post('/', async (req: TenantRequest, res: Response) => {
+router.post('/', validate(createCallbackValidation), async (req: TenantRequest, res: Response) => {
   try {
     const {
       phoneNumber,
@@ -118,7 +153,10 @@ router.post('/', async (req: TenantRequest, res: Response) => {
 });
 
 // Assign callback to agent
-router.put('/:id/assign', async (req: TenantRequest, res: Response) => {
+router.put('/:id/assign', validate([
+  param('id').isUUID().withMessage('Invalid callback ID'),
+  body('agentUserId').isUUID().withMessage('Valid agent user ID is required'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { agentUserId } = req.body;
 
@@ -135,7 +173,7 @@ router.put('/:id/assign', async (req: TenantRequest, res: Response) => {
 });
 
 // Update callback status
-router.put('/:id/status', async (req: TenantRequest, res: Response) => {
+router.put('/:id/status', validate(updateStatusValidation), async (req: TenantRequest, res: Response) => {
   try {
     const { status, outcomeCallId, outcome, notes } = req.body;
 
@@ -162,7 +200,7 @@ router.put('/:id/status', async (req: TenantRequest, res: Response) => {
 });
 
 // Reschedule callback
-router.put('/:id/reschedule', async (req: TenantRequest, res: Response) => {
+router.put('/:id/reschedule', validate(rescheduleValidation), async (req: TenantRequest, res: Response) => {
   try {
     const { scheduledAt, notes } = req.body;
 
@@ -184,7 +222,10 @@ router.put('/:id/reschedule', async (req: TenantRequest, res: Response) => {
 });
 
 // Cancel callback
-router.put('/:id/cancel', async (req: TenantRequest, res: Response) => {
+router.put('/:id/cancel', validate([
+  param('id').isUUID().withMessage('Invalid callback ID'),
+  body('reason').optional().trim().isLength({ max: 500 }).withMessage('Reason too long'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const { reason } = req.body;
 
@@ -201,7 +242,9 @@ router.put('/:id/cancel', async (req: TenantRequest, res: Response) => {
 });
 
 // Execute callback (initiate the call)
-router.post('/:id/execute', async (req: TenantRequest, res: Response) => {
+router.post('/:id/execute', validate([
+  param('id').isUUID().withMessage('Invalid callback ID'),
+]), async (req: TenantRequest, res: Response) => {
   try {
     const result = await callbackService.executeCallback(
       req.params.id,

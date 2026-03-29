@@ -3,13 +3,13 @@
  * Handles automatic follow-up rules and execution
  */
 
-import { PrismaClient, CallOutcome, FollowUpActionType } from '@prisma/client';
+import { CallOutcome, FollowUpActionType } from '@prisma/client';
 import OpenAI from 'openai';
+import { prisma } from '../config/database';
 import { exotelService } from '../integrations/exotel.service';
 import { emailService } from '../integrations/email.service';
 import { callSchedulingService } from './call-scheduling.service';
 
-const prisma = new PrismaClient();
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
@@ -20,18 +20,37 @@ export interface CreateRuleData {
   name: string;
   triggerOutcome?: CallOutcome;
   triggerSentiment?: string;
+  triggerEvent?: string;
   minCallDuration?: number;
-  actionType: FollowUpActionType;
+  actionType?: FollowUpActionType;
+  action?: string;
   delayMinutes: number;
-  messageTemplate: string;
+  messageTemplate?: string;
   useAI?: boolean;
+  isActive?: boolean;
+  conditions?: Record<string, any>;
+  actionConfig?: Record<string, any>;
 }
 
 /**
  * Create a new follow-up rule
  */
 export async function createRule(data: CreateRuleData) {
-  return prisma.followUpRule.create({ data });
+  return prisma.followUpRule.create({
+    data: {
+      organizationId: data.organizationId,
+      agentId: data.agentId,
+      name: data.name,
+      triggerOutcome: data.triggerOutcome,
+      triggerSentiment: data.triggerSentiment,
+      minCallDuration: data.minCallDuration,
+      actionType: data.actionType || 'WHATSAPP',
+      delayMinutes: data.delayMinutes,
+      messageTemplate: data.messageTemplate || '',
+      useAI: data.useAI,
+      isActive: data.isActive ?? true,
+    },
+  });
 }
 
 /**
@@ -262,8 +281,9 @@ export async function getFollowUpLogs(organizationId: string, options?: {
     select: { id: true, name: true, actionType: true },
   });
 
-  const ruleIds = rules.map(r => r.id);
-  const ruleMap = new Map(rules.map(r => [r.id, { name: r.name, actionType: r.actionType }]));
+  type RuleItem = typeof rules[0];
+  const ruleIds = rules.map((r: RuleItem) => r.id);
+  const ruleMap = new Map(rules.map((r: RuleItem) => [r.id, { name: r.name, actionType: r.actionType }]));
 
   // Then get logs for those rules
   const logs = await prisma.followUpLog.findMany({
@@ -276,7 +296,8 @@ export async function getFollowUpLogs(organizationId: string, options?: {
   });
 
   // Attach rule info to logs
-  return logs.map(log => ({
+  type LogItem = typeof logs[0];
+  return logs.map((log: LogItem) => ({
     ...log,
     rule: ruleMap.get(log.ruleId),
   }));

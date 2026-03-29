@@ -69,7 +69,38 @@ const CallScreen: React.FC = () => {
     callDuration,
     recordingPath,
     endCall,
+    initiateCall,
   } = useCallRecording();
+
+  const [callInitiated, setCallInitiated] = useState(false);
+
+  // Initiate the call when screen mounts
+  useEffect(() => {
+    const startCall = async () => {
+      console.log('============================================');
+      console.log('[CallScreen] useEffect triggered');
+      console.log('[CallScreen] callInitiated:', callInitiated);
+      console.log('[CallScreen] lead:', lead?.id, lead?.phone);
+      console.log('============================================');
+
+      if (!callInitiated && lead) {
+        setCallInitiated(true);
+        console.log('[CallScreen] >>>>>> CALLING initiateCall NOW <<<<<<');
+        const success = await initiateCall(lead);
+        console.log('[CallScreen] initiateCall returned:', success);
+        if (!success) {
+          console.log('[CallScreen] Call initiation failed, going back');
+          // Go back if call initiation failed
+          navigation.goBack();
+        } else {
+          console.log('[CallScreen] Call initiation succeeded!');
+        }
+      } else {
+        console.log('[CallScreen] Skipping - already initiated or no lead');
+      }
+    };
+    startCall();
+  }, [lead, callInitiated, initiateCall, navigation]);
 
   // Messaging state
   const [showMessageModal, setShowMessageModal] = useState(false);
@@ -293,7 +324,7 @@ const CallScreen: React.FC = () => {
   const handleEndCall = async () => {
     Alert.alert(
       'End Call',
-      'Are you ready to end the call and record the outcome?',
+      'Are you ready to end the call? AI will analyze the recording and determine the outcome.',
       [
         { text: 'Continue Call', style: 'cancel' },
         {
@@ -302,8 +333,10 @@ const CallScreen: React.FC = () => {
           onPress: async () => {
             await endCall();
             if (currentCall) {
-              navigation.replace('Outcome', {
-                call: currentCall,
+              // Navigate to AI-powered analysis screen instead of manual outcome
+              navigation.replace('CallAnalysis', {
+                callId: currentCall.id,
+                duration: callDuration,
                 recordingPath: recordingPath || undefined,
               });
             } else {

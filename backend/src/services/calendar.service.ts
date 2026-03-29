@@ -1,16 +1,16 @@
-import { PrismaClient, CalendarProvider } from '@prisma/client';
+import { CalendarProvider } from '@prisma/client';
 import { google, calendar_v3 } from 'googleapis';
+import { prisma } from '../config/database';
+import { config } from '../config';
 import integrationService from './integration.service';
 import { emailService } from '../integrations/email.service';
-
-const prisma = new PrismaClient();
 
 // Environment variables for Google OAuth (use same as integration service)
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-// GOOGLE_CALENDAR_REDIRECT_URI must be set in production - no localhost fallback
+// GOOGLE_CALENDAR_REDIRECT_URI must be set in production - uses config.baseUrl
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_CALENDAR_REDIRECT_URI ||
-  (process.env.BASE_URL ? `${process.env.BASE_URL}/api/calendar/oauth/callback` : 'http://localhost:3000/api/calendar/oauth/callback');
+  `${config.baseUrl}/api/calendar/oauth/callback`;
 
 interface CreateEventData {
   title: string;

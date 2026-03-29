@@ -1,10 +1,11 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DeviceEventEmitter } from 'react-native';
 import { STORAGE_KEYS } from '../types';
+import { API_URL } from '../config';
 
-// Base URL for API
-// Using localhost with ADB reverse proxy for development
-const API_BASE_URL = 'http://localhost:3001/api';
+// Base URL for API - uses platform-specific URL from config
+const API_BASE_URL = API_URL;
 
 // Create axios instance
 const api: AxiosInstance = axios.create({
@@ -12,6 +13,7 @@ const api: AxiosInstance = axios.create({
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
+    'x-client-type': 'mobile', // Identify as mobile app to get tokens in response
   },
 });
 
@@ -49,29 +51,40 @@ api.interceptors.response.use(
         const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
 
         if (refreshToken) {
+          console.log('[API] Attempting token refresh...');
           const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
             refreshToken,
           });
 
-          const { token, refreshToken: newRefreshToken } = response.data;
+          const { token, refreshToken: newRefreshToken } = response.data.data || response.data;
 
-          await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-          await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, newRefreshToken);
+          if (token) {
+            await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+            if (newRefreshToken) {
+              await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, newRefreshToken);
+            }
 
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
+            if (originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+            }
+
+            console.log('[API] Token refresh successful, retrying request...');
+            return api(originalRequest);
           }
-
-          return api(originalRequest);
         }
+
+        // No refresh token or refresh failed - force logout
+        throw new Error('No valid refresh token');
       } catch (refreshError) {
-        // Clear tokens and redirect to login
+        console.log('[API] Token refresh failed, logging out...');
+        // Clear tokens
         await AsyncStorage.multiRemove([
           STORAGE_KEYS.AUTH_TOKEN,
           STORAGE_KEYS.REFRESH_TOKEN,
           STORAGE_KEYS.USER_DATA,
         ]);
-        // The app will detect missing token and redirect to login
+        // Emit logout event to trigger navigation to login screen
+        DeviceEventEmitter.emit('logout');
       }
     }
 

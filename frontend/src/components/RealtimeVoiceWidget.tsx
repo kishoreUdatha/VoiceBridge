@@ -392,14 +392,13 @@ export function RealtimeVoiceDemo() {
   const [sessionResult, setSessionResult] = useState<RealtimeEndedPayload | null>(null);
 
   useEffect(() => {
-    // Fetch agents
+    // Fetch agents using cookies for authentication
     const fetchAgents = async () => {
       try {
-        const token = localStorage.getItem('accessToken');
         const response = await fetch(
           `${import.meta.env.VITE_API_URL}/voice-ai/agents`,
           {
-            headers: { Authorization: `Bearer ${token}` },
+            credentials: 'include', // Send cookies for authentication
           }
         );
         if (response.ok) {

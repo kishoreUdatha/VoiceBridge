@@ -3,10 +3,10 @@
  * Handles campaign CRUD operations and processing
  */
 
-import { PrismaClient, OutboundContactStatus } from '@prisma/client';
+import { OutboundContactStatus } from '@prisma/client';
+import { prisma } from '../config/database';
 import { complianceService } from './compliance.service';
 
-const prisma = new PrismaClient();
 
 export interface CreateCampaignData {
   organizationId: string;

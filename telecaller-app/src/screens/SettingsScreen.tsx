@@ -9,10 +9,15 @@ import {
   Alert,
   Linking,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../hooks/useAuth';
 import { getInitials } from '../utils/formatters';
 import { openAppSettings } from '../utils/permissions';
+import { RootStackParamList } from '../types';
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 interface SettingItemProps {
   icon: string;
@@ -53,9 +58,9 @@ const SettingItem: React.FC<SettingItemProps> = ({
 );
 
 const SettingsScreen: React.FC = () => {
+  const navigation = useNavigation<NavigationProp>();
   const { user, logout } = useAuth();
 
-  const [notifications, setNotifications] = useState(true);
   const [highQualityRecording, setHighQualityRecording] = useState(false);
 
   const handleLogout = useCallback(() => {
@@ -122,16 +127,8 @@ const SettingsScreen: React.FC = () => {
             icon="bell"
             iconColor="#F59E0B"
             title="Push Notifications"
-            subtitle="Get notified about new leads and callbacks"
-            rightElement={
-              <Switch
-                value={notifications}
-                onValueChange={setNotifications}
-                trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
-                thumbColor={notifications ? '#3B82F6' : '#9CA3AF'}
-              />
-            }
-            showArrow={false}
+            subtitle="Manage notification preferences"
+            onPress={() => navigation.navigate('NotificationSettings')}
           />
           <SettingItem
             icon="microphone"

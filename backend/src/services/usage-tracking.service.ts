@@ -1,6 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 
-const prisma = new PrismaClient();
 
 export type UsageType = 'leads' | 'aiCalls' | 'aiMinutes' | 'sms' | 'emails' | 'whatsapp' | 'storage';
 

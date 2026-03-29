@@ -3,10 +3,9 @@
  * Handles document chunking, embedding generation, and semantic search for Voice AI agents
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { openaiService } from '../integrations/openai.service';
 
-const prisma = new PrismaClient();
 
 // Simple in-memory cache for index status (TTL: 60 seconds)
 const indexStatusCache = new Map<string, { status: IndexStatus; timestamp: number }>();
@@ -261,15 +260,14 @@ export class RAGService {
     const queryEmbedding = await this.generateEmbedding(query);
     const embeddingVector = `[${queryEmbedding.join(',')}]`;
 
-    // Build source type filter
-    let sourceTypeFilter = '';
-    if (sourceTypes.length > 0) {
-      const escapedTypes = sourceTypes.map(t => `'${t}'`).join(',');
-      sourceTypeFilter = `AND source_type IN (${escapedTypes})`;
-    }
+    // Validate and filter source types against allowed values (prevent SQL injection)
+    const ALLOWED_SOURCE_TYPES = ['document', 'faq', 'knowledge_base', 'website', 'text', 'pdf', 'url'];
+    const validSourceTypes = sourceTypes.filter(t =>
+      ALLOWED_SOURCE_TYPES.includes(t.toLowerCase())
+    );
 
-    // Perform vector similarity search using cosine distance
-    const results = await prisma.$queryRawUnsafe<Array<{
+    // Build parameterized query based on whether we have source type filter
+    let results: Array<{
       id: string;
       content: string;
       source_type: string;
@@ -278,20 +276,41 @@ export class RAGService {
       total_chunks: number;
       metadata: any;
       similarity: number;
-    }>>(
-      `SELECT
-        id, content, source_type, source_name, chunk_index, total_chunks, metadata,
-        1 - (embedding <=> $1::vector) as similarity
-      FROM knowledge_chunks
-      WHERE voice_agent_id = $2
-        AND embedding IS NOT NULL
-        ${sourceTypeFilter}
-      ORDER BY embedding <=> $1::vector
-      LIMIT $3`,
-      embeddingVector,
-      agentId,
-      topK
-    );
+    }>;
+
+    if (validSourceTypes.length > 0) {
+      // Use ANY with array parameter for safe IN clause
+      results = await prisma.$queryRawUnsafe<typeof results>(
+        `SELECT
+          id, content, source_type, source_name, chunk_index, total_chunks, metadata,
+          1 - (embedding <=> $1::vector) as similarity
+        FROM knowledge_chunks
+        WHERE voice_agent_id = $2
+          AND embedding IS NOT NULL
+          AND source_type = ANY($4::text[])
+        ORDER BY embedding <=> $1::vector
+        LIMIT $3`,
+        embeddingVector,
+        agentId,
+        topK,
+        validSourceTypes
+      );
+    } else {
+      // No source type filter
+      results = await prisma.$queryRawUnsafe<typeof results>(
+        `SELECT
+          id, content, source_type, source_name, chunk_index, total_chunks, metadata,
+          1 - (embedding <=> $1::vector) as similarity
+        FROM knowledge_chunks
+        WHERE voice_agent_id = $2
+          AND embedding IS NOT NULL
+        ORDER BY embedding <=> $1::vector
+        LIMIT $3`,
+        embeddingVector,
+        agentId,
+        topK
+      );
+    }
 
     return results
       .filter(r => r.similarity >= similarityThreshold)

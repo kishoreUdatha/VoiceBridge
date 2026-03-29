@@ -5,12 +5,11 @@
  */
 
 import OpenAI from 'openai';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { detectUserMood, getMoodResponseStyle } from './voicebot-mood.service';
 import { normalizeLanguageCode } from './voicebot-transcription.service';
 import { ragService } from './rag.service';
 
-const prisma = new PrismaClient();
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -61,6 +60,82 @@ export interface CallAnalysisResult {
   nextAction: string;
   moodJourney: string;
   dominantMood: string;
+}
+
+export interface EnhancedTranscriptMessage {
+  role: 'assistant' | 'user';
+  content: string;
+  startTimeSeconds: number;
+  sentiment: 'positive' | 'neutral' | 'negative';
+}
+
+export interface EnhancedCallAnalysisResult extends CallAnalysisResult {
+  callQualityScore: number;
+  keyQuestionsAsked: string[];
+  keyIssuesDiscussed: string[];
+  sentimentIntensity: 'low' | 'medium' | 'high';
+  agentSpeakingTime: number;
+  customerSpeakingTime: number;
+  nonSpeechTime: number;
+  enhancedTranscript: EnhancedTranscriptMessage[];
+}
+
+// AI Coaching Types
+export interface CoachingHighlight {
+  text: string;
+  timestamp?: number; // seconds into call
+}
+
+export interface CoachingImprovement {
+  issue: string;
+  suggestion: string;
+  timestamp?: number;
+}
+
+export interface CoachingSuggestions {
+  // What the agent did well
+  positiveHighlights: CoachingHighlight[];
+  // Areas that need improvement with suggestions
+  areasToImprove: CoachingImprovement[];
+  // Specific tips for next call with this lead
+  nextCallTips: string[];
+  // Overall coaching summary
+  coachingSummary: string;
+  // Talk-to-listen ratio feedback
+  talkListenFeedback: string;
+  // Empathy score (0-100)
+  empathyScore: number;
+  // Objection handling score (0-100)
+  objectionHandlingScore: number;
+  // Closing technique score (0-100)
+  closingScore: number;
+}
+
+// Smart Call Prep Types
+export interface CallPrepSuggestions {
+  // Recommended opening line
+  recommendedOpening: string;
+  // Things to avoid in this call
+  thingsToAvoid: string[];
+  // Key talking points to cover
+  talkingPoints: string[];
+  // Objection handling prep
+  objectionPrep: Array<{
+    objection: string;
+    suggestedResponse: string;
+  }>;
+  // Lead context summary
+  leadContext: {
+    interestLevel: 'low' | 'medium' | 'high';
+    mainConcerns: string[];
+    decisionMakerStatus: string;
+    preferredChannel: string;
+    bestTimeToCall: string;
+  };
+  // Previous call summary
+  previousCallsSummary: string;
+  // Confidence score for this prep
+  confidenceScore: number;
 }
 
 /**
@@ -559,6 +634,370 @@ Current mood: ${userMood}`,
 }
 
 /**
+ * Estimate speaking time based on transcript content
+ * Uses average speaking rates: ~150 words per minute
+ */
+function estimateSpeakingTimes(
+  transcript: Array<{ role: string; content: string }>,
+  totalDuration: number
+): { agentTime: number; customerTime: number; nonSpeechTime: number } {
+  const wordsPerMinute = 150;
+  const secondsPerWord = 60 / wordsPerMinute;
+
+  let agentWords = 0;
+  let customerWords = 0;
+
+  for (const turn of transcript) {
+    const wordCount = turn.content.split(/\s+/).filter(w => w.length > 0).length;
+    if (turn.role === 'assistant') {
+      agentWords += wordCount;
+    } else {
+      customerWords += wordCount;
+    }
+  }
+
+  const agentTime = Math.round(agentWords * secondsPerWord);
+  const customerTime = Math.round(customerWords * secondsPerWord);
+  const estimatedSpeechTime = agentTime + customerTime;
+  const nonSpeechTime = Math.max(0, totalDuration - estimatedSpeechTime);
+
+  return { agentTime, customerTime, nonSpeechTime };
+}
+
+/**
+ * Enhanced call analysis with detailed metrics for call summary page
+ */
+export async function analyzeCallEnhanced(
+  transcript: Array<{ role: string; content: string }>,
+  moodHistory: Array<{ mood: string; timestamp: string }>,
+  userMood: string,
+  totalDuration: number = 0
+): Promise<EnhancedCallAnalysisResult> {
+  // Get basic analysis first
+  const basicAnalysis = await analyzeCall(transcript, moodHistory, userMood);
+
+  // Calculate speaking times
+  const speakingTimes = estimateSpeakingTimes(transcript, totalDuration || 120);
+
+  const defaultResult: EnhancedCallAnalysisResult = {
+    ...basicAnalysis,
+    callQualityScore: 50,
+    keyQuestionsAsked: [],
+    keyIssuesDiscussed: [],
+    sentimentIntensity: 'medium',
+    agentSpeakingTime: speakingTimes.agentTime,
+    customerSpeakingTime: speakingTimes.customerTime,
+    nonSpeechTime: speakingTimes.nonSpeechTime,
+    enhancedTranscript: [],
+  };
+
+  if (!openai || transcript.length === 0) {
+    return defaultResult;
+  }
+
+  try {
+    const transcriptText = transcript.map(t => `${t.role}: ${t.content}`).join('\n');
+
+    // Enhanced analysis prompt
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `Analyze this phone call transcript and provide enhanced insights in JSON format:
+{
+  "callQualityScore": 0-100 (based on: clarity of communication, rapport building, objection handling, professionalism),
+  "keyQuestionsAsked": ["list of important questions the AGENT asked"],
+  "keyIssuesDiscussed": ["list of main topics/concerns discussed"],
+  "sentimentIntensity": "low/medium/high" (how emotionally charged was the conversation),
+  "messagesSentiment": [
+    {"index": 0, "sentiment": "positive/neutral/negative"},
+    {"index": 1, "sentiment": "positive/neutral/negative"}
+  ]
+}
+
+CALL QUALITY SCORING RULES:
+- 90-100: Excellent communication, built strong rapport, handled all concerns professionally
+- 70-89: Good communication, addressed main points, some room for improvement
+- 50-69: Adequate communication, basic needs met but lacked engagement
+- 30-49: Below average, missed opportunities, poor engagement
+- 0-29: Poor communication, unprofessional, failed to address needs
+
+KEY QUESTIONS: Extract questions the AGENT asked to understand customer needs
+KEY ISSUES: Extract main topics, concerns, or pain points discussed
+SENTIMENT per message: Analyze each message's emotional tone`,
+        },
+        {
+          role: 'user',
+          content: transcriptText,
+        },
+      ],
+      max_tokens: 800,
+      response_format: { type: 'json_object' },
+    });
+
+    const enhanced = JSON.parse(response.choices[0]?.message?.content || '{}');
+    console.log('[AIService] Enhanced call analysis:', enhanced);
+
+    // Build enhanced transcript with timestamps and sentiment
+    const avgMessageDuration = totalDuration > 0 ? totalDuration / transcript.length : 10;
+    const enhancedTranscript: EnhancedTranscriptMessage[] = transcript.map((msg, index) => {
+      const messageSentiment = enhanced.messagesSentiment?.find((m: any) => m.index === index);
+      return {
+        role: msg.role as 'assistant' | 'user',
+        content: msg.content,
+        startTimeSeconds: Math.round(index * avgMessageDuration),
+        sentiment: messageSentiment?.sentiment || 'neutral',
+      };
+    });
+
+    return {
+      ...basicAnalysis,
+      callQualityScore: enhanced.callQualityScore || 50,
+      keyQuestionsAsked: enhanced.keyQuestionsAsked || [],
+      keyIssuesDiscussed: enhanced.keyIssuesDiscussed || [],
+      sentimentIntensity: enhanced.sentimentIntensity || 'medium',
+      agentSpeakingTime: speakingTimes.agentTime,
+      customerSpeakingTime: speakingTimes.customerTime,
+      nonSpeechTime: speakingTimes.nonSpeechTime,
+      enhancedTranscript,
+    };
+  } catch (error) {
+    console.error('[AIService] Enhanced call analysis error:', error);
+    return defaultResult;
+  }
+}
+
+/**
+ * Generate AI coaching suggestions for agent improvement
+ * Analyzes the call and provides actionable feedback
+ */
+export async function generateCoachingSuggestions(
+  transcript: Array<{ role: string; content: string }>,
+  outcome: string,
+  sentiment: string,
+  agentSpeakingTime: number,
+  customerSpeakingTime: number
+): Promise<CoachingSuggestions> {
+  const defaultResult: CoachingSuggestions = {
+    positiveHighlights: [],
+    areasToImprove: [],
+    nextCallTips: [],
+    coachingSummary: 'Unable to generate coaching suggestions.',
+    talkListenFeedback: '',
+    empathyScore: 50,
+    objectionHandlingScore: 50,
+    closingScore: 50,
+  };
+
+  if (!openai || transcript.length === 0) {
+    return defaultResult;
+  }
+
+  try {
+    const transcriptText = transcript.map((t, i) =>
+      `[${i}] ${t.role === 'assistant' ? 'AGENT' : 'CUSTOMER'}: ${t.content}`
+    ).join('\n');
+
+    // Calculate talk ratio
+    const totalTime = agentSpeakingTime + customerSpeakingTime;
+    const agentRatio = totalTime > 0 ? Math.round((agentSpeakingTime / totalTime) * 100) : 50;
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are an expert sales coach analyzing a phone call between an AI agent and a customer.
+Analyze the conversation and provide constructive feedback to help the agent improve.
+
+Call outcome: ${outcome}
+Customer sentiment: ${sentiment}
+Agent talk ratio: ${agentRatio}% (ideal is 40-50%)
+
+Return JSON:
+{
+  "positiveHighlights": [
+    {"text": "What agent did well", "timestamp": message_index_number}
+  ],
+  "areasToImprove": [
+    {"issue": "Problem identified", "suggestion": "How to improve", "timestamp": message_index_number}
+  ],
+  "nextCallTips": ["Specific tip for next call with this lead"],
+  "coachingSummary": "2-3 sentence overall coaching summary",
+  "talkListenFeedback": "Feedback on talk-to-listen ratio",
+  "empathyScore": 0-100,
+  "objectionHandlingScore": 0-100,
+  "closingScore": 0-100
+}
+
+COACHING GUIDELINES:
+- positiveHighlights: Find 2-4 things the agent did well (rapport building, addressing concerns, professionalism)
+- areasToImprove: Find 2-4 areas with specific suggestions (be constructive, not critical)
+- nextCallTips: 2-3 actionable tips for the next call based on customer's preferences/concerns
+- Scores: Be realistic - 70+ is good, 50-70 is average, below 50 needs work
+- If outcome is NOT_INTERESTED, focus on what could have been done differently
+- If outcome is INTERESTED/CONVERTED, highlight what worked well`,
+        },
+        {
+          role: 'user',
+          content: transcriptText,
+        },
+      ],
+      max_tokens: 1000,
+      response_format: { type: 'json_object' },
+    });
+
+    const coaching = JSON.parse(response.choices[0]?.message?.content || '{}');
+    console.log('[AIService] Coaching suggestions generated:', {
+      positiveCount: coaching.positiveHighlights?.length || 0,
+      improvementCount: coaching.areasToImprove?.length || 0,
+      empathyScore: coaching.empathyScore,
+    });
+
+    return {
+      positiveHighlights: coaching.positiveHighlights || [],
+      areasToImprove: coaching.areasToImprove || [],
+      nextCallTips: coaching.nextCallTips || [],
+      coachingSummary: coaching.coachingSummary || 'Analysis complete.',
+      talkListenFeedback: coaching.talkListenFeedback || `Agent spoke ${agentRatio}% of the time.`,
+      empathyScore: coaching.empathyScore || 50,
+      objectionHandlingScore: coaching.objectionHandlingScore || 50,
+      closingScore: coaching.closingScore || 50,
+    };
+  } catch (error) {
+    console.error('[AIService] Coaching suggestions error:', error);
+    return defaultResult;
+  }
+}
+
+/**
+ * Generate Smart Call Prep suggestions based on previous call history
+ * Analyzes past conversations to provide personalized guidance for the next call
+ */
+export async function generateCallPrepSuggestions(
+  leadName: string,
+  phoneNumber: string,
+  previousCalls: Array<{
+    transcript: Array<{ role: string; content: string }>;
+    summary: string;
+    sentiment: string;
+    outcome: string;
+    createdAt: Date;
+    duration: number;
+  }>
+): Promise<CallPrepSuggestions> {
+  const defaultResult: CallPrepSuggestions = {
+    recommendedOpening: `Hi, this is your agent calling. How are you doing today?`,
+    thingsToAvoid: [],
+    talkingPoints: [],
+    objectionPrep: [],
+    leadContext: {
+      interestLevel: 'medium',
+      mainConcerns: [],
+      decisionMakerStatus: 'Unknown',
+      preferredChannel: 'Phone',
+      bestTimeToCall: 'Anytime',
+    },
+    previousCallsSummary: 'No previous calls found.',
+    confidenceScore: 50,
+  };
+
+  if (!openai || previousCalls.length === 0) {
+    return defaultResult;
+  }
+
+  try {
+    // Build context from all previous calls
+    const callsContext = previousCalls.map((call, idx) => {
+      const transcriptText = call.transcript
+        .map(t => `${t.role === 'assistant' ? 'AGENT' : 'CUSTOMER'}: ${t.content}`)
+        .join('\n');
+
+      return `
+--- CALL ${idx + 1} (${new Date(call.createdAt).toLocaleDateString()}) ---
+Duration: ${Math.round(call.duration / 60)} minutes
+Outcome: ${call.outcome}
+Sentiment: ${call.sentiment}
+Summary: ${call.summary}
+
+Transcript:
+${transcriptText}
+`;
+    }).join('\n\n');
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are an expert sales coach preparing an agent for a follow-up call.
+Analyze the previous call history and generate personalized suggestions.
+
+Lead Name: ${leadName}
+Phone: ${phoneNumber}
+Total Previous Calls: ${previousCalls.length}
+
+Return JSON:
+{
+  "recommendedOpening": "A personalized opening line referencing the last conversation",
+  "thingsToAvoid": ["Things the agent should NOT say or do based on past interactions"],
+  "talkingPoints": ["Key points to cover based on customer's interests and concerns"],
+  "objectionPrep": [
+    {"objection": "Likely objection", "suggestedResponse": "How to handle it"}
+  ],
+  "leadContext": {
+    "interestLevel": "low/medium/high",
+    "mainConcerns": ["Customer's main concerns or objections"],
+    "decisionMakerStatus": "Is this person the decision maker? Do they need approval?",
+    "preferredChannel": "Preferred communication method mentioned",
+    "bestTimeToCall": "Best time to reach them based on conversation"
+  },
+  "previousCallsSummary": "Brief 2-3 sentence summary of all previous interactions",
+  "confidenceScore": 0-100 (how confident are we in these suggestions)
+}
+
+GUIDELINES:
+- recommendedOpening: Reference something specific from the last call to show you remember them
+- thingsToAvoid: Based on negative reactions or sensitive topics from previous calls
+- talkingPoints: Focus on what interested them, address unresolved concerns
+- objectionPrep: Prepare for objections they raised or are likely to raise
+- Be specific and actionable, not generic`,
+        },
+        {
+          role: 'user',
+          content: callsContext,
+        },
+      ],
+      max_tokens: 1200,
+      response_format: { type: 'json_object' },
+    });
+
+    const prep = JSON.parse(response.choices[0]?.message?.content || '{}');
+    console.log('[AIService] Call prep suggestions generated for:', leadName);
+
+    return {
+      recommendedOpening: prep.recommendedOpening || defaultResult.recommendedOpening,
+      thingsToAvoid: prep.thingsToAvoid || [],
+      talkingPoints: prep.talkingPoints || [],
+      objectionPrep: prep.objectionPrep || [],
+      leadContext: {
+        interestLevel: prep.leadContext?.interestLevel || 'medium',
+        mainConcerns: prep.leadContext?.mainConcerns || [],
+        decisionMakerStatus: prep.leadContext?.decisionMakerStatus || 'Unknown',
+        preferredChannel: prep.leadContext?.preferredChannel || 'Phone',
+        bestTimeToCall: prep.leadContext?.bestTimeToCall || 'Anytime',
+      },
+      previousCallsSummary: prep.previousCallsSummary || 'Previous interactions analyzed.',
+      confidenceScore: prep.confidenceScore || 70,
+    };
+  } catch (error) {
+    console.error('[AIService] Call prep generation error:', error);
+    return defaultResult;
+  }
+}
+
+/**
  * Refine outcome based on keyword analysis
  */
 function refineOutcomeFromKeywords(
@@ -596,10 +1035,159 @@ function refineOutcomeFromKeywords(
   return 'NEEDS_FOLLOWUP';
 }
 
+// Extracted Call Data Types
+export interface ExtractedDataItem {
+  label: string;
+  value: string;
+  category: 'contact' | 'interest' | 'timeline' | 'other';
+}
+
+export interface ExtractedCallData {
+  items: ExtractedDataItem[];
+  callbackRequested: boolean;
+  callbackDate?: string;
+  callbackTime?: string;
+  callbackNotes?: string;
+}
+
+/**
+ * Extract structured information from call transcript
+ * Captures contact details, interests, preferences, and callback info
+ */
+export async function extractCallData(
+  transcript: Array<{ role: string; content: string }>,
+  agentIndustry?: string
+): Promise<ExtractedCallData> {
+  const defaultResult: ExtractedCallData = {
+    items: [],
+    callbackRequested: false,
+  };
+
+  if (!openai || transcript.length === 0) {
+    return defaultResult;
+  }
+
+  const fullText = transcript.map(t => `${t.role}: ${t.content}`).join('\n');
+
+  // Industry-specific extraction prompts
+  const industryPrompts: Record<string, string> = {
+    // Education & Training
+    education: `Extract education-related data: student name, parent/guardian name, current class/grade, board (CBSE/ICSE/State), course interested in, preferred college/university, entrance exam scores (JEE/NEET/etc), budget range, decision timeline, parent/guardian involvement, other institutions being considered, hostel requirement.`,
+    EDUCATION: `Extract education-related data: student name, parent/guardian name, current class/grade, board (CBSE/ICSE/State), course interested in, preferred college/university, entrance exam scores (JEE/NEET/etc), budget range, decision timeline, parent/guardian involvement, other institutions being considered, hostel requirement.`,
+
+    // Real Estate
+    real_estate: `Extract real estate data: buyer/renter name, property type (flat/villa/plot), location preference, budget range, number of bedrooms/BHK, timeline to move, current living situation, financing/loan status, preferred amenities, possession timeline.`,
+    REAL_ESTATE: `Extract real estate data: buyer/renter name, property type (flat/villa/plot), location preference, budget range, number of bedrooms/BHK, timeline to move, current living situation, financing/loan status, preferred amenities, possession timeline.`,
+
+    // Healthcare
+    healthcare: `Extract healthcare data: patient name, age, symptoms/health issues discussed, preferred appointment date/time, insurance provider, doctor/specialist preference, urgency level, medical history mentioned, current medications.`,
+    HEALTHCARE: `Extract healthcare data: patient name, age, symptoms/health issues discussed, preferred appointment date/time, insurance provider, doctor/specialist preference, urgency level, medical history mentioned, current medications.`,
+
+    // Insurance
+    insurance: `Extract insurance data: prospect name, age, current insurance status, coverage type interested in (life/health/vehicle/home), sum assured needed, premium budget, family members to cover, pre-existing conditions, policy term preference.`,
+    INSURANCE: `Extract insurance data: prospect name, age, current insurance status, coverage type interested in (life/health/vehicle/home), sum assured needed, premium budget, family members to cover, pre-existing conditions, policy term preference.`,
+
+    // Finance & Banking
+    finance: `Extract financial data: prospect name, loan type interested in (home/personal/business/vehicle), loan amount needed, income range, employment type (salaried/self-employed), company name, existing loans/EMIs, property details if home loan, CIBIL score if mentioned.`,
+    FINANCE: `Extract financial data: prospect name, loan type interested in (home/personal/business/vehicle), loan amount needed, income range, employment type (salaried/self-employed), company name, existing loans/EMIs, property details if home loan, CIBIL score if mentioned.`,
+
+    // IT Recruitment
+    it_recruitment: `Extract recruitment data: candidate name, current company, current role/designation, total experience (years), relevant skills/technologies, current CTC, expected CTC, notice period, preferred location, reason for job change, availability for interview.`,
+    IT_RECRUITMENT: `Extract recruitment data: candidate name, current company, current role/designation, total experience (years), relevant skills/technologies, current CTC, expected CTC, notice period, preferred location, reason for job change, availability for interview.`,
+
+    // Technical Interview
+    technical_interview: `Extract interview data: candidate name, position applied for, technical skills discussed, years of experience, projects mentioned, strengths identified, areas of concern, overall assessment, recommended next steps.`,
+    TECHNICAL_INTERVIEW: `Extract interview data: candidate name, position applied for, technical skills discussed, years of experience, projects mentioned, strengths identified, areas of concern, overall assessment, recommended next steps.`,
+
+    // E-commerce
+    ecommerce: `Extract e-commerce data: customer name, product interested in, order number if mentioned, issue/query type, preferred resolution, delivery address concerns, payment method preference, return/exchange request details.`,
+    ECOMMERCE: `Extract e-commerce data: customer name, product interested in, order number if mentioned, issue/query type, preferred resolution, delivery address concerns, payment method preference, return/exchange request details.`,
+
+    // Customer Care / Support
+    customer_care: `Extract support data: customer name, account/order number, issue category, issue description, previous ticket references, resolution provided, escalation needed, satisfaction level, follow-up required.`,
+    CUSTOMER_CARE: `Extract support data: customer name, account/order number, issue category, issue description, previous ticket references, resolution provided, escalation needed, satisfaction level, follow-up required.`,
+
+    // Travel & Hospitality
+    travel: `Extract travel data: traveler name, destination, travel dates, number of travelers, budget range, accommodation preference, travel class, special requirements, passport/visa status.`,
+    TRAVEL: `Extract travel data: traveler name, destination, travel dates, number of travelers, budget range, accommodation preference, travel class, special requirements, passport/visa status.`,
+
+    // Automotive
+    automotive: `Extract automotive data: customer name, vehicle interested in (make/model), new or used preference, budget range, financing needed, trade-in vehicle, preferred color/variant, test drive requested, timeline to purchase.`,
+    AUTOMOTIVE: `Extract automotive data: customer name, vehicle interested in (make/model), new or used preference, budget range, financing needed, trade-in vehicle, preferred color/variant, test drive requested, timeline to purchase.`,
+
+    // Default fallback
+    default: `Extract any mentioned: person's name, contact details, product/service interested in, budget/price range, timeline/urgency, decision makers, competitor mentions, specific requirements, callback preferences.`,
+    CUSTOM: `Extract any mentioned: person's name, contact details, product/service interested in, budget/price range, timeline/urgency, decision makers, competitor mentions, specific requirements, callback preferences.`
+  };
+
+  const industryPrompt = industryPrompts[agentIndustry || 'default'] || industryPrompts.default;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a data extraction assistant. Extract key information mentioned by the customer in this call transcript.
+
+${industryPrompt}
+
+Return JSON format:
+{
+  "items": [
+    {"label": "Field Name", "value": "extracted value", "category": "contact|interest|timeline|other"}
+  ],
+  "callbackRequested": true/false,
+  "callbackDate": "mentioned date or null",
+  "callbackTime": "mentioned time or null",
+  "callbackNotes": "any callback-related notes or null"
+}
+
+Categories:
+- contact: Name, phone, email, address, personal details
+- interest: Products, services, features, preferences, budget
+- timeline: Deadlines, dates, urgency, decision timeframe
+- other: Anything else important
+
+Only extract information that was explicitly mentioned. Do not invent data.
+If no relevant data found, return empty items array.`
+        },
+        {
+          role: 'user',
+          content: fullText
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1000,
+      response_format: { type: 'json_object' }
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) return defaultResult;
+
+    const parsed = JSON.parse(content);
+
+    return {
+      items: Array.isArray(parsed.items) ? parsed.items : [],
+      callbackRequested: !!parsed.callbackRequested,
+      callbackDate: parsed.callbackDate || undefined,
+      callbackTime: parsed.callbackTime || undefined,
+      callbackNotes: parsed.callbackNotes || undefined,
+    };
+  } catch (error) {
+    console.error('[AI] Error extracting call data:', error);
+    return defaultResult;
+  }
+}
+
 export const voicebotAIService = {
   generateAIResponse,
   extractQualificationData,
   analyzeCall,
+  analyzeCallEnhanced,
+  generateCoachingSuggestions,
+  generateCallPrepSuggestions,
+  extractCallData,
   detectLanguageSwitch,
   getLanguageAcknowledgment,
   LANGUAGE_NAMES,

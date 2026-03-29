@@ -24,9 +24,11 @@ router.post('/webhook', webhookLimiter, verifyRazorpayWebhook, async (req: Reque
 // Verify payment (public, for redirect after payment)
 router.post(
   '/verify',
-  body('razorpayOrderId').notEmpty(),
-  body('razorpayPaymentId').notEmpty(),
-  body('razorpaySignature').notEmpty(),
+  validate([
+    body('razorpayOrderId').notEmpty().withMessage('Order ID is required'),
+    body('razorpayPaymentId').notEmpty().withMessage('Payment ID is required'),
+    body('razorpaySignature').notEmpty().withMessage('Signature is required'),
+  ]),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const payment = await razorpayService.verifyPayment({
@@ -101,10 +103,13 @@ router.post(
 // Get payment details
 router.get(
   '/:orderId',
-  param('orderId').notEmpty(),
+  validate([param('orderId').notEmpty().withMessage('Order ID is required')]),
   async (req: TenantRequest, res: Response, next: NextFunction) => {
     try {
-      const payment = await razorpayService.getPaymentDetails(req.params.orderId);
+      const payment = await razorpayService.getPaymentDetails(
+        req.params.orderId,
+        req.organizationId! // Pass organizationId for ownership verification
+      );
       ApiResponse.success(res, 'Payment details retrieved', payment);
     } catch (error) {
       next(error);
@@ -115,10 +120,13 @@ router.get(
 // Get payment history for a student
 router.get(
   '/student/:studentProfileId',
-  param('studentProfileId').isUUID(),
+  validate([param('studentProfileId').isUUID().withMessage('Invalid student profile ID')]),
   async (req: TenantRequest, res: Response, next: NextFunction) => {
     try {
-      const payments = await razorpayService.getPaymentHistory(req.params.studentProfileId);
+      const payments = await razorpayService.getPaymentHistory(
+        req.params.studentProfileId,
+        req.organizationId! // Pass organizationId for ownership verification
+      );
       ApiResponse.success(res, 'Payment history retrieved', payments);
     } catch (error) {
       next(error);
@@ -130,8 +138,10 @@ router.get(
 router.get(
   '/',
   authorize('admin'),
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
+  validate([
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+  ]),
   async (req: TenantRequest, res: Response, next: NextFunction) => {
     try {
       const page = parseInt(req.query.page as string) || 1;

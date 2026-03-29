@@ -1,10 +1,15 @@
 import { Router, Response, NextFunction } from 'express';
 import { body, param, query } from 'express-validator';
 import { authenticate, authorize, AuthenticatedRequest } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
 import { validate } from '../middlewares/validate';
 import { phoneNumberService } from '../services/phone-number.service';
 
 const router = Router();
+
+// All routes require authentication and tenant context
+router.use(authenticate);
+router.use(tenantMiddleware);
 
 // Async handler wrapper
 const asyncHandler = (fn: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<any>) =>
@@ -15,7 +20,6 @@ const asyncHandler = (fn: (req: AuthenticatedRequest, res: Response, next: NextF
 // Get all phone numbers
 router.get(
   '/',
-  authenticate,
   authorize('admin', 'manager'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { status, type, agentId, unassigned } = req.query;
@@ -40,7 +44,6 @@ router.get(
 // Get phone number stats
 router.get(
   '/stats',
-  authenticate,
   authorize('admin', 'manager'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const stats = await phoneNumberService.getPhoneNumberStats(req.user!.organizationId);
@@ -55,7 +58,6 @@ router.get(
 // Get a single phone number
 router.get(
   '/:id',
-  authenticate,
   authorize('admin', 'manager'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const phoneNumber = await phoneNumberService.getPhoneNumber(
@@ -73,7 +75,6 @@ router.get(
 // Create a new phone number
 router.post(
   '/',
-  authenticate,
   authorize('admin'),
   validate([
     body('number')
@@ -131,7 +132,6 @@ router.post(
 // Update a phone number
 router.put(
   '/:id',
-  authenticate,
   authorize('admin'),
   validate([
     body('friendlyName')
@@ -173,7 +173,6 @@ router.put(
 // Delete a phone number
 router.delete(
   '/:id',
-  authenticate,
   authorize('admin'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     await phoneNumberService.deletePhoneNumber(
@@ -191,7 +190,6 @@ router.delete(
 // Assign phone number to agent
 router.post(
   '/:id/assign',
-  authenticate,
   authorize('admin', 'manager'),
   validate([
     body('agentId')
@@ -218,7 +216,6 @@ router.post(
 // Unassign phone number from agent
 router.post(
   '/:id/unassign',
-  authenticate,
   authorize('admin', 'manager'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const phoneNumber = await phoneNumberService.unassignFromAgent(
@@ -237,7 +234,6 @@ router.post(
 // Get phone numbers for a specific agent
 router.get(
   '/agent/:agentId',
-  authenticate,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const phoneNumbers = await phoneNumberService.getAgentPhoneNumbers(
       req.params.agentId,
@@ -254,7 +250,6 @@ router.get(
 // Bulk import phone numbers
 router.post(
   '/bulk-import',
-  authenticate,
   authorize('admin'),
   validate([
     body('numbers')

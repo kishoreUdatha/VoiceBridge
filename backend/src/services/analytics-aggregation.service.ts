@@ -3,9 +3,8 @@
  * Handles analytics data aggregation and retrieval
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 
-const prisma = new PrismaClient();
 
 /**
  * Aggregate daily statistics for an organization

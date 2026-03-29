@@ -34,8 +34,10 @@ export interface AuthResponse {
     organizationName: string;
     role: string;
   };
-  accessToken: string;
-  refreshToken: string;
+  // Tokens are now in httpOnly cookies, not in response body
+  // These fields are kept for backward compatibility but may be undefined
+  accessToken?: string;
+  refreshToken?: string;
 }
 
 export const authService = {
@@ -43,10 +45,10 @@ export const authService = {
     const response = await api.post('/auth/login', credentials);
     const data = response.data.data;
 
-    // Store tokens using token service
-    tokenService.setTokens(data.accessToken, data.refreshToken);
+    // Tokens are now set via httpOnly cookies by the server
+    // No need to store them manually
 
-    // Reconnect socket with new token
+    // Reconnect socket (cookies will be sent automatically)
     await socketService.reconnect();
 
     return data;
@@ -56,10 +58,10 @@ export const authService = {
     const response = await api.post('/auth/register', data);
     const result = response.data.data;
 
-    // Store tokens using token service
-    tokenService.setTokens(result.accessToken, result.refreshToken);
+    // Tokens are now set via httpOnly cookies by the server
+    // No need to store them manually
 
-    // Connect socket with new token
+    // Connect socket (cookies will be sent automatically)
     await socketService.connectAsync();
 
     return result;
@@ -67,9 +69,10 @@ export const authService = {
 
   async logout(): Promise<void> {
     try {
+      // Server will clear httpOnly cookies
       await api.post('/auth/logout');
     } finally {
-      // Clear tokens and disconnect socket
+      // Clear any legacy localStorage tokens
       tokenService.clearTokens();
       socketService.disconnect();
     }
@@ -109,7 +112,7 @@ export const authService = {
   /**
    * Refresh the access token manually
    */
-  async refreshToken(): Promise<string | null> {
+  async refreshToken(): Promise<boolean> {
     return tokenService.refreshAccessToken();
   },
 };

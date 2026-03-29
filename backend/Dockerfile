@@ -21,5 +21,5 @@ COPY . .
 # Expose port
 EXPOSE 3000
 
-# Start development server
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss || true && npm run dev"]
+# Start development server (use prisma migrate dev for schema changes)
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run dev"]

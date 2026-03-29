@@ -1,9 +1,9 @@
-import { PrismaClient, MessageDeliveryStatus } from '@prisma/client';
+import { MessageDeliveryStatus } from '@prisma/client';
+import { prisma } from '../config/database';
 import { webhookService, WEBHOOK_EVENTS } from './webhook.service';
 import { conversationService } from './conversation.service';
 import { withRetry, webhookRetryQueue, RetryQueueItem } from '../utils/retry';
 
-const prisma = new PrismaClient();
 
 // Configuration for retry behavior
 const RETRY_CONFIG = {

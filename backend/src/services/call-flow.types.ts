@@ -63,6 +63,7 @@ export interface CreateCallFlowInput {
   defaultEnd?: string;
   successOutcomes?: CallOutcome[];
   failureOutcomes?: CallOutcome[];
+  isActive?: boolean;
 }
 
 /**

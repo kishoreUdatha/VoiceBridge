@@ -1,7 +1,7 @@
-import { PrismaClient, EnrollmentStatus, SequenceTriggerType } from '@prisma/client';
+import { EnrollmentStatus, SequenceTriggerType } from '@prisma/client';
+import { prisma } from '../config/database';
 import { emailService } from '../integrations/email.service';
 
-const prisma = new PrismaClient();
 
 interface CreateSequenceData {
   organizationId: string;

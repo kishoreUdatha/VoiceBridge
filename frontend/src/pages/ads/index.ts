@@ -7,3 +7,4 @@ export { default as GoogleAdsSetupPage } from './GoogleAdsSetupPage';
 export { default as YouTubeSetupPage } from './YouTubeSetupPage';
 export { default as TwitterSetupPage } from './TwitterSetupPage';
 export { default as TikTokSetupPage } from './TikTokSetupPage';
+export { default as WebhookUrlsPage } from './WebhookUrlsPage';

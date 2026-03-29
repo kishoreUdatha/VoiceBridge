@@ -1,12 +1,39 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { body } from 'express-validator';
+import { prisma } from '../config/database';
 import { authenticate } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 import { ApiResponse } from '../utils/apiResponse';
 import { createWhatsAppService } from '../integrations/whatsapp.service';
 
+// Validation rules
+const institutionValidation = [
+  body('name').optional().trim().isLength({ max: 200 }).withMessage('Name must be at most 200 characters'),
+  body('location').optional().trim().isLength({ max: 500 }).withMessage('Location must be at most 500 characters'),
+  body('website').optional().trim().isURL().withMessage('Invalid website URL'),
+  body('description').optional().trim().isLength({ max: 2000 }).withMessage('Description must be at most 2000 characters'),
+  body('courses').optional().trim().isLength({ max: 5000 }).withMessage('Courses must be at most 5000 characters'),
+  body('phone').optional().trim().matches(/^[\d+\-() ]{0,20}$/).withMessage('Invalid phone number format'),
+  body('email').optional().trim().isEmail().withMessage('Invalid email format'),
+];
+
+const promptValidation = [
+  body('prompt').trim().notEmpty().withMessage('Prompt is required')
+    .isLength({ max: 10000 }).withMessage('Prompt must be at most 10000 characters'),
+];
+
+const whatsappSettingsValidation = [
+  body('provider').optional().isIn(['exotel', 'meta', 'gupshup', 'wati']).withMessage('Invalid provider'),
+  body('phoneNumber').optional().trim().matches(/^[\d+\-() ]{0,20}$/).withMessage('Invalid phone number format'),
+  body('apiKey').optional().trim().isLength({ max: 500 }).withMessage('API key must be at most 500 characters'),
+  body('apiSecret').optional().trim().isLength({ max: 500 }).withMessage('API secret must be at most 500 characters'),
+  body('accessToken').optional().trim().isLength({ max: 500 }).withMessage('Access token must be at most 500 characters'),
+  body('businessAccountId').optional().trim().isLength({ max: 100 }).withMessage('Business account ID must be at most 100 characters'),
+  body('phoneNumberId').optional().trim().isLength({ max: 100 }).withMessage('Phone number ID must be at most 100 characters'),
+];
+
 const router = Router();
-const prisma = new PrismaClient();
 
 // All routes require authentication
 router.use(authenticate);
@@ -103,7 +130,7 @@ router.get('/institution', async (req: TenantRequest, res: Response) => {
  *       200:
  *         description: Institution settings updated successfully
  */
-router.put('/institution', async (req: TenantRequest, res: Response) => {
+router.put('/institution', validate(institutionValidation), async (req: TenantRequest, res: Response) => {
   try {
     const organizationId = req.organizationId;
     const { name, location, website, description, courses, phone, email } = req.body;
@@ -245,14 +272,10 @@ router.get('/placeholders', async (req: TenantRequest, res: Response) => {
  *       200:
  *         description: Prompt with placeholders replaced
  */
-router.post('/preview-prompt', async (req: TenantRequest, res: Response) => {
+router.post('/preview-prompt', validate(promptValidation), async (req: TenantRequest, res: Response) => {
   try {
     const organizationId = req.organizationId;
     const { prompt } = req.body;
-
-    if (!prompt) {
-      return ApiResponse.error(res, 'Prompt is required', 400);
-    }
 
     // Get organization settings
     const organization = await prisma.organization.findUnique({
@@ -351,6 +374,22 @@ router.put('/', async (req: TenantRequest, res: Response) => {
   try {
     const organizationId = req.organizationId;
     const newSettings = req.body;
+
+    // Validate settings object - prevent dangerous patterns
+    if (typeof newSettings !== 'object' || newSettings === null) {
+      return ApiResponse.error(res, 'Settings must be an object', 400);
+    }
+
+    // Prevent prototype pollution
+    const settingsStr = JSON.stringify(newSettings);
+    if (settingsStr.includes('__proto__') || settingsStr.includes('constructor') || settingsStr.includes('prototype')) {
+      return ApiResponse.error(res, 'Invalid settings content', 400);
+    }
+
+    // Size limit for settings
+    if (settingsStr.length > 100000) {
+      return ApiResponse.error(res, 'Settings too large (max 100KB)', 400);
+    }
 
     // Get current organization
     const organization = await prisma.organization.findUnique({
@@ -499,7 +538,7 @@ router.get('/settings/whatsapp', async (req: TenantRequest, res: Response) => {
  *       200:
  *         description: WhatsApp settings updated successfully
  */
-router.post('/settings/whatsapp', async (req: TenantRequest, res: Response) => {
+router.post('/settings/whatsapp', validate(whatsappSettingsValidation), async (req: TenantRequest, res: Response) => {
   try {
     const organizationId = req.organizationId;
     const {
@@ -641,6 +680,118 @@ router.post('/settings/whatsapp/test', async (req: TenantRequest, res: Response)
   } catch (error) {
     console.error('Error testing WhatsApp connection:', error);
     return ApiResponse.error(res, 'Failed to test WhatsApp connection', 500);
+  }
+});
+
+// ==================== LANGUAGE PREFERENCES ====================
+
+/**
+ * @swagger
+ * /api/organization/language:
+ *   get:
+ *     summary: Get organization's preferred language for transcription
+ *     tags: [Organization]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Language preference retrieved successfully
+ */
+router.get('/language', async (req: TenantRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId;
+
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        id: true,
+        name: true,
+        preferredLanguage: true,
+      },
+    });
+
+    if (!organization) {
+      return ApiResponse.error(res, 'Organization not found', 404);
+    }
+
+    // Supported languages
+    const supportedLanguages = [
+      { code: 'te-IN', name: 'Telugu', nativeName: 'తెలుగు' },
+      { code: 'hi-IN', name: 'Hindi', nativeName: 'हिन्दी' },
+      { code: 'ta-IN', name: 'Tamil', nativeName: 'தமிழ்' },
+      { code: 'kn-IN', name: 'Kannada', nativeName: 'ಕನ್ನಡ' },
+      { code: 'ml-IN', name: 'Malayalam', nativeName: 'മലയാളം' },
+      { code: 'mr-IN', name: 'Marathi', nativeName: 'मराठी' },
+      { code: 'bn-IN', name: 'Bengali', nativeName: 'বাংলা' },
+      { code: 'gu-IN', name: 'Gujarati', nativeName: 'ગુજરાતી' },
+      { code: 'pa-IN', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ' },
+      { code: 'or-IN', name: 'Odia', nativeName: 'ଓଡ଼ିଆ' },
+      { code: 'en-IN', name: 'English (India)', nativeName: 'English' },
+    ];
+
+    return ApiResponse.success(res, 'Language preference retrieved', {
+      preferredLanguage: organization.preferredLanguage || 'te-IN',
+      organizationName: organization.name,
+      supportedLanguages,
+    });
+  } catch (error) {
+    console.error('Error fetching language preference:', error);
+    return ApiResponse.error(res, 'Failed to fetch language preference', 500);
+  }
+});
+
+/**
+ * @swagger
+ * /api/organization/language:
+ *   put:
+ *     summary: Update organization's preferred language for transcription
+ *     tags: [Organization]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               language:
+ *                 type: string
+ *                 example: te-IN
+ *     responses:
+ *       200:
+ *         description: Language preference updated successfully
+ */
+router.put('/language', validate([
+  body('language')
+    .trim()
+    .notEmpty().withMessage('Language is required')
+    .isIn(['te-IN', 'hi-IN', 'ta-IN', 'kn-IN', 'ml-IN', 'mr-IN', 'bn-IN', 'gu-IN', 'pa-IN', 'or-IN', 'en-IN'])
+    .withMessage('Invalid language code'),
+]), async (req: TenantRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId;
+    const { language } = req.body;
+
+    const organization = await prisma.organization.update({
+      where: { id: organizationId },
+      data: { preferredLanguage: language },
+      select: {
+        id: true,
+        name: true,
+        preferredLanguage: true,
+      },
+    });
+
+    console.log(`[Organization] Updated preferred language for ${organization.name} to ${language}`);
+
+    return ApiResponse.success(res, 'Language preference updated successfully', {
+      preferredLanguage: organization.preferredLanguage,
+      organizationName: organization.name,
+    });
+  } catch (error) {
+    console.error('Error updating language preference:', error);
+    return ApiResponse.error(res, 'Failed to update language preference', 500);
   }
 });
 

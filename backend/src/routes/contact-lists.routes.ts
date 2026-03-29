@@ -1,13 +1,17 @@
 import { Router } from 'express';
+import { body, param, query } from 'express-validator';
 import { contactListService } from '../services/contact-list.service';
-import { authenticate } from '../middlewares/auth';
+import { authenticate, authorize } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
+import { validate } from '../middlewares/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AppError } from '../utils/errors';
 
 const router = Router();
 
-// All routes require authentication
+// All routes require authentication and tenant context
 router.use(authenticate);
+router.use(tenantMiddleware);
 
 /**
  * @api {get} /contact-lists List Contact Lists
@@ -34,13 +38,16 @@ router.get(
  */
 router.post(
   '/',
+  validate([
+    body('name').trim().notEmpty().withMessage('Name is required')
+      .isLength({ max: 200 }).withMessage('Name too long'),
+    body('description').optional().trim().isLength({ max: 2000 }).withMessage('Description too long'),
+    body('type').optional().isIn(['STATIC', 'DYNAMIC']),
+    body('tags').optional().isArray({ max: 50 }).withMessage('Too many tags'),
+  ]),
   asyncHandler(async (req, res) => {
     const { organizationId, id: userId } = req.user!;
     const { name, description, type, filterCriteria, tags } = req.body;
-
-    if (!name) {
-      throw new AppError('Name is required', 400);
-    }
 
     const list = await contactListService.createList({
       organizationId,
@@ -65,6 +72,7 @@ router.post(
  */
 router.get(
   '/:id',
+  validate([param('id').isUUID().withMessage('Invalid list ID')]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const list = await contactListService.getListById(req.params.id, organizationId);
@@ -78,6 +86,13 @@ router.get(
  */
 router.put(
   '/:id',
+  validate([
+    param('id').isUUID().withMessage('Invalid list ID'),
+    body('name').optional().trim().notEmpty().isLength({ max: 200 }).withMessage('Name too long'),
+    body('description').optional().trim().isLength({ max: 2000 }).withMessage('Description too long'),
+    body('tags').optional().isArray({ max: 50 }).withMessage('Too many tags'),
+    body('isActive').optional().isBoolean(),
+  ]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { name, description, filterCriteria, tags, isActive } = req.body;
@@ -103,6 +118,8 @@ router.put(
  */
 router.delete(
   '/:id',
+  authorize('admin', 'manager'),
+  validate([param('id').isUUID().withMessage('Invalid list ID')]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     await contactListService.deleteList(req.params.id, organizationId);
@@ -116,6 +133,7 @@ router.delete(
  */
 router.get(
   '/:id/stats',
+  validate([param('id').isUUID().withMessage('Invalid list ID')]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const stats = await contactListService.getListStats(req.params.id, organizationId);
@@ -129,6 +147,12 @@ router.get(
  */
 router.get(
   '/:id/contacts',
+  validate([
+    param('id').isUUID().withMessage('Invalid list ID'),
+    query('page').optional().isInt({ min: 1, max: 1000 }),
+    query('limit').optional().isInt({ min: 1, max: 100 }),
+    query('search').optional().trim().isLength({ max: 200 }),
+  ]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { status, search, page = '1', limit = '50' } = req.query;
@@ -137,7 +161,7 @@ router.get(
       status: status as any,
       search: search as string,
       page: parseInt(page as string),
-      limit: parseInt(limit as string),
+      limit: Math.min(parseInt(limit as string), 100),
     });
 
     res.json({ success: true, ...result });
@@ -149,11 +173,26 @@ router.get(
  */
 router.post(
   '/:id/contacts',
+  validate([
+    param('id').isUUID().withMessage('Invalid list ID'),
+    body('leadId').optional().isUUID().withMessage('Invalid lead ID'),
+    body('email').optional().isEmail().withMessage('Invalid email'),
+    body('phone').optional().matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone number'),
+    body('firstName').optional().trim().isLength({ max: 100 }),
+    body('lastName').optional().trim().isLength({ max: 100 }),
+  ]),
   asyncHandler(async (req, res) => {
+    const { organizationId } = req.user!;
     const { leadId, email, phone, firstName, lastName, customFields } = req.body;
 
     if (!leadId && !email && !phone) {
       throw new AppError('leadId, email, or phone is required', 400);
+    }
+
+    // SECURITY: Verify list belongs to user's organization
+    const list = await contactListService.getListById(req.params.id, organizationId);
+    if (!list) {
+      throw new AppError('List not found', 404);
     }
 
     const contact = await contactListService.addContact({
@@ -179,15 +218,18 @@ router.post(
  */
 router.post(
   '/:id/contacts/bulk',
+  validate([
+    param('id').isUUID().withMessage('Invalid list ID'),
+    body('contacts').isArray({ min: 1, max: 1000 }).withMessage('Contacts array (1-1000) is required'),
+  ]),
   asyncHandler(async (req, res) => {
+    const { organizationId } = req.user!;
     const { contacts } = req.body;
 
-    if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
-      throw new AppError('Contacts array is required', 400);
-    }
-
-    if (contacts.length > 1000) {
-      throw new AppError('Maximum 1000 contacts per request', 400);
+    // SECURITY: Verify list belongs to user's organization
+    const list = await contactListService.getListById(req.params.id, organizationId);
+    if (!list) {
+      throw new AppError('List not found', 404);
     }
 
     const result = await contactListService.addContacts({
@@ -208,6 +250,13 @@ router.post(
  */
 router.put(
   '/:id/contacts/:contactId',
+  validate([
+    param('id').isUUID().withMessage('Invalid list ID'),
+    param('contactId').isUUID().withMessage('Invalid contact ID'),
+    body('firstName').optional().trim().isLength({ max: 100 }),
+    body('lastName').optional().trim().isLength({ max: 100 }),
+    body('status').optional().isIn(['ACTIVE', 'UNSUBSCRIBED', 'BOUNCED', 'INVALID']),
+  ]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { status, firstName, lastName, customFields } = req.body;
@@ -232,6 +281,10 @@ router.put(
  */
 router.delete(
   '/:id/contacts/:contactId',
+  validate([
+    param('id').isUUID().withMessage('Invalid list ID'),
+    param('contactId').isUUID().withMessage('Invalid contact ID'),
+  ]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     await contactListService.removeContact(req.params.contactId, req.params.id, organizationId);
@@ -245,13 +298,14 @@ router.delete(
  */
 router.post(
   '/:id/contacts/bulk-remove',
+  validate([
+    param('id').isUUID().withMessage('Invalid list ID'),
+    body('contactIds').isArray({ min: 1, max: 1000 }).withMessage('contactIds array (1-1000) is required'),
+    body('contactIds.*').isUUID().withMessage('Invalid contact ID in array'),
+  ]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { contactIds } = req.body;
-
-    if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
-      throw new AppError('contactIds array is required', 400);
-    }
 
     const result = await contactListService.removeContacts(req.params.id, organizationId, contactIds);
 
@@ -268,12 +322,12 @@ router.post(
  */
 router.post(
   '/:id/unsubscribe',
+  validate([
+    param('id').isUUID().withMessage('Invalid list ID'),
+    body('email').isEmail().withMessage('Valid email is required'),
+  ]),
   asyncHandler(async (req, res) => {
     const { email } = req.body;
-
-    if (!email) {
-      throw new AppError('Email is required', 400);
-    }
 
     await contactListService.unsubscribeContact(req.params.id, email);
 
@@ -286,6 +340,7 @@ router.post(
  */
 router.get(
   '/:id/export',
+  validate([param('id').isUUID().withMessage('Invalid list ID')]),
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const contacts = await contactListService.exportContacts(req.params.id, organizationId);

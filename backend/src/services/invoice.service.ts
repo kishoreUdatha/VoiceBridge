@@ -3,11 +3,10 @@
  * Handles invoice generation and billing history
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { PLANS, getPlan } from '../config/plans.config';
 import { AppError } from '../utils/errors';
 
-const prisma = new PrismaClient();
 
 export interface Invoice {
   invoiceNumber: string;

@@ -329,7 +329,7 @@ class RealtimeVoiceService {
       if (agentLang && INDIAN_LANGUAGE_CODES.includes(agentLang)) {
         hybridLanguage = agentLang as AI4BharatLanguageCode;
       } else {
-        hybridLanguage = getLanguageFromVoiceId(agent.voiceId);
+        hybridLanguage = getLanguageFromVoiceId(agent.voiceId) || undefined;
       }
 
       hybridGender = getGenderFromVoiceId(agent.voiceId);
@@ -852,7 +852,7 @@ ${instructions}`;
         if (!contentCheck.allowed) {
           console.log(`[RealtimeVoice] Content filtered: ${contentCheck.error}`);
           session.socket.emit('realtime:transcription', {
-            role: 'system',
+            role: 'assistant',
             text: 'I apologize, but I cannot process that request. Please rephrase your question.',
             isFinal: true,
             itemId: `system-${Date.now()}`,
@@ -874,7 +874,7 @@ ${instructions}`;
 
       // Save transcript
       await this.saveTranscript(session.id, 'user', userText);
-      session.transcripts.push({ role: 'user', text: userText, timestamp: new Date() });
+      session.transcripts.push({ role: 'user', content: userText, timestamp: new Date(), id: `user-${Date.now()}`, isFinal: true });
 
       // Add to conversation history
       session.hybridConversationHistory?.push({ role: 'user', content: userText });
@@ -893,7 +893,7 @@ ${instructions}`;
 
       // Save transcript
       await this.saveTranscript(session.id, 'assistant', aiResponse);
-      session.transcripts.push({ role: 'assistant', text: aiResponse, timestamp: new Date() });
+      session.transcripts.push({ role: 'assistant', content: aiResponse, timestamp: new Date(), id: `assistant-${Date.now()}`, isFinal: true });
 
       // Add to conversation history
       session.hybridConversationHistory?.push({ role: 'assistant', content: aiResponse });

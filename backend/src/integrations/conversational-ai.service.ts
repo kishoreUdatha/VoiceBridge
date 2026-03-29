@@ -6,9 +6,10 @@
 
 import axios from 'axios';
 import { prisma } from '../config/database';
+import { config } from '../config';
 
-const VOICE_API_KEY = process.env.ELEVENLABS_API_KEY || '';
-const VOICE_API_BASE_URL = 'https://api.elevenlabs.io/v1';
+const VOICE_API_KEY = config.elevenlabs.apiKey || '';
+const VOICE_API_BASE_URL = config.apiUrls.elevenlabs;
 
 // Agent configuration interface
 interface ConversationalAgentConfig {

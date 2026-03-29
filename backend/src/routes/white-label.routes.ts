@@ -1,14 +1,14 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { authenticate } from '../middlewares/auth';
+import { tenantMiddleware } from '../middlewares/tenant';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 /**
  * GET /white-label - Get white-label settings for organization
  */
-router.get('/', authenticate, async (req: Request, res: Response) => {
+router.get('/', authenticate, tenantMiddleware, async (req: Request, res: Response) => {
   try {
     const organizationId = (req as any).user.organizationId;
 
@@ -32,7 +32,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 /**
  * PUT /white-label - Update white-label settings
  */
-router.put('/', authenticate, async (req: Request, res: Response) => {
+router.put('/', authenticate, tenantMiddleware, async (req: Request, res: Response) => {
   try {
     const organizationId = (req as any).user.organizationId;
     const {
@@ -101,7 +101,7 @@ router.put('/', authenticate, async (req: Request, res: Response) => {
 /**
  * POST /white-label/verify-domain - Verify custom domain
  */
-router.post('/verify-domain', authenticate, async (req: Request, res: Response) => {
+router.post('/verify-domain', authenticate, tenantMiddleware, async (req: Request, res: Response) => {
   try {
     const organizationId = (req as any).user.organizationId;
     const { domain } = req.body;

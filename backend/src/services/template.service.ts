@@ -1,7 +1,7 @@
-import { PrismaClient, TemplateType, Prisma } from '@prisma/client';
+import { TemplateType, Prisma } from '@prisma/client';
+import { prisma } from '../config/database';
 import { AppError } from '../utils/errors';
 
-const prisma = new PrismaClient();
 
 // Common template variables
 export const TEMPLATE_VARIABLES = {

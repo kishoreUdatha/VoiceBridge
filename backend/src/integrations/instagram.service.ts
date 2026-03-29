@@ -5,8 +5,8 @@ import { prisma } from '../config/database';
 import { AdPlatform, LeadSource, LeadPriority } from '@prisma/client';
 import { externalLeadImportService } from '../services/external-lead-import.service';
 
-const FB_API_VERSION = 'v18.0';
-const FB_GRAPH_URL = `https://graph.facebook.com/${FB_API_VERSION}`;
+// Use config for API URL and version
+const getFbGraphUrl = () => `${config.apiUrls.facebookGraph}/${config.apiVersions.facebook}`;
 
 interface InstagramLeadData {
   id: string;
@@ -64,30 +64,77 @@ export class InstagramService {
 
   /**
    * Verify signature with organization-specific app secret
+   * Uses timing-safe comparison to prevent timing attacks
    */
   verifySignatureWithSecret(payload: string, signature: string, appSecret: string): boolean {
-    if (!appSecret) return false;
-    const expectedSignature = crypto
-      .createHmac('sha256', appSecret)
-      .update(payload)
-      .digest('hex');
-    return `sha256=${expectedSignature}` === signature;
+    if (!appSecret) {
+      console.error('[Instagram] SECURITY: No app secret provided for signature verification');
+      return false;
+    }
+    if (!signature) {
+      console.error('[Instagram] SECURITY: No signature provided in webhook request');
+      return false;
+    }
+
+    try {
+      const expectedSignature = crypto
+        .createHmac('sha256', appSecret)
+        .update(payload)
+        .digest('hex');
+
+      const cleanSignature = signature.replace('sha256=', '');
+
+      // Use timing-safe comparison
+      const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+      const receivedBuffer = Buffer.from(cleanSignature, 'hex');
+
+      if (expectedBuffer.length !== receivedBuffer.length) {
+        return false;
+      }
+
+      return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+    } catch (error) {
+      console.error('[Instagram] Signature verification error:', error);
+      return false;
+    }
   }
 
   /**
    * Verify webhook signature (same as Facebook) - fallback to env
+   * Uses timing-safe comparison to prevent timing attacks
    */
   verifySignature(payload: string, signature: string): boolean {
     const secret = config.facebook.appSecret || '';
     if (!secret) {
-      console.warn('[Instagram] No app secret configured for signature verification');
+      console.error('[Instagram] SECURITY: No app secret configured for signature verification');
       return false;
     }
-    const expectedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(payload)
-      .digest('hex');
-    return `sha256=${expectedSignature}` === signature;
+    if (!signature) {
+      console.error('[Instagram] SECURITY: No signature provided in webhook request');
+      return false;
+    }
+
+    try {
+      const expectedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(payload)
+        .digest('hex');
+
+      const cleanSignature = signature.replace('sha256=', '');
+
+      // Use timing-safe comparison
+      const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+      const receivedBuffer = Buffer.from(cleanSignature, 'hex');
+
+      if (expectedBuffer.length !== receivedBuffer.length) {
+        return false;
+      }
+
+      return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+    } catch (error) {
+      console.error('[Instagram] Signature verification error:', error);
+      return false;
+    }
   }
 
   /**
@@ -159,7 +206,7 @@ export class InstagramService {
     }
 
     // Fetch lead data from Facebook Graph API
-    const response = await axios.get(`${FB_GRAPH_URL}/${leadgenId}`, {
+    const response = await axios.get(`${getFbGraphUrl()}/${leadgenId}`, {
       params: {
         access_token: this.accessToken,
         fields: 'id,created_time,field_data,ad_id,adset_id,campaign_id,form_id',
@@ -184,7 +231,7 @@ export class InstagramService {
       if (!adCampaign) {
         // Fetch campaign details from Facebook API
         const campaignResponse = await axios.get(
-          `${FB_GRAPH_URL}/${leadData.campaign_id}`,
+          `${getFbGraphUrl()}/${leadData.campaign_id}`,
           {
             params: {
               access_token: this.accessToken,
@@ -264,7 +311,7 @@ export class InstagramService {
     }
 
     // Get campaigns with Instagram placement
-    const response = await axios.get(`${FB_GRAPH_URL}/act_${adAccountId}/campaigns`, {
+    const response = await axios.get(`${getFbGraphUrl()}/act_${adAccountId}/campaigns`, {
       params: {
         access_token: this.accessToken,
         fields: 'id,name,status,objective,effective_status',
@@ -283,7 +330,7 @@ export class InstagramService {
 
     for (const campaign of campaigns) {
       // Check if campaign has Instagram placement
-      const adsetsResponse = await axios.get(`${FB_GRAPH_URL}/${campaign.id}/adsets`, {
+      const adsetsResponse = await axios.get(`${getFbGraphUrl()}/${campaign.id}/adsets`, {
         params: {
           access_token: this.accessToken,
           fields: 'id,targeting',
@@ -342,7 +389,7 @@ export class InstagramService {
       throw new Error('Instagram access token not set');
     }
 
-    const response = await axios.get(`${FB_GRAPH_URL}/${instagramAccountId}/insights`, {
+    const response = await axios.get(`${getFbGraphUrl()}/${instagramAccountId}/insights`, {
       params: {
         access_token: this.accessToken,
         metric: 'impressions,reach,profile_views,follower_count',
@@ -361,7 +408,7 @@ export class InstagramService {
       throw new Error('Instagram access token not set');
     }
 
-    const response = await axios.get(`${FB_GRAPH_URL}/${campaignId}/insights`, {
+    const response = await axios.get(`${getFbGraphUrl()}/${campaignId}/insights`, {
       params: {
         access_token: this.accessToken,
         fields: 'impressions,reach,actions,spend,clicks',
@@ -389,7 +436,7 @@ export class InstagramService {
       throw new Error('Instagram access token not set');
     }
 
-    const response = await axios.get(`${FB_GRAPH_URL}/${pageId}/leadgen_forms`, {
+    const response = await axios.get(`${getFbGraphUrl()}/${pageId}/leadgen_forms`, {
       params: {
         access_token: this.accessToken,
         fields: 'id,name,status,leads_count,locale,created_time',
@@ -407,7 +454,7 @@ export class InstagramService {
       throw new Error('Instagram access token not set');
     }
 
-    const response = await axios.get(`${FB_GRAPH_URL}/${formId}/leads`, {
+    const response = await axios.get(`${getFbGraphUrl()}/${formId}/leads`, {
       params: {
         access_token: this.accessToken,
         fields: 'id,created_time,field_data,ad_id,adset_id,campaign_id',
@@ -431,7 +478,7 @@ export class InstagramService {
       throw new Error('Instagram access token not set');
     }
 
-    const response = await axios.get(`${FB_GRAPH_URL}/${pageId}`, {
+    const response = await axios.get(`${getFbGraphUrl()}/${pageId}`, {
       params: {
         access_token: this.accessToken,
         fields: 'instagram_business_account{id,username,profile_picture_url,followers_count}',
@@ -449,7 +496,7 @@ export class InstagramService {
       throw new Error('Instagram access token not set');
     }
 
-    const response = await axios.get(`${FB_GRAPH_URL}/me/accounts`, {
+    const response = await axios.get(`${getFbGraphUrl()}/me/accounts`, {
       params: {
         access_token: this.accessToken,
         fields: 'id,name,access_token,instagram_business_account{id,username,profile_picture_url,followers_count}',
@@ -467,7 +514,7 @@ export class InstagramService {
       throw new Error('Instagram access token not set');
     }
 
-    const response = await axios.get(`${FB_GRAPH_URL}/${formId}`, {
+    const response = await axios.get(`${getFbGraphUrl()}/${formId}`, {
       params: {
         access_token: this.accessToken,
         fields: 'id,name,questions',
@@ -494,7 +541,7 @@ export class InstagramService {
       throw new Error('Instagram access token not set');
     }
 
-    const response = await axios.get(`${FB_GRAPH_URL}/${formId}/leads`, {
+    const response = await axios.get(`${getFbGraphUrl()}/${formId}/leads`, {
       params: {
         access_token: this.accessToken,
         fields: 'id,created_time,field_data,ad_id,adset_id,campaign_id',
@@ -586,7 +633,7 @@ export class InstagramService {
       if (!adCampaign) {
         try {
           const campaignResponse = await axios.get(
-            `${FB_GRAPH_URL}/${leadData.campaign_id}`,
+            `${getFbGraphUrl()}/${leadData.campaign_id}`,
             {
               params: {
                 access_token: this.accessToken,
@@ -705,7 +752,7 @@ export class InstagramService {
       throw new Error('Instagram access token not set');
     }
 
-    const response = await axios.get(`${FB_GRAPH_URL}/${leadgenId}`, {
+    const response = await axios.get(`${getFbGraphUrl()}/${leadgenId}`, {
       params: {
         access_token: this.accessToken,
         fields: 'id,created_time,field_data,ad_id,adset_id,campaign_id,form_id',

@@ -88,7 +88,11 @@ export const AgentsTable: React.FC<AgentsTableProps> = ({
           <tr
             key={agent.id}
             className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
-            onClick={() => navigate(`/voice-ai/agents/${agent.id}`)}
+            onClick={() => {
+              console.log('[AgentsTable] Clicking agent:', agent.id, agent.name);
+              console.log('[AgentsTable] Navigating to:', `/voice-ai/agents/${agent.id}`);
+              navigate(`/voice-ai/agents/${agent.id}`);
+            }}
           >
             <td className="py-4">
               <span className="text-sm text-gray-900">{agent.name}</span>

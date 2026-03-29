@@ -61,11 +61,10 @@ export function useWebSocket() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) return;
-
+    // Use cookies for authentication instead of localStorage
+    // Socket.IO will automatically send cookies with withCredentials: true
     const socket = io(SOCKET_URL, {
-      auth: { token },
+      withCredentials: true, // Send cookies for authentication
       transports: ['websocket', 'polling'],
     });
 

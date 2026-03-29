@@ -13,6 +13,8 @@ import {
 interface CallsStateWithStats extends CallsState {
   stats: TelecallerStats | null;
   pendingUploads: Array<{ callId: string; recordingPath: string }>;
+  outcomeCounts: Record<string, number>;
+  currentRecordingPath: string | null;
 }
 
 const initialState: CallsStateWithStats = {
@@ -30,6 +32,8 @@ const initialState: CallsStateWithStats = {
   },
   stats: null,
   pendingUploads: [],
+  outcomeCounts: {},
+  currentRecordingPath: null,
 };
 
 // Async thunks
@@ -61,6 +65,7 @@ export const fetchCalls = createAsyncThunk(
       return {
         calls: response.data,
         pagination: response.pagination,
+        outcomeCounts: response.outcomeCounts || {},
         refresh,
       };
     } catch (error) {
@@ -120,12 +125,13 @@ export const uploadRecording = createAsyncThunk(
     {
       callId,
       recordingPath,
+      duration,
       onProgress,
-    }: { callId: string; recordingPath: string; onProgress?: (progress: number) => void },
+    }: { callId: string; recordingPath: string; duration?: number; onProgress?: (progress: number) => void },
     { rejectWithValue }
   ) => {
     try {
-      const result = await telecallerApi.uploadRecording(callId, recordingPath, onProgress);
+      const result = await telecallerApi.uploadRecording(callId, recordingPath, duration, onProgress);
       return { callId, ...result };
     } catch (error) {
       return rejectWithValue(error instanceof Error ? error.message : 'Failed to upload recording');
@@ -183,6 +189,10 @@ const callsSlice = createSlice({
       state.currentCall = null;
       state.isRecording = false;
       state.callDuration = 0;
+      state.currentRecordingPath = null;
+    },
+    setRecordingPath: (state, action: PayloadAction<string | null>) => {
+      state.currentRecordingPath = action.payload;
     },
     addPendingUpload: (
       state,
@@ -219,7 +229,7 @@ const callsSlice = createSlice({
       })
       .addCase(fetchCalls.fulfilled, (state, action) => {
         state.isLoading = false;
-        const { calls, pagination, refresh } = action.payload;
+        const { calls, pagination, outcomeCounts, refresh } = action.payload;
 
         if (refresh || pagination.page === 1) {
           state.calls = calls;
@@ -235,6 +245,11 @@ const callsSlice = createSlice({
           total: pagination.total,
           hasMore: pagination.page < pagination.totalPages,
         };
+
+        // Update outcome counts
+        if (outcomeCounts && Object.keys(outcomeCounts).length > 0) {
+          state.outcomeCounts = outcomeCounts;
+        }
       })
       .addCase(fetchCalls.rejected, (state, action) => {
         state.isLoading = false;
@@ -293,6 +308,7 @@ export const {
   setCallDuration,
   incrementCallDuration,
   resetCallState,
+  setRecordingPath,
   addPendingUpload,
   removePendingUpload,
   clearError,
