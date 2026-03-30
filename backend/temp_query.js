@@ -1,0 +1,1 @@
+const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); prisma.outboundCall.findMany({ take: 5, orderBy: { createdAt: 'desc' }, select: { id: true, phoneNumber: true, status: true, duration: true } }).then(r => console.log(JSON.stringify(r, null, 2))).finally(() => prisma.disconnect())
