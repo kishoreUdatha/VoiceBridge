@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../../services/api';
 
 interface TelecallerStats {
@@ -41,12 +42,18 @@ const TelecallerDashboard: React.FC = () => {
         api.get('/telecaller/leads?limit=20'),
       ]);
       setStats(statsRes.data.data);
-      setLeads(leadsRes.data.data.leads);
-    } catch (error) {
+      setLeads(leadsRes.data.data.leads || []);
+    } catch (error: any) {
       console.error('Error fetching dashboard:', error);
+      toast.error(error.response?.data?.message || 'Failed to load dashboard');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefresh = () => {
+    setLoading(true);
+    fetchDashboardData();
   };
 
   const filteredLeads = leads.filter((lead) => {
@@ -70,26 +77,39 @@ const TelecallerDashboard: React.FC = () => {
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-6">
-        <h1 className="text-2xl font-bold">Telecaller App</h1>
-        <p className="text-blue-100 mt-1">Make calls and record conversations</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Telecaller App</h1>
+            <p className="text-blue-100 mt-1">Make calls and record conversations</p>
+          </div>
+          <button
+            onClick={handleRefresh}
+            className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
+            title="Refresh"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
       <div className="px-4 -mt-4">
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <div className="text-3xl font-bold text-blue-600">{stats?.todayCalls || 0}</div>
             <div className="text-gray-500 text-sm">Today's Calls</div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <div className="text-3xl font-bold text-green-600">{stats?.conversionRate || 0}%</div>
             <div className="text-gray-500 text-sm">Conversion Rate</div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <div className="text-3xl font-bold text-purple-600">{stats?.totalLeads || 0}</div>
             <div className="text-gray-500 text-sm">Assigned Leads</div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <div className="text-3xl font-bold text-orange-600">{stats?.totalCalls || 0}</div>
             <div className="text-gray-500 text-sm">Total Calls</div>
           </div>
@@ -99,7 +119,7 @@ const TelecallerDashboard: React.FC = () => {
       {/* Outcome Stats */}
       {stats?.outcomes && Object.keys(stats.outcomes).length > 0 && (
         <div className="px-4 mt-4">
-          <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <h3 className="font-semibold text-gray-800 mb-3">Call Outcomes</h3>
             <div className="flex flex-wrap gap-2">
               {Object.entries(stats.outcomes).map(([outcome, count]) => (
@@ -129,7 +149,7 @@ const TelecallerDashboard: React.FC = () => {
             placeholder="Search leads by name or phone..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-white rounded-xl shadow-sm border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-3 bg-white rounded-2xl shadow-sm border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           <svg
             className="absolute left-3 top-3.5 h-5 w-5 text-gray-400"
@@ -152,12 +172,20 @@ const TelecallerDashboard: React.FC = () => {
         <h2 className="text-lg font-semibold text-gray-800 mb-3">Assigned Leads</h2>
         <div className="space-y-3">
           {filteredLeads.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500">
-              No leads found
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
+              <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <p className="text-gray-500 font-medium">
+                {searchQuery ? 'No leads match your search' : 'No leads assigned yet'}
+              </p>
+              <p className="text-gray-400 text-sm mt-1">
+                {searchQuery ? 'Try a different search term' : 'Contact your admin to get leads assigned'}
+              </p>
             </div>
           ) : (
             filteredLeads.map((lead) => (
-              <div key={lead.id} className="bg-white rounded-xl shadow-sm p-4">
+              <div key={lead.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-800">

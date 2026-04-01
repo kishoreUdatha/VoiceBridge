@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../../services/api';
 
 interface Call {
@@ -32,9 +33,10 @@ const TelecallerCallHistory: React.FC = () => {
   const fetchCalls = async () => {
     try {
       const res = await api.get('/telecaller/calls?limit=50');
-      setCalls(res.data.data.calls);
-    } catch (error) {
+      setCalls(res.data.data.calls || []);
+    } catch (error: any) {
       console.error('Error fetching calls:', error);
+      toast.error('Failed to load call history');
     } finally {
       setLoading(false);
     }
@@ -79,11 +81,11 @@ const TelecallerCallHistory: React.FC = () => {
   const getSentimentEmoji = (sentiment?: string) => {
     switch (sentiment) {
       case 'positive':
-        return { emoji: '(positive)', color: 'text-green-600' };
+        return { emoji: '😊', color: 'text-green-600' };
       case 'negative':
-        return { emoji: '(negative)', color: 'text-red-600' };
+        return { emoji: '😞', color: 'text-red-600' };
       default:
-        return { emoji: '(neutral)', color: 'text-gray-500' };
+        return { emoji: '😐', color: 'text-gray-500' };
     }
   };
 
@@ -107,14 +109,14 @@ const TelecallerCallHistory: React.FC = () => {
       <div className="px-4 mt-4">
         <div className="space-y-3">
           {calls.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center text-gray-500">
               No calls recorded yet
             </div>
           ) : (
             calls.map((call) => (
               <div
                 key={call.id}
-                className="bg-white rounded-xl shadow-sm p-4 cursor-pointer hover:shadow-md transition-shadow"
+                className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-shadow"
                 onClick={() => setSelectedCall(call)}
               >
                 <div className="flex items-center justify-between">

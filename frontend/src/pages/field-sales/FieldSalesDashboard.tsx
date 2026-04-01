@@ -176,7 +176,7 @@ export default function FieldSalesDashboard() {
             <span className="text-xs font-medium">Deals</span>
           </button>
           <button
-            onClick={() => navigate('/field-sales/expenses/new')}
+            onClick={() => navigate('/field-sales/expenses?action=new')}
             className="flex flex-col items-center justify-center p-4 bg-amber-500 text-white rounded-xl shadow-lg active:scale-95 transition-transform"
           >
             <DocumentTextIcon className="w-8 h-8 mb-1" />
@@ -361,7 +361,7 @@ export default function FieldSalesDashboard() {
                   <span className="text-[9px] font-medium text-violet-700">Deals</span>
                 </button>
                 <button
-                  onClick={() => navigate('/field-sales/expenses/new')}
+                  onClick={() => navigate('/field-sales/expenses?action=new')}
                   className="flex flex-col items-center justify-center p-2 bg-amber-50 hover:bg-amber-100 rounded border border-amber-100 transition-colors"
                 >
                   <DocumentTextIcon className="w-4 h-4 text-amber-600 mb-1" />

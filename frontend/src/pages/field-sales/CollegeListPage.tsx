@@ -7,6 +7,7 @@ import {
   fetchCities,
   deleteCollege,
   createCollege,
+  setPage,
 } from '../../store/slices/fieldSales/collegeSlice';
 import { useForm } from 'react-hook-form';
 import {
@@ -378,14 +379,14 @@ export default function CollegeListPage() {
             <div className="flex gap-2">
               <button
                 disabled={page === 1}
-                onClick={() => dispatch({ type: 'fieldSales/colleges/setPage', payload: page - 1 })}
+                onClick={() => dispatch(setPage(page - 1))}
                 className="px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg disabled:opacity-50"
               >
                 Prev
               </button>
               <button
                 disabled={page * 20 >= total}
-                onClick={() => dispatch({ type: 'fieldSales/colleges/setPage', payload: page + 1 })}
+                onClick={() => dispatch(setPage(page + 1))}
                 className="px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg disabled:opacity-50"
               >
                 Next
@@ -484,14 +485,14 @@ export default function CollegeListPage() {
             <div className="flex space-x-2">
               <button
                 disabled={page === 1}
-                onClick={() => dispatch({ type: 'fieldSales/colleges/setPage', payload: page - 1 })}
+                onClick={() => dispatch(setPage(page - 1))}
                 className="btn btn-secondary"
               >
                 Previous
               </button>
               <button
                 disabled={page * 20 >= total}
-                onClick={() => dispatch({ type: 'fieldSales/colleges/setPage', payload: page + 1 })}
+                onClick={() => dispatch(setPage(page + 1))}
                 className="btn btn-secondary"
               >
                 Next

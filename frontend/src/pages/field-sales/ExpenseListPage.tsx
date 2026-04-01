@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import {
   fetchExpenses,
@@ -71,6 +72,7 @@ type UserStatusFilter = '' | 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'PAID' | 'REJE
 
 export default function ExpenseListPage() {
   const dispatch = useAppDispatch();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { expenses, mySummary, pendingApprovals, total, page, isLoading, isSubmitting } = useAppSelector(
     (state) => state.fieldSalesExpenses
   );
@@ -124,6 +126,18 @@ export default function ExpenseListPage() {
     dispatch(fetchColleges({ filter: {}, page: 1, limit: 100 }));
     dispatch(fetchCategoryLimits());
   }, [dispatch]);
+
+  // Check for action=new query parameter to open create modal
+  useEffect(() => {
+    if (searchParams.get('action') === 'new') {
+      setIsModalOpen(true);
+      setEditingExpense(null);
+      reset();
+      // Clear the action param from URL
+      searchParams.delete('action');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, reset]);
 
   useEffect(() => {
     if (mainTab === 'my-expenses') {

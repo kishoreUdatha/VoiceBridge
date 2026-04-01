@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import {
   MapPinIcon,
   CalendarDaysIcon,
@@ -70,9 +71,10 @@ export default function VisitListPage() {
       }
 
       const result = await visitService.getVisits(filterParams, 1, 50);
-      setVisits(result.visits);
-    } catch (error) {
+      setVisits(result.visits || []);
+    } catch (error: any) {
       console.error('Failed to load visits:', error);
+      toast.error(error?.response?.data?.message || 'Failed to load visits');
     } finally {
       setIsLoading(false);
     }
@@ -82,8 +84,9 @@ export default function VisitListPage() {
     try {
       const data = await visitService.getVisitStats();
       setStats(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load stats:', error);
+      // Stats failure is non-critical, don't show toast
     }
   };
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../../services/api';
 
 interface Lead {
@@ -48,7 +49,7 @@ const TelecallerCallPage: React.FC = () => {
     try {
       // Fetch lead details from telecaller's assigned leads
       const res = await api.get(`/telecaller/leads?search=${leadId}`);
-      const leads = res.data.data.leads;
+      const leads = res.data.data.leads || [];
       const foundLead = leads.find((l: Lead) => l.id === leadId);
       if (foundLead) {
         setLead(foundLead);
@@ -57,8 +58,9 @@ const TelecallerCallPage: React.FC = () => {
         const leadRes = await api.get(`/leads/${leadId}`);
         setLead(leadRes.data.data);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching lead:', error);
+      toast.error('Failed to load lead details');
     } finally {
       setLoading(false);
     }
@@ -86,9 +88,9 @@ const TelecallerCallPage: React.FC = () => {
       setTimeout(() => {
         startRecording();
       }, 1000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting call:', error);
-      alert('Failed to start call. Please try again.');
+      toast.error('Failed to start call. Please try again.');
     }
   };
 
@@ -116,9 +118,9 @@ const TelecallerCallPage: React.FC = () => {
 
       mediaRecorder.start(1000); // Collect data every second
       setCallState('recording');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting recording:', error);
-      alert('Could not access microphone. Please grant permission and try again.');
+      toast.error('Could not access microphone. Please grant permission and try again.');
     }
   };
 
@@ -143,7 +145,7 @@ const TelecallerCallPage: React.FC = () => {
 
   const submitCallOutcome = async () => {
     if (!callRecord || !outcome) {
-      alert('Please select an outcome');
+      toast.error('Please select an outcome');
       return;
     }
 
@@ -171,11 +173,11 @@ const TelecallerCallPage: React.FC = () => {
         });
       }
 
-      alert('Call saved successfully!');
+      toast.success('Call saved successfully!');
       navigate('/telecaller-app');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving call:', error);
-      alert('Failed to save call. Please try again.');
+      toast.error('Failed to save call. Please try again.');
     } finally {
       setUploading(false);
     }
