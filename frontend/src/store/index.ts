@@ -3,6 +3,13 @@ import authReducer from './slices/authSlice';
 import leadReducer from './slices/leadSlice';
 import userReducer from './slices/userSlice';
 import rawImportReducer from './slices/rawImportSlice';
+import assignmentScheduleReducer from './slices/assignmentScheduleSlice';
+import {
+  collegeReducer,
+  visitReducer,
+  dealReducer,
+  expenseReducer,
+} from './slices/fieldSales';
 
 export const store = configureStore({
   reducer: {
@@ -10,6 +17,12 @@ export const store = configureStore({
     leads: leadReducer,
     users: userReducer,
     rawImports: rawImportReducer,
+    assignmentSchedules: assignmentScheduleReducer,
+    // Field Sales
+    fieldSalesColleges: collegeReducer,
+    fieldSalesVisits: visitReducer,
+    fieldSalesDeals: dealReducer,
+    fieldSalesExpenses: expenseReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

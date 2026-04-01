@@ -87,6 +87,30 @@ export class AuthService {
             'reports.read',
             'settings.read',
             'settings.write',
+            'expenses.approve',
+            'expenses.reject',
+            'expenses.mark_paid',
+          ],
+        },
+      });
+
+      await tx.role.create({
+        data: {
+          organizationId: organization.id,
+          name: 'Manager',
+          slug: 'manager',
+          permissions: [
+            'users.read',
+            'leads.read',
+            'leads.write',
+            'leads.assign',
+            'campaigns.read',
+            'campaigns.write',
+            'payments.read',
+            'payments.write',
+            'reports.read',
+            'expenses.approve',
+            'expenses.reject',
           ],
         },
       });

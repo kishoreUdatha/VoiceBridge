@@ -1,4 +1,5 @@
 export { default as AutoAssignSettingsPage } from './AutoAssignSettingsPage';
+export { default as AssignmentSchedulePage } from './AssignmentSchedulePage';
 export { default as SmsSettingsPage } from './SmsSettingsPage';
 export { default as InstitutionSettingsPage } from './InstitutionSettingsPage';
 export { default as WhatsAppSettingsPage } from './WhatsAppSettingsPage';

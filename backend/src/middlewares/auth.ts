@@ -14,6 +14,7 @@ export interface AuthenticatedRequest extends Request {
     role: string;
     roleSlug: string; // Kept for backwards compatibility
     permissions: string[];
+    managerId: string | null; // Manager ID for team-based access control
   };
 }
 
@@ -54,6 +55,7 @@ export async function authenticate(
       role: user.role.slug,
       roleSlug: user.role.slug, // Kept for backwards compatibility
       permissions: (user.role.permissions as string[]) || [],
+      managerId: user.managerId,
     };
 
     next();
@@ -134,6 +136,7 @@ export async function optionalAuth(
         role: user.role.slug,
         roleSlug: user.role.slug,
         permissions: (user.role.permissions as string[]) || [],
+        managerId: user.managerId,
       };
     }
 

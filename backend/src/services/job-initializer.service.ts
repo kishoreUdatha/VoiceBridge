@@ -1,6 +1,7 @@
 import { jobQueueService } from './job-queue.service';
 import { apifySchedulerService } from './apify-scheduler.service';
 import { leadLifecycleService } from './lead-lifecycle.service';
+import { assignmentScheduleService } from './assignmentSchedule.service';
 
 /**
  * Job Initializer Service
@@ -39,6 +40,9 @@ class JobInitializerService {
 
       // 6. Start the AI follow-up checker (runs every 5 minutes)
       this.startAIFollowUpChecker();
+
+      // 7. Start the assignment schedule checker (runs every 5 minutes)
+      this.startAssignmentScheduleChecker();
 
       this.initialized = true;
       console.log('[JobInitializer] All scheduled jobs initialized successfully');
@@ -130,6 +134,72 @@ class JobInitializerService {
     }, 30000);
 
     console.log('[JobInitializer] AI follow-up checker started (runs every 5 minutes)');
+  }
+
+  /**
+   * Start the assignment schedule checker
+   * Checks for due assignment schedules every 5 minutes and runs them
+   */
+  private startAssignmentScheduleChecker(): void {
+    // Run every 5 minutes (300000ms)
+    setInterval(async () => {
+      try {
+        const dueSchedules = await assignmentScheduleService.getDueSchedules();
+
+        if (dueSchedules.length > 0) {
+          console.log(`[AssignmentSchedule] Found ${dueSchedules.length} due schedules`);
+
+          for (const schedule of dueSchedules) {
+            try {
+              const result = await assignmentScheduleService.runScheduledAssignment(
+                schedule.id,
+                'scheduler'
+              );
+              console.log(
+                `[AssignmentSchedule] Schedule "${schedule.name}" completed: ` +
+                  `${result.totalRecordsAssigned} records assigned`
+              );
+            } catch (error) {
+              console.error(
+                `[AssignmentSchedule] Error running schedule "${schedule.name}":`,
+                error
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[AssignmentSchedule] Error checking due schedules:', error);
+      }
+    }, 5 * 60 * 1000);
+
+    // Also run once on startup (after 60 second delay to let server stabilize)
+    setTimeout(async () => {
+      try {
+        const dueSchedules = await assignmentScheduleService.getDueSchedules();
+        if (dueSchedules.length > 0) {
+          console.log(
+            `[AssignmentSchedule] Initial check found ${dueSchedules.length} due schedules`
+          );
+          for (const schedule of dueSchedules) {
+            try {
+              await assignmentScheduleService.runScheduledAssignment(
+                schedule.id,
+                'scheduler'
+              );
+            } catch (error) {
+              console.error(
+                `[AssignmentSchedule] Error running initial schedule "${schedule.name}":`,
+                error
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[AssignmentSchedule] Error in initial check:', error);
+      }
+    }, 60000);
+
+    console.log('[JobInitializer] Assignment schedule checker started (runs every 5 minutes)');
   }
 
   /**

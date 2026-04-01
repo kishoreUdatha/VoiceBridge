@@ -39,8 +39,8 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>CRM Lead Generation</Text>
-        <Text style={styles.subtitle}>Counselor App</Text>
+        <Text style={styles.title}>VoiceBridge CRM</Text>
+        <Text style={styles.subtitle}>Field Sales App</Text>
 
         <View style={styles.form}>
           <TextInput
@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#3b82f6',
+    color: '#10b981',
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -120,13 +120,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#10b981',
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
   },
   buttonDisabled: {
-    backgroundColor: '#93c5fd',
+    backgroundColor: '#6ee7b7',
   },
   buttonText: {
     color: '#fff',

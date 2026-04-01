@@ -1,10 +1,11 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { userService, User, Role } from '../../services/user.service';
+import { userService, User, Role, Manager } from '../../services/user.service';
 
 interface UserState {
   users: User[];
   counselors: User[];
   telecallers: User[];
+  managers: Manager[];
   roles: Role[];
   currentUser: User | null;
   total: number;
@@ -16,6 +17,7 @@ const initialState: UserState = {
   users: [],
   counselors: [],
   telecallers: [],
+  managers: [],
   roles: [],
   currentUser: null,
   total: 0,
@@ -71,6 +73,19 @@ export const fetchRoles = createAsyncThunk(
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
       return rejectWithValue(err.response?.data?.message || 'Failed to fetch roles');
+    }
+  }
+);
+
+export const fetchManagers = createAsyncThunk(
+  'users/fetchManagers',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await userService.getManagers();
+      return response;
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      return rejectWithValue(err.response?.data?.message || 'Failed to fetch managers');
     }
   }
 );
@@ -151,6 +166,11 @@ const userSlice = createSlice({
     // Fetch roles
     builder.addCase(fetchRoles.fulfilled, (state, action) => {
       state.roles = action.payload;
+    });
+
+    // Fetch managers
+    builder.addCase(fetchManagers.fulfilled, (state, action) => {
+      state.managers = action.payload;
     });
 
     // Create user

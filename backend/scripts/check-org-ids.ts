@@ -1,32 +1,28 @@
-import { prisma } from '../src/config/database';
+import { PrismaClient } from '@prisma/client';
 
-async function check() {
-  const user = await prisma.user.findFirst({
-    where: { email: 'admin@demo.com' },
-    select: { organizationId: true }
-  });
+const prisma = new PrismaClient();
 
-  console.log('Admin organization ID:', user?.organizationId);
-
-  const agents = await prisma.voiceAgent.findMany({
+async function main() {
+  const visits = await prisma.collegeVisit.findMany({
     take: 5,
-    select: { id: true, name: true, organizationId: true }
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, organizationId: true, college: { select: { name: true } } }
   });
+  console.log('=== Visit Organization IDs ===');
+  visits.forEach(v => console.log('  Visit:', v.college?.name, '| OrgId:', v.organizationId));
 
-  console.log('\nVoice Agent organization IDs:');
-  agents.forEach(a => {
-    const match = a.organizationId === user?.organizationId ? '✅ MATCH' : '❌ NO MATCH';
-    console.log(`  - ${a.name}: ${a.organizationId} ${match}`);
+  const users = await prisma.user.findMany({
+    where: { email: { contains: 'fieldsales' } },
+    select: { email: true, organizationId: true, firstName: true }
   });
+  console.log('\n=== Field Sales User ===');
+  users.forEach(u => console.log('  User:', u.email, '| OrgId:', u.organizationId));
 
-  // Count agents for admin's org
-  const agentCount = await prisma.voiceAgent.count({
-    where: { organizationId: user?.organizationId }
+  const orgs = await prisma.organization.findMany({
+    select: { id: true, name: true }
   });
-
-  console.log(`\nAgents in admin's org: ${agentCount}`);
-
-  await prisma.$disconnect();
+  console.log('\n=== Organizations ===');
+  orgs.forEach(o => console.log('  OrgId:', o.id, '| Name:', o.name));
 }
 
-check();
+main().catch(console.error).finally(() => prisma.$disconnect());

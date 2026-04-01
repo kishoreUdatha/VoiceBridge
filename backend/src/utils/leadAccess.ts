@@ -12,8 +12,11 @@ import { prisma } from '../config/database';
 import { Prisma } from '@prisma/client';
 import { TenantRequest } from '../middlewares/tenant';
 
-// Roles that have elevated access (can see all leads in organization)
-const ELEVATED_ROLES = ['admin', 'manager'];
+// Roles that have full organization access (can see all leads)
+const ADMIN_ROLES = ['admin'];
+
+// Roles that have team-based access (can see their team members' leads)
+const MANAGER_ROLES = ['manager'];
 
 /**
  * Context needed for lead access checks
@@ -22,6 +25,7 @@ export interface LeadAccessContext {
   userId: string;
   organizationId: string;
   role: string;
+  managerId?: string | null;
 }
 
 /**
@@ -32,14 +36,45 @@ export function getLeadAccessContext(req: TenantRequest): LeadAccessContext {
     userId: req.user!.id,
     organizationId: req.organizationId!,
     role: req.user!.role,
+    managerId: req.user!.managerId,
   };
 }
 
 /**
- * Check if the user's role has elevated access (admin/manager)
+ * Check if the user's role has full admin access
+ */
+export function hasAdminAccess(role: string): boolean {
+  return ADMIN_ROLES.includes(role);
+}
+
+/**
+ * Check if the user's role has manager-level access (team-based)
+ */
+export function hasManagerAccess(role: string): boolean {
+  return MANAGER_ROLES.includes(role);
+}
+
+/**
+ * Check if the user's role has elevated access (admin or manager)
+ * @deprecated Use hasAdminAccess or hasManagerAccess for more specific checks
  */
 export function hasElevatedAccess(role: string): boolean {
-  return ELEVATED_ROLES.includes(role);
+  return hasAdminAccess(role) || hasManagerAccess(role);
+}
+
+/**
+ * Get IDs of all team members assigned to a manager
+ */
+export async function getTeamMemberIds(managerId: string, organizationId: string): Promise<string[]> {
+  const teamMembers = await prisma.user.findMany({
+    where: {
+      managerId,
+      organizationId,
+      isActive: true,
+    },
+    select: { id: true },
+  });
+  return teamMembers.map(member => member.id);
 }
 
 /**
@@ -68,9 +103,26 @@ export async function canAccessLead(
     return false;
   }
 
-  // Elevated roles can access any lead in their organization
-  if (hasElevatedAccess(role)) {
+  // Admin roles can access any lead in their organization
+  if (hasAdminAccess(role)) {
     return true;
+  }
+
+  // Manager roles can access leads assigned to themselves or their team members
+  if (hasManagerAccess(role)) {
+    const teamMemberIds = await getTeamMemberIds(userId, organizationId);
+    const allowedUserIds = [userId, ...teamMemberIds];
+
+    const assignment = await prisma.leadAssignment.findFirst({
+      where: {
+        leadId,
+        assignedToId: { in: allowedUserIds },
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    return assignment !== null;
   }
 
   // Other roles can only access leads actively assigned to them
@@ -90,10 +142,12 @@ export async function canAccessLead(
  * Build a Prisma where clause for filtering leads based on user access
  *
  * @param context - The user's access context
+ * @param teamMemberIds - Optional pre-fetched team member IDs for managers
  * @returns Prisma where clause to filter leads
  */
 export function buildLeadAccessFilter(
-  context: LeadAccessContext
+  context: LeadAccessContext,
+  teamMemberIds?: string[]
 ): Prisma.LeadWhereInput {
   const { userId, organizationId, role } = context;
 
@@ -102,9 +156,23 @@ export function buildLeadAccessFilter(
     organizationId,
   };
 
-  // Elevated roles see all leads in organization
-  if (hasElevatedAccess(role)) {
+  // Admin roles see all leads in organization
+  if (hasAdminAccess(role)) {
     return baseFilter;
+  }
+
+  // Manager roles see leads assigned to themselves or their team members
+  if (hasManagerAccess(role) && teamMemberIds) {
+    const allowedUserIds = [userId, ...teamMemberIds];
+    return {
+      ...baseFilter,
+      assignments: {
+        some: {
+          assignedToId: { in: allowedUserIds },
+          isActive: true,
+        },
+      },
+    };
   }
 
   // Other roles only see leads assigned to them
@@ -124,10 +192,12 @@ export function buildLeadAccessFilter(
  * This is useful for the pending-follow-ups endpoint
  *
  * @param context - The user's access context
+ * @param teamMemberIds - Optional pre-fetched team member IDs for managers
  * @returns Prisma where clause to filter follow-ups by lead access
  */
 export function buildFollowUpAccessFilter(
-  context: LeadAccessContext
+  context: LeadAccessContext,
+  teamMemberIds?: string[]
 ): Prisma.FollowUpWhereInput {
   const { userId, organizationId, role } = context;
 
@@ -138,9 +208,25 @@ export function buildFollowUpAccessFilter(
     },
   };
 
-  // Elevated roles see all follow-ups in organization
-  if (hasElevatedAccess(role)) {
+  // Admin roles see all follow-ups in organization
+  if (hasAdminAccess(role)) {
     return baseFilter;
+  }
+
+  // Manager roles see follow-ups for leads assigned to themselves or their team
+  if (hasManagerAccess(role) && teamMemberIds) {
+    const allowedUserIds = [userId, ...teamMemberIds];
+    return {
+      lead: {
+        organizationId,
+        assignments: {
+          some: {
+            assignedToId: { in: allowedUserIds },
+            isActive: true,
+          },
+        },
+      },
+    };
   }
 
   // Other roles only see follow-ups for leads assigned to them

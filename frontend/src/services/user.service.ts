@@ -8,10 +8,25 @@ export interface User {
   phone?: string;
   avatar?: string;
   roleId: string;
+  managerId?: string | null;
   isActive: boolean;
   createdAt: string;
   role?: Role;
+  manager?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
   activeLeadCount?: number;
+}
+
+export interface Manager {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  teamMemberCount: number;
 }
 
 export interface Role {
@@ -68,6 +83,11 @@ export const userService = {
 
   async getRoles(): Promise<Role[]> {
     const response = await api.get('/users/roles');
+    return response.data.data;
+  },
+
+  async getManagers(): Promise<Manager[]> {
+    const response = await api.get('/users/managers');
     return response.data.data;
   },
 };

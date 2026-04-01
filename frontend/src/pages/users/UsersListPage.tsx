@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';
-import { fetchUsers, fetchRoles, createUser, deleteUser } from '../../store/slices/userSlice';
-import { useForm } from 'react-hook-form';
+import { fetchUsers, fetchRoles, fetchManagers, createUser, deleteUser } from '../../store/slices/userSlice';
+import { useForm, useWatch } from 'react-hook-form';
 import {
   PlusIcon,
   TrashIcon,
@@ -18,11 +18,12 @@ interface CreateUserFormData {
   lastName: string;
   phone?: string;
   roleId: string;
+  managerId?: string;
 }
 
 export default function UsersListPage() {
   const dispatch = useDispatch<AppDispatch>();
-  const { users, roles, isLoading } = useSelector((state: RootState) => state.users);
+  const { users, roles, managers, isLoading } = useSelector((state: RootState) => state.users);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [roleFilter, setRoleFilter] = useState('');
 
@@ -30,12 +31,19 @@ export default function UsersListPage() {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<CreateUserFormData>();
+
+  // Watch the selected role to conditionally show manager dropdown
+  const selectedRoleId = useWatch({ control, name: 'roleId' });
+  const selectedRole = roles.find(r => r.id === selectedRoleId);
+  const showManagerDropdown = selectedRole?.slug === 'telecaller' || selectedRole?.slug === 'counselor';
 
   useEffect(() => {
     dispatch(fetchUsers({ role: roleFilter || undefined }));
     dispatch(fetchRoles());
+    dispatch(fetchManagers());
   }, [dispatch, roleFilter]);
 
   const onSubmit = async (data: CreateUserFormData) => {
@@ -102,6 +110,7 @@ export default function UsersListPage() {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
+                <th>Manager</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -109,13 +118,13 @@ export default function UsersListPage() {
             <tbody className="divide-y divide-gray-200 bg-white">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-8">
+                  <td colSpan={6} className="text-center py-8">
                     Loading...
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 text-gray-500">
+                  <td colSpan={6} className="text-center py-8 text-gray-500">
                     No users found
                   </td>
                 </tr>
@@ -141,6 +150,15 @@ export default function UsersListPage() {
                     <td>{user.email}</td>
                     <td>
                       <span className="badge badge-info">{user.role?.name}</span>
+                    </td>
+                    <td>
+                      {user.manager ? (
+                        <span className="text-gray-900">
+                          {user.manager.firstName} {user.manager.lastName}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
                     </td>
                     <td>
                       <span
@@ -246,6 +264,23 @@ export default function UsersListPage() {
                     ))}
                   </select>
                 </div>
+
+                {showManagerDropdown && (
+                  <div>
+                    <label className="label">Assign to Manager</label>
+                    <select
+                      {...register('managerId')}
+                      className="input"
+                    >
+                      <option value="">No manager assigned</option>
+                      {managers.map((manager) => (
+                        <option key={manager.id} value={manager.id}>
+                          {manager.firstName} {manager.lastName} ({manager.teamMemberCount} team members)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="flex justify-end space-x-3 pt-4">
                   <button

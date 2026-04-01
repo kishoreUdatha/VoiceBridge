@@ -27,6 +27,7 @@ const createUserValidation = [
     .withMessage('Last name is required'),
   body('phone').optional().trim(),
   body('roleId').isUUID().withMessage('Valid role ID is required'),
+  body('managerId').optional({ nullable: true }).isUUID().withMessage('Valid manager ID is required'),
 ];
 
 const updateUserValidation = [
@@ -36,6 +37,7 @@ const updateUserValidation = [
   body('phone').optional().trim(),
   body('roleId').optional().isUUID(),
   body('isActive').optional().isBoolean(),
+  body('managerId').optional({ nullable: true }).isUUID().withMessage('Valid manager ID is required'),
 ];
 
 const listUsersValidation = [
@@ -49,6 +51,7 @@ const listUsersValidation = [
 // Routes
 router.get('/counselors', userController.getCounselors.bind(userController));
 router.get('/telecallers', userController.getTelecallers.bind(userController));
+router.get('/managers', userController.getManagers.bind(userController));
 router.get('/roles', userController.getRoles.bind(userController));
 
 router.post(

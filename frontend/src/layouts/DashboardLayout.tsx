@@ -36,6 +36,10 @@ import {
   TrophyIcon,
   MagnifyingGlassCircleIcon,
   BoltIcon,
+  BuildingOffice2Icon,
+  MapPinIcon,
+  CurrencyRupeeIcon,
+  BriefcaseIcon,
 } from '@heroicons/react/24/outline';
 
 interface NavItem {
@@ -91,6 +95,15 @@ const dataNavigation: NavItem[] = [
   { name: 'Ad Integrations', href: '/ad-integrations', icon: ArrowPathRoundedSquareIcon, roles: ['admin', 'manager'] },
   { name: 'Webhook URLs', href: '/webhook-urls', icon: KeyIcon, roles: ['admin'] },
   { name: 'Web Scraping', href: '/apify-dashboard', icon: MagnifyingGlassCircleIcon, roles: ['admin', 'manager'] },
+];
+
+// Field Sales - B2B College Sales
+const fieldSalesNavigation: NavItem[] = [
+  { name: 'Dashboard', href: '/field-sales', icon: BriefcaseIcon, roles: ['admin', 'manager', 'owner', 'field_sales', 'counselor'] },
+  { name: 'Colleges', href: '/field-sales/colleges', icon: BuildingOffice2Icon, roles: ['admin', 'manager', 'owner', 'field_sales', 'counselor'] },
+  { name: 'Visits', href: '/field-sales/visits', icon: MapPinIcon, roles: ['admin', 'manager', 'owner', 'field_sales', 'counselor'] },
+  { name: 'Deal Pipeline', href: '/field-sales/deals', icon: FunnelIcon, roles: ['admin', 'manager', 'owner', 'field_sales', 'counselor'] },
+  { name: 'Expenses', href: '/field-sales/expenses', icon: CurrencyRupeeIcon, roles: ['admin', 'manager', 'owner', 'field_sales', 'counselor'] },
 ];
 
 // Analytics - Reports & insights (consolidated)
@@ -163,6 +176,7 @@ export default function DashboardLayout() {
   const filteredCalls = useMemo(() => filterByRole(callsNavigation), [userRole]);
   const filteredMessaging = useMemo(() => filterByRole(messagingNavigation), [userRole]);
   const filteredData = useMemo(() => filterByRole(dataNavigation), [userRole]);
+  const filteredFieldSales = useMemo(() => filterByRole(fieldSalesNavigation), [userRole]);
   const filteredAnalytics = useMemo(() => filterByRole(analyticsNavigation), [userRole]);
   const filteredSettings = useMemo(() => filterByRole(settingsNavigation), [userRole]);
 
@@ -301,6 +315,20 @@ export default function DashboardLayout() {
               </div>
             )}
 
+            {/* Field Sales Section */}
+            {filteredFieldSales.length > 0 && (
+              <div>
+                <div className="px-2.5 py-1 text-[10px] font-semibold text-orange-400 uppercase tracking-wider">
+                  Field Sales
+                </div>
+                <div className="mt-1 space-y-1">
+                  {filteredFieldSales.map((item) => (
+                    <NavItem key={item.name} item={item} onClick={() => setSidebarOpen(false)} />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Analytics Section */}
             {showAdvancedSections && filteredAnalytics.length > 0 && (
               <div>
@@ -407,6 +435,16 @@ export default function DashboardLayout() {
               ))}
 
               {/* Divider */}
+              {filteredFieldSales.length > 0 && (
+                <div className="my-2 border-t border-slate-700/50" />
+              )}
+
+              {/* Field Sales */}
+              {filteredFieldSales.map((item) => (
+                <NavItemCollapsed key={item.name} item={item} />
+              ))}
+
+              {/* Divider */}
               {showAdvancedSections && filteredAnalytics.length > 0 && (
                 <div className="my-2 border-t border-slate-700/50" />
               )}
@@ -486,6 +524,20 @@ export default function DashboardLayout() {
                   </div>
                   <div className="mt-1 space-y-1">
                     {filteredData.map((item) => (
+                      <NavItem key={item.name} item={item} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Field Sales Section */}
+              {filteredFieldSales.length > 0 && (
+                <div>
+                  <div className="px-2.5 py-1 text-[10px] font-semibold text-orange-400 uppercase tracking-wider">
+                    Field Sales
+                  </div>
+                  <div className="mt-1 space-y-1">
+                    {filteredFieldSales.map((item) => (
                       <NavItem key={item.name} item={item} />
                     ))}
                   </div>

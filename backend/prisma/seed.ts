@@ -74,7 +74,19 @@ async function main() {
       permissions: ['leads:read', 'leads:update'],
     },
   });
-  console.log('✅ Roles: Admin, Manager, Counselor, Telecaller');
+
+  const fieldSalesRole = await prisma.role.upsert({
+    where: { organizationId_slug: { organizationId: organization.id, slug: 'field_sales' } },
+    update: {},
+    create: {
+      organizationId: organization.id,
+      name: 'Field Sales',
+      slug: 'field_sales',
+      description: 'Field sales representative - Visits colleges, manages deals and expenses',
+      permissions: ['field_sales:*', 'colleges:*', 'visits:*', 'deals:*', 'expenses:*'],
+    },
+  });
+  console.log('✅ Roles: Admin, Manager, Counselor, Telecaller, Field Sales');
 
   // ==================== USERS BY ROLE ====================
   const hashedPassword = await bcrypt.hash('admin123', 10);
@@ -233,7 +245,53 @@ async function main() {
     },
   });
 
-  console.log('✅ Users: 2 Admins, 2 Managers, 3 Counselors, 3 Telecallers');
+  // ----- FIELD SALES USERS -----
+  const fieldSales1 = await prisma.user.upsert({
+    where: { organizationId_email: { organizationId: organization.id, email: 'fieldsales@demo.com' } },
+    update: {},
+    create: {
+      organizationId: organization.id,
+      email: 'fieldsales@demo.com',
+      password: hashedPassword,
+      firstName: 'Venkat',
+      lastName: 'Rao',
+      phone: '+91-9876543301',
+      roleId: fieldSalesRole.id,
+      isActive: true,
+    },
+  });
+
+  const fieldSales2 = await prisma.user.upsert({
+    where: { organizationId_email: { organizationId: organization.id, email: 'fieldsales2@demo.com' } },
+    update: {},
+    create: {
+      organizationId: organization.id,
+      email: 'fieldsales2@demo.com',
+      password: hashedPassword,
+      firstName: 'Lakshmi',
+      lastName: 'Naidu',
+      phone: '+91-9876543302',
+      roleId: fieldSalesRole.id,
+      isActive: true,
+    },
+  });
+
+  const fieldSales3 = await prisma.user.upsert({
+    where: { organizationId_email: { organizationId: organization.id, email: 'fieldsales3@demo.com' } },
+    update: {},
+    create: {
+      organizationId: organization.id,
+      email: 'fieldsales3@demo.com',
+      password: hashedPassword,
+      firstName: 'Srikanth',
+      lastName: 'Reddy',
+      phone: '+91-9876543303',
+      roleId: fieldSalesRole.id,
+      isActive: true,
+    },
+  });
+
+  console.log('✅ Users: 2 Admins, 2 Managers, 3 Counselors, 3 Telecallers, 3 Field Sales');
 
   // ==================== LEAD STAGES ====================
   const stages = [
@@ -766,6 +824,7 @@ async function main() {
     const lead = allCreatedLeads[call.leadRole][call.leadIndex];
     await prisma.callLog.create({
       data: {
+        organizationId: organization.id,
         leadId: lead.id,
         callerId: call.callerId,
         phoneNumber: lead.phone || '+91-9000000000',

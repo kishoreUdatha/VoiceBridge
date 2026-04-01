@@ -1,24 +1,21 @@
 /**
- * Agent Performance Components
- * Header, Podium, Leaderboard, Details, Charts
+ * Agent Performance Components - Redesigned
+ * Clean, minimal design with focus on data clarity
  */
 
 import React from 'react';
 import {
-  TrophyIcon,
-  SparklesIcon,
   PhoneIcon,
-  CalendarIcon,
-  ArrowTrendingUpIcon,
-  StarIcon,
   ArrowPathIcon,
+  XMarkIcon,
+  UsersIcon,
+  ChartBarIcon,
+  CheckCircleIcon,
   ClockIcon,
-  CurrencyDollarIcon,
-  UserCircleIcon,
-  CalendarDaysIcon,
-  BoltIcon,
+  TrophyIcon,
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
 } from '@heroicons/react/24/outline';
-import { StarIcon as StarSolid, TrophyIcon as TrophySolid } from '@heroicons/react/24/solid';
 import {
   AreaChart,
   Area,
@@ -27,11 +24,8 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  RadarChart,
-  Radar,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
+  BarChart,
+  Bar,
 } from 'recharts';
 import {
   LeaderboardEntry,
@@ -40,7 +34,6 @@ import {
   DateRangeType,
 } from '../agent-performance.types';
 import {
-  RANK_CONFIGS,
   METRIC_OPTIONS,
   DATE_RANGE_OPTIONS,
   formatDuration,
@@ -48,25 +41,38 @@ import {
   getMetricLabel,
 } from '../agent-performance.constants';
 
+// ============================================
 // Loading Skeleton
+// ============================================
 export const LoadingSkeleton: React.FC = () => (
-  <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-slate-100">
-    <div className="max-w-[1600px] mx-auto px-6 lg:px-8 py-8">
-      <div className="animate-pulse space-y-8">
+  <div className="min-h-screen bg-gray-50">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="animate-pulse space-y-6">
         <div className="flex justify-between items-center">
-          <div className="h-10 bg-gray-200 rounded-xl w-64"></div>
-          <div className="h-10 bg-gray-200 rounded-xl w-48"></div>
+          <div className="h-8 bg-gray-200 rounded-lg w-48"></div>
+          <div className="flex gap-3">
+            <div className="h-10 bg-gray-200 rounded-lg w-32"></div>
+            <div className="h-10 bg-gray-200 rounded-lg w-32"></div>
+          </div>
         </div>
-        <div className="grid grid-cols-3 gap-8">
-          <div className="h-[600px] bg-gray-200 rounded-2xl"></div>
-          <div className="col-span-2 h-[600px] bg-gray-200 rounded-2xl"></div>
+        <div className="grid grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-24 bg-gray-200 rounded-xl"></div>
+          ))}
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-48 bg-gray-200 rounded-xl"></div>
+          ))}
         </div>
       </div>
     </div>
   </div>
 );
 
-// Header Component
+// ============================================
+// Header
+// ============================================
 interface HeaderProps {
   metric: MetricType;
   dateRange: DateRangeType;
@@ -85,509 +91,474 @@ export const Header: React.FC<HeaderProps> = ({
   onRefresh,
 }) => (
   <div className="mb-8">
-    <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-xl shadow-amber-500/30">
-              <TrophyIcon className="h-7 w-7 text-white" />
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center">
-              <StarSolid className="w-3 h-3 text-white" />
-            </div>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Agent Performance</h1>
-            <p className="text-gray-500 text-sm mt-0.5">Track and compare voice agent metrics</p>
-          </div>
-        </div>
+        <h1 className="text-2xl font-semibold text-gray-900">Agent Performance</h1>
+        <p className="text-sm text-gray-500 mt-1">Monitor and compare your voice agents</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4">
-        {/* Metric Selector */}
-        <div className="flex items-center gap-1 px-2 py-1.5 bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="flex items-center gap-3">
+        {/* Metric Pills */}
+        <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
           {METRIC_OPTIONS.map((option) => (
             <button
               key={option.id}
               onClick={() => onMetricChange(option.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
                 metric === option.id
-                  ? 'bg-amber-500 text-white shadow-md'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <option.icon className="w-4 h-4" />
-              <span className="hidden md:inline">{option.label}</span>
+              {option.label}
             </button>
           ))}
         </div>
 
         {/* Date Range */}
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-white rounded-xl border border-gray-200 shadow-sm">
-          <CalendarDaysIcon className="w-5 h-5 text-gray-400" />
-          <select
-            value={dateRange}
-            onChange={(e) => onDateRangeChange(e.target.value as DateRangeType)}
-            className="bg-transparent border-0 text-sm font-medium text-gray-700 focus:ring-0 cursor-pointer pr-8"
-          >
-            {DATE_RANGE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={dateRange}
+          onChange={(e) => onDateRangeChange(e.target.value as DateRangeType)}
+          className="h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+        >
+          {DATE_RANGE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
 
         {/* Refresh */}
         <button
           onClick={onRefresh}
           disabled={loading}
-          className="p-2.5 bg-white border border-gray-200 rounded-xl text-gray-500 hover:text-amber-600 hover:border-amber-300 hover:bg-amber-50 shadow-sm transition-all disabled:opacity-50"
+          className="h-9 w-9 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-gray-900 hover:border-gray-300 transition-all disabled:opacity-50"
         >
-          <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
     </div>
   </div>
 );
 
-// Top 3 Podium
-interface PodiumProps {
-  leaderboard: LeaderboardEntry[];
-  selectedAgent: string | null;
-  metric: MetricType;
-  onSelectAgent: (agentId: string) => void;
+// ============================================
+// Stats Overview
+// ============================================
+interface StatsOverviewProps {
+  totalAgents: number;
+  totalCalls: number;
+  avgConversion: number;
+  avgAnswerRate: number;
 }
 
-export const Podium: React.FC<PodiumProps> = ({
-  leaderboard,
-  selectedAgent,
-  metric,
-  onSelectAgent,
-}) => {
-  if (leaderboard.length < 3) return null;
+export const StatsOverview: React.FC<StatsOverviewProps> = ({
+  totalAgents,
+  totalCalls,
+  avgConversion,
+  avgAnswerRate,
+}) => (
+  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <StatCard
+      icon={<UsersIcon className="w-5 h-5" />}
+      label="Active Agents"
+      value={totalAgents.toString()}
+      color="blue"
+    />
+    <StatCard
+      icon={<PhoneIcon className="w-5 h-5" />}
+      label="Total Calls"
+      value={totalCalls.toLocaleString()}
+      color="green"
+    />
+    <StatCard
+      icon={<ChartBarIcon className="w-5 h-5" />}
+      label="Avg Conversion"
+      value={`${avgConversion.toFixed(1)}%`}
+      color="purple"
+    />
+    <StatCard
+      icon={<CheckCircleIcon className="w-5 h-5" />}
+      label="Avg Answer Rate"
+      value={`${avgAnswerRate.toFixed(0)}%`}
+      color="amber"
+    />
+  </div>
+);
+
+const StatCard: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  color: 'blue' | 'green' | 'purple' | 'amber';
+}> = ({ icon, label, value, color }) => {
+  const colors = {
+    blue: 'bg-blue-50 text-blue-600',
+    green: 'bg-green-50 text-green-600',
+    purple: 'bg-purple-50 text-purple-600',
+    amber: 'bg-amber-50 text-amber-600',
+  };
 
   return (
-    <div className="grid grid-cols-3 gap-6 mb-8">
-      {[1, 0, 2].map((displayIndex) => {
-        const entry = leaderboard[displayIndex];
-        if (!entry) return null;
-
-        const config = RANK_CONFIGS[displayIndex];
-        const isFirst = displayIndex === 0;
-
-        return (
-          <div
-            key={entry.agentId}
-            onClick={() => onSelectAgent(entry.agentId)}
-            className={`bg-white rounded-2xl shadow-sm border border-gray-200 p-6 cursor-pointer transition-all hover:shadow-xl ${
-              selectedAgent === entry.agentId ? 'ring-2 ring-amber-500 ring-offset-2' : ''
-            } ${isFirst ? 'transform scale-105 shadow-lg' : ''}`}
-          >
-            <div className="text-center">
-              <div className={`w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br ${config.bg} flex items-center justify-center shadow-lg ${config.shadow} mb-4`}>
-                {isFirst ? (
-                  <TrophySolid className="w-8 h-8 text-white" />
-                ) : (
-                  <span className="text-2xl font-bold text-white">{entry.rank}</span>
-                )}
-              </div>
-
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${config.text} bg-gradient-to-r ${config.bg} bg-opacity-10 border border-current mb-3`}>
-                {config.badge}
-              </span>
-
-              <h3 className="text-lg font-bold text-gray-900 mb-1">
-                {entry.agentName || `Agent ${entry.agentId.slice(0, 6)}`}
-              </h3>
-
-              <p className={`text-3xl font-bold ${config.text} mb-2`}>
-                {getMetricValue(entry, metric)}
-              </p>
-              <p className="text-sm text-gray-500">{getMetricLabel(metric)}</p>
-
-              <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-gray-100">
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-gray-900">{entry.metrics.avgConversionRate.toFixed(1)}%</p>
-                  <p className="text-xs text-gray-500">Conv.</p>
-                </div>
-                <div className="w-px h-8 bg-gray-200"></div>
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-gray-900">{entry.metrics.avgAnswerRate.toFixed(0)}%</p>
-                  <p className="text-xs text-gray-500">Answer</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })}
+    <div className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colors[color]}`}>
+          {icon}
+        </div>
+        <div>
+          <p className="text-2xl font-semibold text-gray-900">{value}</p>
+          <p className="text-sm text-gray-500">{label}</p>
+        </div>
+      </div>
     </div>
   );
 };
 
-// Leaderboard List
-interface LeaderboardListProps {
+// ============================================
+// Agent Grid
+// ============================================
+interface AgentGridProps {
   leaderboard: LeaderboardEntry[];
   selectedAgent: string | null;
   metric: MetricType;
   onSelectAgent: (agentId: string) => void;
 }
 
-export const LeaderboardList: React.FC<LeaderboardListProps> = ({
+export const AgentGrid: React.FC<AgentGridProps> = ({
   leaderboard,
   selectedAgent,
   metric,
   onSelectAgent,
-}) => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-    <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-amber-50 to-orange-50">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-md">
-          <StarIcon className="h-5 w-5 text-white" />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Leaderboard</h2>
-          <p className="text-xs text-gray-500">Ranked by {getMetricLabel(metric).toLowerCase()}</p>
-        </div>
-      </div>
-    </div>
-
-    <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
-      {leaderboard.length === 0 ? (
-        <div className="p-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
-            <UserCircleIcon className="w-8 h-8 text-gray-400" />
-          </div>
-          <p className="text-gray-500">No agent data available</p>
-        </div>
-      ) : (
-        leaderboard.slice(3).map((entry) => (
-          <button
-            key={entry.agentId}
-            onClick={() => onSelectAgent(entry.agentId)}
-            className={`w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition-all ${
-              selectedAgent === entry.agentId ? 'bg-amber-50 border-l-4 border-l-amber-500' : ''
-            }`}
-          >
-            <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-600">
-              {entry.rank}
-            </div>
-            <div className="flex-1 text-left min-w-0">
-              <span className="text-sm font-semibold text-gray-900 truncate block">
-                {entry.agentName || `Agent ${entry.agentId.slice(0, 8)}`}
-              </span>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-gray-500">{entry.metrics.totalCalls} calls</span>
-                <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                <span className="text-xs text-emerald-600 font-medium">{entry.metrics.avgConversionRate.toFixed(1)}%</span>
-              </div>
-            </div>
-            <div className="text-right">
-              <span className="text-lg font-bold text-gray-700">{getMetricValue(entry, metric)}</span>
-            </div>
-          </button>
-        ))
-      )}
-    </div>
-  </div>
-);
-
-// Agent Details Panel
-interface AgentDetailsPanelProps {
-  agentPerformance: AgentPerformance | null;
-  selectedEntry: LeaderboardEntry | undefined;
-  radarData: { subject: string; value: number; fullMark: number }[];
-}
-
-export const AgentDetailsPanel: React.FC<AgentDetailsPanelProps> = ({
-  agentPerformance,
-  selectedEntry,
-  radarData,
 }) => {
-  if (!agentPerformance || !selectedEntry) {
-    return <EmptyAgentState />;
+  if (leaderboard.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+          <UsersIcon className="w-8 h-8 text-gray-400" />
+        </div>
+        <h3 className="text-lg font-medium text-gray-900">No agents found</h3>
+        <p className="text-sm text-gray-500 mt-1">Voice agents will appear here once they make calls</p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Agent Header Card */}
-      <AgentHeaderCard agentPerformance={agentPerformance} selectedEntry={selectedEntry} />
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <DailyTrendChart dailyTrend={agentPerformance.dailyTrend} />
-        <RadarChartCard radarData={radarData} />
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-medium text-gray-900">
+          Leaderboard <span className="text-gray-400 font-normal">by {getMetricLabel(metric).toLowerCase()}</span>
+        </h2>
       </div>
 
-      {/* Performance Breakdown */}
-      <PerformanceBreakdown agentPerformance={agentPerformance} />
-
-      {/* Daily Activity Table */}
-      <DailyActivityTable dailyTrend={agentPerformance.dailyTrend} />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {leaderboard.map((entry, index) => (
+          <AgentCard
+            key={entry.agentId}
+            entry={entry}
+            rank={index + 1}
+            metric={metric}
+            isSelected={selectedAgent === entry.agentId}
+            onClick={() => onSelectAgent(entry.agentId)}
+          />
+        ))}
+      </div>
     </div>
   );
 };
 
-const EmptyAgentState: React.FC = () => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-20 text-center">
-    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center mx-auto mb-6">
-      <SparklesIcon className="h-12 w-12 text-gray-400" />
-    </div>
-    <h3 className="text-xl font-semibold text-gray-900">Select an Agent</h3>
-    <p className="text-gray-500 mt-2 max-w-sm mx-auto">
-      Click on an agent from the podium or leaderboard to view their detailed performance metrics
-    </p>
-  </div>
-);
-
-interface AgentHeaderCardProps {
-  agentPerformance: AgentPerformance;
-  selectedEntry: LeaderboardEntry;
+interface AgentCardProps {
+  entry: LeaderboardEntry;
+  rank: number;
+  metric: MetricType;
+  isSelected: boolean;
+  onClick: () => void;
 }
 
-const AgentHeaderCard: React.FC<AgentHeaderCardProps> = ({ agentPerformance, selectedEntry }) => (
-  <div className="bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-600 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden">
-    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+const AgentCard: React.FC<AgentCardProps> = ({ entry, rank, metric, isSelected, onClick }) => {
+  const getRankBadge = () => {
+    if (rank === 1) return { bg: 'bg-yellow-400', text: 'text-yellow-900', icon: true };
+    if (rank === 2) return { bg: 'bg-gray-300', text: 'text-gray-700', icon: false };
+    if (rank === 3) return { bg: 'bg-amber-600', text: 'text-white', icon: false };
+    return { bg: 'bg-gray-100', text: 'text-gray-600', icon: false };
+  };
 
-    <div className="relative z-10">
-      <div className="flex items-start justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30">
-            <SparklesIcon className="w-8 h-8 text-white" />
+  const badge = getRankBadge();
+
+  return (
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-xl border p-5 cursor-pointer transition-all hover:shadow-md ${
+        isSelected ? 'border-gray-900 ring-1 ring-gray-900' : 'border-gray-200 hover:border-gray-300'
+      }`}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-8 h-8 rounded-full ${badge.bg} flex items-center justify-center`}>
+            {badge.icon ? (
+              <TrophyIcon className="w-4 h-4 text-yellow-900" />
+            ) : (
+              <span className={`text-sm font-bold ${badge.text}`}>{rank}</span>
+            )}
           </div>
           <div>
-            <h3 className="text-2xl font-bold">
-              {selectedEntry.agentName || `Agent ${selectedEntry.agentId.slice(0, 8)}`}
+            <h3 className="font-medium text-gray-900 truncate max-w-[150px]">
+              {entry.agentName || `Agent ${entry.agentId.slice(0, 6)}`}
             </h3>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs font-medium">
-                Rank #{selectedEntry.rank}
-              </span>
-              <span className="text-white/70 text-sm">Performance Overview</span>
+            <p className="text-xs text-gray-500">{entry.metrics.totalCalls} calls</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-xl font-semibold text-gray-900">{getMetricValue(entry, metric)}</p>
+          <p className="text-xs text-gray-500">{getMetricLabel(metric)}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 pt-4 border-t border-gray-100">
+        <div className="text-center">
+          <p className="text-sm font-medium text-gray-900">{entry.metrics.avgAnswerRate.toFixed(0)}%</p>
+          <p className="text-xs text-gray-500">Answer</p>
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-gray-900">{entry.metrics.avgConversionRate.toFixed(1)}%</p>
+          <p className="text-xs text-gray-500">Convert</p>
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-gray-900">{formatDuration(entry.metrics.totalTalkTime)}</p>
+          <p className="text-xs text-gray-500">Talk Time</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// Agent Detail Modal
+// ============================================
+interface AgentDetailModalProps {
+  agentPerformance: AgentPerformance | null;
+  selectedEntry: LeaderboardEntry | undefined;
+  radarData: { subject: string; value: number; fullMark: number }[];
+  onClose: () => void;
+}
+
+export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
+  agentPerformance,
+  selectedEntry,
+  onClose,
+}) => {
+  if (!agentPerformance || !selectedEntry) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex items-start justify-center min-h-screen pt-4 px-4 pb-20">
+        {/* Backdrop */}
+        <div className="fixed inset-0 bg-gray-900/50 transition-opacity" onClick={onClose} />
+
+        {/* Modal */}
+        <div className="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full mt-8 mb-8">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-gray-900 flex items-center justify-center">
+                <span className="text-lg font-bold text-white">#{selectedEntry.rank}</span>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {selectedEntry.agentName || `Agent ${selectedEntry.agentId.slice(0, 8)}`}
+                </h2>
+                <p className="text-sm text-gray-500">Detailed performance metrics</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <XMarkIcon className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="p-6">
+            {/* Key Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <MetricBox
+                label="Total Calls"
+                value={agentPerformance.totals.totalCalls.toString()}
+                icon={<PhoneIcon className="w-4 h-4" />}
+              />
+              <MetricBox
+                label="Answer Rate"
+                value={`${agentPerformance.averages.answerRate}%`}
+                icon={<CheckCircleIcon className="w-4 h-4" />}
+                trend={agentPerformance.averages.answerRate >= 50 ? 'up' : 'down'}
+              />
+              <MetricBox
+                label="Conversion Rate"
+                value={`${agentPerformance.averages.conversionRate}%`}
+                icon={<ChartBarIcon className="w-4 h-4" />}
+                trend={agentPerformance.averages.conversionRate >= 15 ? 'up' : 'down'}
+              />
+              <MetricBox
+                label="Total Talk Time"
+                value={formatDuration(agentPerformance.totals.totalTalkTime)}
+                icon={<ClockIcon className="w-4 h-4" />}
+              />
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* Daily Trend */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="text-sm font-medium text-gray-900 mb-4">Daily Performance</h3>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={agentPerformance.dailyTrend} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                      <defs>
+                        <linearGradient id="callsGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="#3B82F6" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                        tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { day: 'numeric' })}
+                      />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 11 }} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Area
+                        type="monotone"
+                        dataKey="calls"
+                        stroke="#3B82F6"
+                        strokeWidth={2}
+                        fill="url(#callsGradient)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Conversion Breakdown */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="text-sm font-medium text-gray-900 mb-4">Conversion Funnel</h3>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={[
+                        { name: 'Calls', value: agentPerformance.totals.totalCalls, fill: '#E5E7EB' },
+                        { name: 'Answered', value: agentPerformance.totals.answeredCalls, fill: '#93C5FD' },
+                        { name: 'Interested', value: agentPerformance.totals.interestedCount, fill: '#60A5FA' },
+                        { name: 'Appointments', value: agentPerformance.totals.appointmentsBooked, fill: '#3B82F6' },
+                      ]}
+                      layout="vertical"
+                      margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
+                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 11 }} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#6B7280', fontSize: 12 }}
+                        width={80}
+                      />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Activity Table */}
+            <div className="bg-gray-50 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-200">
+                <h3 className="text-sm font-medium text-gray-900">Recent Activity</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Calls</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Answered</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Interested</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Conv %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {agentPerformance.dailyTrend.slice(-5).reverse().map((day) => (
+                      <tr key={day.date} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">{day.calls}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-600">{day.answered}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-600">{day.interested}</td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
+                            day.conversionRate >= 20
+                              ? 'bg-green-100 text-green-700'
+                              : day.conversionRate >= 10
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {day.conversionRate}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <StarSolid key={star} className={`w-5 h-5 ${star <= 4 ? 'text-yellow-400' : 'text-white/30'}`} />
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-4 gap-4">
-        <MetricCard icon={<PhoneIcon className="w-5 h-5" />} value={agentPerformance.totals.totalCalls} label="Total Calls" />
-        <MetricCard icon={<ArrowTrendingUpIcon className="w-5 h-5" />} value={`${agentPerformance.averages.answerRate}%`} label="Answer Rate" />
-        <MetricCard icon={<BoltIcon className="w-5 h-5" />} value={`${agentPerformance.averages.conversionRate}%`} label="Conversion" />
-        <MetricCard icon={<ClockIcon className="w-5 h-5" />} value={formatDuration(agentPerformance.totals.totalTalkTime)} label="Talk Time" />
       </div>
     </div>
-  </div>
-);
+  );
+};
 
-const MetricCard: React.FC<{ icon: React.ReactNode; value: string | number; label: string }> = ({
-  icon,
-  value,
-  label,
-}) => (
-  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-    <div className="text-white/70 mb-2">{icon}</div>
-    <div className="text-2xl font-bold text-white">{value}</div>
-    <div className="text-xs text-white/70 mt-1">{label}</div>
-  </div>
-);
-
-interface DailyTrendChartProps {
-  dailyTrend: AgentPerformance['dailyTrend'];
-}
-
-const DailyTrendChart: React.FC<DailyTrendChartProps> = ({ dailyTrend }) => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-    <div className="mb-6">
-      <h3 className="text-lg font-semibold text-gray-900">Daily Performance</h3>
-      <p className="text-sm text-gray-500 mt-0.5">Calls and conversions over time</p>
-    </div>
-    <div className="h-64">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={dailyTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id="colorAgentCalls" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#6366F1" stopOpacity={0.4} />
-              <stop offset="100%" stopColor="#6366F1" stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id="colorAgentInterested" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10B981" stopOpacity={0.4} />
-              <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
-          <XAxis
-            dataKey="date"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: '#6B7280', fontSize: 10 }}
-            tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-          />
-          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 10 }} />
-          <Tooltip content={<CustomTooltip />} />
-          <Area type="monotone" dataKey="calls" stroke="#6366F1" strokeWidth={2.5} fillOpacity={1} fill="url(#colorAgentCalls)" name="Calls" />
-          <Area type="monotone" dataKey="interested" stroke="#10B981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorAgentInterested)" name="Interested" />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  </div>
-);
-
-interface RadarChartCardProps {
-  radarData: { subject: string; value: number; fullMark: number }[];
-}
-
-const RadarChartCard: React.FC<RadarChartCardProps> = ({ radarData }) => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-    <div className="mb-6">
-      <h3 className="text-lg font-semibold text-gray-900">Performance Profile</h3>
-      <p className="text-sm text-gray-500 mt-0.5">Multi-dimensional agent analysis</p>
-    </div>
-    <div className="h-64">
-      <ResponsiveContainer width="100%" height="100%">
-        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-          <PolarGrid stroke="#E5E7EB" />
-          <PolarAngleAxis dataKey="subject" tick={{ fill: '#6B7280', fontSize: 11 }} />
-          <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-          <Radar name="Performance" dataKey="value" stroke="#6366F1" fill="#6366F1" fillOpacity={0.3} strokeWidth={2} />
-        </RadarChart>
-      </ResponsiveContainer>
-    </div>
-  </div>
-);
-
-interface PerformanceBreakdownProps {
-  agentPerformance: AgentPerformance;
-}
-
-const PerformanceBreakdown: React.FC<PerformanceBreakdownProps> = ({ agentPerformance }) => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-    <h3 className="text-lg font-semibold text-gray-900 mb-6">Performance Breakdown</h3>
-    <div className="grid grid-cols-3 gap-6">
-      <BreakdownCard
-        icon={<UserCircleIcon className="w-6 h-6" />}
-        value={agentPerformance.totals.interestedCount}
-        label="Interested Leads"
-        gradient="from-blue-500 to-indigo-600"
-        shadow="shadow-blue-500/25"
-      />
-      <BreakdownCard
-        icon={<CalendarIcon className="w-6 h-6" />}
-        value={agentPerformance.totals.appointmentsBooked}
-        label="Appointments"
-        gradient="from-violet-500 to-purple-600"
-        shadow="shadow-violet-500/25"
-      />
-      <BreakdownCard
-        icon={<CurrencyDollarIcon className="w-6 h-6" />}
-        value={agentPerformance.totals.paymentsCollected}
-        label="Payments"
-        gradient="from-emerald-500 to-teal-600"
-        shadow="shadow-emerald-500/25"
-      />
-    </div>
-  </div>
-);
-
-const BreakdownCard: React.FC<{
-  icon: React.ReactNode;
-  value: number;
+const MetricBox: React.FC<{
   label: string;
-  gradient: string;
-  shadow: string;
-}> = ({ icon, value, label, gradient, shadow }) => (
-  <div className="text-center p-6 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 hover:shadow-lg transition-all">
-    <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center mx-auto mb-4 shadow-lg ${shadow}`}>
-      <div className="text-white">{icon}</div>
+  value: string;
+  icon: React.ReactNode;
+  trend?: 'up' | 'down';
+}> = ({ label, value, icon, trend }) => (
+  <div className="bg-gray-50 rounded-xl p-4">
+    <div className="flex items-center justify-between mb-2">
+      <span className="text-gray-400">{icon}</span>
+      {trend && (
+        <span className={trend === 'up' ? 'text-green-500' : 'text-red-500'}>
+          {trend === 'up' ? (
+            <ArrowTrendingUpIcon className="w-4 h-4" />
+          ) : (
+            <ArrowTrendingDownIcon className="w-4 h-4" />
+          )}
+        </span>
+      )}
     </div>
-    <div className="text-3xl font-bold text-gray-900">{value}</div>
-    <div className="text-sm text-gray-500 mt-1">{label}</div>
+    <p className="text-2xl font-semibold text-gray-900">{value}</p>
+    <p className="text-xs text-gray-500 mt-1">{label}</p>
   </div>
 );
 
-interface DailyActivityTableProps {
-  dailyTrend: AgentPerformance['dailyTrend'];
-}
-
-const DailyActivityTable: React.FC<DailyActivityTableProps> = ({ dailyTrend }) => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-    <div className="px-6 py-5 border-b border-gray-100">
-      <h3 className="text-lg font-semibold text-gray-900">Daily Activity</h3>
-      <p className="text-sm text-gray-500 mt-1">Detailed breakdown by day</p>
-    </div>
-    <div className="overflow-x-auto">
-      <table className="min-w-full">
-        <thead>
-          <tr className="bg-gray-50/80">
-            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
-            <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase">Calls</th>
-            <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase">Answered</th>
-            <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase">Interested</th>
-            <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase">Appts</th>
-            <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase">Conv. Rate</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {dailyTrend.slice(-7).reverse().map((day) => (
-            <tr key={day.date} className="hover:bg-gray-50/50 transition-colors">
-              <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })}
-              </td>
-              <td className="px-6 py-4 text-right text-sm font-semibold text-gray-900">{day.calls}</td>
-              <td className="px-6 py-4 text-right text-sm text-gray-600">{day.answered}</td>
-              <td className="px-6 py-4 text-right">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
-                  {day.interested}
-                </span>
-              </td>
-              <td className="px-6 py-4 text-right">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700">
-                  {day.appointments}
-                </span>
-              </td>
-              <td className="px-6 py-4 text-right">
-                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                  day.conversionRate >= 20 ? 'bg-emerald-100 text-emerald-700' :
-                  day.conversionRate >= 10 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
-                }`}>
-                  {day.conversionRate}%
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  </div>
-);
-
-// Custom Tooltip for Charts
-interface TooltipProps {
+const ChartTooltip: React.FC<{
   active?: boolean;
-  payload?: Array<{ color: string; name: string; value: number }>;
+  payload?: Array<{ name: string; value: number; fill?: string }>;
   label?: string;
-}
-
-const CustomTooltip: React.FC<TooltipProps> = ({ active, payload, label }) => {
+}> = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white border border-gray-200 rounded-xl shadow-xl p-4 min-w-[150px]">
-        <p className="text-sm font-medium text-gray-900 mb-2">
-          {new Date(label || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-        </p>
-        {payload.map((entry, index: number) => (
-          <div key={index} className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }}></div>
-              <span className="text-sm text-gray-600">{entry.name}</span>
-            </div>
-            <span className="text-sm font-semibold text-gray-900">{entry.value}</span>
-          </div>
+      <div className="bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm">
+        <p className="font-medium mb-1">{label}</p>
+        {payload.map((item, i) => (
+          <p key={i} className="text-gray-300">
+            {item.name}: <span className="text-white font-medium">{item.value}</span>
+          </p>
         ))}
       </div>
     );

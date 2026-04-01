@@ -8,7 +8,7 @@ async function resetPassword() {
 
   // Find and update users by email
   const result = await prisma.user.updateMany({
-    where: { email: { in: ['telecaller@demo.com', 'admin@demo.com', 'manager@demo.com', 'counselor@demo.com'] } },
+    where: { email: { in: ['telecaller@demo.com', 'admin@demo.com', 'manager@demo.com', 'counselor@demo.com', 'fieldsales@demo.com', 'fieldsales2@demo.com', 'fieldsales3@demo.com'] } },
     data: { password: hashedPassword }
   });
   console.log('Passwords reset for', result.count, 'users');

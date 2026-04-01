@@ -44,6 +44,7 @@ import adInsightsRoutes from './ad-insights.routes';
 import organizationRoutes from './organization.routes';
 import organizationIntegrationsRoutes from './organization-integrations.routes';
 import rawImportRoutes from './rawImport.routes';
+import assignmentScheduleRoutes from './assignmentSchedule.routes';
 import telecallerRoutes from './telecaller.routes';
 import phoneNumberRoutes from './phone-number.routes';
 import ivrRoutes from './ivr.routes';
@@ -77,6 +78,7 @@ import ragRoutes from './rag.routes';
 import agentAnalyticsRoutes from './agent-analytics.routes';
 import messagingRoutes from './messaging.routes';
 import notificationDeviceRoutes from './notification-device.routes';
+import fieldSalesRoutes from './fieldSales';
 
 const router = Router();
 
@@ -130,6 +132,7 @@ router.use('/ad-insights', adInsightsRoutes);
 router.use('/organization', organizationRoutes);
 router.use('/organization/integrations', organizationIntegrationsRoutes);
 router.use('/raw-imports', rawImportRoutes);
+router.use('/assignment-schedules', assignmentScheduleRoutes);
 router.use('/telecaller', telecallerRoutes);
 router.use('/messaging', messagingRoutes);
 router.use('/phone-numbers', phoneNumberRoutes);
@@ -176,6 +179,9 @@ router.use('/conversational-ai', conversationalAIAgentRoutes);
 
 // OTP Verification
 router.use('/otp', otpRoutes);
+
+// Field Sales Management
+router.use('/field-sales', fieldSalesRoutes);
 
 // Public API (versioned) - for external integrations
 router.use('/v1', publicApiRoutes);

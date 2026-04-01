@@ -1,6 +1,6 @@
 /**
- * Agent Performance Page
- * Leaderboard and detailed analytics for voice agents
+ * Agent Performance Page - Redesigned
+ * Clean, modern analytics dashboard for voice agents
  */
 
 import React from 'react';
@@ -8,9 +8,9 @@ import { useAgentPerformance } from './hooks';
 import {
   AgentPerformanceLoadingSkeleton,
   AgentPerformanceHeader,
-  Podium,
-  LeaderboardList,
-  AgentDetailsPanel,
+  StatsOverview,
+  AgentGrid,
+  AgentDetailModal,
 } from './components';
 
 const AgentPerformancePage: React.FC = () => {
@@ -29,14 +29,23 @@ const AgentPerformancePage: React.FC = () => {
     getSelectedAgentEntry,
   } = useAgentPerformance();
 
-  // Skeleton loader
   if (loading && leaderboard.length === 0) {
     return <AgentPerformanceLoadingSkeleton />;
   }
 
+  // Calculate overview stats
+  const totalCalls = leaderboard.reduce((sum, a) => sum + a.metrics.totalCalls, 0);
+  const avgConversion = leaderboard.length > 0
+    ? leaderboard.reduce((sum, a) => sum + a.metrics.avgConversionRate, 0) / leaderboard.length
+    : 0;
+  const avgAnswerRate = leaderboard.length > 0
+    ? leaderboard.reduce((sum, a) => sum + a.metrics.avgAnswerRate, 0) / leaderboard.length
+    : 0;
+  const totalAgents = leaderboard.length;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-slate-100">
-      <div className="max-w-[1600px] mx-auto px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <AgentPerformanceHeader
           metric={metric}
@@ -47,34 +56,31 @@ const AgentPerformancePage: React.FC = () => {
           onRefresh={fetchLeaderboard}
         />
 
-        {/* Top 3 Podium */}
-        <Podium
+        {/* Stats Overview */}
+        <StatsOverview
+          totalAgents={totalAgents}
+          totalCalls={totalCalls}
+          avgConversion={avgConversion}
+          avgAnswerRate={avgAnswerRate}
+        />
+
+        {/* Agent Grid */}
+        <AgentGrid
           leaderboard={leaderboard}
           selectedAgent={selectedAgent}
           metric={metric}
           onSelectAgent={setSelectedAgent}
         />
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          {/* Leaderboard */}
-          <div className="xl:col-span-1">
-            <LeaderboardList
-              leaderboard={leaderboard}
-              selectedAgent={selectedAgent}
-              metric={metric}
-              onSelectAgent={setSelectedAgent}
-            />
-          </div>
-
-          {/* Agent Details */}
-          <div className="xl:col-span-2">
-            <AgentDetailsPanel
-              agentPerformance={agentPerformance}
-              selectedEntry={getSelectedAgentEntry()}
-              radarData={radarData}
-            />
-          </div>
-        </div>
+        {/* Agent Detail Modal */}
+        {selectedAgent && (
+          <AgentDetailModal
+            agentPerformance={agentPerformance}
+            selectedEntry={getSelectedAgentEntry()}
+            radarData={radarData}
+            onClose={() => setSelectedAgent(null)}
+          />
+        )}
       </div>
     </div>
   );

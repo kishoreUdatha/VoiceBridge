@@ -1,7 +1,8 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-const API_BASE_URL = 'http://localhost:3000/api';
+// Use your PC IP for testing on physical device
+const API_BASE_URL = 'http://192.168.1.3:3001/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

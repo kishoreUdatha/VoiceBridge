@@ -60,7 +60,7 @@ import {
   HybridInboxPage,
   InboundCallsPage,
 } from './pages/hybrid-agent';
-import { AutoAssignSettingsPage, SmsSettingsPage, InstitutionSettingsPage, WhatsAppSettingsPage, VoiceMinutesPage, NotificationChannelsPage, CalendarSettingsPage, EmailSequencesPage, CRMIntegrationPage, PostCallMessagingPage, IntegrationCredentialsPage } from './pages/settings';
+import { AutoAssignSettingsPage, AssignmentSchedulePage, SmsSettingsPage, InstitutionSettingsPage, WhatsAppSettingsPage, VoiceMinutesPage, NotificationChannelsPage, CalendarSettingsPage, EmailSequencesPage, CRMIntegrationPage, PostCallMessagingPage, IntegrationCredentialsPage } from './pages/settings';
 import IntegrationSettingsPage from './pages/settings/IntegrationSettingsPage';
 import { ReportsPage } from './pages/reports';
 import { SocialMediaAdsPage, InstagramLeadSetupPage, AdIntegrationsPage, FacebookSetupPage, LinkedInSetupPage, GoogleAdsSetupPage, YouTubeSetupPage, TwitterSetupPage, TikTokSetupPage, WebhookUrlsPage } from './pages/ads';
@@ -110,6 +110,17 @@ import { CallbacksPage } from './pages/callbacks';
 import { InboundAnalyticsDashboard } from './pages/inbound-analytics';
 import { CallMonitoringPage } from './pages/call-monitoring';
 import { CallFlowsPage, CallFlowBuilderPage } from './pages/call-flows';
+
+// Field Sales Pages
+import {
+  FieldSalesDashboard,
+  CollegeListPage,
+  CollegeDetailPage,
+  VisitListPage,
+  VisitCheckInPage,
+  DealPipelinePage,
+  ExpenseListPage,
+} from './pages/field-sales';
 
 // Super Admin Pages
 import SuperAdminLayout from './layouts/SuperAdminLayout';
@@ -320,6 +331,7 @@ function App() {
         <Route path="call-history" element={<InboundCallsPage />} />
         <Route path="transfer-config" element={<TransferConfigPage />} />
         <Route path="settings/auto-assign" element={<AutoAssignSettingsPage />} />
+        <Route path="settings/assignment-schedules" element={<AssignmentSchedulePage />} />
         <Route path="settings/sms" element={<SmsSettingsPage />} />
         <Route path="settings/institution" element={<InstitutionSettingsPage />} />
         <Route path="settings/whatsapp" element={<WhatsAppSettingsPage />} />
@@ -429,6 +441,15 @@ function App() {
 
         {/* Call Monitoring */}
         <Route path="call-monitoring" element={<CallMonitoringPage />} />
+
+        {/* Field Sales */}
+        <Route path="field-sales" element={<FieldSalesDashboard />} />
+        <Route path="field-sales/colleges" element={<CollegeListPage />} />
+        <Route path="field-sales/colleges/:id" element={<CollegeDetailPage />} />
+        <Route path="field-sales/visits" element={<VisitListPage />} />
+        <Route path="field-sales/visits/check-in" element={<VisitCheckInPage />} />
+        <Route path="field-sales/deals" element={<DealPipelinePage />} />
+        <Route path="field-sales/expenses" element={<ExpenseListPage />} />
       </Route>
 
       {/* Super Admin Routes */}

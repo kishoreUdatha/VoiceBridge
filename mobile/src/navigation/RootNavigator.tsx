@@ -6,10 +6,15 @@ import { RootState, AppDispatch } from '../store';
 import { checkAuth } from '../store/slices/authSlice';
 import { View, ActivityIndicator, Text } from 'react-native';
 
-// Screens
+// Auth Screens
 import LoginScreen from '../screens/LoginScreen';
-import LeadsListScreen from '../screens/LeadsListScreen';
-import LeadDetailScreen from '../screens/LeadDetailScreen';
+
+// Field Sales Screens
+import FieldSalesDashboard from '../screens/FieldSalesDashboard';
+import CollegesScreen from '../screens/CollegesScreen';
+import VisitsScreen from '../screens/VisitsScreen';
+import ExpensesScreen from '../screens/ExpensesScreen';
+import VisitCheckInScreen from '../screens/VisitCheckInScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
@@ -19,19 +24,55 @@ function TabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#3b82f6',
+        tabBarActiveTintColor: '#10b981',
         tabBarInactiveTintColor: '#9ca3af',
-        headerStyle: { backgroundColor: '#3b82f6' },
+        tabBarStyle: {
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        headerStyle: { backgroundColor: '#10b981' },
         headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: '600' },
       }}
     >
       <Tab.Screen
-        name="Leads"
-        component={LeadsListScreen}
+        name="Dashboard"
+        component={FieldSalesDashboard}
         options={{
-          title: 'My Leads',
+          title: 'Home',
           tabBarIcon: ({ color }) => (
-            <Text style={{ color, fontSize: 20 }}>👥</Text>
+            <Text style={{ color, fontSize: 22 }}>🏠</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Colleges"
+        component={CollegesScreen}
+        options={{
+          title: 'Colleges',
+          tabBarIcon: ({ color }) => (
+            <Text style={{ color, fontSize: 22 }}>🏫</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Visits"
+        component={VisitsScreen}
+        options={{
+          title: 'Visits',
+          tabBarIcon: ({ color }) => (
+            <Text style={{ color, fontSize: 22 }}>📋</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Expenses"
+        component={ExpensesScreen}
+        options={{
+          title: 'Expenses',
+          tabBarIcon: ({ color }) => (
+            <Text style={{ color, fontSize: 22 }}>💰</Text>
           ),
         }}
       />
@@ -41,7 +82,7 @@ function TabNavigator() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color }) => (
-            <Text style={{ color, fontSize: 20 }}>👤</Text>
+            <Text style={{ color, fontSize: 22 }}>👤</Text>
           ),
         }}
       />
@@ -59,8 +100,9 @@ export default function RootNavigator() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#3b82f6" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#10b981' }}>
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={{ color: '#fff', marginTop: 16, fontSize: 16 }}>VoiceBridge CRM</Text>
       </View>
     );
   }
@@ -71,12 +113,12 @@ export default function RootNavigator() {
         <>
           <Stack.Screen name="Main" component={TabNavigator} />
           <Stack.Screen
-            name="LeadDetail"
-            component={LeadDetailScreen}
+            name="VisitCheckIn"
+            component={VisitCheckInScreen}
             options={{
               headerShown: true,
-              title: 'Lead Details',
-              headerStyle: { backgroundColor: '#3b82f6' },
+              title: 'Check In',
+              headerStyle: { backgroundColor: '#10b981' },
               headerTintColor: '#fff',
             }}
           />

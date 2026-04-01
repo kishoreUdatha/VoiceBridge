@@ -132,6 +132,15 @@ model Organization {
   // Push Notifications
   deviceTokens DeviceToken[]
 
+  // Assignment Schedules
+  assignmentSchedules AssignmentSchedule[]
+
+  // Field Sales Management
+  colleges        College[]
+  collegeVisits   CollegeVisit[]
+  collegeDeals    CollegeDeal[]
+  collegeExpenses CollegeExpense[]
+
   @@map("organizations")
 }
 
@@ -145,6 +154,7 @@ model User {
   phone                String?
   avatar               String?
   roleId               String
+  managerId            String?   // Manager assigned to this user (for telecallers/counselors)
   isActive             Boolean   @default(true)
   lastLoginAt          DateTime?
   refreshToken         String?
@@ -160,6 +170,8 @@ model User {
 
   organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   role             Role              @relation(fields: [roleId], references: [id])
+  manager          User?             @relation("ManagerTeam", fields: [managerId], references: [id])
+  teamMembers      User[]            @relation("ManagerTeam")
   leadAssignments  LeadAssignment[]  @relation("AssignedTo")
   assignedBy       LeadAssignment[]  @relation("AssignedBy")
   studentProfile   StudentProfile?
@@ -183,6 +195,15 @@ model User {
   rawImportsAssignedTo  RawImportRecord[] @relation("RawImportAssignedTo")
   rawImportsAssignedBy  RawImportRecord[] @relation("RawImportAssignedBy")
   rawImportsConvertedBy RawImportRecord[] @relation("RawImportConvertedBy")
+
+  // Field Sales Management
+  collegesAssigned          College[]        @relation("CollegeAssignedTo")
+  collegesSecondary         College[]        @relation("CollegeSecondaryAssignee")
+  collegeVisits             CollegeVisit[]   @relation("CollegeVisitUser")
+  collegeDealsOwned         CollegeDeal[]    @relation("CollegeDealOwner")
+  collegeExpensesSubmitted  CollegeExpense[] @relation("CollegeExpenseUser")
+  collegeExpensesApproved   CollegeExpense[] @relation("CollegeExpenseApprover")
+  expenseLogs               ExpenseLog[]     @relation("ExpenseLogUser")
 
   // Voice Agents
   voiceAgentsCreated   VoiceAgent[] @relation("VoiceAgentCreator")
@@ -1813,9 +1834,10 @@ model VoiceAgent {
   outboundCampaigns OutboundCallCampaign[]
   outboundCalls     OutboundCall[]
   scheduledCalls    ScheduledCall[]
-  rawImportRecords  RawImportRecord[]      @relation("RawImportAIAgent")
-  phoneNumbers      PhoneNumber[] // Phone numbers assigned to this agent
-  followUps         FollowUp[] // Follow-ups assigned to this AI agent
+  rawImportRecords    RawImportRecord[]    @relation("RawImportAIAgent")
+  phoneNumbers        PhoneNumber[] // Phone numbers assigned to this agent
+  followUps           FollowUp[] // Follow-ups assigned to this AI agent
+  assignmentSchedules AssignmentSchedule[] @relation("AssignmentScheduleAgent")
 
   // Integration Relations
   agentIntegrations  AgentIntegration[]
@@ -4362,6 +4384,483 @@ model RawImportRecord {
   @@index([phone])
   @@index([email])
   @@map("raw_import_records")
+}
+
+// ==================== ASSIGNMENT SCHEDULE (Automated Raw Import Assignment) ====================
+
+enum ScheduleType {
+  DAILY
+  HOURLY
+  CUSTOM_CRON
+}
+
+enum DistributionStrategy {
+  ROUND_ROBIN // Equal split
+  CAPACITY_BASED // Based on pending count (recommended)
+  PRIORITY_BASED // Senior telecallers first
+}
+
+model AssignmentSchedule {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String // "Morning Assignment", "Afternoon Top-up"
+  isActive       Boolean  @default(true)
+
+  // Schedule timing
+  scheduleType  ScheduleType @default(DAILY)
+  scheduleTimes String[]     @default(["09:00", "13:00", "17:00"]) // Times to run
+  timezone      String       @default("Asia/Kolkata")
+  cronExpression String?     // For CUSTOM_CRON type
+
+  // Assignment targets
+  assignToTelecallers Boolean @default(true)
+  assignToVoiceAgents Boolean @default(false)
+  voiceAgentId        String? // Specific agent, or null for round-robin
+
+  // Limits
+  telecallerDailyLimit Int @default(200)
+  voiceAgentDailyLimit Int @default(500)
+
+  // Distribution strategy
+  distributionStrategy DistributionStrategy @default(CAPACITY_BASED)
+
+  // Filter settings - which records to assign
+  bulkImportIds Json? @default("[]") // Specific bulk imports, or empty for all
+
+  // Tracking
+  lastRunAt DateTime?
+  nextRunAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  voiceAgent   VoiceAgent?        @relation("AssignmentScheduleAgent", fields: [voiceAgentId], references: [id], onDelete: SetNull)
+  runLogs      AssignmentRunLog[]
+
+  @@index([organizationId])
+  @@index([nextRunAt])
+  @@index([isActive, nextRunAt])
+  @@map("assignment_schedules")
+}
+
+model AssignmentRunLog {
+  id             String   @id @default(uuid())
+  scheduleId     String
+  organizationId String
+  runAt          DateTime @default(now())
+
+  // Results
+  totalRecordsAssigned  Int  @default(0)
+  telecallerAssignments Json @default("[]") // [{userId, userName, count}]
+  voiceAgentAssignments Json @default("[]") // [{agentId, agentName, count}]
+  recordsSkipped        Int  @default(0) // Already at limit
+  pendingBefore         Int  @default(0) // Records pending before run
+  pendingAfter          Int  @default(0) // Records pending after run
+  errors                String?
+
+  // Run metadata
+  runDurationMs Int? // How long the run took
+  triggeredBy   String? // "scheduler" or userId for manual runs
+
+  schedule AssignmentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@index([scheduleId])
+  @@index([organizationId, runAt])
+  @@map("assignment_run_logs")
+}
+
+// ==================== FIELD SALES MANAGEMENT (B2B College Sales) ====================
+
+enum CollegeType {
+  ENGINEERING
+  MEDICAL
+  ARTS
+  COMMERCE
+  SCIENCE
+  POLYTECHNIC
+  ITI
+  OTHER
+}
+
+enum InstitutionStatus {
+  UNIVERSITY
+  AUTONOMOUS
+  AFFILIATED
+  DEEMED
+  STANDALONE
+}
+
+enum CollegeCategory {
+  HOT
+  WARM
+  COLD
+}
+
+enum CollegeStatus {
+  ACTIVE
+  INACTIVE
+  BLACKLISTED
+}
+
+enum VisitPurpose {
+  FIRST_INTRODUCTION
+  PRODUCT_DEMO
+  PROPOSAL_PRESENTATION
+  NEGOTIATION
+  DOCUMENT_COLLECTION
+  AGREEMENT_SIGNING
+  RELATIONSHIP_BUILDING
+  ISSUE_RESOLUTION
+  PAYMENT_FOLLOWUP
+  OTHER
+}
+
+enum VisitOutcome {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  DECISION_PENDING
+  REFERRED
+  RESCHEDULED
+  DEAL_WON
+  DEAL_LOST
+}
+
+enum DealStage {
+  PROSPECTING
+  FIRST_MEETING
+  NEEDS_ANALYSIS
+  PROPOSAL_SENT
+  NEGOTIATION
+  DECISION_PENDING
+  WON
+  LOST
+  ON_HOLD
+}
+
+enum ExpenseCategory {
+  TRAVEL_FUEL
+  TRAVEL_TAXI
+  TRAVEL_AUTO
+  TRAVEL_BUS
+  TRAVEL_TRAIN
+  TRAVEL_FLIGHT
+  TRAVEL_PARKING
+  FOOD_MEALS
+  FOOD_SNACKS
+  FOOD_ENTERTAINMENT
+  ACCOMMODATION
+  MARKETING_MATERIALS
+  COMMUNICATION
+  OTHER
+}
+
+enum ExpenseStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+}
+
+model College {
+  id             String   @id @default(uuid())
+  organizationId String
+
+  // Basic Information
+  name           String
+  shortName      String?
+  logo           String?
+
+  // Classification
+  collegeType       CollegeType
+  institutionStatus InstitutionStatus
+  category          CollegeCategory     @default(WARM)
+  status            CollegeStatus       @default(ACTIVE)
+
+  // Location
+  address      String
+  city         String
+  state        String
+  pincode      String?
+  googleMapsUrl String?
+  latitude     Float?
+  longitude    Float?
+
+  // Size & Potential
+  studentStrength Int?
+  annualIntake    Int?
+  coursesOffered  Json    @default("[]") // Array of course names
+  establishedYear Int?
+
+  // Contact Info
+  phone   String?
+  email   String?
+  website String?
+
+  // Assignment
+  assignedToId      String   // Primary marketing person
+  secondaryAssigneeId String?
+  leadSource        String?
+
+  // Dates
+  firstContactDate DateTime @default(now())
+  lastVisitDate    DateTime?
+  nextFollowUpDate DateTime?
+
+  // Notes
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedTo        User               @relation("CollegeAssignedTo", fields: [assignedToId], references: [id])
+  secondaryAssignee User?              @relation("CollegeSecondaryAssignee", fields: [secondaryAssigneeId], references: [id])
+  contacts          CollegeContact[]
+  visits            CollegeVisit[]
+  deals             CollegeDeal[]
+  expenses          CollegeExpense[]
+  competitors       CollegeCompetitor[]
+
+  @@index([organizationId])
+  @@index([organizationId, assignedToId])
+  @@index([organizationId, city])
+  @@index([organizationId, category])
+  @@index([organizationId, status])
+  @@map("colleges")
+}
+
+model CollegeContact {
+  id        String @id @default(uuid())
+  collegeId String
+
+  // Contact Details
+  name        String
+  designation String
+  department  String?
+  phone       String
+  altPhone    String?
+  email       String?
+  whatsapp    String?
+
+  // Flags
+  isPrimary      Boolean @default(false)
+  isDecisionMaker Boolean @default(false)
+
+  // Notes
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  college College        @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  visits  CollegeVisit[] @relation("VisitContacts")
+
+  @@index([collegeId])
+  @@map("college_contacts")
+}
+
+model CollegeVisit {
+  id             String @id @default(uuid())
+  collegeId      String
+  organizationId String
+  userId         String // Marketing person who visited
+
+  // Visit Timing
+  visitDate    DateTime
+  checkInTime  DateTime?
+  checkOutTime DateTime?
+  duration     Int?       // minutes (calculated)
+
+  // Location Verification
+  checkInLatitude   Float?
+  checkInLongitude  Float?
+  checkInAddress    String?
+  locationVerified  Boolean @default(false)
+  distanceFromCollege Float? // in meters
+
+  // Visit Details
+  purpose       VisitPurpose
+  outcome       VisitOutcome?
+  contactsMet   Json         @default("[]") // Array of contact IDs
+  summary       String       @db.Text
+  actionItems   String?      @db.Text
+
+  // Follow-up
+  nextVisitDate DateTime?
+  nextAction    String?
+
+  // Attachments
+  photos     Json @default("[]") // Array of URLs
+  documents  Json @default("[]") // Array of {name, url}
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  college      College          @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User             @relation("CollegeVisitUser", fields: [userId], references: [id])
+  contacts     CollegeContact[] @relation("VisitContacts")
+  expenses     CollegeExpense[]
+
+  @@index([collegeId])
+  @@index([organizationId, userId])
+  @@index([organizationId, visitDate])
+  @@map("college_visits")
+}
+
+model CollegeDeal {
+  id             String @id @default(uuid())
+  collegeId      String @unique // One active deal per college
+  organizationId String
+  ownerId        String
+
+  // Deal Info
+  dealName     String
+  description  String?  @db.Text
+  products     Json     @default("[]") // Array of products/services
+
+  // Value
+  dealValue        Decimal?  @db.Decimal(12, 2)
+  currency         String    @default("INR")
+
+  // Pipeline
+  stage            DealStage @default(PROSPECTING)
+  probability      Int       @default(10) // Percentage
+  expectedCloseDate DateTime?
+  actualCloseDate  DateTime?
+
+  // Outcome
+  wonLostReason    String?
+  competitorWon    String?  // If lost, who won
+
+  // History
+  stageHistory     Json     @default("[]") // Array of {stage, changedAt, changedBy}
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  college      College      @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner        User         @relation("CollegeDealOwner", fields: [ownerId], references: [id])
+
+  @@index([organizationId])
+  @@index([organizationId, stage])
+  @@index([organizationId, ownerId])
+  @@map("college_deals")
+}
+
+model CollegeExpense {
+  id             String @id @default(uuid())
+  collegeId      String
+  visitId        String?
+  organizationId String
+  userId         String // Who incurred the expense
+
+  // Expense Details
+  category     ExpenseCategory
+  subCategory  String?
+  amount       Decimal    @db.Decimal(10, 2)
+  currency     String     @default("INR")
+  expenseDate  DateTime
+  description  String?
+
+  // Receipt
+  receiptUrl    String?
+  invoiceNumber String?
+  vendorName    String?
+
+  // Approval
+  status        ExpenseStatus @default(DRAFT)
+  approvedById  String?
+  approvedAt    DateTime?
+  rejectionReason String?
+  paidAt        DateTime?
+  paymentRef    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  college      College       @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  visit        CollegeVisit? @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User          @relation("CollegeExpenseUser", fields: [userId], references: [id])
+  approvedBy   User?         @relation("CollegeExpenseApprover", fields: [approvedById], references: [id])
+  logs         ExpenseLog[]
+
+  @@index([collegeId])
+  @@index([visitId])
+  @@index([organizationId, userId])
+  @@index([organizationId, status])
+  @@map("college_expenses")
+}
+
+// Expense Transaction/Audit Log - tracks all status changes
+model ExpenseLog {
+  id        String   @id @default(uuid())
+  expenseId String
+  userId    String   // Who performed the action
+
+  // Action Details
+  action       ExpenseLogAction
+  fromStatus   ExpenseStatus?
+  toStatus     ExpenseStatus?
+  comments     String?  @db.Text
+
+  // Additional data (payment ref, rejection reason, etc.)
+  metadata     Json?
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  expense   CollegeExpense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user      User           @relation("ExpenseLogUser", fields: [userId], references: [id])
+
+  @@index([expenseId])
+  @@index([userId])
+  @@map("expense_logs")
+}
+
+enum ExpenseLogAction {
+  CREATED
+  UPDATED
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAYMENT_PROCESSED
+  RECEIPT_UPLOADED
+}
+
+model CollegeCompetitor {
+  id        String @id @default(uuid())
+  collegeId String
+
+  // Competitor Info
+  competitorName String
+  contactPerson  String?
+  products       Json    @default("[]") // What they're offering
+  pricing        String?
+  status         String  @default("ACTIVE") // ACTIVE, DISPLACED, LOST_TO
+
+  // Intelligence
+  strengths   String? @db.Text
+  weaknesses  String? @db.Text
+  notes       String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+
+  @@index([collegeId])
+  @@map("college_competitors")
 }
 
 // ==================== TELECALLER CALLS (Manual Calling with Recording) ====================

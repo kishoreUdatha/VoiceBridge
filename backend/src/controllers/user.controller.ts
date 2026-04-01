@@ -96,6 +96,16 @@ export class UserController {
       next(error);
     }
   }
+
+  async getManagers(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const managers = await userService.getManagers(req.organizationId!);
+
+      ApiResponse.success(res, 'Managers retrieved successfully', managers);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const userController = new UserController();

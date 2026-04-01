@@ -6,9 +6,9 @@ export * from './AnalyticsChartComponents';
 export {
   LoadingSkeleton as AgentPerformanceLoadingSkeleton,
   Header as AgentPerformanceHeader,
-  Podium,
-  LeaderboardList,
-  AgentDetailsPanel,
+  StatsOverview,
+  AgentGrid,
+  AgentDetailModal,
 } from './AgentPerformanceComponents';
 export {
   LoadingSkeleton as LeadSourcesLoadingSkeleton,

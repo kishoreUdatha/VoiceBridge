@@ -5,10 +5,13 @@
 export {
   Navigation,
   HeroSection,
+  FeaturesOverviewSection,
   DifferentiatorsSection,
   IndustriesSection,
   FeaturesSection,
   HowItWorksSection,
+  TestimonialsSection,
+  SecuritySection,
   PricingPreviewSection,
   CTASection,
   Footer,

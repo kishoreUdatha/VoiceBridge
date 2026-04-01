@@ -11,6 +11,7 @@ interface CreateUserInput {
   lastName: string;
   phone?: string;
   roleId: string;
+  managerId?: string | null;
 }
 
 interface UpdateUserInput {
@@ -20,6 +21,7 @@ interface UpdateUserInput {
   avatar?: string;
   roleId?: string;
   isActive?: boolean;
+  managerId?: string | null;
 }
 
 interface UserFilter {
@@ -56,9 +58,18 @@ export class UserService {
         lastName: input.lastName,
         phone: input.phone,
         roleId: input.roleId,
+        managerId: input.managerId,
       },
       include: {
         role: true,
+        manager: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
       },
     });
 
@@ -72,6 +83,14 @@ export class UserService {
       include: {
         role: true,
         studentProfile: true,
+        manager: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
       },
     });
 
@@ -107,7 +126,17 @@ export class UserService {
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where,
-        include: { role: true },
+        include: {
+          role: true,
+          manager: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -135,7 +164,17 @@ export class UserService {
     const updatedUser = await prisma.user.update({
       where: { id },
       data: input,
-      include: { role: true },
+      include: {
+        role: true,
+        manager: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
     });
 
     const { password: _, refreshToken: __, ...userWithoutSensitive } = updatedUser;
@@ -217,12 +256,43 @@ export class UserService {
   }
 
   async getRoles(organizationId: string) {
+    // Only return organization-specific roles to avoid duplicates with system roles
     return prisma.role.findMany({
-      where: {
-        OR: [{ organizationId }, { organizationId: null, isSystem: true }],
-      },
+      where: { organizationId },
       orderBy: { name: 'asc' },
     });
+  }
+
+  async getManagers(organizationId: string) {
+    const users = await prisma.user.findMany({
+      where: {
+        organizationId,
+        role: { slug: 'manager' },
+        isActive: true,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        _count: {
+          select: {
+            teamMembers: {
+              where: { isActive: true },
+            },
+          },
+        },
+      },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+    });
+
+    return users.map((user) => ({
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      teamMemberCount: user._count.teamMembers,
+    }));
   }
 }
 
