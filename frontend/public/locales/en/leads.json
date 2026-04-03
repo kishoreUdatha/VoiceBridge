@@ -1,0 +1,115 @@
+{
+  "title": "Leads",
+  "subtitle": "Manage and track all your leads in one place.",
+  "addLeads": "Add Leads",
+  "addLead": "Add Lead",
+  "editLead": "Edit Lead",
+  "deleteLead": "Delete Lead",
+  "viewDetails": "View details",
+  "call": "Call",
+  "search": {
+    "placeholder": "Search by name, email, or phone..."
+  },
+  "filters": {
+    "allStatuses": "All Statuses",
+    "allSources": "All Sources",
+    "filter": "Filter"
+  },
+  "table": {
+    "lead": "Lead",
+    "contact": "Contact",
+    "source": "Source",
+    "status": "Status",
+    "assignedTo": "Assigned To",
+    "created": "Created",
+    "actions": "Actions",
+    "unassigned": "Unassigned",
+    "unknown": "Unknown"
+  },
+  "status": {
+    "NEW": "New",
+    "CONTACTED": "Contacted",
+    "QUALIFIED": "Qualified",
+    "NEGOTIATION": "Negotiation",
+    "WON": "Won",
+    "LOST": "Lost",
+    "FOLLOW_UP": "Follow Up"
+  },
+  "source": {
+    "MANUAL": "Manual",
+    "BULK_UPLOAD": "Bulk Upload",
+    "FORM": "Form",
+    "LANDING_PAGE": "Landing Page",
+    "CHATBOT": "Chatbot",
+    "AD_FACEBOOK": "Facebook Ads",
+    "AD_INSTAGRAM": "Instagram Ads",
+    "AD_LINKEDIN": "LinkedIn Ads"
+  },
+  "empty": {
+    "title": "No leads found",
+    "description": "Try adjusting your filters or add new leads"
+  },
+  "loading": "Loading leads...",
+  "pagination": {
+    "showing": "Showing",
+    "to": "to",
+    "of": "of",
+    "leads": "leads"
+  },
+  "bulkUpload": {
+    "title": "Bulk Upload Leads",
+    "subtitle": "Upload an Excel or CSV file to import multiple leads at once.",
+    "backToLeads": "Back to Leads",
+    "dropFile": "Drop your file here, or click to browse",
+    "supportedFormats": "Supports .xlsx, .xls, and .csv files up to 20MB",
+    "requiredColumns": "Required Columns",
+    "optionalColumns": "Optional Columns",
+    "firstNameDesc": "Student's first name",
+    "phoneDesc": "Phone number (required)",
+    "customFieldsNote": "Any additional columns will be saved as custom fields",
+    "uploading": "Uploading...",
+    "uploadButton": "Upload and Process",
+    "assignToCounselors": "Assign to Counselors",
+    "roundRobinNote": "Select counselors for round-robin distribution",
+    "noCounselors": "No counselors available",
+    "activeLeads": "active leads",
+    "emptyAssignNote": "Leave empty to assign to all counselors",
+    "uploadComplete": "Upload Complete",
+    "totalRows": "Total Rows",
+    "inserted": "Inserted",
+    "duplicates": "Duplicates",
+    "invalid": "Invalid",
+    "duplicateEntries": "Duplicate Entries",
+    "validationErrors": "Validation Errors",
+    "row": "Row",
+    "uploadAnother": "Upload Another File",
+    "viewLeads": "View Leads",
+    "startCampaign": "Start AI Calling Campaign",
+    "dropzone": {
+      "title": "Drop your file here",
+      "subtitle": "or click to browse",
+      "formats": "Supports CSV, XLS, XLSX files"
+    },
+    "processing": "Processing file...",
+    "success": "Successfully uploaded {{count}} leads",
+    "error": "Failed to upload leads",
+    "downloadTemplate": "Download Template"
+  },
+  "detail": {
+    "title": "Lead Details",
+    "basicInfo": "Basic Information",
+    "contactInfo": "Contact Information",
+    "additionalInfo": "Additional Information",
+    "timeline": "Timeline",
+    "notes": "Notes",
+    "addNote": "Add Note",
+    "assignTo": "Assign To",
+    "changeStatus": "Change Status",
+    "makeCall": "Make Call",
+    "sendEmail": "Send Email",
+    "sendSms": "Send SMS"
+  },
+  "confirm": {
+    "delete": "Are you sure you want to delete this lead?"
+  }
+}

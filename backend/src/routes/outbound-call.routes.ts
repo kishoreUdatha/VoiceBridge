@@ -8,6 +8,7 @@ import { validate } from '../middlewares/validate';
 import { ApiResponse } from '../utils/apiResponse';
 import { voiceMinutesService } from '../services/voice-minutes.service';
 import { canAccessLead, hasElevatedAccess } from '../utils/leadAccess';
+import { prisma } from '../config/database';
 
 const router = Router();
 

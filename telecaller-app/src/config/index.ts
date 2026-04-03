@@ -27,15 +27,15 @@ try {
 // ============================================================
 
 // Set to true when using ADB reverse (recommended for physical device)
-// Run: adb reverse tcp:3001 tcp:3001
-const USE_ADB_REVERSE = Config.USE_ADB_REVERSE !== 'false';
+// Run: adb reverse tcp:3000 tcp:3000
+const USE_ADB_REVERSE = false;
 
 // Set to true when testing on physical device WITHOUT adb reverse
-const USE_PHYSICAL_DEVICE = Config.USE_PHYSICAL_DEVICE === 'true';
+const USE_PHYSICAL_DEVICE = true;
 
 // Your computer's local IP (only used when USE_PHYSICAL_DEVICE is true)
 // Find it with: ipconfig (Windows) or ifconfig (Mac/Linux)
-const PHYSICAL_DEVICE_IP = Config.PHYSICAL_DEVICE_IP || '192.168.29.116';
+const PHYSICAL_DEVICE_IP = Config.PHYSICAL_DEVICE_IP || '192.168.0.104';
 
 // API Port (configurable)
 const API_PORT = Config.API_PORT || '3000';

@@ -1,0 +1,88 @@
+{
+  "title": "Subscription",
+  "subtitle": "Manage your subscription and billing",
+  "currentPlan": "Current Plan",
+  "changePlan": "Change Plan",
+  "cancelSubscription": "Cancel Subscription",
+  "billing": {
+    "title": "Billing",
+    "nextBillingDate": "Next Billing Date",
+    "paymentMethod": "Payment Method",
+    "updatePayment": "Update Payment Method",
+    "billingHistory": "Billing History",
+    "downloadInvoice": "Download Invoice"
+  },
+  "plans": {
+    "title": "Choose Your Plan",
+    "subtitle": "Select the plan that best fits your needs",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "savePercent": "Save {{percent}}%",
+    "popular": "Most Popular",
+    "currentPlan": "Current Plan",
+    "selectPlan": "Select Plan",
+    "contactSales": "Contact Sales"
+  },
+  "starter": {
+    "name": "Starter",
+    "description": "Perfect for small teams getting started",
+    "features": {
+      "leads": "Up to 1,000 leads",
+      "users": "Up to 3 users",
+      "forms": "5 forms",
+      "campaigns": "Basic campaigns",
+      "support": "Email support"
+    }
+  },
+  "professional": {
+    "name": "Professional",
+    "description": "For growing businesses",
+    "features": {
+      "leads": "Up to 10,000 leads",
+      "users": "Up to 10 users",
+      "forms": "Unlimited forms",
+      "campaigns": "Advanced campaigns",
+      "voiceAi": "Voice AI (100 mins/month)",
+      "support": "Priority support"
+    }
+  },
+  "enterprise": {
+    "name": "Enterprise",
+    "description": "For large organizations",
+    "features": {
+      "leads": "Unlimited leads",
+      "users": "Unlimited users",
+      "forms": "Unlimited forms",
+      "campaigns": "Custom campaigns",
+      "voiceAi": "Voice AI (unlimited)",
+      "api": "API access",
+      "support": "24/7 dedicated support",
+      "sla": "Custom SLA"
+    }
+  },
+  "checkout": {
+    "title": "Checkout",
+    "orderSummary": "Order Summary",
+    "subtotal": "Subtotal",
+    "tax": "Tax",
+    "total": "Total",
+    "payNow": "Pay Now",
+    "processing": "Processing...",
+    "secure": "Secure payment powered by Stripe"
+  },
+  "success": {
+    "title": "Payment Successful!",
+    "subtitle": "Thank you for your subscription",
+    "goToDashboard": "Go to Dashboard"
+  },
+  "management": {
+    "title": "Subscription Management",
+    "usage": "Usage",
+    "leadsUsed": "Leads Used",
+    "usersUsed": "Users",
+    "voiceMinutes": "Voice AI Minutes",
+    "renewalDate": "Renewal Date",
+    "upgrade": "Upgrade Plan",
+    "downgrade": "Downgrade Plan"
+  }
+}

@@ -187,13 +187,15 @@ export const useCallRecording = (): UseCallRecordingReturn => {
           console.log('[useCallRecording] Call ID:', callId);
           console.log('[useCallRecording] Native module exists:', !!NativeCallRecording);
 
-          const path = await CallRecordingModule.startRecording(callId);
-
-          console.log('[useCallRecording] ========== RECORDING STARTED ==========');
-          console.log('[useCallRecording] Recording path:', path);
-
-          dispatch(setRecordingPath(path));
-          dispatch(setIsRecording(true));
+          if (NativeCallRecording && typeof NativeCallRecording.startRecording === 'function') {
+            const path = await CallRecordingModule.startRecording(callId);
+            console.log('[useCallRecording] ========== RECORDING STARTED ==========');
+            console.log('[useCallRecording] Recording path:', path);
+            dispatch(setRecordingPath(path));
+            dispatch(setIsRecording(true));
+          } else {
+            console.log('[useCallRecording] Skipping recording - native module not fully available');
+          }
         } catch (recordingError: any) {
           console.error('[useCallRecording] ========== RECORDING FAILED ==========');
           console.error('[useCallRecording] Error:', recordingError?.message || recordingError);

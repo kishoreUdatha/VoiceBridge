@@ -1,0 +1,73 @@
+{
+  "success": {
+    "generic": "Operation completed successfully",
+    "saved": "Changes saved successfully",
+    "created": "Created successfully",
+    "updated": "Updated successfully",
+    "deleted": "Deleted successfully",
+    "uploaded": "Uploaded successfully",
+    "copied": "Copied to clipboard"
+  },
+  "error": {
+    "generic": "Something went wrong. Please try again.",
+    "save": "Failed to save changes",
+    "create": "Failed to create",
+    "update": "Failed to update",
+    "delete": "Failed to delete",
+    "upload": "Failed to upload",
+    "network": "Network error. Please check your connection.",
+    "server": "Server error. Please try again later.",
+    "unauthorized": "Session expired. Please login again.",
+    "forbidden": "You don't have permission to perform this action."
+  },
+  "warning": {
+    "unsavedChanges": "You have unsaved changes",
+    "sessionExpiring": "Your session is about to expire"
+  },
+  "info": {
+    "processing": "Processing...",
+    "loading": "Loading...",
+    "pleaseWait": "Please wait..."
+  },
+  "leads": {
+    "created": "Lead created successfully",
+    "updated": "Lead updated successfully",
+    "deleted": "Lead deleted successfully",
+    "assigned": "Lead assigned successfully",
+    "statusChanged": "Lead status changed to {{status}}",
+    "bulkUploaded": "{{count}} leads uploaded successfully",
+    "bulkUploadFailed": "Failed to upload leads",
+    "selectFile": "Please select a file",
+    "bulkUploadSuccess": "File uploaded and processed successfully"
+  },
+  "auth": {
+    "loginSuccess": "Welcome back!",
+    "loginFailed": "Invalid email or password",
+    "logoutSuccess": "Logged out successfully",
+    "registerSuccess": "Account created successfully",
+    "registerFailed": "Failed to create account",
+    "passwordResetSent": "Password reset link sent to your email",
+    "passwordResetSuccess": "Password reset successfully",
+    "resetEmailSent": "Password reset email sent",
+    "resetEmailFailed": "Failed to send reset email"
+  },
+  "forms": {
+    "created": "Form created successfully",
+    "updated": "Form updated successfully",
+    "deleted": "Form deleted successfully",
+    "published": "Form published successfully",
+    "unpublished": "Form unpublished"
+  },
+  "campaigns": {
+    "created": "Campaign created successfully",
+    "started": "Campaign started",
+    "paused": "Campaign paused",
+    "completed": "Campaign completed"
+  },
+  "calls": {
+    "started": "Call started",
+    "ended": "Call ended",
+    "failed": "Call failed",
+    "transferred": "Call transferred"
+  }
+}

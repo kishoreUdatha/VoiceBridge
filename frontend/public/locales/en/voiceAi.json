@@ -1,0 +1,82 @@
+{
+  "title": "Voice AI Agents",
+  "subtitle": "Create and manage AI-powered voice agents",
+  "createAgent": "Create Agent",
+  "editAgent": "Edit Agent",
+  "agentName": "Agent Name",
+  "agentDescription": "Agent Description",
+  "voiceSettings": {
+    "title": "Voice Settings",
+    "language": "Language",
+    "voice": "Voice",
+    "speed": "Speed",
+    "pitch": "Pitch"
+  },
+  "industry": {
+    "title": "Industry",
+    "education": "Education",
+    "healthcare": "Healthcare",
+    "realEstate": "Real Estate",
+    "finance": "Finance",
+    "insurance": "Insurance",
+    "ecommerce": "E-commerce",
+    "technology": "Technology",
+    "hospitality": "Hospitality",
+    "automotive": "Automotive",
+    "retail": "Retail",
+    "other": "Other"
+  },
+  "script": {
+    "title": "Script",
+    "greeting": "Greeting",
+    "introduction": "Introduction",
+    "questions": "Questions",
+    "objectionHandling": "Objection Handling",
+    "closing": "Closing"
+  },
+  "settings": {
+    "title": "Settings",
+    "maxCallDuration": "Max Call Duration",
+    "retryAttempts": "Retry Attempts",
+    "callInterval": "Call Interval",
+    "workingHours": "Working Hours"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "training": "Training"
+  },
+  "actions": {
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "test": "Test Agent",
+    "clone": "Clone",
+    "delete": "Delete"
+  },
+  "calls": {
+    "title": "AI Calling",
+    "outbound": "Outbound Calls",
+    "inbound": "Inbound Calls",
+    "scheduled": "Scheduled Calls",
+    "makeCall": "Make Call",
+    "createCampaign": "Create Campaign",
+    "callDetails": "Call Details",
+    "duration": "Duration",
+    "outcome": "Outcome",
+    "recording": "Recording",
+    "transcript": "Transcript"
+  },
+  "campaign": {
+    "title": "Campaign",
+    "name": "Campaign Name",
+    "agent": "Select Agent",
+    "leads": "Select Leads",
+    "schedule": "Schedule",
+    "startNow": "Start Now",
+    "scheduleLater": "Schedule for Later"
+  },
+  "empty": {
+    "title": "No agents yet",
+    "description": "Create your first AI voice agent to start making calls"
+  }
+}

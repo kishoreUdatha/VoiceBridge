@@ -1,0 +1,36 @@
+{
+  "main": {
+    "dashboard": "Dashboard",
+    "leads": "Leads",
+    "users": "Users",
+    "forms": "Forms",
+    "landingPages": "Landing Pages",
+    "campaigns": "Campaigns"
+  },
+  "advanced": {
+    "title": "Advanced",
+    "voiceAi": "Voice AI",
+    "aiCalling": "AI Calling",
+    "hybridInbox": "Hybrid Inbox",
+    "callHistory": "Call History",
+    "transferConfig": "Transfer Config",
+    "myQueue": "My Queue",
+    "socialMediaAds": "Social Media Ads",
+    "advanced": "Advanced",
+    "reports": "Reports",
+    "autoAssignSettings": "Auto-Assign Settings",
+    "subscription": "Subscription"
+  },
+  "header": {
+    "searchPlaceholder": "Search leads, campaigns...",
+    "bulkUpload": "Bulk Upload",
+    "notifications": "Notifications",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "userMenu": {
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Logout"
+  }
+}

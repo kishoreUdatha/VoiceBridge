@@ -175,7 +175,7 @@ const AssignedDataScreen: React.FC = () => {
           activeOpacity={0.7}
         >
           <View style={[styles.avatar, { backgroundColor: config.color }]}>
-            <Text style={styles.avatarText}>{item.firstName.charAt(0)}</Text>
+            <Text style={styles.avatarText}>{(item.firstName || '?').charAt(0)}</Text>
           </View>
           <View style={styles.cardInfo}>
             <Text style={styles.cardName} numberOfLines={1}>{name}</Text>

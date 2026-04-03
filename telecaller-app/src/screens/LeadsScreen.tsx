@@ -9,6 +9,8 @@ import {
   RefreshControl,
   ActivityIndicator,
   ScrollView,
+  Linking,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -194,10 +196,13 @@ const LeadsScreen: React.FC = () => {
 
   const handleCall = useCallback(
     (lead: Lead) => {
-      // Navigate to Smart Call Prep first for AI suggestions
-      navigation.navigate('SmartCallPrep', { lead });
+      // Directly open phone dialer to make the call
+      const cleanPhone = lead.phone.replace(/[^\d+]/g, '');
+      Linking.openURL(`tel:${cleanPhone}`).catch(() => {
+        Alert.alert('Error', 'Cannot open phone dialer');
+      });
     },
-    [navigation]
+    []
   );
 
   const handleLeadPress = useCallback(

@@ -25,7 +25,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    name: user?.name || '',
+    name: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '',
     email: user?.email || '',
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -98,14 +98,14 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             <Image source={{ uri: user.avatar }} style={styles.avatar} />
           ) : (
             <Text style={styles.avatarText}>
-              {user.name.charAt(0).toUpperCase()}
+              {`${user.firstName || ''} ${user.lastName || ''}`.trim().charAt(0).toUpperCase()}
             </Text>
           )}
           <TouchableOpacity style={styles.editAvatarButton}>
             <Icon name="camera" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-        <Text style={styles.userName}>{user.name}</Text>
+        <Text style={styles.userName}>{`${user.firstName || ''} ${user.lastName || ''}`.trim()}</Text>
         <View style={styles.roleBadge}>
           <Text style={styles.roleText}>{user.role}</Text>
         </View>
@@ -119,7 +119,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             onPress={() => {
               if (isEditing) {
                 setFormData({
-                  name: user.name,
+                  name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
                   email: user.email,
                 });
               }
@@ -144,7 +144,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                 placeholder="Enter name"
               />
             ) : (
-              <Text style={styles.infoValue}>{user.name}</Text>
+              <Text style={styles.infoValue}>{`${user.firstName || ''} ${user.lastName || ''}`.trim()}</Text>
             )}
           </View>
 

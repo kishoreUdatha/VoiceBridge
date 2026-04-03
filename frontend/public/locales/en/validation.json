@@ -1,0 +1,72 @@
+{
+  "required": "This field is required",
+  "email": {
+    "required": "Email is required",
+    "invalid": "Invalid email address"
+  },
+  "password": {
+    "required": "Password is required",
+    "minLength": "Minimum 8 characters",
+    "maxLength": "Password must be at most {{max}} characters",
+    "mismatch": "Passwords do not match",
+    "weak": "Password is too weak",
+    "uppercase": "Password must contain at least one uppercase letter",
+    "lowercase": "Password must contain at least one lowercase letter",
+    "number": "Password must contain at least one number",
+    "special": "Password must contain at least one special character",
+    "pattern": "Must contain uppercase, lowercase, and number"
+  },
+  "phone": {
+    "required": "Phone number is required",
+    "invalid": "Invalid phone number",
+    "format": "Phone number must be in format: +91 XXXXXXXXXX"
+  },
+  "name": {
+    "required": "Name is required",
+    "minLength": "Name must be at least {{min}} characters",
+    "maxLength": "Name must be at most {{max}} characters"
+  },
+  "firstName": {
+    "required": "First name is required",
+    "minLength": "Min 2 characters"
+  },
+  "lastName": {
+    "required": "Last name is required",
+    "minLength": "Min 2 characters"
+  },
+  "organizationName": {
+    "required": "Organization name is required",
+    "minLength": "Min 2 characters"
+  },
+  "organizationSlug": {
+    "required": "Organization URL is required",
+    "pattern": "Only lowercase letters, numbers, and hyphens"
+  },
+  "confirmPassword": {
+    "required": "Please confirm your password",
+    "mismatch": "Passwords do not match"
+  },
+  "file": {
+    "required": "Please select a file",
+    "size": "File size must be less than {{size}}",
+    "type": "Invalid file type. Allowed types: {{types}}"
+  },
+  "date": {
+    "required": "Date is required",
+    "invalid": "Invalid date",
+    "future": "Date must be in the future",
+    "past": "Date must be in the past"
+  },
+  "number": {
+    "required": "This field is required",
+    "min": "Value must be at least {{min}}",
+    "max": "Value must be at most {{max}}",
+    "integer": "Value must be a whole number"
+  },
+  "url": {
+    "invalid": "Invalid URL"
+  },
+  "select": {
+    "required": "Please select an option"
+  }
+}

@@ -82,7 +82,7 @@ const App: React.FC = () => {
             <SafeAreaProvider>
               <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
               <AppNavigator />
-              <AccessibilitySetupModal />
+              {/* <AccessibilitySetupModal /> */}
             </SafeAreaProvider>
           </PersistGate>
         </Provider>

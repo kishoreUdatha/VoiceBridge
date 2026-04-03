@@ -72,8 +72,11 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const handleCall = () => {
     if (selectedLead) {
-      // Navigate to Smart Call Prep first for AI suggestions
-      navigation.navigate('SmartCallPrep', { lead: selectedLead });
+      // Directly open phone dialer to make the call
+      const cleanPhone = selectedLead.phone.replace(/[^\d+]/g, '');
+      Linking.openURL(`tel:${cleanPhone}`).catch(() => {
+        Alert.alert('Error', 'Cannot open phone dialer');
+      });
     }
   };
 
@@ -145,7 +148,7 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       <View style={styles.headerCard}>
         <View style={styles.avatarContainer}>
           <Text style={styles.avatarText}>
-            {selectedLead.name.charAt(0).toUpperCase()}
+            {(selectedLead.name || selectedLead.firstName || '?').charAt(0).toUpperCase()}
           </Text>
         </View>
         <Text style={styles.leadName}>{selectedLead.name}</Text>

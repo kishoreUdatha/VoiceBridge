@@ -1,0 +1,57 @@
+{
+  "title": "Form Builder",
+  "subtitle": "Create custom forms to capture leads",
+  "createForm": "Create Form",
+  "editForm": "Edit Form",
+  "formName": "Form Name",
+  "formDescription": "Form Description",
+  "fields": {
+    "title": "Form Fields",
+    "addField": "Add Field",
+    "fieldName": "Field Name",
+    "fieldType": "Field Type",
+    "placeholder": "Placeholder",
+    "required": "Required",
+    "options": "Options"
+  },
+  "fieldTypes": {
+    "text": "Text",
+    "email": "Email",
+    "phone": "Phone",
+    "number": "Number",
+    "textarea": "Text Area",
+    "select": "Dropdown",
+    "checkbox": "Checkbox",
+    "radio": "Radio",
+    "date": "Date"
+  },
+  "settings": {
+    "title": "Form Settings",
+    "submitButton": "Submit Button Text",
+    "successMessage": "Success Message",
+    "redirectUrl": "Redirect URL",
+    "notifyEmail": "Notification Email"
+  },
+  "preview": {
+    "title": "Preview",
+    "mobile": "Mobile",
+    "desktop": "Desktop"
+  },
+  "actions": {
+    "save": "Save Form",
+    "publish": "Publish",
+    "unpublish": "Unpublish",
+    "duplicate": "Duplicate",
+    "delete": "Delete",
+    "embedCode": "Get Embed Code",
+    "shareLink": "Share Link"
+  },
+  "status": {
+    "draft": "Draft",
+    "published": "Published"
+  },
+  "empty": {
+    "title": "No forms yet",
+    "description": "Create your first form to start capturing leads"
+  }
+}

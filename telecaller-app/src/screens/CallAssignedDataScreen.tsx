@@ -499,7 +499,7 @@ const CallAssignedDataScreen: React.FC = () => {
       <View style={styles.contactInfo}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
-            {data.firstName.charAt(0).toUpperCase()}
+            {(data.firstName || '?').charAt(0).toUpperCase()}
           </Text>
         </View>
         <Text style={styles.name}>{data.firstName} {data.lastName || ''}</Text>

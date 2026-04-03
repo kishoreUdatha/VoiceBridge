@@ -370,7 +370,7 @@ const CallScreen: React.FC = () => {
       <View style={styles.callInfo}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
-            {lead.name.charAt(0).toUpperCase()}
+            {(lead.name || lead.firstName || '?').charAt(0).toUpperCase()}
           </Text>
         </View>
         <Text style={styles.name}>{lead.name}</Text>

@@ -644,8 +644,22 @@ router.get('/leads', async (req: TenantRequest, res: Response) => {
       };
     }
 
-    if (status) {
-      whereClause.status = status;
+    // Note: Lead model doesn't have a 'status' field - filter by stage if provided
+    if (status && status !== 'ALL') {
+      // Map app status to stage-based filtering or skip invalid status filters
+      // The app sends statuses like NEW, CONTACTED, QUALIFIED which don't exist as Lead fields
+      // Instead, we can filter by stage name or ignore the status filter
+      const stageMapping: Record<string, string> = {
+        'NEW': 'New',
+        'CONTACTED': 'Contacted',
+        'QUALIFIED': 'Qualified',
+        'CONVERTED': 'Converted',
+        'LOST': 'Lost',
+      };
+      const stageName = stageMapping[status as string];
+      if (stageName) {
+        whereClause.stage = { name: { equals: stageName, mode: 'insensitive' } };
+      }
     }
 
     if (search) {

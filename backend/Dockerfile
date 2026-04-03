@@ -20,4 +20,4 @@ COPY . .
 EXPOSE 3000
 
 # Start development server (use prisma migrate dev for schema changes)
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run dev"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate && npm run dev"]

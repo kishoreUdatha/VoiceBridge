@@ -1,0 +1,48 @@
+{
+  "welcome": "Welcome back, {{name}}!",
+  "subtitle": "Here's what's happening with your leads today.",
+  "addLead": "Add Lead",
+  "stats": {
+    "totalLeads": "Total Leads",
+    "today": "Today",
+    "thisWeek": "This Week",
+    "thisMonth": "This Month"
+  },
+  "leadsByStatus": {
+    "title": "Leads by Status",
+    "noLeads": "No leads yet",
+    "startBy": "Start by uploading or creating leads"
+  },
+  "leadSources": {
+    "title": "Lead Sources",
+    "noData": "No source data available"
+  },
+  "quickActions": {
+    "title": "Quick Actions",
+    "bulkUpload": {
+      "name": "Bulk Upload",
+      "description": "Upload leads from Excel/CSV"
+    },
+    "newLeads": {
+      "name": "New Leads",
+      "description": "View uncontacted leads"
+    },
+    "createForm": {
+      "name": "Create Form",
+      "description": "Build custom lead forms"
+    },
+    "campaigns": {
+      "name": "Campaigns",
+      "description": "Send bulk messages"
+    }
+  },
+  "status": {
+    "NEW": "New",
+    "CONTACTED": "Contacted",
+    "QUALIFIED": "Qualified",
+    "NEGOTIATION": "Negotiation",
+    "WON": "Won",
+    "LOST": "Lost",
+    "FOLLOW_UP": "Follow Up"
+  }
+}
