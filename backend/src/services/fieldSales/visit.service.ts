@@ -16,7 +16,11 @@ interface CreateVisitData {
 }
 
 interface CheckInData {
-  collegeId: string;
+  collegeId?: string; // Optional - for existing colleges
+  collegeName?: string; // For ad-hoc visits
+  state?: string;
+  district?: string;
+  city?: string;
   organizationId: string;
   userId: string;
   purpose: VisitPurpose;
@@ -60,22 +64,6 @@ export class VisitService {
   // ==================== CHECK-IN / CHECK-OUT ====================
 
   async checkIn(data: CheckInData) {
-    // Verify college exists and user has access
-    const college = await prisma.college.findFirst({
-      where: {
-        id: data.collegeId,
-        organizationId: data.organizationId,
-        OR: [
-          { assignedToId: data.userId },
-          { secondaryAssigneeId: data.userId },
-        ],
-      },
-    });
-
-    if (!college) {
-      throw new BadRequestError('College not found or you do not have access');
-    }
-
     // Check if user already has an open visit
     const openVisit = await prisma.collegeVisit.findFirst({
       where: {
@@ -89,24 +77,46 @@ export class VisitService {
       throw new BadRequestError('You have an open visit. Please check out first.');
     }
 
-    // Calculate distance from college if coordinates provided
+    let college = null;
     let locationVerified = false;
     let distanceFromCollege: number | null = null;
 
-    if (data.latitude && data.longitude && college.latitude && college.longitude) {
-      distanceFromCollege = this.calculateDistance(
-        data.latitude,
-        data.longitude,
-        college.latitude,
-        college.longitude
-      );
-      // Verify if within 500 meters
-      locationVerified = distanceFromCollege <= 500;
+    // If collegeId is provided, verify it exists
+    if (data.collegeId) {
+      college = await prisma.college.findFirst({
+        where: {
+          id: data.collegeId,
+          organizationId: data.organizationId,
+        },
+      });
+
+      if (!college) {
+        throw new BadRequestError('College not found');
+      }
+
+      // Calculate distance from college if coordinates provided
+      if (data.latitude && data.longitude && college.latitude && college.longitude) {
+        distanceFromCollege = this.calculateDistance(
+          data.latitude,
+          data.longitude,
+          college.latitude,
+          college.longitude
+        );
+        // Verify if within 500 meters
+        locationVerified = distanceFromCollege <= 500;
+      }
+    } else if (!data.collegeName) {
+      // Must provide either collegeId or collegeName
+      throw new BadRequestError('Please provide college ID or college name');
     }
 
     const visit = await prisma.collegeVisit.create({
       data: {
-        collegeId: data.collegeId,
+        collegeId: data.collegeId || null,
+        visitCollegeName: data.collegeName || null,
+        visitState: data.state || null,
+        visitDistrict: data.district || null,
+        visitCity: data.city || null,
         organizationId: data.organizationId,
         userId: data.userId,
         visitDate: new Date(),
@@ -121,7 +131,7 @@ export class VisitService {
       },
       include: {
         college: {
-          select: { id: true, name: true, city: true },
+          select: { id: true, name: true, city: true, state: true, district: true },
         },
         user: {
           select: { id: true, firstName: true, lastName: true },
@@ -129,11 +139,13 @@ export class VisitService {
       },
     });
 
-    // Update college last visit date
-    await prisma.college.update({
-      where: { id: data.collegeId },
-      data: { lastVisitDate: new Date() },
-    });
+    // Update college last visit date if collegeId provided
+    if (data.collegeId) {
+      await prisma.college.update({
+        where: { id: data.collegeId },
+        data: { lastVisitDate: new Date() },
+      });
+    }
 
     return visit;
   }
@@ -302,7 +314,7 @@ export class VisitService {
         where,
         include: {
           college: {
-            select: { id: true, name: true, city: true },
+            select: { id: true, name: true, city: true, state: true, district: true },
           },
           user: {
             select: { id: true, firstName: true, lastName: true },
@@ -323,7 +335,7 @@ export class VisitService {
       where: { id, organizationId },
       include: {
         college: {
-          select: { id: true, name: true, city: true, address: true },
+          select: { id: true, name: true, city: true, state: true, district: true, address: true },
         },
         user: {
           select: { id: true, firstName: true, lastName: true },
@@ -404,7 +416,7 @@ export class VisitService {
       },
       include: {
         college: {
-          select: { id: true, name: true, city: true, address: true },
+          select: { id: true, name: true, city: true, state: true, district: true, address: true },
         },
       },
     });

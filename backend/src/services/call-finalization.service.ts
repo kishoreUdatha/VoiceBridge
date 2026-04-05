@@ -20,6 +20,7 @@ import { CallOutcome } from '@prisma/client';
 import { prisma } from '../config/database';
 import { leadLifecycleService } from './lead-lifecycle.service';
 import { analyzeCallEnhanced, generateCoachingSuggestions, extractCallData, EnhancedCallAnalysisResult, CoachingSuggestions, ExtractedCallData } from './voicebot-ai.service';
+import { callAnalyticsService } from './call-analytics.service';
 
 
 const openai = process.env.OPENAI_API_KEY
@@ -155,6 +156,17 @@ class CallFinalizationService {
           await this.createLeadFromCall(updatedCall, qualification);
         }
       }
+    }
+
+    // Update agent performance metrics after call finalization
+    try {
+      await callAnalyticsService.aggregateDailyPerformance(
+        call.agent.organizationId,
+        new Date()
+      );
+      console.log(`[CallFinalization] Agent performance updated for ${call.agent.name}`);
+    } catch (error) {
+      console.error('[CallFinalization] Failed to update agent performance:', error);
     }
   }
 

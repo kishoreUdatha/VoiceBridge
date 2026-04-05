@@ -12,6 +12,7 @@ interface CreateUserInput {
   phone?: string;
   roleId: string;
   managerId?: string | null;
+  branchId?: string | null;
 }
 
 interface UpdateUserInput {
@@ -22,6 +23,7 @@ interface UpdateUserInput {
   roleId?: string;
   isActive?: boolean;
   managerId?: string | null;
+  branchId?: string | null;
 }
 
 interface UserFilter {
@@ -59,6 +61,7 @@ export class UserService {
         phone: input.phone,
         roleId: input.roleId,
         managerId: input.managerId,
+        branchId: input.branchId,
       },
       include: {
         role: true,
@@ -68,6 +71,13 @@ export class UserService {
             firstName: true,
             lastName: true,
             email: true,
+          },
+        },
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
           },
         },
       },
@@ -136,6 +146,13 @@ export class UserService {
               email: true,
             },
           },
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
         },
         skip: (page - 1) * limit,
         take: limit,
@@ -172,6 +189,13 @@ export class UserService {
             firstName: true,
             lastName: true,
             email: true,
+          },
+        },
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
           },
         },
       },
@@ -275,6 +299,14 @@ export class UserService {
         firstName: true,
         lastName: true,
         email: true,
+        branchId: true,
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
         _count: {
           select: {
             teamMembers: {
@@ -291,8 +323,96 @@ export class UserService {
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
+      branchId: user.branchId,
+      branchName: user.branch?.name || null,
       teamMemberCount: user._count.teamMembers,
     }));
+  }
+
+  async resetPassword(id: string, organizationId: string, newPassword: string) {
+    const user = await prisma.user.findFirst({
+      where: { id, organizationId },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    await prisma.user.update({
+      where: { id },
+      data: { password: hashedPassword },
+    });
+  }
+
+  async getBulkStats(organizationId: string, userIds: string[]) {
+    const stats: Record<string, { totalCalls: number; leadsAssigned: number; conversions: number; lastActiveAt: string | null }> = {};
+
+    // Get telecaller call stats
+    const telecallerCallStats = await prisma.telecallerCall.groupBy({
+      by: ['telecallerId'],
+      where: {
+        organizationId,
+        telecallerId: { in: userIds },
+      },
+      _count: { id: true },
+      _max: { createdAt: true },
+    });
+
+    // Get lead assignment stats
+    const leadStats = await prisma.leadAssignment.groupBy({
+      by: ['assignedToId'],
+      where: {
+        assignedToId: { in: userIds },
+      },
+      _count: { id: true },
+    });
+
+    // Get conversion stats (leads that converted)
+    const conversionStats = await prisma.telecallerCall.groupBy({
+      by: ['telecallerId'],
+      where: {
+        organizationId,
+        telecallerId: { in: userIds },
+        outcome: 'CONVERTED',
+      },
+      _count: { id: true },
+    });
+
+    // Initialize stats for all users
+    for (const userId of userIds) {
+      stats[userId] = {
+        totalCalls: 0,
+        leadsAssigned: 0,
+        conversions: 0,
+        lastActiveAt: null,
+      };
+    }
+
+    // Populate call stats
+    for (const stat of telecallerCallStats) {
+      if (stats[stat.telecallerId]) {
+        stats[stat.telecallerId].totalCalls = stat._count.id;
+        stats[stat.telecallerId].lastActiveAt = stat._max.createdAt?.toISOString() || null;
+      }
+    }
+
+    // Populate lead stats
+    for (const stat of leadStats) {
+      if (stats[stat.assignedToId]) {
+        stats[stat.assignedToId].leadsAssigned = stat._count.id;
+      }
+    }
+
+    // Populate conversion stats
+    for (const stat of conversionStats) {
+      if (stats[stat.telecallerId]) {
+        stats[stat.telecallerId].conversions = stat._count.id;
+      }
+    }
+
+    return stats;
   }
 }
 

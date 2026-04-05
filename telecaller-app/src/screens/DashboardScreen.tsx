@@ -8,16 +8,20 @@ import {
   ScrollView,
   RefreshControl,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppDispatch, useAppSelector } from '../store';
 import { fetchStats } from '../store/slices/callsSlice';
 import { getGreeting } from '../utils/formatters';
 import { MainTabParamList, RootStackParamList } from '../types';
 import SyncStatus from '../components/SyncStatus';
+import { colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { Avatar } from '../components/ui';
 
 type NavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'Dashboard'>,
@@ -52,14 +56,6 @@ const DashboardScreen: React.FC = () => {
     setRefreshing(false);
   }, [dispatch]);
 
-  // Debug: log user object to see what we're getting
-  useEffect(() => {
-    if (user) {
-      console.log('[Dashboard] User object:', JSON.stringify(user));
-    }
-  }, [user]);
-
-  // Get user's first name from backend data
   const firstName = user?.firstName || 'User';
   const todayCalls = stats?.todayCalls ?? 0;
   const assignedLeads = stats?.assignedLeads ?? 0;
@@ -69,19 +65,24 @@ const DashboardScreen: React.FC = () => {
   const totalCalls = stats?.totalCalls ?? 0;
   const totalLeads = stats?.totalLeads ?? 0;
 
-  const MetricCard = ({ title, value, subtitle, trend, onPress }: any) => (
+  const MetricCard = ({ title, value, subtitle, icon, iconColor, trend, onPress }: any) => (
     <TouchableOpacity style={styles.metricCard} onPress={onPress} activeOpacity={0.7}>
-      <Text style={styles.metricTitle}>{title}</Text>
+      <View style={styles.metricHeader}>
+        <View style={[styles.metricIcon, { backgroundColor: `${iconColor}15` }]}>
+          <Icon name={icon} size={18} color={iconColor} />
+        </View>
+      </View>
       <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricTitle}>{title}</Text>
       {subtitle && <Text style={styles.metricSubtitle}>{subtitle}</Text>}
       {trend !== undefined && (
-        <View style={styles.trendContainer}>
+        <View style={[styles.trendContainer, { backgroundColor: trend >= 0 ? colors.success[50] : colors.error[50] }]}>
           <Icon
-            name={trend >= 0 ? "trending-up" : "trending-down"}
-            size={14}
-            color={trend >= 0 ? "#059669" : "#DC2626"}
+            name={trend >= 0 ? 'trending-up' : 'trending-down'}
+            size={12}
+            color={trend >= 0 ? colors.success[600] : colors.error[600]}
           />
-          <Text style={[styles.trendText, { color: trend >= 0 ? "#059669" : "#DC2626" }]}>
+          <Text style={[styles.trendText, { color: trend >= 0 ? colors.success[600] : colors.error[600] }]}>
             {Math.abs(trend)}%
           </Text>
         </View>
@@ -89,83 +90,139 @@ const DashboardScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
+  const QuickAction = ({ icon, label, color, onPress }: any) => (
+    <TouchableOpacity style={styles.quickAction} onPress={onPress} activeOpacity={0.7}>
+      <View style={[styles.quickActionIcon, { backgroundColor: `${color}15` }]}>
+        <Icon name={icon} size={22} color={color} />
+      </View>
+      <Text style={styles.quickActionLabel}>{label}</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
+      <StatusBar barStyle="light-content" backgroundColor={colors.primary[600]} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>{getGreeting()}</Text>
-          <Text style={styles.userName}>{firstName}</Text>
+      {/* Gradient Header */}
+      <LinearGradient
+        colors={[colors.primary[600], colors.primary[700]]}
+        style={styles.header}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.greeting}>{getGreeting()}</Text>
+            <Text style={styles.userName}>{firstName}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Profile')}
+            style={styles.avatarContainer}
+          >
+            <Avatar
+              name={firstName}
+              size="md"
+              backgroundColor={`${colors.neutral[0]}20`}
+              textColor={colors.neutral[0]}
+            />
+          </TouchableOpacity>
         </View>
+
+        {/* Primary CTA Card */}
         <TouchableOpacity
-          style={styles.profileBtn}
-          onPress={() => navigation.navigate('Profile')}
+          style={styles.ctaCard}
+          onPress={() => navigation.navigate('AssignedData')}
+          activeOpacity={0.9}
         >
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{firstName.charAt(0)}</Text>
+          <View style={styles.ctaLeft}>
+            <View style={styles.ctaIconContainer}>
+              <Icon name="phone-plus" size={24} color={colors.primary[600]} />
+            </View>
+            <View>
+              <Text style={styles.ctaTitle}>Start Calling</Text>
+              <Text style={styles.ctaSubtitle}>{assignedLeads} leads waiting</Text>
+            </View>
+          </View>
+          <View style={styles.ctaButton}>
+            <Icon name="arrow-right" size={20} color={colors.neutral[0]} />
           </View>
         </TouchableOpacity>
-      </View>
+      </LinearGradient>
 
-      {/* Sync Status - Shows when offline or has pending uploads */}
+      {/* Sync Status */}
       <SyncStatus style={styles.syncStatus} />
 
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563EB']} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary[500]]}
+            tintColor={colors.primary[500]}
+          />
         }
       >
-        {/* Primary Action Card */}
-        <TouchableOpacity
-          style={styles.primaryCard}
-          onPress={() => navigation.navigate('AssignedData')}
-          activeOpacity={0.8}
-        >
-          <View style={styles.primaryLeft}>
-            <View style={styles.primaryIconContainer}>
-              <Icon name="phone-outline" size={24} color="#2563EB" />
-            </View>
-            <View>
-              <Text style={styles.primaryTitle}>Ready to Call</Text>
-              <Text style={styles.primarySubtitle}>{assignedLeads} leads in queue</Text>
-            </View>
-          </View>
-          <View style={styles.primaryRight}>
-            <Text style={styles.primaryAction}>Start</Text>
-            <Icon name="arrow-right" size={18} color="#2563EB" />
-          </View>
-        </TouchableOpacity>
+        {/* Quick Actions */}
+        <View style={styles.quickActionsContainer}>
+          <QuickAction
+            icon="account-multiple"
+            label="All Leads"
+            color={colors.primary[500]}
+            onPress={() => navigation.navigate('Leads')}
+          />
+          <QuickAction
+            icon="star"
+            label="Qualified"
+            color={colors.warning[500]}
+            onPress={() => navigation.navigate('QualifiedLeads')}
+          />
+          <QuickAction
+            icon="clock-outline"
+            label="History"
+            color={colors.secondary[500]}
+            onPress={() => navigation.navigate('History')}
+          />
+          <QuickAction
+            icon="calendar-check"
+            label="Follow-ups"
+            color={colors.success[500]}
+            onPress={() => navigation.navigate('FollowUps')}
+          />
+        </View>
 
-        {/* Key Metrics Section */}
+        {/* Metrics Grid */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Key Metrics</Text>
+          <Text style={styles.sectionTitle}>Today's Performance</Text>
           <View style={styles.metricsGrid}>
             <MetricCard
-              title="Today's Calls"
+              title="Calls Made"
               value={todayCalls}
-              subtitle="calls completed"
+              icon="phone-check"
+              iconColor={colors.primary[500]}
               onPress={() => navigation.navigate('History')}
             />
             <MetricCard
-              title="Conversion Rate"
+              title="Conversion"
               value={`${conversionRate}%`}
+              icon="chart-line"
+              iconColor={colors.success[500]}
               trend={conversionRate > 10 ? 5 : -2}
               onPress={() => navigation.navigate('Performance')}
             />
             <MetricCard
-              title="Qualified Leads"
+              title="Qualified"
               value={qualifiedLeads}
-              subtitle="this period"
+              icon="star-circle"
+              iconColor={colors.warning[500]}
+              subtitle="hot leads"
               onPress={() => navigation.navigate('QualifiedLeads')}
             />
             <MetricCard
-              title="Total Pipeline"
+              title="Pipeline"
               value={totalLeads}
-              subtitle="active leads"
+              icon="account-group"
+              iconColor={colors.secondary[500]}
+              subtitle="total leads"
               onPress={() => navigation.navigate('Leads')}
             />
           </View>
@@ -177,94 +234,75 @@ const DashboardScreen: React.FC = () => {
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Pending Follow-ups</Text>
+                <View style={[styles.summaryIconBg, { backgroundColor: colors.warning[50] }]}>
+                  <Icon name="clock-alert" size={20} color={colors.warning[600]} />
+                </View>
                 <Text style={styles.summaryValue}>{pendingFollowUps}</Text>
+                <Text style={styles.summaryLabel}>Follow-ups</Text>
               </View>
               <View style={styles.summaryDivider} />
               <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Total Calls</Text>
+                <View style={[styles.summaryIconBg, { backgroundColor: colors.primary[50] }]}>
+                  <Icon name="phone" size={20} color={colors.primary[600]} />
+                </View>
                 <Text style={styles.summaryValue}>{totalCalls}</Text>
+                <Text style={styles.summaryLabel}>Total Calls</Text>
               </View>
               <View style={styles.summaryDivider} />
               <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Avg/Day</Text>
+                <View style={[styles.summaryIconBg, { backgroundColor: colors.success[50] }]}>
+                  <Icon name="trending-up" size={20} color={colors.success[600]} />
+                </View>
                 <Text style={styles.summaryValue}>{Math.round(totalCalls / 7) || 0}</Text>
+                <Text style={styles.summaryLabel}>Avg/Day</Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* Quick Access */}
+        {/* Navigation Menu */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Access</Text>
-          <View style={styles.quickAccessGrid}>
-            <TouchableOpacity
-              style={styles.quickAccessItem}
-              onPress={() => navigation.navigate('Leads')}
-            >
-              <Icon name="account-multiple-outline" size={22} color="#374151" />
-              <Text style={styles.quickAccessText}>All Leads</Text>
-              <Icon name="chevron-right" size={18} color="#9CA3AF" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickAccessItem}
-              onPress={() => navigation.navigate('QualifiedLeads')}
-            >
-              <Icon name="star-outline" size={22} color="#374151" />
-              <Text style={styles.quickAccessText}>Qualified</Text>
-              <Icon name="chevron-right" size={18} color="#9CA3AF" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickAccessItem}
-              onPress={() => navigation.navigate('History')}
-            >
-              <Icon name="clock-outline" size={22} color="#374151" />
-              <Text style={styles.quickAccessText}>Call History</Text>
-              <Icon name="chevron-right" size={18} color="#9CA3AF" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickAccessItem}
-              onPress={() => navigation.navigate('FollowUps')}
-            >
-              <Icon name="calendar-clock" size={22} color="#374151" />
-              <Text style={styles.quickAccessText}>Follow-ups</Text>
-              {pendingFollowUps > 0 && (
-                <View style={styles.followUpBadge}>
-                  <Text style={styles.followUpBadgeText}>{pendingFollowUps}</Text>
-                </View>
-              )}
-              <Icon name="chevron-right" size={18} color="#9CA3AF" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.quickAccessItem, { borderBottomWidth: 0 }]}
+          <View style={styles.menuCard}>
+            <MenuItem
+              icon="chart-bar"
+              label="Performance Analytics"
               onPress={() => navigation.navigate('Performance')}
-            >
-              <Icon name="chart-line" size={22} color="#374151" />
-              <Text style={styles.quickAccessText}>Performance</Text>
-              <Icon name="chevron-right" size={18} color="#9CA3AF" />
-            </TouchableOpacity>
+            />
+            <MenuItem
+              icon="brain"
+              label="AI Call Analysis"
+              onPress={() => navigation.navigate('AIAnalysis')}
+            />
+            <MenuItem
+              icon="cog"
+              label="Settings"
+              onPress={() => navigation.navigate('Settings')}
+              showDivider={false}
+            />
           </View>
         </View>
 
-        {/* Alerts */}
+        {/* Alert Card */}
         {pendingFollowUps > 0 && (
           <View style={styles.section}>
             <TouchableOpacity
               style={styles.alertCard}
               onPress={() => navigation.navigate('FollowUps')}
+              activeOpacity={0.8}
             >
-              <View style={styles.alertIconContainer}>
-                <Icon name="bell-outline" size={20} color="#D97706" />
+              <View style={styles.alertLeft}>
+                <View style={styles.alertIconBg}>
+                  <Icon name="bell-ring" size={20} color={colors.warning[600]} />
+                </View>
+                <View>
+                  <Text style={styles.alertTitle}>Action Required</Text>
+                  <Text style={styles.alertMessage}>
+                    You have {pendingFollowUps} pending follow-up{pendingFollowUps > 1 ? 's' : ''}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.alertContent}>
-                <Text style={styles.alertTitle}>Action Required</Text>
-                <Text style={styles.alertMessage}>{pendingFollowUps} follow-ups pending</Text>
-              </View>
-              <Icon name="chevron-right" size={20} color="#D97706" />
+              <Icon name="chevron-right" size={20} color={colors.warning[500]} />
             </TouchableOpacity>
           </View>
         )}
@@ -275,113 +313,140 @@ const DashboardScreen: React.FC = () => {
   );
 };
 
+const MenuItem = ({ icon, label, onPress, showDivider = true }: any) => (
+  <TouchableOpacity
+    style={[styles.menuItem, !showDivider && styles.menuItemNoBorder]}
+    onPress={onPress}
+    activeOpacity={0.7}
+  >
+    <View style={styles.menuLeft}>
+      <Icon name={icon} size={22} color={colors.text.secondary} />
+      <Text style={styles.menuLabel}>{label}</Text>
+    </View>
+    <Icon name="chevron-right" size={20} color={colors.text.tertiary} />
+  </TouchableOpacity>
+);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  syncStatus: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 0,
+    backgroundColor: colors.background.secondary,
   },
   header: {
+    paddingTop: Platform.OS === 'ios' ? 50 : StatusBar.currentHeight || 24,
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.xl,
+    borderBottomLeftRadius: borderRadius.xl,
+    borderBottomRightRadius: borderRadius.xl,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    alignItems: 'flex-start',
+    marginBottom: spacing.lg,
   },
   headerLeft: {},
   greeting: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: `${colors.neutral[0]}90`,
   },
   userName: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: typography.fontSize['2xl'],
+    fontWeight: typography.fontWeight.bold,
+    color: colors.neutral[0],
     marginTop: 2,
   },
-  profileBtn: {},
-  avatar: {
+  avatarContainer: {
+    borderWidth: 2,
+    borderColor: `${colors.neutral[0]}30`,
+    borderRadius: 24,
+    padding: 2,
+  },
+  ctaCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.neutral[0],
+    padding: spacing.base,
+    borderRadius: borderRadius.lg,
+    ...shadows.lg,
+  },
+  ctaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ctaIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  ctaTitle: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.text.primary,
+  },
+  ctaSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginTop: 2,
+  },
+  ctaButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#2563EB',
+    backgroundColor: colors.primary[500],
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+  syncStatus: {
+    marginHorizontal: spacing.base,
+    marginTop: -spacing.md,
+    marginBottom: spacing.xs,
   },
   scrollView: {
     flex: 1,
   },
-  primaryCard: {
+  quickActionsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#EFF6FF',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.base,
+    marginBottom: spacing.sm,
   },
-  primaryLeft: {
-    flexDirection: 'row',
+  quickAction: {
     alignItems: 'center',
+    flex: 1,
   },
-  primaryIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+  quickActionIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
+    marginBottom: spacing.xs,
   },
-  primaryTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E40AF',
-  },
-  primarySubtitle: {
-    fontSize: 13,
-    color: '#3B82F6',
-    marginTop: 2,
-  },
-  primaryRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  primaryAction: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2563EB',
-    marginRight: 4,
+  quickActionLabel: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.secondary,
+    textAlign: 'center',
   },
   section: {
-    marginTop: 24,
-    paddingHorizontal: 16,
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.base,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 12,
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.text.tertiary,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+    marginBottom: spacing.md,
   },
   metricsGrid: {
     flexDirection: 'row',
@@ -390,45 +455,57 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     width: cardWidth,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    backgroundColor: colors.background.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.md,
+    ...shadows.sm,
   },
-  metricTitle: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#6B7280',
-    marginBottom: 8,
+  metricHeader: {
+    marginBottom: spacing.sm,
+  },
+  metricIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   metricValue: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: typography.fontSize['3xl'],
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+  },
+  metricTitle: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
   },
   metricSubtitle: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 4,
+    fontSize: typography.fontSize.xs,
+    color: colors.text.tertiary,
+    marginTop: 2,
   },
   trendContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    marginTop: spacing.sm,
   },
   trendText: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 4,
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semiBold,
+    marginLeft: 2,
   },
   summaryCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    backgroundColor: colors.background.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    ...shadows.sm,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -438,86 +515,90 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
-  summaryLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 6,
-    textAlign: 'center',
+  summaryIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
   },
   summaryValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: typography.fontSize['2xl'],
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+  },
+  summaryLabel: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.tertiary,
+    marginTop: 2,
   },
   summaryDivider: {
     width: 1,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 16,
+    backgroundColor: colors.border.light,
+    marginHorizontal: spacing.base,
   },
-  quickAccessGrid: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+  menuCard: {
+    backgroundColor: colors.background.card,
+    borderRadius: borderRadius.lg,
     overflow: 'hidden',
+    ...shadows.sm,
   },
-  quickAccessItem: {
+  menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: colors.neutral[100],
   },
-  quickAccessText: {
-    flex: 1,
-    fontSize: 15,
-    color: '#374151',
-    marginLeft: 14,
-    fontWeight: '500',
+  menuItemNoBorder: {
+    borderBottomWidth: 0,
+  },
+  menuLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  menuLabel: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+    marginLeft: spacing.md,
   },
   alertCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    padding: 14,
-    borderRadius: 10,
+    justifyContent: 'space-between',
+    backgroundColor: colors.warning[50],
+    padding: spacing.base,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: colors.warning[200],
   },
-  alertIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
+  alertLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 12,
-  },
-  alertContent: {
     flex: 1,
   },
+  alertIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.warning[100],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
   alertTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#92400E',
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.warning[800],
   },
   alertMessage: {
-    fontSize: 12,
-    color: '#B45309',
+    fontSize: typography.fontSize.xs,
+    color: colors.warning[600],
     marginTop: 2,
-  },
-  followUpBadge: {
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginRight: 8,
-  },
-  followUpBadgeText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: '600',
   },
 });
 

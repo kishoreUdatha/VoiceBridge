@@ -6,25 +6,51 @@ export class VisitController {
   /**
    * Check in to a college visit
    * POST /api/field-sales/visits/check-in
+   * Supports two modes:
+   * 1. Existing college: { collegeId, purpose, ... }
+   * 2. Ad-hoc visit: { collegeName, state, district, city, purpose, ... }
    */
   async checkIn(req: Request, res: Response, next: NextFunction) {
     try {
       const organizationId = req.user!.organizationId;
       const userId = req.user!.id;
 
-      const { collegeId, purpose, latitude, longitude, address } = req.body;
+      const {
+        collegeId,
+        collegeName,
+        state,
+        district,
+        city,
+        purpose,
+        checkInLocation,
+        latitude,
+        longitude,
+        address,
+      } = req.body;
 
-      if (!collegeId || !purpose) {
-        throw new BadRequestError('College ID and purpose are required');
+      if (!purpose) {
+        throw new BadRequestError('Purpose is required');
       }
+
+      if (!collegeId && !collegeName) {
+        throw new BadRequestError('Either College ID or College Name is required');
+      }
+
+      // Extract coordinates from checkInLocation object or direct fields
+      const lat = checkInLocation?.latitude || latitude;
+      const lng = checkInLocation?.longitude || longitude;
 
       const visit = await visitService.checkIn({
         organizationId,
         userId,
         collegeId,
+        collegeName,
+        state,
+        district,
+        city,
         purpose,
-        latitude,
-        longitude,
+        latitude: lat,
+        longitude: lng,
         address,
       });
 
@@ -33,7 +59,7 @@ export class VisitController {
         data: visit,
         message: visit.locationVerified
           ? 'Checked in successfully - location verified'
-          : 'Checked in successfully - location not verified',
+          : 'Checked in successfully',
       });
     } catch (error) {
       next(error);

@@ -9,12 +9,24 @@ import {
   CreateContactData,
 } from '../../../services/fieldSales/college.service';
 
+interface FieldOfficer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  collegeCount: number;
+  visitCount: number;
+  totalExpenses: number;
+}
+
 interface CollegeState {
   colleges: College[];
   currentCollege: College | null;
   stats: CollegeStats | null;
-  cities: Array<{ city: string; state: string; count: number }>;
-  states: Array<{ state: string; count: number }>;
+  cities: Array<{ city: string; state: string; count?: number }>;
+  states: Array<{ state: string; count?: number }>;
+  districts: Array<{ district: string; state: string; count?: number }>;
+  fieldOfficers: FieldOfficer[];
   total: number;
   page: number;
   limit: number;
@@ -28,6 +40,8 @@ const initialState: CollegeState = {
   stats: null,
   cities: [],
   states: [],
+  districts: [],
+  fieldOfficers: [],
   total: 0,
   page: 1,
   limit: 20,
@@ -137,9 +151,9 @@ export const fetchCollegeStats = createAsyncThunk(
 
 export const fetchCities = createAsyncThunk(
   'fieldSales/colleges/fetchCities',
-  async (_, { rejectWithValue }) => {
+  async (params: { state?: string; district?: string } | undefined, { rejectWithValue }) => {
     try {
-      return await collegeService.getCities();
+      return await collegeService.getCities(params?.state, params?.district);
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
       return rejectWithValue(err.response?.data?.message || 'Failed to fetch cities');
@@ -151,10 +165,36 @@ export const fetchStates = createAsyncThunk(
   'fieldSales/colleges/fetchStates',
   async (_, { rejectWithValue }) => {
     try {
-      return await collegeService.getStates();
+      // Use all-states endpoint to get complete list of Indian states
+      return await collegeService.getAllIndianStates();
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
       return rejectWithValue(err.response?.data?.message || 'Failed to fetch states');
+    }
+  }
+);
+
+export const fetchDistricts = createAsyncThunk(
+  'fieldSales/colleges/fetchDistricts',
+  async (state: string, { rejectWithValue }) => {
+    try {
+      // Use all-districts endpoint to get complete list of districts for a state
+      return await collegeService.getAllIndianDistricts(state);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      return rejectWithValue(err.response?.data?.message || 'Failed to fetch districts');
+    }
+  }
+);
+
+export const fetchFieldOfficers = createAsyncThunk(
+  'fieldSales/colleges/fetchFieldOfficers',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await collegeService.getFieldOfficers();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      return rejectWithValue(err.response?.data?.message || 'Failed to fetch field officers');
     }
   }
 );
@@ -289,6 +329,16 @@ const collegeSlice = createSlice({
     // Fetch states
     builder.addCase(fetchStates.fulfilled, (state, action) => {
       state.states = action.payload;
+    });
+
+    // Fetch districts
+    builder.addCase(fetchDistricts.fulfilled, (state, action) => {
+      state.districts = action.payload;
+    });
+
+    // Fetch field officers
+    builder.addCase(fetchFieldOfficers.fulfilled, (state, action) => {
+      state.fieldOfficers = action.payload;
     });
 
     // Add contact

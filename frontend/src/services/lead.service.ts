@@ -1,5 +1,19 @@
 import api from './api';
 
+export type AdmissionStatus =
+  | 'INQUIRY'
+  | 'INTERESTED'
+  | 'VISIT_SCHEDULED'
+  | 'VISIT_COMPLETED'
+  | 'DOCUMENTS_PENDING'
+  | 'ADMISSION_PROCESSING'
+  | 'PAYMENT_PENDING'
+  | 'ADMITTED'
+  | 'ENROLLED'
+  | 'DROPPED';
+
+export type AdmissionType = 'DONATION' | 'NON_DONATION' | 'NRI' | 'SCHOLARSHIP';
+
 export interface Lead {
   id: string;
   firstName: string;
@@ -35,6 +49,30 @@ export interface Lead {
       email: string;
     };
   }>;
+  // Education Admission Management fields
+  admissionStatus?: AdmissionStatus;
+  admissionType?: AdmissionType;
+  expectedFee?: number;
+  actualFee?: number;
+  commissionPercentage?: number;
+  commissionAmount?: number;
+  donationAmount?: number;
+  admissionClosedAt?: string;
+  admissionClosedById?: string;
+  enrollmentNumber?: string;
+  academicYear?: string;
+  preferredUniversities?: string[];
+  fatherName?: string;
+  fatherMobile?: string;
+  motherName?: string;
+  motherMobile?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  pincode?: string;
+  dateOfBirth?: string;
+  gender?: string;
 }
 
 export interface LeadFilter {
@@ -130,6 +168,11 @@ export const leadService = {
         'Content-Type': 'multipart/form-data',
       },
     });
+    return response.data.data;
+  },
+
+  async updateAdmissionStatus(id: string, admissionStatus: AdmissionStatus): Promise<Lead> {
+    const response = await api.put(`/leads/${id}`, { admissionStatus });
     return response.data.data;
   },
 };

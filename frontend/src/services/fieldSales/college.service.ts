@@ -32,6 +32,7 @@ export interface College {
   status: CollegeStatus;
   address: string;
   city: string;
+  district?: string;
   state: string;
   pincode?: string;
   googleMapsUrl?: string;
@@ -79,6 +80,7 @@ export interface College {
 export interface CollegeFilter {
   assignedToId?: string;
   city?: string;
+  district?: string;
   state?: string;
   collegeType?: CollegeType;
   institutionStatus?: InstitutionStatus;
@@ -95,6 +97,7 @@ export interface CreateCollegeData {
   category?: CollegeCategory;
   address: string;
   city: string;
+  district?: string;
   state: string;
   pincode?: string;
   googleMapsUrl?: string;
@@ -187,13 +190,49 @@ export const collegeService = {
     return response.data.data;
   },
 
-  async getCities(): Promise<Array<{ city: string; state: string; count: number }>> {
-    const response = await api.get('/field-sales/colleges/cities');
+  async getCities(state?: string, district?: string): Promise<Array<{ city: string; state: string; count: number }>> {
+    const response = await api.get('/field-sales/colleges/cities', {
+      params: { state, district },
+    });
     return response.data.data;
   },
 
   async getStates(): Promise<Array<{ state: string; count: number }>> {
     const response = await api.get('/field-sales/colleges/states');
+    return response.data.data;
+  },
+
+  async getDistricts(state?: string): Promise<Array<{ district: string; state: string; count: number }>> {
+    const response = await api.get('/field-sales/colleges/districts', {
+      params: { state },
+    });
+    return response.data.data;
+  },
+
+  async getFieldOfficers(): Promise<Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    collegeCount: number;
+    visitCount: number;
+    totalExpenses: number;
+  }>> {
+    const response = await api.get('/field-sales/colleges/field-officers');
+    return response.data.data;
+  },
+
+  // All Indian States (static data)
+  async getAllIndianStates(): Promise<Array<{ state: string }>> {
+    const response = await api.get('/field-sales/colleges/all-states');
+    return response.data.data;
+  },
+
+  // All districts for a state (static data)
+  async getAllIndianDistricts(state: string): Promise<Array<{ district: string; state: string }>> {
+    const response = await api.get('/field-sales/colleges/all-districts', {
+      params: { state },
+    });
     return response.data.data;
   },
 

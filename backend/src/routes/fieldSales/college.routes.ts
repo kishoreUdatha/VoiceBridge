@@ -23,6 +23,28 @@ router.get(
   collegeController.getStates.bind(collegeController)
 );
 
+router.get(
+  '/districts',
+  collegeController.getDistricts.bind(collegeController)
+);
+
+router.get(
+  '/field-officers',
+  collegeController.getFieldOfficers.bind(collegeController)
+);
+
+// All Indian states (static data - no auth required for location data)
+router.get(
+  '/all-states',
+  collegeController.getAllIndianStates.bind(collegeController)
+);
+
+// All districts for a state (static data)
+router.get(
+  '/all-districts',
+  collegeController.getAllIndianDistricts.bind(collegeController)
+);
+
 // Create college
 router.post(
   '/',

@@ -20,12 +20,15 @@ export interface RateLimitInfo {
   retryAfter: number; // seconds
 }
 
+// Check if rate limiting should be relaxed (for testing/development)
+const isProduction = process.env.NODE_ENV === 'production';
+
 // Default rate limit configurations
 export const RATE_LIMITS = {
   // Authentication endpoints - strict limits to prevent brute force
   AUTH_LOGIN: {
     windowMs: 15 * 60 * 1000,  // 15 minutes
-    maxRequests: 5,            // 5 attempts
+    maxRequests: isProduction ? 5 : 1000,  // 5 in production, 1000 in development
     message: 'Too many login attempts. Please try again in 15 minutes.',
   },
   AUTH_REGISTER: {

@@ -12,12 +12,17 @@ import {
 import { StageConfig, FunnelData } from './conversion-funnel.types';
 
 export const STAGE_CONFIGS: Record<string, StageConfig> = {
+  // Standard funnel stages
+  new: { color: '#3B82F6', gradient: 'from-blue-500 to-blue-600', bgLight: 'bg-blue-50', icon: UserGroupIcon },
   lead: { color: '#3B82F6', gradient: 'from-blue-500 to-blue-600', bgLight: 'bg-blue-50', icon: UserGroupIcon },
-  contacted: { color: '#6366F1', gradient: 'from-indigo-500 to-indigo-600', bgLight: 'bg-indigo-50', icon: ChartBarIcon },
-  qualified: { color: '#8B5CF6', gradient: 'from-violet-500 to-violet-600', bgLight: 'bg-violet-50', icon: SparklesIcon },
+  contacted: { color: '#8B5CF6', gradient: 'from-violet-500 to-violet-600', bgLight: 'bg-violet-50', icon: ChartBarIcon },
+  qualified: { color: '#F59E0B', gradient: 'from-amber-500 to-amber-600', bgLight: 'bg-amber-50', icon: SparklesIcon },
+  negotiation: { color: '#10B981', gradient: 'from-emerald-500 to-emerald-600', bgLight: 'bg-emerald-50', icon: CalendarDaysIcon },
   appointment: { color: '#A855F7', gradient: 'from-purple-500 to-purple-600', bgLight: 'bg-purple-50', icon: CalendarDaysIcon },
   payment: { color: '#D946EF', gradient: 'from-fuchsia-500 to-fuchsia-600', bgLight: 'bg-fuchsia-50', icon: ChartBarIcon },
-  converted: { color: '#10B981', gradient: 'from-emerald-500 to-emerald-600', bgLight: 'bg-emerald-50', icon: CheckCircleIcon },
+  won: { color: '#22C55E', gradient: 'from-green-500 to-green-600', bgLight: 'bg-green-50', icon: CheckCircleIcon },
+  converted: { color: '#22C55E', gradient: 'from-green-500 to-green-600', bgLight: 'bg-green-50', icon: CheckCircleIcon },
+  lost: { color: '#EF4444', gradient: 'from-red-500 to-red-600', bgLight: 'bg-red-50', icon: ChartBarIcon },
 };
 
 export const DEFAULT_STAGE: StageConfig = {

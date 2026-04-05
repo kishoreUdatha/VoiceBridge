@@ -40,6 +40,9 @@ import {
   MapPinIcon,
   CurrencyRupeeIcon,
   BriefcaseIcon,
+  AcademicCapIcon,
+  BanknotesIcon,
+  ReceiptPercentIcon,
 } from '@heroicons/react/24/outline';
 
 interface NavItem {
@@ -62,17 +65,17 @@ const WhatsAppIcon = ({ className }: { className?: string }) => (
 
 // 1. MAIN - Core daily workflow (always visible)
 const mainNavigation: NavItem[] = [
-  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, roles: ['admin', 'manager', 'counselor', 'telecaller'] },
+  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, roles: ['admin', 'manager', 'team_lead', 'counselor', 'telecaller'] },
   { name: 'Assigned Data', href: '/assigned-data', icon: DocumentArrowUpIcon, roles: ['telecaller', 'counselor'] },
   { name: 'My Conversions', href: '/qualified-leads', icon: TrophyIcon, roles: ['telecaller'] },
 ];
 
 // 2. CRM - Lead Management & Communication
 const crmNavigation: NavItem[] = [
-  { name: 'Leads', href: '/leads', icon: UserGroupIcon, roles: ['admin', 'manager', 'counselor', 'telecaller'] },
-  { name: 'Inbox', href: '/hybrid-inbox', icon: ChatBubbleLeftRightIcon, roles: ['admin', 'manager', 'counselor', 'telecaller'] },
-  { name: 'Campaigns', href: '/campaigns', icon: MegaphoneIcon, roles: ['admin', 'manager', 'counselor'] },
-  { name: 'Bulk WhatsApp', href: '/whatsapp/bulk', icon: WhatsAppIcon, roles: ['admin', 'manager', 'counselor'] },
+  { name: 'Leads', href: '/leads', icon: UserGroupIcon, roles: ['admin', 'manager', 'team_lead', 'counselor', 'telecaller'] },
+  { name: 'Inbox', href: '/hybrid-inbox', icon: ChatBubbleLeftRightIcon, roles: ['admin', 'manager', 'team_lead', 'counselor', 'telecaller'] },
+  { name: 'Campaigns', href: '/campaigns', icon: MegaphoneIcon, roles: ['admin', 'manager', 'team_lead', 'counselor'] },
+  { name: 'Bulk WhatsApp', href: '/whatsapp/bulk', icon: WhatsAppIcon, roles: ['admin', 'manager', 'team_lead', 'counselor'] },
   { name: 'Templates', href: '/templates', icon: DocumentTextIcon, roles: ['admin', 'manager'] },
 ];
 
@@ -80,14 +83,15 @@ const crmNavigation: NavItem[] = [
 const voiceAINavigation: NavItem[] = [
   { name: 'Voice Agents', href: '/voice-ai', icon: SparklesIcon, roles: ['admin', 'manager'] },
   { name: 'Call Flows', href: '/call-flows', icon: ArrowPathRoundedSquareIcon, roles: ['admin', 'manager'] },
-  { name: 'Outbound Calls', href: '/outbound-calls', icon: PhoneIcon, roles: ['admin', 'manager', 'telecaller'] },
-  { name: 'Call Queue', href: '/telecaller-queue', icon: QueueListIcon, roles: ['admin', 'manager', 'telecaller'] },
-  { name: 'Call Monitoring', href: '/call-monitoring', icon: EyeIcon, roles: ['admin', 'manager'] },
+  { name: 'Outbound Calls', href: '/outbound-calls', icon: PhoneIcon, roles: ['admin', 'manager', 'team_lead', 'telecaller'] },
+  { name: 'Call Queue', href: '/telecaller-queue', icon: QueueListIcon, roles: ['admin', 'manager', 'team_lead', 'telecaller'] },
+  { name: 'Call Monitoring', href: '/call-monitoring', icon: EyeIcon, roles: ['admin', 'manager', 'team_lead'] },
 ];
 
 // 4. DATA - Import & Lead Sources
 const dataNavigation: NavItem[] = [
-  { name: 'Import Data', href: '/raw-imports', icon: DocumentArrowUpIcon, roles: ['admin', 'manager'] },
+  { name: 'Import Data', href: '/raw-imports', icon: DocumentArrowUpIcon, roles: ['admin', 'manager', 'team_lead'] },
+  { name: 'Assignments', href: '/assignments', icon: UserGroupIcon, roles: ['admin', 'manager', 'team_lead'] },
   { name: 'Ad Integrations', href: '/ad-integrations', icon: ArrowPathRoundedSquareIcon, roles: ['admin', 'manager'] },
   { name: 'Webhook URLs', href: '/webhook-urls', icon: KeyIcon, roles: ['admin'] },
   { name: 'Web Scraping', href: '/apify-dashboard', icon: MagnifyingGlassCircleIcon, roles: ['admin', 'manager'] },
@@ -95,25 +99,36 @@ const dataNavigation: NavItem[] = [
 
 // 5. FIELD SALES - B2B College Sales
 const fieldSalesNavigation: NavItem[] = [
-  { name: 'Overview', href: '/field-sales', icon: BriefcaseIcon, roles: ['admin', 'manager', 'owner', 'field_sales', 'counselor'] },
-  { name: 'Colleges', href: '/field-sales/colleges', icon: BuildingOffice2Icon, roles: ['admin', 'manager', 'owner', 'field_sales', 'counselor'] },
-  { name: 'Visits', href: '/field-sales/visits', icon: MapPinIcon, roles: ['admin', 'manager', 'owner', 'field_sales', 'counselor'] },
-  { name: 'Deals', href: '/field-sales/deals', icon: FunnelIcon, roles: ['admin', 'manager', 'owner', 'field_sales', 'counselor'] },
-  { name: 'Expenses', href: '/field-sales/expenses', icon: CurrencyRupeeIcon, roles: ['admin', 'manager', 'owner', 'field_sales', 'counselor'] },
+  { name: 'Overview', href: '/field-sales', icon: BriefcaseIcon, roles: ['admin', 'manager', 'team_lead', 'owner', 'field_sales', 'counselor'] },
+  { name: 'Colleges', href: '/field-sales/colleges', icon: BuildingOffice2Icon, roles: ['admin', 'manager', 'team_lead', 'owner', 'field_sales', 'counselor'] },
+  { name: 'Visits', href: '/field-sales/visits', icon: MapPinIcon, roles: ['admin', 'manager', 'team_lead', 'owner', 'field_sales', 'counselor'] },
+  { name: 'Deals', href: '/field-sales/deals', icon: FunnelIcon, roles: ['admin', 'manager', 'team_lead', 'owner', 'field_sales', 'counselor'] },
+  { name: 'Expenses', href: '/field-sales/expenses', icon: CurrencyRupeeIcon, roles: ['admin', 'manager', 'team_lead', 'owner', 'field_sales', 'counselor'] },
 ];
 
-// 6. REPORTS - Analytics & insights
+// 6. ADMISSIONS - Education admission management
+const admissionsNavigation: NavItem[] = [
+  { name: 'Universities', href: '/universities', icon: BuildingOffice2Icon, roles: ['admin', 'manager', 'team_lead'] },
+  { name: 'Student Visits', href: '/student-visits', icon: MapPinIcon, roles: ['admin', 'manager', 'team_lead', 'counselor'] },
+  { name: 'Admissions', href: '/admissions', icon: AcademicCapIcon, roles: ['admin', 'manager', 'team_lead', 'counselor'] },
+  { name: 'Expenses', href: '/expenses', icon: BanknotesIcon, roles: ['admin', 'manager'] },
+  { name: 'Profit Dashboard', href: '/profit', icon: ReceiptPercentIcon, roles: ['admin'] },
+];
+
+// 7. REPORTS - Analytics & insights
 const reportsNavigation: NavItem[] = [
-  { name: 'Overview', href: '/analytics', icon: PresentationChartLineIcon, roles: ['admin', 'manager'] },
-  { name: 'Reports', href: '/reports', icon: ChartBarIcon, roles: ['admin', 'manager'] },
-  { name: 'Funnel', href: '/analytics/funnel', icon: FunnelIcon, roles: ['admin', 'manager'] },
-  { name: 'Performance', href: '/analytics/agents', icon: TrophyIcon, roles: ['admin', 'manager'] },
+  { name: 'Overview', href: '/analytics', icon: PresentationChartLineIcon, roles: ['admin', 'manager', 'team_lead'] },
+  { name: 'Reports', href: '/reports', icon: ChartBarIcon, roles: ['admin', 'manager', 'team_lead'] },
+  { name: 'Funnel', href: '/analytics/funnel', icon: FunnelIcon, roles: ['admin', 'manager', 'team_lead'] },
+  { name: 'Performance', href: '/analytics/agents', icon: TrophyIcon, roles: ['admin', 'manager', 'team_lead'] },
 ];
 
-// 7. SETTINGS - Configuration
+// 8. SETTINGS - Configuration
 const settingsNavigation: NavItem[] = [
   { name: 'Users', href: '/users', icon: UsersIcon, roles: ['admin'] },
   { name: 'Organization', href: '/settings/institution', icon: Cog6ToothIcon, roles: ['admin'] },
+  { name: 'Industry', href: '/settings/industry', icon: BuildingOffice2Icon, roles: ['admin'] },
+  { name: 'Lead Management', href: '/settings/lead-management', icon: QueueListIcon, roles: ['admin', 'manager'] },
   { name: 'Integrations', href: '/settings/integrations', icon: KeyIcon, roles: ['admin'] },
   { name: 'Channels', href: '/settings/whatsapp', icon: WhatsAppIcon, roles: ['admin', 'manager'] },
   { name: 'Auto-Assign', href: '/settings/auto-assign', icon: BoltIcon, roles: ['admin', 'manager'] },
@@ -135,7 +150,7 @@ export default function DashboardLayout() {
   // Collapsible section states - persisted in localStorage
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
     const saved = localStorage.getItem('navExpandedSections');
-    return saved ? JSON.parse(saved) : { crm: true, voiceAI: true, data: false, fieldSales: false, reports: false, settings: false };
+    return saved ? JSON.parse(saved) : { crm: true, voiceAI: true, data: false, fieldSales: false, admissions: false, reports: false, settings: false };
   });
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
@@ -169,7 +184,8 @@ export default function DashboardLayout() {
   const userRole = rawRole.toLowerCase().trim();
   const isAdmin = userRole === 'admin';
   const isManager = userRole === 'manager';
-  const showAdvancedSections = isAdmin || isManager;
+  const isTeamLead = userRole === 'team_lead' || userRole === 'teamlead';
+  const showAdvancedSections = isAdmin || isManager || isTeamLead;
 
   // Check if telecaller/counselor on dashboard (for dark theme header)
   const isTelecallerDashboard = (userRole === 'telecaller' || userRole === 'counselor') && location.pathname === '/dashboard';
@@ -185,6 +201,7 @@ export default function DashboardLayout() {
   const filteredVoiceAI = useMemo(() => filterByRole(voiceAINavigation), [userRole]);
   const filteredData = useMemo(() => filterByRole(dataNavigation), [userRole]);
   const filteredFieldSales = useMemo(() => filterByRole(fieldSalesNavigation), [userRole]);
+  const filteredAdmissions = useMemo(() => filterByRole(admissionsNavigation), [userRole]);
   const filteredReports = useMemo(() => filterByRole(reportsNavigation), [userRole]);
   const filteredSettings = useMemo(() => filterByRole(settingsNavigation), [userRole]);
 
@@ -234,6 +251,7 @@ export default function DashboardLayout() {
     voiceAI: SparklesIcon,
     data: DocumentArrowUpIcon,
     fieldSales: BriefcaseIcon,
+    admissions: AcademicCapIcon,
     reports: ChartBarIcon,
     settings: Cog6ToothIcon,
   };
@@ -369,6 +387,17 @@ export default function DashboardLayout() {
               />
             )}
 
+            {/* Admissions */}
+            {filteredAdmissions.length > 0 && (
+              <CollapsibleSection
+                title="Admissions"
+                sectionKey="admissions"
+                items={filteredAdmissions}
+                colorClass="text-teal-400"
+                onClick={() => setSidebarOpen(false)}
+              />
+            )}
+
             {/* Reports */}
             {showAdvancedSections && filteredReports.length > 0 && (
               <CollapsibleSection
@@ -460,6 +489,14 @@ export default function DashboardLayout() {
                 <NavItemCollapsed key={item.name} item={item} />
               ))}
 
+              {/* Divider + Admissions */}
+              {filteredAdmissions.length > 0 && (
+                <div className="my-2 border-t border-slate-700/50" />
+              )}
+              {filteredAdmissions.map((item) => (
+                <NavItemCollapsed key={item.name} item={item} />
+              ))}
+
               {/* Divider + Reports */}
               {showAdvancedSections && filteredReports.length > 0 && (
                 <div className="my-2 border-t border-slate-700/50" />
@@ -523,6 +560,16 @@ export default function DashboardLayout() {
                   sectionKey="fieldSales"
                   items={filteredFieldSales}
                   colorClass="text-orange-400"
+                />
+              )}
+
+              {/* Admissions */}
+              {filteredAdmissions.length > 0 && (
+                <CollapsibleSection
+                  title="Admissions"
+                  sectionKey="admissions"
+                  items={filteredAdmissions}
+                  colorClass="text-teal-400"
                 />
               )}
 

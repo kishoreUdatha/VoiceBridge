@@ -27,6 +27,7 @@ import realtimeVoiceRoutes from './realtime-voice.routes';
 import exotelRoutes from './exotel.routes';
 import superAdminRoutes from './super-admin.routes';
 import whiteLabelRoutes from './white-label.routes';
+import emailSettingsRoutes from './email-settings.routes';
 import partnerRoutes from './partner.routes';
 import marketplaceRoutes from './marketplace.routes';
 import publicApiRoutes from './public-api.routes';
@@ -71,6 +72,7 @@ import healthRoutes from './health.routes';
 import complianceRoutes from './compliance.routes';
 import leadScoringRoutes from './lead-scoring.routes';
 import callAnalyticsRoutes from './call-analytics.routes';
+import telecallerAnalyticsRoutes from './telecaller-analytics.routes';
 import otpRoutes from './otp.routes';
 import leadLifecycleRoutes from './lead-lifecycle.routes';
 import conversationalAIAgentRoutes from './conversational-ai-agent.routes';
@@ -79,6 +81,20 @@ import agentAnalyticsRoutes from './agent-analytics.routes';
 import messagingRoutes from './messaging.routes';
 import notificationDeviceRoutes from './notification-device.routes';
 import fieldSalesRoutes from './fieldSales';
+import userManagementRoutes from './user-management.routes';
+import branchRoutes from './branch.routes';
+import leadStageRoutes from './lead-stage.routes';
+import leadDeduplicationRoutes from './lead-deduplication.routes';
+import leadRoutingRoutes from './lead-routing.routes';
+import leadTagsRoutes from './lead-tags.routes';
+import leadWorkflowRoutes from './lead-workflow.routes';
+import leadViewsRoutes from './lead-views.routes';
+import leadSlaRoutes from './lead-sla.routes';
+import universityRoutes from './university.routes';
+import studentVisitRoutes from './student-visit.routes';
+import admissionRoutes from './admission.routes';
+import businessExpenseRoutes from './business-expense.routes';
+import profitRoutes from './profit.routes';
 
 const router = Router();
 
@@ -88,6 +104,7 @@ router.use('/health', healthRoutes);
 // API routes
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
+router.use('/user-management', userManagementRoutes);
 router.use('/leads', leadRoutes);
 router.use('/forms', formRoutes);
 router.use('/landing-pages', landingRoutes);
@@ -116,6 +133,7 @@ router.use('/realtime-voice', realtimeVoiceRoutes);
 router.use('/exotel', exotelRoutes);
 router.use('/super-admin', superAdminRoutes);
 router.use('/white-label', whiteLabelRoutes);
+router.use('/email-settings', emailSettingsRoutes);
 router.use('/partner', partnerRoutes);
 router.use('/marketplace', marketplaceRoutes);
 router.use('/api-keys', apiKeysRoutes);
@@ -170,6 +188,7 @@ router.use('/apify', apifyIntegrationRoutes);
 router.use('/compliance', complianceRoutes);
 router.use('/lead-scoring', leadScoringRoutes);
 router.use('/call-analytics', callAnalyticsRoutes);
+router.use('/telecaller-analytics', telecallerAnalyticsRoutes);
 
 // Lead Lifecycle Management
 router.use('/lead-lifecycle', leadLifecycleRoutes);
@@ -182,6 +201,27 @@ router.use('/otp', otpRoutes);
 
 // Field Sales Management
 router.use('/field-sales', fieldSalesRoutes);
+
+// Branch Management (Multi-branch support)
+router.use('/branches', branchRoutes);
+
+// Lead Stage Management (Industry-specific)
+router.use('/lead-stages', leadStageRoutes);
+
+// Lead Management Features
+router.use('/lead-deduplication', leadDeduplicationRoutes);
+router.use('/lead-routing', leadRoutingRoutes);
+router.use('/lead-tags', leadTagsRoutes);
+router.use('/lead-workflows', leadWorkflowRoutes);
+router.use('/lead-views', leadViewsRoutes);
+router.use('/lead-sla', leadSlaRoutes);
+
+// Education Admission Management
+router.use('/universities', universityRoutes);
+router.use('/student-visits', studentVisitRoutes);
+router.use('/admissions', admissionRoutes);
+router.use('/expenses', businessExpenseRoutes);
+router.use('/profit', profitRoutes);
 
 // Public API (versioned) - for external integrations
 router.use('/v1', publicApiRoutes);

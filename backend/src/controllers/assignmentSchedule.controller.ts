@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { assignmentScheduleService } from '../services/assignmentSchedule.service';
 import { BadRequestError } from '../utils/errors';
+import { getBranchAccessContext, canAccessBranch } from '../utils/branchAccess';
+import { AuthenticatedRequest } from '../middlewares/auth';
 
 export class AssignmentScheduleController {
   /**
@@ -9,10 +11,12 @@ export class AssignmentScheduleController {
    */
   async createSchedule(req: Request, res: Response, next: NextFunction) {
     try {
-      const organizationId = req.user!.organizationId;
+      const branchContext = getBranchAccessContext(req as AuthenticatedRequest);
+      const organizationId = branchContext.organizationId;
 
       const {
         name,
+        orgBranchId,
         scheduleType,
         scheduleTimes,
         timezone,
@@ -31,8 +35,19 @@ export class AssignmentScheduleController {
         throw new BadRequestError('Schedule name is required');
       }
 
+      // Validate branch access for non-admin users
+      if (orgBranchId && !canAccessBranch(branchContext, orgBranchId)) {
+        throw new BadRequestError('You do not have access to create schedules for this branch');
+      }
+
+      // Non-admin users can only create schedules for their own branch
+      const effectiveBranchId = branchContext.canAccessAllBranches
+        ? (orgBranchId || null)  // Admin can create org-wide or branch-specific
+        : branchContext.branchId; // Non-admin must use their branch
+
       const schedule = await assignmentScheduleService.createSchedule({
         organizationId,
+        orgBranchId: effectiveBranchId,
         name,
         scheduleType,
         scheduleTimes,
@@ -63,9 +78,13 @@ export class AssignmentScheduleController {
    */
   async getSchedules(req: Request, res: Response, next: NextFunction) {
     try {
-      const organizationId = req.user!.organizationId;
+      const branchContext = getBranchAccessContext(req as AuthenticatedRequest);
 
-      const schedules = await assignmentScheduleService.getSchedules(organizationId);
+      const schedules = await assignmentScheduleService.getSchedules(
+        branchContext.organizationId,
+        branchContext.branchId,
+        branchContext.canAccessAllBranches
+      );
 
       res.json({
         success: true,
@@ -82,7 +101,7 @@ export class AssignmentScheduleController {
    */
   async getScheduleById(req: Request, res: Response, next: NextFunction) {
     try {
-      const organizationId = req.user!.organizationId;
+      const organizationId = (req as AuthenticatedRequest).user!.organizationId;
       const { id } = req.params;
 
       const schedule = await assignmentScheduleService.getScheduleById(
@@ -105,11 +124,12 @@ export class AssignmentScheduleController {
    */
   async updateSchedule(req: Request, res: Response, next: NextFunction) {
     try {
-      const organizationId = req.user!.organizationId;
+      const branchContext = getBranchAccessContext(req as AuthenticatedRequest);
       const { id } = req.params;
 
       const {
         name,
+        orgBranchId,
         scheduleType,
         scheduleTimes,
         timezone,
@@ -124,11 +144,17 @@ export class AssignmentScheduleController {
         isActive,
       } = req.body;
 
+      // Validate branch access if changing branch
+      if (orgBranchId !== undefined && !canAccessBranch(branchContext, orgBranchId)) {
+        throw new BadRequestError('You do not have access to this branch');
+      }
+
       const schedule = await assignmentScheduleService.updateSchedule(
         id,
-        organizationId,
+        branchContext.organizationId,
         {
           name,
+          orgBranchId: branchContext.canAccessAllBranches ? orgBranchId : undefined, // Only admin can change branch
           scheduleType,
           scheduleTimes,
           timezone,
@@ -159,7 +185,7 @@ export class AssignmentScheduleController {
    */
   async deleteSchedule(req: Request, res: Response, next: NextFunction) {
     try {
-      const organizationId = req.user!.organizationId;
+      const organizationId = (req as AuthenticatedRequest).user!.organizationId;
       const { id } = req.params;
 
       await assignmentScheduleService.deleteSchedule(id, organizationId);
@@ -179,8 +205,9 @@ export class AssignmentScheduleController {
    */
   async runSchedule(req: Request, res: Response, next: NextFunction) {
     try {
-      const organizationId = req.user!.organizationId;
-      const userId = req.user!.id;
+      const user = (req as AuthenticatedRequest).user!;
+      const organizationId = user.organizationId;
+      const userId = user.id;
       const { id } = req.params;
 
       // Verify schedule belongs to org
@@ -208,7 +235,7 @@ export class AssignmentScheduleController {
    */
   async getRunLogs(req: Request, res: Response, next: NextFunction) {
     try {
-      const organizationId = req.user!.organizationId;
+      const organizationId = (req as AuthenticatedRequest).user!.organizationId;
       const { id } = req.params;
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
@@ -237,13 +264,28 @@ export class AssignmentScheduleController {
 
   /**
    * Get current capacity stats
-   * GET /api/assignment-schedules/capacity
+   * GET /api/assignment-schedules/capacity?branchId=xxx
    */
   async getCapacityStats(req: Request, res: Response, next: NextFunction) {
     try {
-      const organizationId = req.user!.organizationId;
+      const branchContext = getBranchAccessContext(req as AuthenticatedRequest);
+      const queryBranchId = req.query.branchId as string | undefined;
 
-      const stats = await assignmentScheduleService.getCapacityStats(organizationId);
+      // Determine which branch to filter by
+      let effectiveBranchId: string | null = null;
+
+      if (branchContext.canAccessAllBranches) {
+        // Admin can specify branch via query param
+        effectiveBranchId = queryBranchId || null;
+      } else {
+        // Non-admin uses their assigned branch
+        effectiveBranchId = branchContext.branchId;
+      }
+
+      const stats = await assignmentScheduleService.getCapacityStats(
+        branchContext.organizationId,
+        effectiveBranchId
+      );
 
       res.json({
         success: true,

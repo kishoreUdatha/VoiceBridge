@@ -84,8 +84,14 @@ import {
   SmsModal,
   EditLeadModal,
   EditLeadFormData,
+  AdmissionStatusTracker,
+  CloseAdmissionModal,
+  IndustryJourneyTracker,
 } from './components';
 import leadDetailsService from '../../services/leadDetails.service';
+import { leadService, AdmissionStatus } from '../../services/lead.service';
+import { OrganizationIndustry, LeadStage } from './industry-stages.constants';
+import api from '../../services/api';
 
 export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -112,7 +118,13 @@ export default function LeadDetailPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showMoreDropdown, setShowMoreDropdown] = useState(false);
   const [showCallPrepModal, setShowCallPrepModal] = useState(false);
+  const [showCloseAdmissionModal, setShowCloseAdmissionModal] = useState(false);
   const moreDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Industry-specific lead stages state
+  const [organizationIndustry, setOrganizationIndustry] = useState<OrganizationIndustry>('GENERAL');
+  const [leadStages, setLeadStages] = useState<LeadStage[]>([]);
+  const [loadingStages, setLoadingStages] = useState(true);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -140,6 +152,30 @@ export default function LeadDetailPage() {
       dispatch(fetchCounselors());
     }
   }, [dispatch, id]);
+
+  // Load organization industry and lead stages
+  useEffect(() => {
+    const loadIndustryAndStages = async () => {
+      try {
+        setLoadingStages(true);
+        const [industryRes, stagesRes] = await Promise.all([
+          api.get('/lead-stages/industry'),
+          api.get('/lead-stages/journey'),
+        ]);
+        setOrganizationIndustry(industryRes.data.data?.industry || 'GENERAL');
+        const allStages = [
+          ...(stagesRes.data.data?.progressStages || []),
+          ...(stagesRes.data.data?.lostStage ? [stagesRes.data.data.lostStage] : []),
+        ];
+        setLeadStages(allStages);
+      } catch (error) {
+        console.error('Failed to load industry/stages:', error);
+      } finally {
+        setLoadingStages(false);
+      }
+    };
+    loadIndustryAndStages();
+  }, []);
 
   // Sync status with lead data
   useEffect(() => {
@@ -236,6 +272,32 @@ export default function LeadDetailPage() {
       toast.success('🎉 Lead marked as converted!');
     } catch {
       toast.error('Failed to mark lead as converted');
+    }
+  };
+
+  // Admission status change handler (legacy - for education industry fallback)
+  const handleAdmissionStatusChange = async (newStatus: string) => {
+    if (!id) return;
+    await leadService.updateAdmissionStatus(id, newStatus as AdmissionStatus);
+    dispatch(fetchLeadById(id));
+  };
+
+  // Industry-specific stage change handler
+  const handleStageChange = async (stageId: string) => {
+    if (!id) return;
+    try {
+      await api.put(`/lead-stages/lead/${id}/stage`, { stageId });
+      dispatch(fetchLeadById(id));
+    } catch (error) {
+      console.error('Failed to update lead stage:', error);
+      throw error;
+    }
+  };
+
+  // Handle admission closed success
+  const handleAdmissionSuccess = () => {
+    if (id) {
+      dispatch(fetchLeadById(id));
     }
   };
 
@@ -492,6 +554,30 @@ export default function LeadDetailPage() {
 
       {/* Tab Content */}
       <div className="p-4">
+        {/* Industry Journey Tracker - Uses organization's industry-specific stages */}
+        {!loadingStages && leadStages.length > 0 ? (
+          <IndustryJourneyTracker
+            industry={organizationIndustry}
+            stages={leadStages}
+            currentStageId={currentLead.stageId || null}
+            onStageChange={handleStageChange}
+            onMarkLost={() => {}}
+            isConverted={currentLead.isConverted}
+            closedAt={currentLead.admissionClosedAt}
+            showCloseButton={organizationIndustry === 'EDUCATION'}
+            onClose={() => setShowCloseAdmissionModal(true)}
+          />
+        ) : organizationIndustry === 'EDUCATION' ? (
+          /* Fallback to legacy AdmissionStatusTracker for education without stages */
+          <AdmissionStatusTracker
+            currentStatus={currentLead.admissionStatus || 'INQUIRY'}
+            onStatusChange={handleAdmissionStatusChange}
+            onCloseAdmission={() => setShowCloseAdmissionModal(true)}
+            isConverted={currentLead.isConverted}
+            admissionClosedAt={currentLead.admissionClosedAt}
+          />
+        ) : null}
+
         {activeTab === 'overview' && <OverviewTab lead={currentLead} />}
 
         {activeTab === 'notes' && (
@@ -651,6 +737,14 @@ export default function LeadDetailPage() {
           // Trigger the actual call
           window.location.href = `tel:${currentLead.phone}`;
         }}
+      />
+
+      <CloseAdmissionModal
+        isOpen={showCloseAdmissionModal}
+        onClose={() => setShowCloseAdmissionModal(false)}
+        leadId={currentLead.id}
+        leadName={`${currentLead.firstName} ${currentLead.lastName || ''}`}
+        onSuccess={handleAdmissionSuccess}
       />
     </div>
   );

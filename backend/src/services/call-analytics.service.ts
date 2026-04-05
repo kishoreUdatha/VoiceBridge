@@ -85,6 +85,7 @@ class CallAnalyticsService {
 
   /**
    * Get funnel analytics for an organization
+   * Uses real Lead data grouped by LeadStage
    */
   async getFunnelAnalytics(
     organizationId: string,
@@ -93,62 +94,205 @@ class CallAnalyticsService {
   ) {
     const { startDate, endDate } = options;
 
-    const where: any = {
+    // First, try to get data from FunnelEvent table
+    const funnelEventWhere: any = {
       organizationId,
       funnelName,
     };
 
     if (startDate || endDate) {
-      where.enteredAt = {};
-      if (startDate) where.enteredAt.gte = startDate;
-      if (endDate) where.enteredAt.lte = endDate;
+      funnelEventWhere.enteredAt = {};
+      if (startDate) funnelEventWhere.enteredAt.gte = startDate;
+      if (endDate) funnelEventWhere.enteredAt.lte = endDate;
     }
 
-    // Get counts per stage
     const stageCounts = await prisma.funnelEvent.groupBy({
       by: ['stageName', 'stageOrder'],
-      where,
+      where: funnelEventWhere,
       _count: { id: true },
       orderBy: { stageOrder: 'asc' },
     });
 
-    // Get conversion data between stages
+    // If FunnelEvent has data, use it
+    if (stageCounts.length > 0) {
+      interface StageData { name: string; order: number; count: number }
+      const stages: StageData[] = stageCounts.map((s: typeof stageCounts[0]) => ({
+        name: s.stageName,
+        order: s.stageOrder,
+        count: s._count.id,
+      }));
+
+      const funnelData = stages.map((stage: StageData, index: number) => {
+        const previousStage = index > 0 ? stages[index - 1] : null;
+        const conversionRate = previousStage
+          ? previousStage.count > 0
+            ? (stage.count / previousStage.count) * 100
+            : 0
+          : 100;
+
+        return {
+          ...stage,
+          conversionRate: Math.round(conversionRate * 100) / 100,
+          dropoffRate: Math.round((100 - conversionRate) * 100) / 100,
+        };
+      });
+
+      const firstStage = funnelData[0];
+      const lastStage = funnelData[funnelData.length - 1];
+      const overallConversion = firstStage && lastStage && firstStage.count > 0
+        ? (lastStage.count / firstStage.count) * 100
+        : 0;
+
+      return {
+        funnelName,
+        period: { startDate, endDate },
+        stages: funnelData,
+        totalLeads: firstStage?.count || 0,
+        totalConverted: lastStage?.count || 0,
+        overallConversionRate: Math.round(overallConversion * 100) / 100,
+      };
+    }
+
+    // Fallback: Get real funnel data from Leads grouped by LeadStage
+    return this.getFunnelFromLeads(organizationId, startDate, endDate);
+  }
+
+  /**
+   * Get funnel data from actual Leads grouped by their LeadStage
+   */
+  private async getFunnelFromLeads(
+    organizationId: string,
+    startDate?: Date,
+    endDate?: Date
+  ) {
+    // Get all lead stages for the organization, ordered
+    const leadStages = await prisma.leadStage.findMany({
+      where: { organizationId, isActive: true },
+      orderBy: { order: 'asc' },
+    });
+
+    // If no stages defined, create default ones
+    if (leadStages.length === 0) {
+      // Return default funnel structure
+      const defaultStages = DEFAULT_SALES_FUNNEL.map((stage, index) => ({
+        name: stage.name,
+        order: stage.order,
+        count: 0,
+        conversionRate: index === 0 ? 100 : 0,
+        dropoffRate: index === 0 ? 0 : 100,
+      }));
+
+      return {
+        funnelName: 'sales',
+        period: { startDate, endDate },
+        stages: defaultStages,
+        totalLeads: 0,
+        totalConverted: 0,
+        overallConversionRate: 0,
+      };
+    }
+
+    // Build where clause for leads
+    const leadWhere: any = { organizationId };
+    if (startDate || endDate) {
+      leadWhere.createdAt = {};
+      if (startDate) leadWhere.createdAt.gte = startDate;
+      if (endDate) leadWhere.createdAt.lte = endDate;
+    }
+
+    // Get lead counts by stage
+    const leadsByStage = await prisma.lead.groupBy({
+      by: ['stageId'],
+      where: leadWhere,
+      _count: { id: true },
+    });
+
+    // Also count leads with no stage (new leads)
+    const leadsWithNoStage = await prisma.lead.count({
+      where: { ...leadWhere, stageId: null },
+    });
+
+    // Map stage counts
+    const stageCountMap: Record<string, number> = {};
+    leadsByStage.forEach((item) => {
+      if (item.stageId) {
+        stageCountMap[item.stageId] = item._count.id;
+      }
+    });
+
+    // Build stages array with counts
     interface StageData { name: string; order: number; count: number }
-    const stages: StageData[] = stageCounts.map((s: typeof stageCounts[0]) => ({
-      name: s.stageName,
-      order: s.stageOrder,
-      count: s._count.id,
+    const stages: StageData[] = leadStages.map((stage) => ({
+      name: stage.slug || stage.name.toLowerCase().replace(/\s+/g, '_'),
+      order: stage.order,
+      count: stageCountMap[stage.id] || 0,
     }));
 
-    // Calculate conversion rates between stages
-    const funnelData = stages.map((stage: StageData, index: number) => {
-      const previousStage = index > 0 ? stages[index - 1] : null;
-      const conversionRate = previousStage
-        ? previousStage.count > 0
-          ? (stage.count / previousStage.count) * 100
-          : 0
+    // Add "new" stage at the beginning for leads without a stage
+    if (leadsWithNoStage > 0 || stages.length === 0 || stages[0].name !== 'new') {
+      const existingNewStage = stages.find(s => s.name === 'new');
+      if (existingNewStage) {
+        existingNewStage.count += leadsWithNoStage;
+      } else {
+        stages.unshift({
+          name: 'new',
+          order: 0,
+          count: leadsWithNoStage,
+        });
+      }
+    }
+
+    // Sort by order
+    stages.sort((a, b) => a.order - b.order);
+
+    // Calculate total leads (sum of all stages)
+    const totalLeads = stages.reduce((sum, s) => sum + s.count, 0);
+
+    // Calculate conversion rates - use cumulative approach
+    // First stage should show total leads entering the funnel
+    // Subsequent stages show how many progressed to that stage
+
+    // For a proper funnel, we need cumulative counts from top
+    // Leads at stage N means they've passed through stages 1 to N-1
+    let cumulativeCount = totalLeads;
+
+    const funnelData = stages.map((stage, index) => {
+      // For first stage, count is total leads
+      // For subsequent stages, it's the count at that stage plus all stages after
+      const stageCount = index === 0
+        ? totalLeads
+        : stages.slice(index).reduce((sum, s) => sum + s.count, 0);
+
+      const previousCount = index > 0 ?
+        stages.slice(index - 1).reduce((sum, s) => sum + s.count, 0) : totalLeads;
+
+      const conversionRate = previousCount > 0 && index > 0
+        ? (stageCount / previousCount) * 100
         : 100;
 
       return {
-        ...stage,
+        name: stage.name,
+        order: stage.order,
+        count: stageCount,
         conversionRate: Math.round(conversionRate * 100) / 100,
         dropoffRate: Math.round((100 - conversionRate) * 100) / 100,
       };
     });
 
-    // Calculate overall conversion
-    const firstStage = funnelData[0];
+    // Get converted count (last stage or stages marked as won/converted)
     const lastStage = funnelData[funnelData.length - 1];
-    const overallConversion = firstStage && lastStage && firstStage.count > 0
-      ? (lastStage.count / firstStage.count) * 100
+    const convertedCount = lastStage?.count || 0;
+
+    const overallConversion = totalLeads > 0
+      ? (convertedCount / totalLeads) * 100
       : 0;
 
     return {
-      funnelName,
+      funnelName: 'sales',
       period: { startDate, endDate },
       stages: funnelData,
-      totalLeads: firstStage?.count || 0,
-      totalConverted: lastStage?.count || 0,
+      totalLeads,
+      totalConverted: convertedCount,
       overallConversionRate: Math.round(overallConversion * 100) / 100,
     };
   }

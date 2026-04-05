@@ -5,6 +5,10 @@ export const collegeService = {
   getAll: (params?: any) => api.get('/field-sales/colleges', { params }),
   getById: (id: string) => api.get(`/field-sales/colleges/${id}`),
   getStats: () => api.get('/field-sales/colleges/stats'),
+  // Use all-states and all-districts for complete India location data
+  getStates: () => api.get('/field-sales/colleges/all-states'),
+  getDistricts: (state: string) => api.get('/field-sales/colleges/all-districts', { params: { state } }),
+  getCities: (state?: string, district?: string) => api.get('/field-sales/colleges/cities', { params: { state, district } }),
 };
 
 // Visits

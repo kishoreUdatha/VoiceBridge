@@ -4,6 +4,7 @@ import leadReducer from './slices/leadSlice';
 import userReducer from './slices/userSlice';
 import rawImportReducer from './slices/rawImportSlice';
 import assignmentScheduleReducer from './slices/assignmentScheduleSlice';
+import branchReducer from './slices/branchSlice';
 import {
   collegeReducer,
   visitReducer,
@@ -18,6 +19,7 @@ export const store = configureStore({
     users: userReducer,
     rawImports: rawImportReducer,
     assignmentSchedules: assignmentScheduleReducer,
+    branches: branchReducer,
     // Field Sales
     fieldSalesColleges: collegeReducer,
     fieldSalesVisits: visitReducer,

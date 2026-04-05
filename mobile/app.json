@@ -1,5 +1,28 @@
 {
-  "android": {
-    "package": "com.anonymous.crmleadgenerationmobile"
+  "expo": {
+    "name": "VoiceBridge Field Sales",
+    "slug": "voicebridge-field-sales",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#2563eb"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.voicebridge.fieldsales"
+    },
+    "android": {
+      "package": "com.voicebridge.fieldsales"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "voicebridge-field-sales"
+      }
+    }
   }
 }

@@ -11,6 +11,13 @@ export {
   AgentDetailModal,
 } from './AgentPerformanceComponents';
 export {
+  TelecallerLoadingSkeleton,
+  TelecallerHeader,
+  TelecallerStatsOverview,
+  TelecallerGrid,
+  TelecallerDetailModal,
+} from './TelecallerPerformanceComponents';
+export {
   LoadingSkeleton as LeadSourcesLoadingSkeleton,
   Header as LeadSourcesHeader,
   SocialMediaCard,

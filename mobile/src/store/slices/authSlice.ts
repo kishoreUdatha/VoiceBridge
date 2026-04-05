@@ -2,14 +2,22 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { authService } from '../../services/auth.service';
 import * as SecureStore from 'expo-secure-store';
 
+interface Role {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 interface User {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
   organizationId: string;
-  organizationName: string;
-  role: string;
+  organizationName?: string;
+  role?: Role;
+  roleName?: string; // Fallback for flat role name
+  branchId?: string;
 }
 
 interface AuthState {

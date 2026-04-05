@@ -553,6 +553,99 @@ export class RawImportService {
     };
   }
 
+  // Get assignment stats by telecaller (for admin/manager view)
+  async getTelecallerAssignmentStats(organizationId: string) {
+    // Get assignment counts grouped by telecaller
+    const assignmentStats = await prisma.rawImportRecord.groupBy({
+      by: ['assignedToId'],
+      where: {
+        organizationId,
+        assignedToId: { not: null },
+      },
+      _count: { id: true },
+    });
+
+    // Get status breakdown for each telecaller
+    const statusByTelecaller = await prisma.rawImportRecord.groupBy({
+      by: ['assignedToId', 'status'],
+      where: {
+        organizationId,
+        assignedToId: { not: null },
+      },
+      _count: { id: true },
+    });
+
+    // Get telecaller details
+    const telecallerIds = assignmentStats
+      .map(s => s.assignedToId)
+      .filter((id): id is string => id !== null);
+
+    const telecallers = await prisma.user.findMany({
+      where: { id: { in: telecallerIds } },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        isActive: true,
+        role: { select: { name: true, slug: true } },
+      },
+    });
+
+    const telecallerMap = new Map(telecallers.map(t => [t.id, t]));
+
+    // Build status breakdown map
+    const statusBreakdownMap = new Map<string, Record<string, number>>();
+    for (const stat of statusByTelecaller) {
+      if (!stat.assignedToId) continue;
+      if (!statusBreakdownMap.has(stat.assignedToId)) {
+        statusBreakdownMap.set(stat.assignedToId, {});
+      }
+      statusBreakdownMap.get(stat.assignedToId)![stat.status] = stat._count.id;
+    }
+
+    // Combine data
+    const result = assignmentStats
+      .filter(s => s.assignedToId && telecallerMap.has(s.assignedToId))
+      .map(stat => {
+        const telecaller = telecallerMap.get(stat.assignedToId!)!;
+        const statusBreakdown = statusBreakdownMap.get(stat.assignedToId!) || {};
+        return {
+          telecallerId: stat.assignedToId,
+          telecallerName: `${telecaller.firstName} ${telecaller.lastName || ''}`.trim(),
+          email: telecaller.email,
+          isActive: telecaller.isActive,
+          role: telecaller.role?.name || 'Telecaller',
+          totalAssigned: stat._count.id,
+          statusBreakdown: {
+            assigned: statusBreakdown['ASSIGNED'] || 0,
+            calling: statusBreakdown['CALLING'] || 0,
+            interested: statusBreakdown['INTERESTED'] || 0,
+            notInterested: statusBreakdown['NOT_INTERESTED'] || 0,
+            callbackRequested: statusBreakdown['CALLBACK_REQUESTED'] || 0,
+            noAnswer: statusBreakdown['NO_ANSWER'] || 0,
+            converted: statusBreakdown['CONVERTED'] || 0,
+          },
+        };
+      })
+      .sort((a, b) => b.totalAssigned - a.totalAssigned);
+
+    // Get unassigned count
+    const unassignedCount = await prisma.rawImportRecord.count({
+      where: {
+        organizationId,
+        status: 'PENDING',
+        assignedToId: null,
+      },
+    });
+
+    return {
+      telecallers: result,
+      unassignedCount,
+      totalTelecallers: result.length,
+    };
+  }
+
   // ==================== DUPLICATE DETECTION ====================
 
   async detectDuplicates(

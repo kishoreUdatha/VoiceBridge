@@ -91,6 +91,30 @@ export interface RawImportStats {
   notInterestedRecords: number;
 }
 
+export interface TelecallerAssignmentStat {
+  telecallerId: string;
+  telecallerName: string;
+  email: string;
+  isActive: boolean;
+  role: string;
+  totalAssigned: number;
+  statusBreakdown: {
+    assigned: number;
+    calling: number;
+    interested: number;
+    notInterested: number;
+    callbackRequested: number;
+    noAnswer: number;
+    converted: number;
+  };
+}
+
+export interface TelecallerAssignmentStats {
+  telecallers: TelecallerAssignmentStat[];
+  unassignedCount: number;
+  totalTelecallers: number;
+}
+
 export interface RecordFilter {
   bulkImportId?: string;
   status?: RawImportRecordStatus;
@@ -120,6 +144,12 @@ export const rawImportService = {
 
   async getStats(): Promise<RawImportStats> {
     const response = await api.get('/raw-imports/stats');
+    return response.data.data;
+  },
+
+  // Telecaller Assignment Stats (for admin/manager dashboard)
+  async getTelecallerAssignmentStats(): Promise<TelecallerAssignmentStats> {
+    const response = await api.get('/raw-imports/stats/telecaller-assignments');
     return response.data.data;
   },
 

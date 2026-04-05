@@ -76,6 +76,31 @@ export const applicationStatusColors: Record<string, string> = {
   ENROLLED: 'bg-emerald-100 text-emerald-700',
 };
 
+// Admission Status Options for Education CRM
+export const admissionStatusOptions = [
+  { value: 'INQUIRY', label: 'Inquiry', color: 'bg-slate-100 text-slate-700', step: 1 },
+  { value: 'INTERESTED', label: 'Interested', color: 'bg-blue-100 text-blue-700', step: 2 },
+  { value: 'VISIT_SCHEDULED', label: 'Visit Scheduled', color: 'bg-indigo-100 text-indigo-700', step: 3 },
+  { value: 'VISIT_COMPLETED', label: 'Visit Completed', color: 'bg-purple-100 text-purple-700', step: 4 },
+  { value: 'DOCUMENTS_PENDING', label: 'Documents Pending', color: 'bg-orange-100 text-orange-700', step: 5 },
+  { value: 'ADMISSION_PROCESSING', label: 'Processing', color: 'bg-yellow-100 text-yellow-700', step: 6 },
+  { value: 'PAYMENT_PENDING', label: 'Payment Pending', color: 'bg-amber-100 text-amber-700', step: 7 },
+  { value: 'ADMITTED', label: 'Admitted', color: 'bg-green-100 text-green-700', step: 8 },
+  { value: 'ENROLLED', label: 'Enrolled', color: 'bg-emerald-100 text-emerald-700', step: 9 },
+  { value: 'DROPPED', label: 'Dropped', color: 'bg-red-100 text-red-700', step: -1 },
+];
+
+export const admissionTypeOptions = [
+  { value: 'DONATION', label: 'Donation', color: 'bg-purple-100 text-purple-700' },
+  { value: 'NON_DONATION', label: 'Non-Donation', color: 'bg-blue-100 text-blue-700' },
+  { value: 'NRI', label: 'NRI', color: 'bg-amber-100 text-amber-700' },
+  { value: 'SCHOLARSHIP', label: 'Scholarship', color: 'bg-green-100 text-green-700' },
+];
+
+export const getAdmissionStatusInfo = (status: string) => {
+  return admissionStatusOptions.find(s => s.value === status) || admissionStatusOptions[0];
+};
+
 export const getStatusInfo = (status: string) => {
   return statusOptions.find(s => s.value === status) || statusOptions[0];
 };

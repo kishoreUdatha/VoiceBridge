@@ -42,7 +42,7 @@ const updateUserValidation = [
 
 const listUsersValidation = [
   query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
+  query('limit').optional().isInt({ min: 1, max: 1000 }),
   query('role').optional().isString(),
   query('isActive').optional().isIn(['true', 'false']),
   query('search').optional().isString(),
@@ -86,6 +86,24 @@ router.delete(
   authorize('admin'),
   validate([param('id').isUUID().withMessage('Invalid user ID')]),
   userController.delete.bind(userController)
+);
+
+// Reset password (admin only)
+router.post(
+  '/:id/reset-password',
+  authorize('admin'),
+  validate([
+    param('id').isUUID().withMessage('Invalid user ID'),
+    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  ]),
+  userController.resetPassword.bind(userController)
+);
+
+// Get bulk user stats (for performance metrics)
+router.get(
+  '/stats/bulk',
+  authorize('admin', 'manager'),
+  userController.getBulkStats.bind(userController)
 );
 
 export default router;

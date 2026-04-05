@@ -51,16 +51,49 @@ router.get(
 
 router.post(
   '/:id/recipients',
-  authorize('admin'),
+  authorize('admin', 'counselor', 'manager'),
   validate(addRecipientsValidation),
   campaignController.addRecipients.bind(campaignController)
 );
 
 router.post(
   '/:id/execute',
-  authorize('admin'),
+  authorize('admin', 'manager'),
   param('id').isUUID(),
   campaignController.execute.bind(campaignController)
+);
+
+router.put(
+  '/:id',
+  authorize('admin', 'counselor'),
+  param('id').isUUID(),
+  body('name').optional().trim().notEmpty(),
+  body('content').optional().trim().notEmpty(),
+  body('subject').optional().trim(),
+  campaignController.update.bind(campaignController)
+);
+
+router.delete(
+  '/:id',
+  authorize('admin'),
+  param('id').isUUID(),
+  campaignController.delete.bind(campaignController)
+);
+
+// Import recipients from leads
+router.post(
+  '/:id/import-leads',
+  authorize('admin', 'counselor', 'manager'),
+  param('id').isUUID(),
+  body('leadIds').isArray().withMessage('Lead IDs must be an array'),
+  campaignController.importFromLeads.bind(campaignController)
+);
+
+// Get leads available for import
+router.get(
+  '/:id/available-leads',
+  param('id').isUUID(),
+  campaignController.getAvailableLeads.bind(campaignController)
 );
 
 export default router;

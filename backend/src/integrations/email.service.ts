@@ -3,6 +3,7 @@ import { config } from '../config';
 import { prisma } from '../config/database';
 import { MessageDirection, MessageStatus } from '@prisma/client';
 import { emailTrackingService } from '../services/email-tracking.service';
+import { emailSettingsService } from '../services/emailSettings.service';
 
 interface SendEmailInput {
   to: string;
@@ -11,6 +12,7 @@ interface SendEmailInput {
   html?: string;
   leadId?: string;
   userId: string;
+  organizationId?: string; // For org-specific email settings
   campaignId?: string;
   enableTracking?: boolean;
   attachments?: Array<{
@@ -74,6 +76,39 @@ export class EmailService {
         );
       }
 
+      // Try to use org-specific email settings first
+      if (input.organizationId) {
+        try {
+          const result = await emailSettingsService.sendEmail(input.organizationId, {
+            to: input.to,
+            subject: input.subject,
+            text: input.body,
+            html: processedHtml,
+            attachments: input.attachments,
+          });
+
+          // Update email log with sent status
+          const updatedLog = await prisma.emailLog.update({
+            where: { id: emailLog.id },
+            data: {
+              status: MessageStatus.SENT,
+              providerMsgId: result.messageId,
+              sentAt: new Date(),
+            },
+          });
+
+          return { success: true, messageId: result.messageId, log: updatedLog };
+        } catch (orgEmailError: any) {
+          // If org settings not found or failed, fall back to default
+          if (orgEmailError.name === 'NotFoundError' || orgEmailError.message?.includes('not configured')) {
+            console.log(`[Email] Org ${input.organizationId} has no email settings, using default`);
+          } else {
+            throw orgEmailError; // Re-throw if it's a real error
+          }
+        }
+      }
+
+      // Fall back to default transporter
       const info = await this.transporter.sendMail({
         from: config.smtp.from,
         to: input.to,
@@ -219,6 +254,40 @@ export class EmailService {
       return { success: true, message: 'Email connection verified' };
     } catch (error) {
       return { success: false, error: (error as Error).message };
+    }
+  }
+
+  /**
+   * Send email using organization's own email settings
+   * Falls back to default if org settings not available
+   */
+  async sendEmailWithOrgSettings(
+    organizationId: string,
+    options: {
+      to: string;
+      subject: string;
+      text: string;
+      html?: string;
+      attachments?: Array<{ filename: string; content: string | Buffer; contentType?: string }>;
+    }
+  ) {
+    // Try org-specific settings first
+    try {
+      return await emailSettingsService.sendEmail(organizationId, options);
+    } catch (error: any) {
+      // If not configured, use default
+      if (error.name === 'NotFoundError' || error.message?.includes('not configured')) {
+        const info = await this.transporter.sendMail({
+          from: config.smtp.from,
+          to: options.to,
+          subject: options.subject,
+          text: options.text,
+          html: options.html,
+          attachments: options.attachments,
+        });
+        return { success: true, messageId: info.messageId };
+      }
+      throw error;
     }
   }
 

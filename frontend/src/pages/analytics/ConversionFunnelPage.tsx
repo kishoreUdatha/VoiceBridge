@@ -35,8 +35,8 @@ const ConversionFunnelPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-slate-100">
-      <div className="max-w-[1600px] mx-auto px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-6xl mx-auto px-3 py-3">
         <ConversionFunnelHeader
           funnelName={funnelName}
           dateRange={dateRange}
@@ -54,12 +54,9 @@ const ConversionFunnelPage: React.FC = () => {
 
         {/* Main Content */}
         {viewMode === 'visual' ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Funnel Visualization</h2>
-                <p className="text-sm text-gray-500 mt-1">Visual representation of lead progression</p>
-              </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-2 mb-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold text-gray-700">Funnel Visualization</span>
             </div>
             <FunnelVisual stages={funnelData?.stages || []} />
           </div>

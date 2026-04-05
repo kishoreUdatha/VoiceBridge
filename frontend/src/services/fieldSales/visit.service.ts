@@ -31,7 +31,7 @@ export type VisitOutcome =
 
 export interface Visit {
   id: string;
-  collegeId: string;
+  collegeId?: string; // Optional for ad-hoc visits
   organizationId: string;
   userId: string;
   visitDate: string;
@@ -54,12 +54,18 @@ export interface Visit {
   photos?: string[];
   documents?: Array<{ name: string; url: string }>;
   createdAt: string;
+  // Ad-hoc visit details
+  visitCollegeName?: string;
+  visitState?: string;
+  visitDistrict?: string;
+  visitCity?: string;
   college?: {
     id: string;
     name: string;
     shortName?: string;
     city: string;
     state?: string;
+    district?: string;
     address?: string;
     phone?: string;
     email?: string;
@@ -82,7 +88,11 @@ export interface VisitFilter {
 }
 
 export interface CheckInData {
-  collegeId: string;
+  collegeId?: string; // For existing colleges
+  collegeName?: string; // For ad-hoc visits
+  state?: string;
+  district?: string;
+  city?: string;
   purpose: VisitPurpose;
   latitude?: number;
   longitude?: number;
@@ -133,6 +143,8 @@ export interface TodaySchedule {
     id: string;
     name: string;
     city: string;
+    state?: string;
+    district?: string;
     address: string;
     nextFollowUpDate: string;
     contacts?: Array<{

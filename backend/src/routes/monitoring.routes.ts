@@ -173,4 +173,84 @@ router.get('/stats', async (req: TenantRequest, res: Response) => {
   }
 });
 
+// Get call analytics for monitoring dashboard
+router.get('/analytics', async (req: TenantRequest, res: Response) => {
+  try {
+    const { type = 'AI', dateFrom, dateTo } = req.query;
+
+    // Default date range: today
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const analytics = await callMonitoringService.getCallAnalytics(
+      req.organizationId!,
+      type as 'AI' | 'HUMAN',
+      dateFrom ? new Date(dateFrom as string) : startOfToday,
+      dateTo ? new Date(dateTo as string) : now
+    );
+
+    return ApiResponse.success(res, analytics);
+  } catch (error: any) {
+    return ApiResponse.error(res, error.message);
+  }
+});
+
+// Get live active calls
+router.get('/live-calls', async (req: TenantRequest, res: Response) => {
+  try {
+    const { type = 'AI' } = req.query;
+
+    const calls = await callMonitoringService.getLiveActiveCalls(
+      req.organizationId!,
+      type as 'AI' | 'HUMAN'
+    );
+
+    return ApiResponse.success(res, calls);
+  } catch (error: any) {
+    return ApiResponse.error(res, error.message);
+  }
+});
+
+// Get calls by date range (for table listing)
+router.get('/calls', async (req: TenantRequest, res: Response) => {
+  try {
+    const { type = 'AI', dateFrom, dateTo, status, queue, search, limit = '100' } = req.query;
+
+    // Default date range: today
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const calls = await callMonitoringService.getCallsByDateRange(
+      req.organizationId!,
+      type as 'AI' | 'HUMAN',
+      dateFrom ? new Date(dateFrom as string) : startOfToday,
+      dateTo ? new Date(dateTo as string) : now,
+      status as string,
+      queue as string,
+      search as string,
+      parseInt(limit as string)
+    );
+
+    return ApiResponse.success(res, calls);
+  } catch (error: any) {
+    return ApiResponse.error(res, error.message);
+  }
+});
+
+// Get agent statuses
+router.get('/agents', async (req: TenantRequest, res: Response) => {
+  try {
+    const { type = 'AI' } = req.query;
+
+    const agents = await callMonitoringService.getAgentStatuses(
+      req.organizationId!,
+      type as 'AI' | 'HUMAN'
+    );
+
+    return ApiResponse.success(res, agents);
+  } catch (error: any) {
+    return ApiResponse.error(res, error.message);
+  }
+});
+
 export default router;

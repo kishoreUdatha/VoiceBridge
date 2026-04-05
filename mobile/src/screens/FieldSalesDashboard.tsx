@@ -20,16 +20,26 @@ export default function FieldSalesDashboard() {
 
   const fetchData = async () => {
     try {
-      const [collegeStats, visitStats, active] = await Promise.all([
+      const [collegeStats, visitStats] = await Promise.all([
         collegeService.getStats(),
         visitService.getStats(),
-        visitService.getActive(),
       ]);
       setStats({
         colleges: collegeStats.data?.data,
         visits: visitStats.data?.data,
       });
-      setActiveVisit(active.data?.data);
+
+      // Fetch active visit separately - 404 means no active visit (expected)
+      try {
+        const active = await visitService.getActive();
+        setActiveVisit(active.data?.data);
+      } catch (e: any) {
+        // 404 is expected when no visit is active
+        if (e.response?.status !== 404) {
+          console.error('Failed to fetch active visit:', e);
+        }
+        setActiveVisit(null);
+      }
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     } finally {
@@ -140,12 +150,12 @@ export default function FieldSalesDashboard() {
         </View>
       </View>
 
-      {/* Deals Pipeline Button */}
+      {/* Colleges Overview - Quick Access */}
       <TouchableOpacity
         style={styles.pipelineBtn}
-        onPress={() => navigation.navigate('DealPipeline')}
+        onPress={() => navigation.navigate('Colleges')}
       >
-        <Text style={styles.pipelineBtnText}>View Deal Pipeline</Text>
+        <Text style={styles.pipelineBtnText}>View All Colleges</Text>
         <Text style={styles.pipelineArrow}>→</Text>
       </TouchableOpacity>
     </ScrollView>

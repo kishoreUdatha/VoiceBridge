@@ -9,7 +9,10 @@ import {
   Alert,
   Linking,
   RefreshControl,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
@@ -18,16 +21,18 @@ import { useAppSelector, useAppDispatch } from '../store';
 import { fetchLeadById, updateLeadStatus } from '../store/slices/leadsSlice';
 import { fetchCallHistory } from '../store/slices/callsSlice';
 import CallHistoryItem from '../components/CallHistoryItem';
+import { colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { Avatar, Badge, Card } from '../components/ui';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LeadDetail'>;
 
 const STATUS_COLORS: Record<LeadStatus, string> = {
-  NEW: '#3B82F6',
-  CONTACTED: '#F59E0B',
+  NEW: colors.primary[500],
+  CONTACTED: colors.warning[500],
   QUALIFIED: '#8B5CF6',
   NEGOTIATION: '#EC4899',
-  CONVERTED: '#10B981',
-  LOST: '#EF4444',
+  CONVERTED: colors.success[500],
+  LOST: colors.error[500],
 };
 
 const STATUS_OPTIONS: LeadStatus[] = [
@@ -49,12 +54,10 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const loadLeadData = useCallback(async () => {
     try {
-      console.log('[LeadDetail] Loading lead:', leadId);
       await Promise.all([
         dispatch(fetchLeadById(leadId)),
         dispatch(fetchCallHistory({ leadId })),
       ]);
-      console.log('[LeadDetail] Lead loaded successfully');
     } catch (error) {
       console.error('[LeadDetail] Error loading lead:', error);
     }
@@ -72,7 +75,6 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const handleCall = () => {
     if (selectedLead) {
-      // Navigate to Smart Call Prep first for AI suggestions
       navigation.navigate('SmartCallPrep', { lead: selectedLead });
     }
   };
@@ -114,7 +116,8 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   if (isLoading && !selectedLead) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3B82F6" />
+        <ActivityIndicator size="large" color={colors.primary[500]} />
+        <Text style={styles.loadingText}>Loading lead details...</Text>
       </View>
     );
   }
@@ -122,7 +125,9 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   if (!selectedLead) {
     return (
       <View style={styles.errorContainer}>
-        <Icon name="account-off" size={64} color="#9CA3AF" />
+        <View style={styles.errorIconBg}>
+          <Icon name="account-off" size={48} color={colors.neutral[400]} />
+        </View>
         <Text style={styles.errorText}>{error || 'Lead not found'}</Text>
         <Text style={styles.errorSubtext}>ID: {leadId}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={loadLeadData}>
@@ -135,34 +140,62 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const leadCalls = calls.filter((call) => call.leadId === leadId);
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* Header Card */}
-      <View style={styles.headerCard}>
-        <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>
-            {selectedLead.name.charAt(0).toUpperCase()}
-          </Text>
-        </View>
-        <Text style={styles.leadName}>{selectedLead.name}</Text>
-        {selectedLead.company && (
-          <Text style={styles.companyName}>{selectedLead.company}</Text>
-        )}
-        <TouchableOpacity
-          style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[selectedLead.status] }]}
-          onPress={() => setShowStatusPicker(!showStatusPicker)}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.primary[600]} />
+
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary[500]]}
+            tintColor={colors.neutral[0]}
+          />
+        }
+      >
+        {/* Header with Avatar */}
+        <LinearGradient
+          colors={[colors.primary[600], colors.primary[700]]}
+          style={styles.header}
         >
-          <Text style={styles.statusText}>{selectedLead.status}</Text>
-          <Icon name="chevron-down" size={16} color="#FFFFFF" />
-        </TouchableOpacity>
+          <View style={styles.headerTop}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+              <Icon name="arrow-left" size={24} color={colors.neutral[0]} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleEdit} style={styles.editBtn}>
+              <Icon name="pencil" size={20} color={colors.neutral[0]} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.profileSection}>
+            <Avatar
+              name={selectedLead.name}
+              size="xl"
+              backgroundColor={`${colors.neutral[0]}20`}
+              textColor={colors.neutral[0]}
+            />
+            <Text style={styles.leadName}>{selectedLead.name}</Text>
+            {selectedLead.company && (
+              <Text style={styles.companyName}>{selectedLead.company}</Text>
+            )}
+            <TouchableOpacity
+              style={[styles.statusBadge, { backgroundColor: `${STATUS_COLORS[selectedLead.status]}20` }]}
+              onPress={() => setShowStatusPicker(!showStatusPicker)}
+            >
+              <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[selectedLead.status] }]} />
+              <Text style={[styles.statusText, { color: STATUS_COLORS[selectedLead.status] }]}>
+                {selectedLead.status}
+              </Text>
+              <Icon name="chevron-down" size={16} color={STATUS_COLORS[selectedLead.status]} />
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
 
         {/* Status Picker */}
         {showStatusPicker && (
-          <View style={styles.statusPicker}>
+          <Card style={styles.statusPicker}>
+            <Text style={styles.statusPickerTitle}>Change Status</Text>
             {STATUS_OPTIONS.map((status) => (
               <TouchableOpacity
                 key={status}
@@ -172,349 +205,387 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                 ]}
                 onPress={() => handleStatusChange(status)}
               >
-                <View
-                  style={[styles.statusDot, { backgroundColor: STATUS_COLORS[status] }]}
-                />
+                <View style={[styles.statusOptionDot, { backgroundColor: STATUS_COLORS[status] }]} />
                 <Text style={styles.statusOptionText}>{status}</Text>
+                {selectedLead.status === status && (
+                  <Icon name="check" size={18} color={colors.primary[500]} />
+                )}
               </TouchableOpacity>
             ))}
-          </View>
+          </Card>
         )}
-      </View>
 
-      {/* Quick Actions */}
-      <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.actionButton} onPress={handleCall}>
-          <View style={[styles.actionIcon, { backgroundColor: '#10B981' }]}>
-            <Icon name="phone" size={20} color="#FFFFFF" />
-          </View>
-          <Text style={styles.actionText}>Call</Text>
-        </TouchableOpacity>
+        {/* Quick Actions */}
+        <View style={styles.actionsContainer}>
+          <TouchableOpacity style={styles.actionButton} onPress={handleCall}>
+            <LinearGradient
+              colors={[colors.success[500], colors.success[600]]}
+              style={styles.actionGradient}
+            >
+              <Icon name="phone" size={22} color={colors.neutral[0]} />
+            </LinearGradient>
+            <Text style={styles.actionText}>Call</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={handleSMS}>
-          <View style={[styles.actionIcon, { backgroundColor: '#3B82F6' }]}>
-            <Icon name="message-text" size={20} color="#FFFFFF" />
-          </View>
-          <Text style={styles.actionText}>SMS</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionButton} onPress={handleWhatsApp}>
-          <View style={[styles.actionIcon, { backgroundColor: '#25D366' }]}>
-            <Icon name="whatsapp" size={20} color="#FFFFFF" />
-          </View>
-          <Text style={styles.actionText}>WhatsApp</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={handleEmail}
-          disabled={!selectedLead.email}
-        >
-          <View style={[styles.actionIcon, { backgroundColor: selectedLead.email ? '#F59E0B' : '#D1D5DB' }]}>
-            <Icon name="email" size={20} color="#FFFFFF" />
-          </View>
-          <Text style={styles.actionText}>Email</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Contact Info */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Contact Information</Text>
-        <View style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <Icon name="phone" size={20} color="#6B7280" />
-            <Text style={styles.infoLabel}>Phone</Text>
-            <Text style={styles.infoValue}>{selectedLead.phone}</Text>
-          </View>
-
-          {selectedLead.email && (
-            <View style={styles.infoRow}>
-              <Icon name="email" size={20} color="#6B7280" />
-              <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>{selectedLead.email}</Text>
+          <TouchableOpacity style={styles.actionButton} onPress={handleSMS}>
+            <View style={[styles.actionIcon, { backgroundColor: colors.primary[500] }]}>
+              <Icon name="message-text" size={22} color={colors.neutral[0]} />
             </View>
-          )}
+            <Text style={styles.actionText}>SMS</Text>
+          </TouchableOpacity>
 
-          {selectedLead.company && (
-            <View style={styles.infoRow}>
-              <Icon name="domain" size={20} color="#6B7280" />
-              <Text style={styles.infoLabel}>Company</Text>
-              <Text style={styles.infoValue}>{selectedLead.company}</Text>
+          <TouchableOpacity style={styles.actionButton} onPress={handleWhatsApp}>
+            <View style={[styles.actionIcon, { backgroundColor: '#25D366' }]}>
+              <Icon name="whatsapp" size={22} color={colors.neutral[0]} />
             </View>
-          )}
+            <Text style={styles.actionText}>WhatsApp</Text>
+          </TouchableOpacity>
 
-          <View style={styles.infoRow}>
-            <Icon name="tag" size={20} color="#6B7280" />
-            <Text style={styles.infoLabel}>Source</Text>
-            <Text style={styles.infoValue}>{selectedLead.source || 'Unknown'}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Icon name="calendar" size={20} color="#6B7280" />
-            <Text style={styles.infoLabel}>Created</Text>
-            <Text style={styles.infoValue}>
-              {new Date(selectedLead.createdAt).toLocaleDateString()}
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleEmail}
+            disabled={!selectedLead.email}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: selectedLead.email ? colors.warning[500] : colors.neutral[300] }]}>
+              <Icon name="email" size={22} color={colors.neutral[0]} />
+            </View>
+            <Text style={[styles.actionText, !selectedLead.email && { color: colors.text.tertiary }]}>
+              Email
             </Text>
-          </View>
-
-          {selectedLead.lastContactedAt && (
-            <View style={styles.infoRow}>
-              <Icon name="clock-outline" size={20} color="#6B7280" />
-              <Text style={styles.infoLabel}>Last Contact</Text>
-              <Text style={styles.infoValue}>
-                {new Date(selectedLead.lastContactedAt).toLocaleDateString()}
-              </Text>
-            </View>
-          )}
+          </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Notes */}
-      {selectedLead.notes && (
+        {/* Contact Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notes</Text>
-          <View style={styles.notesCard}>
-            <Text style={styles.notesText}>{selectedLead.notes}</Text>
-          </View>
+          <Text style={styles.sectionTitle}>Contact Information</Text>
+          <Card padding="none">
+            <InfoRow icon="phone" label="Phone" value={selectedLead.phone} />
+            {selectedLead.email && (
+              <InfoRow icon="email" label="Email" value={selectedLead.email} />
+            )}
+            {selectedLead.company && (
+              <InfoRow icon="domain" label="Company" value={selectedLead.company} />
+            )}
+            <InfoRow icon="tag" label="Source" value={selectedLead.source || 'Unknown'} />
+            <InfoRow
+              icon="calendar"
+              label="Created"
+              value={new Date(selectedLead.createdAt).toLocaleDateString()}
+            />
+            {selectedLead.lastContactedAt && (
+              <InfoRow
+                icon="clock-outline"
+                label="Last Contact"
+                value={new Date(selectedLead.lastContactedAt).toLocaleDateString()}
+                showDivider={false}
+              />
+            )}
+          </Card>
         </View>
-      )}
 
-      {/* Call History */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Call History ({leadCalls.length})</Text>
-        {leadCalls.length > 0 ? (
-          leadCalls.map((call) => (
-            <CallHistoryItem key={call.id} call={call} />
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <Icon name="phone-off" size={40} color="#D1D5DB" />
-            <Text style={styles.emptyText}>No calls yet</Text>
+        {/* Notes */}
+        {selectedLead.notes && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Notes</Text>
+            <Card>
+              <Text style={styles.notesText}>{selectedLead.notes}</Text>
+            </Card>
           </View>
         )}
-      </View>
 
-      {/* Edit Button */}
-      <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
-        <Icon name="pencil" size={20} color="#FFFFFF" />
-        <Text style={styles.editButtonText}>Edit Lead</Text>
-      </TouchableOpacity>
+        {/* Call History */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Call History</Text>
+            <Badge label={`${leadCalls.length}`} variant="info" size="sm" />
+          </View>
+          {leadCalls.length > 0 ? (
+            <Card padding="none">
+              {leadCalls.map((call, index) => (
+                <CallHistoryItem
+                  key={call.id}
+                  call={call}
+                  showDivider={index < leadCalls.length - 1}
+                />
+              ))}
+            </Card>
+          ) : (
+            <Card style={styles.emptyState}>
+              <Icon name="phone-off" size={40} color={colors.neutral[300]} />
+              <Text style={styles.emptyText}>No calls recorded yet</Text>
+            </Card>
+          )}
+        </View>
 
-      <View style={styles.bottomPadding} />
-    </ScrollView>
+        <View style={styles.bottomPadding} />
+      </ScrollView>
+    </View>
   );
 };
+
+const InfoRow = ({ icon, label, value, showDivider = true }: any) => (
+  <View style={[styles.infoRow, !showDivider && styles.infoRowNoBorder]}>
+    <View style={styles.infoIconContainer}>
+      <Icon name={icon} size={18} color={colors.text.secondary} />
+    </View>
+    <Text style={styles.infoLabel}>{label}</Text>
+    <Text style={styles.infoValue} numberOfLines={1}>{value}</Text>
+  </View>
+);
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.background.secondary,
+  },
+  scrollView: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.background.secondary,
+  },
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: spacing.xl,
+    backgroundColor: colors.background.secondary,
   },
-  errorText: {
-    fontSize: 18,
-    color: '#6B7280',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-  errorSubtext: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginBottom: 24,
-  },
-  retryButton: {
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  headerCard: {
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    paddingVertical: 24,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#3B82F6',
+  errorIconBg: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.neutral[100],
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.base,
   },
-  avatarText: {
-    fontSize: 32,
-    fontWeight: '600',
-    color: '#FFFFFF',
+  errorText: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.secondary,
+    marginTop: spacing.base,
+    textAlign: 'center',
+  },
+  errorSubtext: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.tertiary,
+    marginTop: spacing.xs,
+  },
+  retryButton: {
+    backgroundColor: colors.primary[500],
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.base,
+    marginTop: spacing.lg,
+  },
+  retryButtonText: {
+    color: colors.neutral[0],
+    fontWeight: typography.fontWeight.semiBold,
+    fontSize: typography.fontSize.base,
+  },
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 50 : StatusBar.currentHeight || 24,
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.base,
+    borderBottomLeftRadius: borderRadius.xl,
+    borderBottomRightRadius: borderRadius.xl,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.lg,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: `${colors.neutral[0]}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: `${colors.neutral[0]}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileSection: {
+    alignItems: 'center',
   },
   leadName: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
+    fontSize: typography.fontSize['2xl'],
+    fontWeight: typography.fontWeight.bold,
+    color: colors.neutral[0],
+    marginTop: spacing.md,
   },
   companyName: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginBottom: 12,
+    fontSize: typography.fontSize.base,
+    color: `${colors.neutral[0]}80`,
+    marginTop: spacing.xs,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    marginTop: spacing.md,
+    gap: spacing.xs,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   statusText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 12,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semiBold,
   },
   statusPicker: {
-    marginTop: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 8,
-    width: '100%',
+    marginHorizontal: spacing.base,
+    marginTop: -spacing.md,
+    marginBottom: spacing.sm,
+  },
+  statusPickerTitle: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.text.secondary,
+    marginBottom: spacing.md,
   },
   statusOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    gap: 8,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
   },
   statusOptionActive: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.neutral[50],
+    paddingHorizontal: spacing.sm,
+    marginHorizontal: -spacing.sm,
   },
-  statusDot: {
+  statusOptionDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
   },
   statusOptionText: {
-    fontSize: 14,
-    color: '#374151',
+    flex: 1,
+    fontSize: typography.fontSize.base,
+    color: colors.text.primary,
+    fontWeight: typography.fontWeight.medium,
   },
-  actionsRow: {
+  actionsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    backgroundColor: colors.background.card,
+    paddingVertical: spacing.lg,
+    marginTop: -spacing.base,
+    marginHorizontal: spacing.base,
+    borderRadius: borderRadius.lg,
+    ...shadows.md,
   },
   actionButton: {
     alignItems: 'center',
   },
   actionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
+  },
+  actionGradient: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
   },
   actionText: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.secondary,
   },
   section: {
-    marginTop: 16,
-    paddingHorizontal: 16,
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.base,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    gap: spacing.sm,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  infoCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.text.tertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: spacing.md,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    gap: 12,
+    borderBottomColor: colors.neutral[100],
+  },
+  infoRowNoBorder: {
+    borderBottomWidth: 0,
+  },
+  infoIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: colors.neutral[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
   },
   infoLabel: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
     width: 80,
   },
   infoValue: {
     flex: 1,
-    fontSize: 14,
-    color: '#1F2937',
-    fontWeight: '500',
-  },
-  notesCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    fontSize: typography.fontSize.base,
+    color: colors.text.primary,
+    fontWeight: typography.fontWeight.medium,
+    textAlign: 'right',
   },
   notesText: {
-    fontSize: 14,
-    color: '#374151',
+    fontSize: typography.fontSize.base,
+    color: colors.text.primary,
     lineHeight: 22,
   },
   emptyState: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 32,
     alignItems: 'center',
+    paddingVertical: spacing['2xl'],
   },
   emptyText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#9CA3AF',
-  },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#3B82F6',
-    marginHorizontal: 16,
-    marginTop: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
-  },
-  editButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    marginTop: spacing.sm,
+    fontSize: typography.fontSize.sm,
+    color: colors.text.tertiary,
   },
   bottomPadding: {
-    height: 32,
+    height: spacing['2xl'],
   },
 });
 

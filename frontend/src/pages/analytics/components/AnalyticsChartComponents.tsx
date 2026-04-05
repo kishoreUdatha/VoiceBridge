@@ -30,25 +30,27 @@ export const KPICard: React.FC<KPICardProps> = ({
   gradient,
   shadowColor,
 }) => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all duration-300 group">
-    <div className="flex items-start justify-between">
-      <div className="flex-1">
-        <p className="text-sm font-medium text-gray-500">{title}</p>
-        <p className="text-3xl font-bold text-gray-900 mt-2 tracking-tight">{value}</p>
-        <div className="flex items-center gap-3 mt-3">
-          <div
-            className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
-              trend.isPositive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-            }`}
-          >
-            {trend.isPositive ? <ArrowUpIcon className="w-3 h-3" /> : <ArrowDownIcon className="w-3 h-3" />}
-            {trend.value}%
-          </div>
-          <span className="text-xs text-gray-500">{subtitle}</span>
+  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all duration-200 group">
+    <div className="flex items-center justify-between">
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{title}</p>
+        <p className="text-xl font-bold text-gray-900 mt-1">{value}</p>
+        <div className="flex items-center gap-2 mt-1.5">
+          {trend.value > 0 && (
+            <div
+              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${
+                trend.isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+              }`}
+            >
+              {trend.isPositive ? <ArrowUpIcon className="w-2.5 h-2.5" /> : <ArrowDownIcon className="w-2.5 h-2.5" />}
+              {trend.value}%
+            </div>
+          )}
+          <span className="text-xs text-gray-400 truncate">{subtitle}</span>
         </div>
       </div>
       <div
-        className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-lg ${shadowColor} group-hover:scale-110 transition-transform`}
+        className={`w-10 h-10 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center shadow ${shadowColor} flex-shrink-0`}
       >
         <div className="text-white">{icon}</div>
       </div>
@@ -62,22 +64,22 @@ interface HealthScoreGaugeProps {
 }
 
 export const HealthScoreGauge: React.FC<HealthScoreGaugeProps> = ({ score }) => {
-  const radius = 50;
+  const radius = 40;
   const circumference = 2 * Math.PI * radius;
   const progress = (score / 100) * circumference;
   const color = score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444';
 
   return (
-    <div className="relative w-36 h-36">
-      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r={radius} fill="none" stroke="#E5E7EB" strokeWidth="10" />
+    <div className="relative w-24 h-24">
+      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r={radius} fill="none" stroke="#E5E7EB" strokeWidth="8" />
         <circle
-          cx="60"
-          cy="60"
+          cx="50"
+          cy="50"
           r={radius}
           fill="none"
           stroke={color}
-          strokeWidth="10"
+          strokeWidth="8"
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={circumference - progress}
@@ -85,10 +87,10 @@ export const HealthScoreGauge: React.FC<HealthScoreGaugeProps> = ({ score }) => 
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-bold" style={{ color }}>
+        <span className="text-xl font-bold" style={{ color }}>
           {score}
         </span>
-        <span className="text-xs text-gray-500 font-medium">Health Score</span>
+        <span className="text-[10px] text-gray-500">Score</span>
       </div>
     </div>
   );
@@ -119,11 +121,11 @@ export const HealthStatCard: React.FC<HealthStatCardProps> = ({
   const styles = colorStyles[color];
 
   return (
-    <div className={`rounded-2xl border ${styles.bg} ${styles.border} p-5 transition-all hover:shadow-md`}>
-      <div className={`${styles.icon} mb-3`}>{icon}</div>
-      <p className={`text-2xl font-bold ${styles.text}`}>{value.toLocaleString()}</p>
-      <p className="text-sm text-gray-500 mt-1">{label}</p>
-      {percentage !== undefined && <p className="text-xs text-gray-400 mt-2">{percentage}% of total</p>}
+    <div className={`rounded-lg border ${styles.bg} ${styles.border} p-3 transition-all hover:shadow-sm`}>
+      <div className={`${styles.icon} mb-1`}>{icon}</div>
+      <p className={`text-lg font-bold ${styles.text}`}>{value.toLocaleString()}</p>
+      <p className="text-xs text-gray-500">{label}</p>
+      {percentage !== undefined && <p className="text-[10px] text-gray-400 mt-1">{percentage}% of total</p>}
     </div>
   );
 };
@@ -185,21 +187,21 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ message }) => (
 // Skeleton Loader
 export const DashboardSkeleton: React.FC = () => (
   <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-slate-100">
-    <div className="max-w-[1600px] mx-auto px-6 lg:px-8 py-8">
-      <div className="animate-pulse space-y-8">
+    <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-6">
+      <div className="animate-pulse space-y-5">
         <div className="flex justify-between items-center">
-          <div className="h-10 bg-gray-200 rounded-xl w-64"></div>
-          <div className="h-10 bg-gray-200 rounded-xl w-48"></div>
+          <div className="h-8 bg-gray-200 rounded-lg w-48"></div>
+          <div className="h-8 bg-gray-200 rounded-lg w-36"></div>
         </div>
-        <div className="grid grid-cols-4 gap-6">
+        <div className="grid grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-36 bg-gray-200 rounded-2xl"></div>
+            <div key={i} className="h-24 bg-gray-200 rounded-xl"></div>
           ))}
         </div>
-        <div className="h-80 bg-gray-200 rounded-2xl"></div>
-        <div className="grid grid-cols-2 gap-6">
-          <div className="h-72 bg-gray-200 rounded-2xl"></div>
-          <div className="h-72 bg-gray-200 rounded-2xl"></div>
+        <div className="h-56 bg-gray-200 rounded-xl"></div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="h-48 bg-gray-200 rounded-xl"></div>
+          <div className="h-48 bg-gray-200 rounded-xl"></div>
         </div>
       </div>
     </div>

@@ -10,9 +10,12 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../hooks/useAuth';
+import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 
 const LoginScreen: React.FC = () => {
   const { login, isLoading, error, clearError } = useAuth();
@@ -21,6 +24,8 @@ const LoginScreen: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   // Validation
   const [emailError, setEmailError] = useState('');
@@ -75,235 +80,352 @@ const LoginScreen: React.FC = () => {
   }, [email, password, rememberMe, login, clearError]);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.primary[600]} />
+
+      {/* Gradient Background */}
+      <LinearGradient
+        colors={[colors.primary[600], colors.primary[700], colors.primary[800]]}
+        style={styles.gradientBg}
+      />
+
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.logoContainer}>
-          <View style={styles.logoIcon}>
-            <Icon name="phone-in-talk" size={48} color="#3B82F6" />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Logo Section */}
+          <View style={styles.logoContainer}>
+            <View style={styles.logoIcon}>
+              <Icon name="phone-in-talk" size={48} color={colors.neutral[0]} />
+            </View>
+            <Text style={styles.title}>VoiceBridge</Text>
+            <Text style={styles.subtitle}>Telecaller CRM</Text>
           </View>
-          <Text style={styles.title}>Telecaller CRM</Text>
-          <Text style={styles.subtitle}>Sign in to continue</Text>
-        </View>
 
-        <View style={styles.form}>
-          {/* Email Input */}
-          <View style={styles.inputContainer}>
-            <Icon name="email-outline" size={20} color="#6B7280" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              placeholderTextColor="#9CA3AF"
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                if (emailError) validateEmail(text);
-              }}
-              onBlur={() => validateEmail(email)}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!isLoading}
-            />
-          </View>
-          {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+          {/* Form Card */}
+          <View style={styles.formCard}>
+            <Text style={styles.welcomeText}>Welcome Back</Text>
+            <Text style={styles.welcomeSubtext}>Sign in to continue to your dashboard</Text>
 
-          {/* Password Input */}
-          <View style={styles.inputContainer}>
-            <Icon name="lock-outline" size={20} color="#6B7280" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor="#9CA3AF"
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                if (passwordError) validatePassword(text);
-              }}
-              onBlur={() => validatePassword(password)}
-              secureTextEntry={!showPassword}
-              editable={!isLoading}
-            />
+            {/* Email Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email Address</Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  emailFocused && styles.inputFocused,
+                  emailError && styles.inputError,
+                ]}
+              >
+                <Icon
+                  name="email-outline"
+                  size={20}
+                  color={emailFocused ? colors.primary[500] : colors.text.tertiary}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="you@example.com"
+                  placeholderTextColor={colors.text.tertiary}
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    if (emailError) validateEmail(text);
+                  }}
+                  onFocus={() => setEmailFocused(true)}
+                  onBlur={() => {
+                    setEmailFocused(false);
+                    validateEmail(email);
+                  }}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!isLoading}
+                />
+              </View>
+              {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+            </View>
+
+            {/* Password Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  passwordFocused && styles.inputFocused,
+                  passwordError && styles.inputError,
+                ]}
+              >
+                <Icon
+                  name="lock-outline"
+                  size={20}
+                  color={passwordFocused ? colors.primary[500] : colors.text.tertiary}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your password"
+                  placeholderTextColor={colors.text.tertiary}
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (passwordError) validatePassword(text);
+                  }}
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => {
+                    setPasswordFocused(false);
+                    validatePassword(password);
+                  }}
+                  secureTextEntry={!showPassword}
+                  editable={!isLoading}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.passwordToggle}
+                >
+                  <Icon
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={colors.text.tertiary}
+                  />
+                </TouchableOpacity>
+              </View>
+              {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+            </View>
+
+            {/* Remember Me */}
             <TouchableOpacity
-              onPress={() => setShowPassword(!showPassword)}
-              style={styles.passwordToggle}
+              style={styles.rememberContainer}
+              onPress={() => setRememberMe(!rememberMe)}
             >
-              <Icon
-                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                size={20}
-                color="#6B7280"
-              />
+              <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                {rememberMe && <Icon name="check" size={14} color={colors.neutral[0]} />}
+              </View>
+              <Text style={styles.rememberText}>Keep me signed in</Text>
+            </TouchableOpacity>
+
+            {/* Error Message */}
+            {error ? (
+              <View style={styles.errorContainer}>
+                <Icon name="alert-circle" size={18} color={colors.error[500]} />
+                <Text style={styles.errorMessage}>{error}</Text>
+              </View>
+            ) : null}
+
+            {/* Login Button */}
+            <TouchableOpacity
+              style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+              onPress={handleLogin}
+              disabled={isLoading}
+              activeOpacity={0.8}
+            >
+              {isLoading ? (
+                <ActivityIndicator color={colors.neutral[0]} />
+              ) : (
+                <>
+                  <Text style={styles.loginButtonText}>Sign In</Text>
+                  <Icon name="arrow-right" size={20} color={colors.neutral[0]} />
+                </>
+              )}
             </TouchableOpacity>
           </View>
-          {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
 
-          {/* Remember Me */}
-          <TouchableOpacity
-            style={styles.rememberContainer}
-            onPress={() => setRememberMe(!rememberMe)}
-          >
-            <Icon
-              name={rememberMe ? 'checkbox-marked' : 'checkbox-blank-outline'}
-              size={22}
-              color={rememberMe ? '#3B82F6' : '#6B7280'}
-            />
-            <Text style={styles.rememberText}>Remember me</Text>
-          </TouchableOpacity>
-
-          {/* Error Message */}
-          {error ? (
-            <View style={styles.errorContainer}>
-              <Icon name="alert-circle" size={18} color="#EF4444" />
-              <Text style={styles.errorMessage}>{error}</Text>
-            </View>
-          ) : null}
-
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-            onPress={handleLogin}
-            disabled={isLoading}
-            activeOpacity={0.8}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.loginButtonText}>Sign In</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.footerText}>
-          Telecaller CRM v1.0
-        </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>VoiceBridge Telecaller CRM</Text>
+            <Text style={styles.versionText}>Version 1.0.0</Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.primary[700],
+  },
+  gradientBg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '45%',
+  },
+  keyboardView: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 40,
+    paddingHorizontal: spacing.lg,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingBottom: spacing.xl,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: spacing['2xl'],
   },
   logoIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: '#EFF6FF',
+    width: 88,
+    height: 88,
+    borderRadius: 24,
+    backgroundColor: `${colors.neutral[0]}20`,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.base,
+    borderWidth: 2,
+    borderColor: `${colors.neutral[0]}30`,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
+    fontSize: typography.fontSize['3xl'],
+    fontWeight: typography.fontWeight.bold,
+    color: colors.neutral[0],
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
+    fontSize: typography.fontSize.md,
+    color: `${colors.neutral[0]}80`,
+    fontWeight: typography.fontWeight.medium,
   },
-  form: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+  formCard: {
+    backgroundColor: colors.background.card,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    ...shadows.xl,
+  },
+  welcomeText: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  welcomeSubtext: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginBottom: spacing.xl,
+  },
+  inputGroup: {
+    marginBottom: spacing.base,
+  },
+  inputLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    backgroundColor: colors.neutral[50],
+    borderRadius: borderRadius.base,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1.5,
+    borderColor: colors.border.light,
+  },
+  inputFocused: {
+    borderColor: colors.primary[500],
+    backgroundColor: colors.background.primary,
+  },
+  inputError: {
+    borderColor: colors.error[400],
   },
   inputIcon: {
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   input: {
     flex: 1,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#1F2937',
+    paddingVertical: spacing.md,
+    fontSize: typography.fontSize.base,
+    color: colors.text.primary,
   },
   passwordToggle: {
-    padding: 8,
+    padding: spacing.sm,
   },
   errorText: {
-    color: '#EF4444',
-    fontSize: 12,
-    marginBottom: 8,
-    marginLeft: 4,
+    color: colors.error[500],
+    fontSize: typography.fontSize.xs,
+    marginTop: spacing.xs,
+    marginLeft: spacing.xs,
   },
   rememberContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 16,
+    marginTop: spacing.sm,
+    marginBottom: spacing.base,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border.medium,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.sm,
+  },
+  checkboxChecked: {
+    backgroundColor: colors.primary[500],
+    borderColor: colors.primary[500],
   },
   rememberText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#4B5563',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    fontWeight: typography.fontWeight.medium,
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
+    backgroundColor: colors.error[50],
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.base,
+    borderWidth: 1,
+    borderColor: colors.error[200],
   },
   errorMessage: {
-    color: '#EF4444',
-    fontSize: 14,
-    marginLeft: 8,
+    color: colors.error[700],
+    fontSize: typography.fontSize.sm,
+    marginLeft: spacing.sm,
     flex: 1,
   },
   loginButton: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 12,
-    paddingVertical: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 52,
+    backgroundColor: colors.primary[500],
+    borderRadius: borderRadius.base,
+    paddingVertical: spacing.base,
+    marginTop: spacing.sm,
+    gap: spacing.sm,
+    ...shadows.colored(colors.primary[500]),
   },
   loginButtonDisabled: {
-    backgroundColor: '#93C5FD',
+    backgroundColor: colors.primary[300],
   },
   loginButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    color: colors.neutral[0],
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semiBold,
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: spacing.xl,
   },
   footerText: {
-    textAlign: 'center',
-    color: '#9CA3AF',
-    fontSize: 12,
-    marginTop: 24,
+    color: `${colors.neutral[0]}60`,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+  },
+  versionText: {
+    color: `${colors.neutral[0]}40`,
+    fontSize: typography.fontSize.xs,
+    marginTop: spacing.xs,
   },
 });
 

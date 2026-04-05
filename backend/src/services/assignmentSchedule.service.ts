@@ -9,6 +9,7 @@ import { BadRequestError, NotFoundError } from '../utils/errors';
 
 interface CreateScheduleData {
   organizationId: string;
+  orgBranchId?: string | null; // null = org-wide, set = branch-specific
   name: string;
   scheduleType?: ScheduleType;
   scheduleTimes?: string[];
@@ -31,6 +32,7 @@ interface UpdateScheduleData extends Partial<CreateScheduleData> {
 interface TelecallerCapacity {
   userId: string;
   userName: string;
+  branchId: string | null;
   pending: number;
   limit: number;
   available: number;
@@ -52,12 +54,20 @@ interface AssignmentResult {
   count: number;
 }
 
+interface BranchBreakdown {
+  [branchId: string]: {
+    assigned: number;
+    skipped: number;
+  };
+}
+
 export class AssignmentScheduleService {
   // ==================== CRUD OPERATIONS ====================
 
   async createSchedule(data: CreateScheduleData) {
     const {
       organizationId,
+      orgBranchId = null,
       name,
       scheduleType = 'DAILY',
       scheduleTimes = ['09:00', '13:00', '17:00'],
@@ -91,6 +101,7 @@ export class AssignmentScheduleService {
     const schedule = await prisma.assignmentSchedule.create({
       data: {
         organizationId,
+        orgBranchId: orgBranchId || null,
         name,
         scheduleType,
         scheduleTimes,
@@ -98,7 +109,7 @@ export class AssignmentScheduleService {
         cronExpression,
         assignToTelecallers,
         assignToVoiceAgents,
-        voiceAgentId,
+        voiceAgentId: voiceAgentId || null,
         telecallerDailyLimit,
         voiceAgentDailyLimit,
         distributionStrategy,
@@ -109,6 +120,9 @@ export class AssignmentScheduleService {
       include: {
         voiceAgent: {
           select: { id: true, name: true },
+        },
+        orgBranch: {
+          select: { id: true, name: true, code: true },
         },
       },
     });
@@ -146,18 +160,26 @@ export class AssignmentScheduleService {
       ? this.calculateNextRunTime(scheduleType, scheduleTimes, timezone, cronExpression)
       : null;
 
+    // Convert empty strings to null for foreign keys
+    const updateData = {
+      ...data,
+      voiceAgentId: data.voiceAgentId === '' ? null : data.voiceAgentId,
+      orgBranchId: data.orgBranchId === '' ? null : data.orgBranchId,
+      bulkImportIds: data.bulkImportIds
+        ? (data.bulkImportIds as Prisma.InputJsonValue)
+        : undefined,
+      nextRunAt,
+    };
+
     const updatedSchedule = await prisma.assignmentSchedule.update({
       where: { id },
-      data: {
-        ...data,
-        bulkImportIds: data.bulkImportIds
-          ? (data.bulkImportIds as Prisma.InputJsonValue)
-          : undefined,
-        nextRunAt,
-      },
+      data: updateData,
       include: {
         voiceAgent: {
           select: { id: true, name: true },
+        },
+        orgBranch: {
+          select: { id: true, name: true, code: true },
         },
       },
     });
@@ -165,12 +187,37 @@ export class AssignmentScheduleService {
     return updatedSchedule;
   }
 
-  async getSchedules(organizationId: string) {
+  async getSchedules(
+    organizationId: string,
+    branchId: string | null = null,
+    canAccessAllBranches: boolean = true
+  ) {
+    // Build where clause based on access
+    const whereClause: any = { organizationId };
+
+    if (!canAccessAllBranches && branchId) {
+      // Non-admin: show their branch schedules + org-wide schedules
+      whereClause.OR = [
+        { orgBranchId: branchId },
+        { orgBranchId: null },
+      ];
+    } else if (branchId) {
+      // Admin with branch filter: show specific branch + org-wide
+      whereClause.OR = [
+        { orgBranchId: branchId },
+        { orgBranchId: null },
+      ];
+    }
+    // Admin without filter: show all (no additional where clause)
+
     const schedules = await prisma.assignmentSchedule.findMany({
-      where: { organizationId },
+      where: whereClause,
       include: {
         voiceAgent: {
           select: { id: true, name: true },
+        },
+        orgBranch: {
+          select: { id: true, name: true, code: true },
         },
         _count: {
           select: { runLogs: true },
@@ -188,6 +235,9 @@ export class AssignmentScheduleService {
       include: {
         voiceAgent: {
           select: { id: true, name: true },
+        },
+        orgBranch: {
+          select: { id: true, name: true, code: true },
         },
         runLogs: {
           orderBy: { runAt: 'desc' },
@@ -265,6 +315,9 @@ export class AssignmentScheduleService {
         voiceAgent: {
           select: { id: true, name: true },
         },
+        orgBranch: {
+          select: { id: true, name: true, code: true },
+        },
       },
     });
 
@@ -281,6 +334,7 @@ export class AssignmentScheduleService {
       where: { id: scheduleId },
       include: {
         voiceAgent: true,
+        orgBranch: true,
       },
     });
 
@@ -289,17 +343,20 @@ export class AssignmentScheduleService {
     }
 
     const organizationId = schedule.organizationId;
+    const branchId = schedule.orgBranchId; // null = org-wide, set = branch-specific
 
     // Get pending records count before run
     const pendingBefore = await this.getPendingRecordsCount(
       organizationId,
-      schedule.bulkImportIds as string[] | null
+      schedule.bulkImportIds as string[] | null,
+      branchId
     );
 
     let totalRecordsAssigned = 0;
     let recordsSkipped = 0;
     const telecallerAssignments: AssignmentResult[] = [];
     const voiceAgentAssignments: AssignmentResult[] = [];
+    let branchBreakdown: BranchBreakdown = {};
     let errors: string | null = null;
 
     try {
@@ -309,11 +366,13 @@ export class AssignmentScheduleService {
           organizationId,
           schedule.telecallerDailyLimit,
           schedule.distributionStrategy,
-          schedule.bulkImportIds as string[] | null
+          schedule.bulkImportIds as string[] | null,
+          branchId
         );
         totalRecordsAssigned += telecallerResult.totalAssigned;
         recordsSkipped += telecallerResult.skipped;
         telecallerAssignments.push(...telecallerResult.assignments);
+        branchBreakdown = { ...branchBreakdown, ...telecallerResult.branchBreakdown };
       }
 
       // Assign to voice agents
@@ -322,7 +381,8 @@ export class AssignmentScheduleService {
           organizationId,
           schedule.voiceAgentId,
           schedule.voiceAgentDailyLimit,
-          schedule.bulkImportIds as string[] | null
+          schedule.bulkImportIds as string[] | null,
+          branchId
         );
         totalRecordsAssigned += agentResult.totalAssigned;
         recordsSkipped += agentResult.skipped;
@@ -336,7 +396,8 @@ export class AssignmentScheduleService {
     // Get pending records count after run
     const pendingAfter = await this.getPendingRecordsCount(
       organizationId,
-      schedule.bulkImportIds as string[] | null
+      schedule.bulkImportIds as string[] | null,
+      branchId
     );
 
     const runDurationMs = Date.now() - startTime;
@@ -346,12 +407,14 @@ export class AssignmentScheduleService {
       data: {
         scheduleId,
         organizationId,
+        orgBranchId: branchId,
         totalRecordsAssigned,
         telecallerAssignments: telecallerAssignments as Prisma.InputJsonValue,
         voiceAgentAssignments: voiceAgentAssignments as Prisma.InputJsonValue,
         recordsSkipped,
         pendingBefore,
         pendingAfter,
+        branchBreakdown: branchBreakdown as Prisma.InputJsonValue,
         errors,
         runDurationMs,
         triggeredBy,
@@ -388,13 +451,14 @@ export class AssignmentScheduleService {
     organizationId: string,
     dailyLimit: number,
     strategy: DistributionStrategy,
-    bulkImportIds: string[] | null
+    bulkImportIds: string[] | null,
+    branchId: string | null = null
   ) {
-    // Get all active telecallers
-    const telecallers = await this.getTelecallerCapacity(organizationId, dailyLimit);
+    // Get telecallers (filtered by branch if branch-specific schedule)
+    const telecallers = await this.getTelecallerCapacity(organizationId, dailyLimit, branchId);
 
     if (telecallers.length === 0) {
-      return { totalAssigned: 0, skipped: 0, assignments: [] };
+      return { totalAssigned: 0, skipped: 0, assignments: [], branchBreakdown: {} };
     }
 
     // Calculate total available capacity
@@ -405,52 +469,71 @@ export class AssignmentScheduleService {
         totalAssigned: 0,
         skipped: telecallers.length,
         assignments: [],
+        branchBreakdown: {},
       };
     }
 
-    // Get pending records
+    // Get pending records (filtered by branch if branch-specific schedule)
     const pendingRecords = await this.getPendingRecords(
       organizationId,
       totalCapacity,
-      bulkImportIds
+      bulkImportIds,
+      branchId
     );
 
     if (pendingRecords.length === 0) {
-      return { totalAssigned: 0, skipped: 0, assignments: [] };
+      return { totalAssigned: 0, skipped: 0, assignments: [], branchBreakdown: {} };
     }
 
     // Distribute records based on strategy
     const assignments: AssignmentResult[] = [];
     const recordAssignments: { recordId: string; userId: string }[] = [];
+    let branchBreakdown: BranchBreakdown = {};
 
-    switch (strategy) {
-      case 'CAPACITY_BASED':
-        this.distributeByCapacity(
-          pendingRecords,
-          telecallers,
-          recordAssignments,
-          assignments
-        );
-        break;
+    if (branchId) {
+      // Branch-specific schedule: simple distribution within branch
+      switch (strategy) {
+        case 'CAPACITY_BASED':
+          this.distributeByCapacity(
+            pendingRecords,
+            telecallers,
+            recordAssignments,
+            assignments
+          );
+          break;
 
-      case 'ROUND_ROBIN':
-        this.distributeRoundRobin(
-          pendingRecords,
-          telecallers,
-          recordAssignments,
-          assignments
-        );
-        break;
+        case 'ROUND_ROBIN':
+          this.distributeRoundRobin(
+            pendingRecords,
+            telecallers,
+            recordAssignments,
+            assignments
+          );
+          break;
 
-      case 'PRIORITY_BASED':
-        // For now, use same as capacity-based (could add priority logic later)
-        this.distributeByCapacity(
-          pendingRecords,
-          telecallers,
-          recordAssignments,
-          assignments
-        );
-        break;
+        case 'PRIORITY_BASED':
+          this.distributeByCapacity(
+            pendingRecords,
+            telecallers,
+            recordAssignments,
+            assignments
+          );
+          break;
+      }
+      branchBreakdown[branchId] = {
+        assigned: recordAssignments.length,
+        skipped: telecallers.filter((t) => t.available === 0).length,
+      };
+    } else {
+      // Org-wide schedule: branch-aware distribution
+      const result = this.distributeBranchAware(
+        pendingRecords,
+        telecallers,
+        strategy
+      );
+      recordAssignments.push(...result.recordAssignments);
+      assignments.push(...result.assignments);
+      branchBreakdown = result.branchBreakdown;
     }
 
     // Execute assignments in batches
@@ -477,6 +560,7 @@ export class AssignmentScheduleService {
       totalAssigned: recordAssignments.length,
       skipped,
       assignments,
+      branchBreakdown,
     };
   }
 
@@ -590,13 +674,160 @@ export class AssignmentScheduleService {
     }
   }
 
+  /**
+   * Branch-aware distribution for org-wide schedules
+   * Matches records to telecallers by branch:
+   * - Records with orgBranchId go to telecallers with matching branchId
+   * - Records without branch go to telecallers without branch (org-level)
+   * - If no matching telecallers, records remain unassigned
+   */
+  private distributeBranchAware(
+    records: { id: string; orgBranchId: string | null }[],
+    telecallers: TelecallerCapacity[],
+    strategy: DistributionStrategy
+  ): {
+    recordAssignments: { recordId: string; userId: string }[];
+    assignments: AssignmentResult[];
+    branchBreakdown: BranchBreakdown;
+  } {
+    const recordAssignments: { recordId: string; userId: string }[] = [];
+    const assignmentCounts: Record<string, number> = {};
+    const branchBreakdown: BranchBreakdown = {};
+
+    // Initialize counts for all telecallers
+    telecallers.forEach((t) => {
+      assignmentCounts[t.userId] = 0;
+    });
+
+    // Group records by branch
+    const recordsByBranch: Record<string, { id: string; orgBranchId: string | null }[]> = {};
+    const NO_BRANCH_KEY = '__no_branch__';
+
+    for (const record of records) {
+      const branchKey = record.orgBranchId || NO_BRANCH_KEY;
+      if (!recordsByBranch[branchKey]) {
+        recordsByBranch[branchKey] = [];
+      }
+      recordsByBranch[branchKey].push(record);
+    }
+
+    // Group telecallers by branch
+    const telecallersByBranch: Record<string, TelecallerCapacity[]> = {};
+    for (const t of telecallers) {
+      const branchKey = t.branchId || NO_BRANCH_KEY;
+      if (!telecallersByBranch[branchKey]) {
+        telecallersByBranch[branchKey] = [];
+      }
+      telecallersByBranch[branchKey].push(t);
+    }
+
+    // Track remaining capacity
+    const capacityRemaining: Record<string, number> = {};
+    telecallers.forEach((t) => {
+      capacityRemaining[t.userId] = t.available;
+    });
+
+    // Process each branch's records
+    for (const branchKey of Object.keys(recordsByBranch)) {
+      const branchRecords = recordsByBranch[branchKey];
+      let targetTelecallers = telecallersByBranch[branchKey] || [];
+
+      // If no telecallers in this branch, try org-level telecallers (no branch)
+      if (targetTelecallers.length === 0 && branchKey !== NO_BRANCH_KEY) {
+        targetTelecallers = telecallersByBranch[NO_BRANCH_KEY] || [];
+      }
+
+      // Initialize branch breakdown
+      const actualBranchId = branchKey === NO_BRANCH_KEY ? 'org-level' : branchKey;
+      branchBreakdown[actualBranchId] = { assigned: 0, skipped: 0 };
+
+      if (targetTelecallers.length === 0) {
+        // No telecallers available for this branch
+        branchBreakdown[actualBranchId].skipped = branchRecords.length;
+        continue;
+      }
+
+      // Filter to telecallers with remaining capacity
+      const availableTelecallers = targetTelecallers.filter(
+        (t) => capacityRemaining[t.userId] > 0
+      );
+
+      if (availableTelecallers.length === 0) {
+        branchBreakdown[actualBranchId].skipped = branchRecords.length;
+        continue;
+      }
+
+      // Distribute records to telecallers based on strategy
+      if (strategy === 'ROUND_ROBIN') {
+        let index = 0;
+        for (const record of branchRecords) {
+          let attempts = 0;
+          while (attempts < availableTelecallers.length) {
+            const t = availableTelecallers[index % availableTelecallers.length];
+            if (capacityRemaining[t.userId] > 0) {
+              recordAssignments.push({ recordId: record.id, userId: t.userId });
+              assignmentCounts[t.userId]++;
+              capacityRemaining[t.userId]--;
+              branchBreakdown[actualBranchId].assigned++;
+              index++;
+              break;
+            }
+            index++;
+            attempts++;
+          }
+          if (attempts >= availableTelecallers.length) {
+            branchBreakdown[actualBranchId].skipped++;
+          }
+        }
+      } else {
+        // CAPACITY_BASED or PRIORITY_BASED
+        for (const record of branchRecords) {
+          // Find telecaller with most remaining capacity
+          let bestTelecaller: TelecallerCapacity | null = null;
+          let maxCapacity = 0;
+
+          for (const t of availableTelecallers) {
+            if (capacityRemaining[t.userId] > maxCapacity) {
+              maxCapacity = capacityRemaining[t.userId];
+              bestTelecaller = t;
+            }
+          }
+
+          if (bestTelecaller && maxCapacity > 0) {
+            recordAssignments.push({ recordId: record.id, userId: bestTelecaller.userId });
+            assignmentCounts[bestTelecaller.userId]++;
+            capacityRemaining[bestTelecaller.userId]--;
+            branchBreakdown[actualBranchId].assigned++;
+          } else {
+            branchBreakdown[actualBranchId].skipped++;
+          }
+        }
+      }
+    }
+
+    // Build assignment results
+    const assignments: AssignmentResult[] = [];
+    for (const t of telecallers) {
+      if (assignmentCounts[t.userId] > 0) {
+        assignments.push({
+          userId: t.userId,
+          userName: t.userName,
+          count: assignmentCounts[t.userId],
+        });
+      }
+    }
+
+    return { recordAssignments, assignments, branchBreakdown };
+  }
+
   // ==================== VOICE AGENT ASSIGNMENT ====================
 
   async assignToVoiceAgents(
     organizationId: string,
     specificAgentId: string | null,
     dailyLimit: number,
-    bulkImportIds: string[] | null
+    bulkImportIds: string[] | null,
+    branchId: string | null = null
   ) {
     // Get voice agent(s) capacity
     const agents = await this.getVoiceAgentCapacity(
@@ -620,11 +851,12 @@ export class AssignmentScheduleService {
       };
     }
 
-    // Get pending records
+    // Get pending records (filtered by branch if branch-specific schedule)
     const pendingRecords = await this.getPendingRecords(
       organizationId,
       totalCapacity,
-      bulkImportIds
+      bulkImportIds,
+      branchId
     );
 
     if (pendingRecords.length === 0) {
@@ -729,23 +961,34 @@ export class AssignmentScheduleService {
 
   async getTelecallerCapacity(
     organizationId: string,
-    dailyLimit: number
+    dailyLimit: number,
+    branchId: string | null = null
   ): Promise<TelecallerCapacity[]> {
-    // Get all active telecallers (users with telecaller role)
-    const telecallers = await prisma.user.findMany({
-      where: {
-        organizationId,
-        isActive: true,
-        role: {
-          slug: {
-            in: ['telecaller', 'counselor', 'sales'],
-          },
+    // Build where clause - filter by branch if specified
+    const whereClause: any = {
+      organizationId,
+      isActive: true,
+      role: {
+        slug: {
+          in: ['telecaller', 'counselor', 'sales'],
         },
       },
+    };
+
+    // For branch-specific schedules, only get telecallers in that branch
+    if (branchId) {
+      whereClause.branchId = branchId;
+    }
+    // For org-wide schedules (branchId = null), get all telecallers
+
+    // Get telecallers (filtered by branch if specified)
+    const telecallers = await prisma.user.findMany({
+      where: whereClause,
       select: {
         id: true,
         firstName: true,
         lastName: true,
+        branchId: true,
       },
     });
 
@@ -775,6 +1018,7 @@ export class AssignmentScheduleService {
       capacities.push({
         userId: telecaller.id,
         userName: `${telecaller.firstName} ${telecaller.lastName}`.trim(),
+        branchId: telecaller.branchId,
         pending: pendingCount,
         limit: dailyLimit,
         available,
@@ -839,7 +1083,7 @@ export class AssignmentScheduleService {
     return capacities;
   }
 
-  async getCapacityStats(organizationId: string) {
+  async getCapacityStats(organizationId: string, branchId: string | null = null) {
     // Get all schedules for the org
     const schedules = await prisma.assignmentSchedule.findMany({
       where: { organizationId },
@@ -855,7 +1099,8 @@ export class AssignmentScheduleService {
 
     const telecallerCapacity = await this.getTelecallerCapacity(
       organizationId,
-      telecallerLimit
+      telecallerLimit,
+      branchId
     );
     const voiceAgentCapacity = await this.getVoiceAgentCapacity(
       organizationId,
@@ -863,12 +1108,17 @@ export class AssignmentScheduleService {
       voiceAgentLimit
     );
 
-    // Get pending records count
+    // Get pending records count (filtered by branch if specified)
+    const pendingWhereClause: any = {
+      organizationId,
+      status: 'PENDING',
+    };
+    if (branchId) {
+      pendingWhereClause.orgBranchId = branchId;
+    }
+
     const pendingRecords = await prisma.rawImportRecord.count({
-      where: {
-        organizationId,
-        status: 'PENDING',
-      },
+      where: pendingWhereClause,
     });
 
     return {
@@ -877,6 +1127,7 @@ export class AssignmentScheduleService {
       totalTelecallerCapacity: telecallerCapacity.reduce((sum, t) => sum + t.available, 0),
       totalVoiceAgentCapacity: voiceAgentCapacity.reduce((sum, a) => sum + a.available, 0),
       pendingRecords,
+      branchId,
     };
   }
 
@@ -884,7 +1135,8 @@ export class AssignmentScheduleService {
 
   private async getPendingRecordsCount(
     organizationId: string,
-    bulkImportIds: string[] | null
+    bulkImportIds: string[] | null,
+    branchId: string | null = null
   ): Promise<number> {
     const whereClause: any = {
       organizationId,
@@ -895,13 +1147,19 @@ export class AssignmentScheduleService {
       whereClause.bulkImportId = { in: bulkImportIds };
     }
 
+    // Filter by branch for branch-specific schedules
+    if (branchId) {
+      whereClause.orgBranchId = branchId;
+    }
+
     return prisma.rawImportRecord.count({ where: whereClause });
   }
 
   private async getPendingRecords(
     organizationId: string,
     limit: number,
-    bulkImportIds: string[] | null
+    bulkImportIds: string[] | null,
+    branchId: string | null = null
   ) {
     const whereClause: any = {
       organizationId,
@@ -912,9 +1170,14 @@ export class AssignmentScheduleService {
       whereClause.bulkImportId = { in: bulkImportIds };
     }
 
+    // Filter by branch for branch-specific schedules
+    if (branchId) {
+      whereClause.orgBranchId = branchId;
+    }
+
     return prisma.rawImportRecord.findMany({
       where: whereClause,
-      select: { id: true },
+      select: { id: true, orgBranchId: true }, // Include orgBranchId for branch-aware distribution
       orderBy: { createdAt: 'asc' },
       take: limit,
     });

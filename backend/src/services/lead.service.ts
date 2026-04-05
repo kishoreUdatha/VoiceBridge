@@ -1,6 +1,6 @@
 import { prisma } from '../config/database';
 import { NotFoundError } from '../utils/errors';
-import { LeadSource, LeadPriority, Prisma } from '@prisma/client';
+import { LeadSource, LeadPriority, Prisma, AdmissionStatus, AdmissionType } from '@prisma/client';
 
 interface CreateLeadInput {
   organizationId: string;
@@ -28,6 +28,21 @@ interface UpdateLeadInput {
   notes?: string;
   customFields?: Prisma.InputJsonValue;
   isConverted?: boolean;
+  // Education Admission Management fields
+  admissionStatus?: AdmissionStatus;
+  admissionType?: AdmissionType;
+  expectedFee?: number;
+  actualFee?: number;
+  commissionPercentage?: number;
+  donationAmount?: number;
+  enrollmentNumber?: string;
+  academicYear?: string;
+  preferredUniversities?: string[];
+  fatherName?: string;
+  fatherMobile?: string;
+  address?: string;
+  city?: string;
+  state?: string;
 }
 
 interface LeadFilter {

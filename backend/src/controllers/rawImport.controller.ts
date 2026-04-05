@@ -47,6 +47,16 @@ export class RawImportController {
     }
   }
 
+  async getTelecallerAssignmentStats(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const stats = await rawImportService.getTelecallerAssignmentStats(req.organizationId!);
+
+      ApiResponse.success(res, 'Telecaller assignment stats retrieved successfully', stats);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // ==================== RECORDS ====================
 
   async listRecords(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {

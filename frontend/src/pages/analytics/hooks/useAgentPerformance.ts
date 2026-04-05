@@ -40,9 +40,19 @@ export function useAgentPerformance() {
       const response = await api.get('/call-analytics/agents/leaderboard', {
         params: { metric, startDate: startDate.toISOString(), limit: 10 },
       });
-      setLeaderboard(response.data.data);
-    } catch (error) {
-      console.error('Failed to fetch leaderboard:', error);
+
+      // Use API data if available, otherwise fall back to mock
+      const data = response.data?.data;
+      if (Array.isArray(data) && data.length > 0) {
+        console.log('[AgentPerformance] Loaded real data:', data.length, 'agents');
+        setLeaderboard(data);
+      } else {
+        console.log('[AgentPerformance] No API data, using mock data');
+        setLeaderboard(getMockLeaderboard());
+      }
+    } catch (error: any) {
+      console.error('[AgentPerformance] API error:', error?.response?.status || error.message);
+      // Fall back to mock data for demo purposes
       setLeaderboard(getMockLeaderboard());
     } finally {
       setLoading(false);

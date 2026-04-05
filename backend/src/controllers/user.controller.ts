@@ -106,6 +106,33 @@ export class UserController {
       next(error);
     }
   }
+
+  async resetPassword(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      await userService.resetPassword(req.params.id, req.organizationId!, req.body.password);
+
+      ApiResponse.success(res, 'Password reset successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getBulkStats(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userIds = (req.query.userIds as string)?.split(',').filter(Boolean) || [];
+
+      if (userIds.length === 0) {
+        ApiResponse.success(res, 'No user IDs provided', {});
+        return;
+      }
+
+      const stats = await userService.getBulkStats(req.organizationId!, userIds);
+
+      ApiResponse.success(res, 'User stats retrieved successfully', stats);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const userController = new UserController();

@@ -7,11 +7,13 @@ import {
   Prisma,
 } from '@prisma/client';
 import { BadRequestError, NotFoundError } from '../../utils/errors';
+import { getAllStates, getDistrictsByState } from '../../data/indianLocations';
 
 interface CollegeFilter {
   organizationId: string;
   assignedToId?: string;
   city?: string;
+  district?: string;
   state?: string;
   collegeType?: CollegeType;
   institutionStatus?: InstitutionStatus;
@@ -29,6 +31,7 @@ interface CreateCollegeData {
   category?: CollegeCategory;
   address: string;
   city: string;
+  district?: string;
   state: string;
   pincode?: string;
   googleMapsUrl?: string;
@@ -119,6 +122,7 @@ export class CollegeService {
       ];
     }
     if (filter.city) where.city = { contains: filter.city, mode: 'insensitive' };
+    if (filter.district) where.district = filter.district;
     if (filter.state) where.state = filter.state;
     if (filter.collegeType) where.collegeType = filter.collegeType;
     if (filter.institutionStatus) where.institutionStatus = filter.institutionStatus;
@@ -455,10 +459,18 @@ export class CollegeService {
 
   // ==================== CITIES & FILTERS ====================
 
-  async getCities(organizationId: string) {
+  async getCities(organizationId: string, state?: string, district?: string) {
+    const where: Prisma.CollegeWhereInput = {
+      organizationId,
+      status: 'ACTIVE',
+    };
+
+    if (state) where.state = state;
+    if (district) where.district = district;
+
     const cities = await prisma.college.groupBy({
       by: ['city', 'state'],
-      where: { organizationId, status: 'ACTIVE' },
+      where,
       _count: { city: true },
       orderBy: { city: 'asc' },
     });
@@ -481,6 +493,98 @@ export class CollegeService {
     return states.map((s) => ({
       state: s.state,
       count: s._count.state,
+    }));
+  }
+
+  async getDistricts(organizationId: string, state?: string) {
+    const where: Prisma.CollegeWhereInput = {
+      organizationId,
+      status: 'ACTIVE',
+      district: { not: null },
+    };
+
+    if (state) where.state = state;
+
+    const districts = await prisma.college.groupBy({
+      by: ['district', 'state'],
+      where,
+      _count: { district: true },
+      orderBy: { district: 'asc' },
+    });
+
+    return districts
+      .filter((d) => d.district)
+      .map((d) => ({
+        district: d.district!,
+        state: d.state,
+        count: d._count.district,
+      }));
+  }
+
+  async getFieldOfficers(organizationId: string) {
+    // Get all users assigned to colleges in this org with their stats
+    const usersWithColleges = await prisma.user.findMany({
+      where: {
+        organizationId,
+        isActive: true,
+        OR: [
+          { assignedColleges: { some: {} } },
+          { secondaryColleges: { some: {} } },
+        ],
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        _count: {
+          select: {
+            assignedColleges: true,
+            collegeVisits: true,
+          },
+        },
+      },
+    });
+
+    // Get expense totals for each user
+    const expenseTotals = await prisma.collegeExpense.groupBy({
+      by: ['userId'],
+      where: {
+        organizationId,
+        status: { in: ['SUBMITTED', 'APPROVED'] },
+      },
+      _sum: { amount: true },
+    });
+
+    const expenseMap = new Map(
+      expenseTotals.map((e) => [e.userId, e._sum.amount || 0])
+    );
+
+    return usersWithColleges.map((user) => ({
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      collegeCount: user._count.assignedColleges,
+      visitCount: user._count.collegeVisits,
+      totalExpenses: expenseMap.get(user.id) || 0,
+    }));
+  }
+
+  // ==================== ALL INDIAN LOCATIONS (STATIC DATA) ====================
+
+  getAllIndianStates() {
+    const states = getAllStates();
+    return states.map((state) => ({
+      state,
+    }));
+  }
+
+  getAllIndianDistricts(state: string) {
+    const districts = getDistrictsByState(state);
+    return districts.map((district) => ({
+      district,
+      state,
     }));
   }
 }

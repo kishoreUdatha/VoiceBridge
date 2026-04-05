@@ -4,15 +4,16 @@
  * Reusable functions for role-based lead access control.
  *
  * Access Control Rules:
- * - Admin/Manager: Can access any lead in their organization
- * - Counselor/Telecaller: Can only access leads actively assigned to them
+ * - Admin: Can access any lead in their organization (all branches)
+ * - Manager: Can access leads in their branch assigned to themselves or team
+ * - Counselor/Telecaller: Can only access leads in their branch assigned to them
  */
 
 import { prisma } from '../config/database';
 import { Prisma } from '@prisma/client';
 import { TenantRequest } from '../middlewares/tenant';
 
-// Roles that have full organization access (can see all leads)
+// Roles that have full organization access (can see all branches)
 const ADMIN_ROLES = ['admin'];
 
 // Roles that have team-based access (can see their team members' leads)
@@ -26,17 +27,24 @@ export interface LeadAccessContext {
   organizationId: string;
   role: string;
   managerId?: string | null;
+  branchId?: string | null; // User's assigned branch
+  selectedBranchId?: string | null; // Admin's selected branch filter (from header)
 }
 
 /**
  * Extract lead access context from a request
  */
 export function getLeadAccessContext(req: TenantRequest): LeadAccessContext {
+  // Check for admin's selected branch filter from header
+  const selectedBranchId = req.headers['x-branch-id'] as string | undefined;
+
   return {
     userId: req.user!.id,
     organizationId: req.organizationId!,
     role: req.user!.role,
     managerId: req.user!.managerId,
+    branchId: req.user!.branchId,
+    selectedBranchId: selectedBranchId || null,
   };
 }
 
@@ -149,23 +157,35 @@ export function buildLeadAccessFilter(
   context: LeadAccessContext,
   teamMemberIds?: string[]
 ): Prisma.LeadWhereInput {
-  const { userId, organizationId, role } = context;
+  const { userId, organizationId, role, branchId, selectedBranchId } = context;
 
   // Base filter: always filter by organization
   const baseFilter: Prisma.LeadWhereInput = {
     organizationId,
   };
 
-  // Admin roles see all leads in organization
+  // Admin roles see all leads in organization (optionally filtered by selected branch)
   if (hasAdminAccess(role)) {
+    // If admin has selected a branch filter, apply it
+    if (selectedBranchId) {
+      return {
+        ...baseFilter,
+        orgBranchId: selectedBranchId,
+      };
+    }
     return baseFilter;
   }
+
+  // For non-admin roles, add branch filter if user has a branch assigned
+  const branchFilter: Prisma.LeadWhereInput = branchId
+    ? { ...baseFilter, orgBranchId: branchId }
+    : baseFilter;
 
   // Manager roles see leads assigned to themselves or their team members
   if (hasManagerAccess(role) && teamMemberIds) {
     const allowedUserIds = [userId, ...teamMemberIds];
     return {
-      ...baseFilter,
+      ...branchFilter,
       assignments: {
         some: {
           assignedToId: { in: allowedUserIds },
@@ -177,7 +197,7 @@ export function buildLeadAccessFilter(
 
   // Other roles only see leads assigned to them
   return {
-    ...baseFilter,
+    ...branchFilter,
     assignments: {
       some: {
         assignedToId: userId,
@@ -199,26 +219,37 @@ export function buildFollowUpAccessFilter(
   context: LeadAccessContext,
   teamMemberIds?: string[]
 ): Prisma.FollowUpWhereInput {
-  const { userId, organizationId, role } = context;
+  const { userId, organizationId, role, branchId, selectedBranchId } = context;
 
   // Base filter: always filter by organization through lead
-  const baseFilter: Prisma.FollowUpWhereInput = {
-    lead: {
-      organizationId,
-    },
+  const baseLeadFilter: Prisma.LeadWhereInput = {
+    organizationId,
   };
 
-  // Admin roles see all follow-ups in organization
+  // Admin roles see all follow-ups in organization (optionally filtered by selected branch)
   if (hasAdminAccess(role)) {
-    return baseFilter;
+    if (selectedBranchId) {
+      return {
+        lead: {
+          ...baseLeadFilter,
+          orgBranchId: selectedBranchId,
+        },
+      };
+    }
+    return { lead: baseLeadFilter };
   }
+
+  // For non-admin roles, add branch filter if user has a branch assigned
+  const branchLeadFilter: Prisma.LeadWhereInput = branchId
+    ? { ...baseLeadFilter, orgBranchId: branchId }
+    : baseLeadFilter;
 
   // Manager roles see follow-ups for leads assigned to themselves or their team
   if (hasManagerAccess(role) && teamMemberIds) {
     const allowedUserIds = [userId, ...teamMemberIds];
     return {
       lead: {
-        organizationId,
+        ...branchLeadFilter,
         assignments: {
           some: {
             assignedToId: { in: allowedUserIds },
@@ -232,7 +263,7 @@ export function buildFollowUpAccessFilter(
   // Other roles only see follow-ups for leads assigned to them
   return {
     lead: {
-      organizationId,
+      ...branchLeadFilter,
       assignments: {
         some: {
           assignedToId: userId,

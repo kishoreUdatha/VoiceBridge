@@ -34,6 +34,9 @@ model Organization {
   // Language Settings
   preferredLanguage String? @default("te-IN") // Default language for transcription (te-IN, hi-IN, en-IN, etc.)
 
+  // Industry Configuration
+  industry OrganizationIndustry? @default(GENERAL)
+
   users                  User[]
   roles                  Role[]
   leads                  Lead[]
@@ -85,6 +88,7 @@ model Organization {
   recordingDisclosureConfig RecordingDisclosureConfig?
   funnelEvents              FunnelEvent[]
   agentPerformanceDaily     AgentPerformanceDaily[]
+  telecallerPerformanceDaily TelecallerPerformanceDaily[]
 
   // Billing & Usage
   usageTracking UsageTracking[]
@@ -102,6 +106,7 @@ model Organization {
 
   // Enterprise Features
   whiteLabelSettings WhiteLabelSettings?
+  emailSettings      EmailSettings?
 
   // Messaging
   scheduledMessages ScheduledMessage[]
@@ -141,6 +146,30 @@ model Organization {
   collegeDeals    CollegeDeal[]
   collegeExpenses CollegeExpense[]
 
+  // User Security & Activity
+  loginHistory LoginHistory[]
+  userSessions UserSession[]
+
+  // Multi-Branch Support
+  branches Branch[]
+
+  // Education Admission Management
+  universities        University[]
+  studentVisits       StudentVisit[]
+  admissions          Admission[]
+  businessExpenses    BusinessExpense[]
+
+  // Lead Management Features
+  leadTags               LeadTag[]
+  leadRoutingRules       LeadRoutingRule[]
+  routingGroups          RoutingGroup[]
+  leadSlaConfigs         LeadSlaConfig[]
+  leadScoringRules       LeadScoringRule[]
+  leadWorkflows          LeadWorkflow[]
+  leadViews              LeadView[]
+  leadSourceAttributions LeadSourceAttribution[]
+  leadDuplicateGroups    LeadDuplicateGroup[]
+
   @@map("organizations")
 }
 
@@ -155,6 +184,7 @@ model User {
   avatar               String?
   roleId               String
   managerId            String?   // Manager assigned to this user (for telecallers/counselors)
+  branchId             String?   // Branch this user belongs to (for multi-branch support)
   isActive             Boolean   @default(true)
   lastLoginAt          DateTime?
   refreshToken         String?
@@ -172,6 +202,8 @@ model User {
   role             Role              @relation(fields: [roleId], references: [id])
   manager          User?             @relation("ManagerTeam", fields: [managerId], references: [id])
   teamMembers      User[]            @relation("ManagerTeam")
+  branch           Branch?           @relation("UserBranch", fields: [branchId], references: [id])
+  managedBranches  Branch[]          @relation("BranchManager")
   leadAssignments  LeadAssignment[]  @relation("AssignedTo")
   assignedBy       LeadAssignment[]  @relation("AssignedBy")
   studentProfile   StudentProfile?
@@ -219,8 +251,114 @@ model User {
   // User settings (includes notification preferences)
   settings Json? @default("{}")
 
+  // Security & Activity Tracking
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret  String?
+  loginHistory     LoginHistory[]
+  userSessions     UserSession[]
+
+  // Education Admission Management
+  leadsAdmissionsClosed       Lead[]              @relation("AdmissionClosedBy")
+  visitsArranged              StudentVisit[]      @relation("VisitArrangedBy")
+  visitsAccompanied           StudentVisit[]      @relation("VisitAccompaniedBy")
+  admissionsClosed            Admission[]         @relation("AdmissionClosedBy")
+  admissionPaymentsReceived   AdmissionPayment[]  @relation("PaymentReceivedBy")
+  businessExpensesCreated     BusinessExpense[]   @relation("ExpenseCreatedBy")
+
   @@unique([organizationId, email])
   @@map("users")
+}
+
+// Multi-Branch Support
+model Branch {
+  id                String   @id @default(uuid())
+  organizationId    String
+  name              String
+  code              String   // Unique code like "HYD-01", "BNG-02"
+  isHeadquarters    Boolean  @default(false)
+  isActive          Boolean  @default(true)
+
+  // Location
+  address           String
+  city              String
+  state             String
+  country           String   @default("India")
+  pincode           String?
+  latitude          Float?
+  longitude         Float?
+
+  // Contact
+  phone             String?
+  email             String?
+
+  // Management
+  branchManagerId   String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branchManager        User?        @relation("BranchManager", fields: [branchManagerId], references: [id])
+  users                User[]       @relation("UserBranch")
+  leads                Lead[]
+  campaigns            Campaign[]
+  colleges             College[]
+  rawImportRecords     RawImportRecord[]
+  assignmentSchedules  AssignmentSchedule[] @relation("AssignmentScheduleBranch")
+
+  @@unique([organizationId, code])
+  @@index([organizationId, isActive])
+  @@map("branches")
+}
+
+// Login History for Activity Tracking
+model LoginHistory {
+  id             String   @id @default(uuid())
+  userId         String
+  organizationId String
+  ipAddress      String?
+  userAgent      String?
+  device         String?  // desktop, mobile, tablet
+  browser        String?
+  os             String?
+  location       String?  // City, Country (from IP)
+  status         String   @default("success") // success, failed, blocked
+  failReason     String?  // invalid_password, account_locked, etc.
+  createdAt      DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([organizationId, createdAt])
+  @@map("login_history")
+}
+
+// Active User Sessions
+model UserSession {
+  id             String    @id @default(uuid())
+  userId         String
+  organizationId String
+  token          String    @unique
+  ipAddress      String?
+  userAgent      String?
+  device         String?
+  browser        String?
+  os             String?
+  location       String?
+  isActive       Boolean   @default(true)
+  lastActivityAt DateTime  @default(now())
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@index([organizationId])
+  @@index([token])
+  @@map("user_sessions")
 }
 
 // Device Token for Push Notifications
@@ -275,6 +413,13 @@ model LeadStage {
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  // Industry-specific lead stage fields
+  isSystemStage   Boolean  @default(false)  // True if created from industry template
+  templateSlug    String?                    // Original template slug reference
+  autoSyncStatus  String?                    // "WON" or "LOST" - auto-syncs lead status
+  journeyOrder    Int?     @default(0)       // Order in journey tracker visualization
+  icon            String?                    // Icon name for display (e.g., "AcademicCapIcon")
 
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   subStages    LeadSubStage[]
@@ -366,6 +511,7 @@ model CustomField {
 model Lead {
   id             String       @id @default(uuid())
   organizationId String
+  orgBranchId    String?      // Organization branch for multi-branch support
   firstName      String
   lastName       String?
   email          String?
@@ -424,6 +570,7 @@ model Lead {
   updatedAt   DateTime  @updatedAt
 
   organization              Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orgBranch                 Branch?                  @relation(fields: [orgBranchId], references: [id])
   channel                   Channel?                 @relation(fields: [channelId], references: [id])
   stage                     LeadStage?               @relation(fields: [stageId], references: [id])
   subStage                  LeadSubStage?            @relation(fields: [subStageId], references: [id])
@@ -458,10 +605,90 @@ model Lead {
   outboundCalls             OutboundCall[]           @relation("LeadOutboundCalls")
   messageLogs               MessageLog[]
 
+  // Education Admission Management
+  preferredUniversities   Json?           // Array of university IDs
+  admissionType           AdmissionType?
+  admissionStatus         AdmissionStatus @default(INQUIRY)
+  expectedFee             Decimal?        @db.Decimal(12, 2)
+  actualFee               Decimal?        @db.Decimal(12, 2)
+  commissionPercentage    Decimal?        @db.Decimal(5, 2)
+  commissionAmount        Decimal?        @db.Decimal(12, 2)
+  donationAmount          Decimal?        @db.Decimal(12, 2)
+  admissionClosedAt       DateTime?
+  admissionClosedById     String?
+  enrollmentNumber        String?
+  academicYear            String?         // e.g., "2024-25"
+  admissionClosedBy       User?           @relation("AdmissionClosedBy", fields: [admissionClosedById], references: [id])
+  studentVisits           StudentVisit[]
+  admissions              Admission[]
+
   // Interaction tracking
   totalCalls      Int       @default(0)
   lastContactedAt DateTime?
   nextFollowUpAt  DateTime?
+
+  // Lead Deduplication
+  isDuplicate     Boolean   @default(false)
+  mergedIntoId    String?   // If merged, points to primary lead
+  duplicateScore  Float?    // Confidence score for duplicate detection
+  mergedAt        DateTime?
+
+  // Lead Scoring (enhanced)
+  qualificationScore  Int?      @default(0)  // 0-100 qualification score
+  engagementScore     Int?      @default(0)  // Based on interactions
+  intentScore         Int?      @default(0)  // Based on high-intent actions
+  totalScore          Int?      @default(0)  // Combined score
+  scoreLastUpdatedAt  DateTime?
+  scoreDecayAppliedAt DateTime?
+
+  // SLA Tracking
+  slaDeadline       DateTime?  // When lead must be contacted by
+  slaBreached       Boolean    @default(false)
+  firstResponseAt   DateTime?  // When lead was first contacted
+  responseTimeMs    Int?       // Time to first response in milliseconds
+
+  // Lead Qualification
+  qualificationStatus  String?   // MQL, SQL, SAL, etc.
+  qualifiedAt          DateTime?
+  qualifiedById        String?
+  disqualifiedReason   String?
+
+  // Lead Enrichment
+  enrichedAt           DateTime?
+  companyName          String?
+  companySize          String?
+  jobTitle             String?
+  linkedinUrl          String?
+  websiteUrl           String?
+  annualRevenue        String?
+  employeeCount        Int?
+  industryType         String?
+
+  // Web Tracking
+  lastPageVisited      String?
+  totalPageViews       Int       @default(0)
+  lastWebActivityAt    DateTime?
+  utmSource            String?
+  utmMedium            String?
+  utmCampaign          String?
+  utmContent           String?
+  utmTerm              String?
+  referrerUrl          String?
+  landingPageUrl       String?
+
+  // Recycling & Re-engagement
+  isRecycled           Boolean   @default(false)
+  recycledAt           DateTime?
+  recycledFromStatus   String?
+  lastEngagementAt     DateTime?
+  dormantSince         DateTime?
+
+  // Relations for new features
+  mergedInto           Lead?              @relation("LeadMerge", fields: [mergedIntoId], references: [id])
+  mergedLeads          Lead[]             @relation("LeadMerge")
+  tagAssignments       LeadTagAssignment[]
+  webActivities        LeadWebActivity[]
+  workflowEnrollments  LeadWorkflowEnrollment[]
 
   @@index([organizationId, phone])
   @@index([organizationId, email])
@@ -472,6 +699,7 @@ model Lead {
   @@index([organizationId, priority])
   @@index([organizationId, isConverted])
   @@index([organizationId, lastContactedAt])
+  @@index([organizationId, orgBranchId])
   @@map("leads")
 }
 
@@ -629,6 +857,344 @@ model LeadApplication {
   lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@map("lead_applications")
+}
+
+// =====================================================
+// LEAD MANAGEMENT FEATURES
+// =====================================================
+
+// Lead Tags for categorization
+model LeadTag {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  slug           String
+  color          String   @default("#6B7280")
+  description    String?
+  isSystem       Boolean  @default(false)  // System tags can't be deleted
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadAssignments LeadTagAssignment[]
+
+  @@unique([organizationId, slug])
+  @@map("lead_tags")
+}
+
+model LeadTagAssignment {
+  id        String   @id @default(uuid())
+  leadId    String
+  tagId     String
+  assignedAt DateTime @default(now())
+
+  lead Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tag  LeadTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, tagId])
+  @@map("lead_tag_assignments")
+}
+
+// Lead Web Activity Tracking
+model LeadWebActivity {
+  id             String   @id @default(uuid())
+  leadId         String
+  organizationId String
+  sessionId      String?
+  pageUrl        String
+  pageTitle      String?
+  referrerUrl    String?
+  duration       Int?     // Time spent in seconds
+  eventType      String   @default("page_view") // page_view, form_submit, button_click, etc.
+  eventData      Json?    @default("{}")
+  ipAddress      String?
+  userAgent      String?
+  deviceType     String?  // desktop, mobile, tablet
+  browser        String?
+  os             String?
+  country        String?
+  city           String?
+  createdAt      DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, createdAt])
+  @@index([organizationId, createdAt])
+  @@map("lead_web_activities")
+}
+
+// Lead Routing Rules
+model LeadRoutingRule {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  priority       Int      @default(0)  // Higher priority rules evaluated first
+  isActive       Boolean  @default(true)
+
+  // Rule Conditions (JSON structure)
+  conditions     Json     @default("[]")  // [{field, operator, value}]
+  conditionLogic String   @default("AND") // AND, OR
+
+  // Rule Action
+  actionType     String   // ASSIGN_USER, ASSIGN_TEAM, ROUND_ROBIN, LOAD_BALANCE
+  assignToUserId String?  // For ASSIGN_USER
+  assignToTeamId String?  // For ASSIGN_TEAM (roleId)
+  routingGroupId String?  // For ROUND_ROBIN
+
+  // Statistics
+  matchCount     Int      @default(0)
+  lastMatchedAt  DateTime?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  routingGroup   RoutingGroup?  @relation(fields: [routingGroupId], references: [id])
+
+  @@index([organizationId, isActive, priority])
+  @@map("lead_routing_rules")
+}
+
+// Routing Groups for Round-Robin Assignment
+model RoutingGroup {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  isActive       Boolean  @default(true)
+
+  // Round-robin tracking
+  currentIndex   Int      @default(0)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        RoutingGroupMember[]
+  routingRules   LeadRoutingRule[]
+
+  @@map("routing_groups")
+}
+
+model RoutingGroupMember {
+  id             String   @id @default(uuid())
+  groupId        String
+  userId         String
+  isActive       Boolean  @default(true)
+  weight         Int      @default(1)   // For weighted round-robin
+  maxLeads       Int?     // Max leads per day/period
+  currentLeads   Int      @default(0)   // Current assigned leads count
+  lastAssignedAt DateTime?
+  createdAt      DateTime @default(now())
+
+  group RoutingGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("routing_group_members")
+}
+
+// SLA Configuration
+model LeadSlaConfig {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  isActive       Boolean  @default(true)
+  isDefault      Boolean  @default(false)
+
+  // SLA Timing
+  firstResponseMinutes Int     @default(60)    // Time to first contact
+  followUpMinutes      Int     @default(1440)  // Time between follow-ups (24h default)
+  resolutionMinutes    Int?                     // Time to resolution
+
+  // Working Hours
+  workingHoursOnly     Boolean @default(true)
+  workingHoursStart    String  @default("09:00")
+  workingHoursEnd      String  @default("18:00")
+  workingDays          Json    @default("[1,2,3,4,5]") // Mon-Fri
+
+  // Escalation
+  escalationEnabled    Boolean @default(false)
+  escalationMinutes    Int?
+  escalationUserId     String?
+
+  // Conditions (when to apply this SLA)
+  conditions           Json    @default("[]")  // [{field, operator, value}]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("lead_sla_configs")
+}
+
+// Lead Scoring Rules
+model LeadScoringRule {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  isActive       Boolean  @default(true)
+
+  // Scoring Type
+  scoreType      String   // DEMOGRAPHIC, BEHAVIORAL, ENGAGEMENT, INTENT
+
+  // Condition and Score
+  conditions     Json     @default("[]")  // [{field, operator, value}]
+  scoreValue     Int      @default(0)     // Points to add/subtract
+  scoreAction    String   @default("ADD") // ADD, SUBTRACT, SET
+
+  // Decay Settings (for behavioral scores)
+  decayEnabled   Boolean  @default(false)
+  decayDays      Int?     // Days after which score starts decaying
+  decayPercent   Int?     // Percentage to decay
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("lead_scoring_rules")
+}
+
+// Lead Workflows/Automation
+model LeadWorkflow {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  isActive       Boolean  @default(true)
+
+  // Trigger Configuration
+  triggerType    String   // LEAD_CREATED, STAGE_CHANGED, SCORE_THRESHOLD, TAG_ADDED, FORM_SUBMITTED, TIME_BASED
+  triggerConfig  Json     @default("{}")  // Trigger-specific config
+
+  // Actions (executed in order)
+  actions        Json     @default("[]")  // [{type, config, delayMinutes}]
+
+  // Statistics
+  executionCount Int      @default(0)
+  lastExecutedAt DateTime?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enrollments    LeadWorkflowEnrollment[]
+
+  @@map("lead_workflows")
+}
+
+model LeadWorkflowEnrollment {
+  id           String    @id @default(uuid())
+  workflowId   String
+  leadId       String
+  status       String    @default("ACTIVE")  // ACTIVE, COMPLETED, CANCELLED, PAUSED
+  currentStep  Int       @default(0)
+  nextStepAt   DateTime?
+  completedAt  DateTime?
+  enrolledAt   DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  workflow LeadWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  lead     Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, leadId])
+  @@index([status, nextStepAt])
+  @@map("lead_workflow_enrollments")
+}
+
+// Saved Lead Views
+model LeadView {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String?  // null = shared view
+  name           String
+  description    String?
+  isDefault      Boolean  @default(false)
+  isShared       Boolean  @default(false)
+
+  // Filter Configuration
+  filters        Json     @default("[]")   // [{field, operator, value}]
+  sortField      String   @default("createdAt")
+  sortOrder      String   @default("desc")
+
+  // Display Configuration
+  columns        Json     @default("[]")   // Column IDs to display
+  groupBy        String?                   // Field to group by
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("lead_views")
+}
+
+// Lead Source Attribution
+model LeadSourceAttribution {
+  id             String   @id @default(uuid())
+  organizationId String
+  leadId         String   @unique
+
+  // First Touch
+  firstTouchSource    String?
+  firstTouchMedium    String?
+  firstTouchCampaign  String?
+  firstTouchAt        DateTime?
+
+  // Last Touch
+  lastTouchSource     String?
+  lastTouchMedium     String?
+  lastTouchCampaign   String?
+  lastTouchAt         DateTime?
+
+  // All Touches (for multi-touch attribution)
+  touchPoints         Json     @default("[]")  // [{source, medium, campaign, timestamp}]
+
+  // Attribution Model Results
+  firstTouchRevenue   Decimal? @db.Decimal(12, 2)
+  lastTouchRevenue    Decimal? @db.Decimal(12, 2)
+  linearRevenue       Decimal? @db.Decimal(12, 2)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("lead_source_attributions")
+}
+
+// Lead Duplicate Groups (for managing duplicates)
+model LeadDuplicateGroup {
+  id             String   @id @default(uuid())
+  organizationId String
+  status         String   @default("PENDING")  // PENDING, MERGED, IGNORED
+  confidence     Float    @default(0)
+  matchedFields  Json     @default("[]")  // Fields that matched
+  primaryLeadId  String?  // Selected primary lead after merge
+  mergedAt       DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        LeadDuplicateGroupMember[]
+
+  @@map("lead_duplicate_groups")
+}
+
+model LeadDuplicateGroupMember {
+  id        String  @id @default(uuid())
+  groupId   String
+  leadId    String
+  isPrimary Boolean @default(false)
+
+  group LeadDuplicateGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, leadId])
+  @@map("lead_duplicate_group_members")
 }
 
 // Forms & Landing Pages
@@ -802,6 +1368,7 @@ model PaymentSplit {
 model Campaign {
   id             String         @id @default(uuid())
   organizationId String
+  orgBranchId    String?        // Organization branch for multi-branch support
   createdById    String
   name           String
   type           CampaignType
@@ -817,10 +1384,12 @@ model Campaign {
   updatedAt      DateTime       @updatedAt
 
   organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orgBranch    Branch?             @relation(fields: [orgBranchId], references: [id])
   createdBy    User                @relation("CampaignCreator", fields: [createdById], references: [id])
   recipients   CampaignRecipient[]
   emailLogs    EmailLog[]
 
+  @@index([organizationId, orgBranchId])
   @@map("campaigns")
 }
 
@@ -1244,6 +1813,17 @@ enum LeadPriority {
   MEDIUM
   HIGH
   URGENT
+}
+
+enum OrganizationIndustry {
+  EDUCATION
+  REAL_ESTATE
+  HEALTHCARE
+  INSURANCE
+  FINANCE
+  IT_RECRUITMENT
+  ECOMMERCE
+  GENERAL
 }
 
 enum TaxonomyType {
@@ -2996,6 +3576,62 @@ model WhiteLabelSettings {
   @@map("white_label_settings")
 }
 
+// Organization Email Settings (Per-Org Email Configuration)
+model EmailSettings {
+  id             String @id @default(uuid())
+  organizationId String @unique
+
+  // Provider Selection
+  provider String @default("smtp") // smtp, sendgrid, ses, mailgun
+
+  // SMTP Configuration
+  smtpHost     String?
+  smtpPort     Int?     @default(587)
+  smtpSecure   Boolean  @default(false) // true for 465, false for other ports
+  smtpUser     String?
+  smtpPassword String?  // Encrypted
+
+  // SendGrid Configuration
+  sendgridApiKey String? // Encrypted
+
+  // AWS SES Configuration
+  sesAccessKeyId     String? // Encrypted
+  sesSecretAccessKey String? // Encrypted
+  sesRegion          String? @default("us-east-1")
+
+  // Mailgun Configuration
+  mailgunApiKey String? // Encrypted
+  mailgunDomain String?
+
+  // Common Settings
+  fromEmail     String  // sender@example.com
+  fromName      String? // "Company Name"
+  replyToEmail  String? // Optional reply-to address
+
+  // Email Branding
+  emailSignature String? // HTML signature appended to emails
+  emailFooter    String? // Footer text/HTML
+
+  // Limits & Rate Limiting
+  dailyLimit     Int?    @default(1000) // Max emails per day
+  hourlyLimit    Int?    @default(100)  // Max emails per hour
+  emailsSentToday Int    @default(0)
+  lastResetAt    DateTime?
+
+  // Status
+  isActive       Boolean @default(true)
+  isVerified     Boolean @default(false) // Connection tested successfully
+  lastTestedAt   DateTime?
+  lastError      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("email_settings")
+}
+
 // Super Admin Users (Platform Owners)
 model SuperAdmin {
   id           String    @id @default(uuid())
@@ -4331,6 +4967,7 @@ model RawImportRecord {
   id             String @id @default(uuid())
   bulkImportId   String
   organizationId String
+  orgBranchId    String? // Organization branch for multi-branch support
 
   // Contact info
   firstName      String
@@ -4371,6 +5008,7 @@ model RawImportRecord {
   // Relations
   bulkImport    BulkImport   @relation(fields: [bulkImportId], references: [id], onDelete: Cascade)
   organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orgBranch     Branch?      @relation(fields: [orgBranchId], references: [id])
   assignedTo    User?        @relation("RawImportAssignedTo", fields: [assignedToId], references: [id])
   assignedAgent VoiceAgent?  @relation("RawImportAIAgent", fields: [assignedAgentId], references: [id])
   assignedBy    User?        @relation("RawImportAssignedBy", fields: [assignedById], references: [id])
@@ -4378,6 +5016,7 @@ model RawImportRecord {
   convertedLead Lead?        @relation("RawImportConvertedLead", fields: [convertedLeadId], references: [id])
 
   @@index([organizationId, status])
+  @@index([organizationId, orgBranchId])
   @@index([bulkImportId])
   @@index([assignedToId])
   @@index([assignedAgentId])
@@ -4403,6 +5042,7 @@ enum DistributionStrategy {
 model AssignmentSchedule {
   id             String   @id @default(uuid())
   organizationId String
+  orgBranchId    String?  // Optional: null = org-wide, set = branch-specific
   name           String // "Morning Assignment", "Afternoon Top-up"
   isActive       Boolean  @default(true)
 
@@ -4434,10 +5074,12 @@ model AssignmentSchedule {
   updatedAt DateTime  @updatedAt
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orgBranch    Branch?            @relation("AssignmentScheduleBranch", fields: [orgBranchId], references: [id], onDelete: SetNull)
   voiceAgent   VoiceAgent?        @relation("AssignmentScheduleAgent", fields: [voiceAgentId], references: [id], onDelete: SetNull)
   runLogs      AssignmentRunLog[]
 
   @@index([organizationId])
+  @@index([organizationId, orgBranchId])
   @@index([nextRunAt])
   @@index([isActive, nextRunAt])
   @@map("assignment_schedules")
@@ -4447,6 +5089,7 @@ model AssignmentRunLog {
   id             String   @id @default(uuid())
   scheduleId     String
   organizationId String
+  orgBranchId    String?  // Branch this run was for (null = org-wide)
   runAt          DateTime @default(now())
 
   // Results
@@ -4456,6 +5099,7 @@ model AssignmentRunLog {
   recordsSkipped        Int  @default(0) // Already at limit
   pendingBefore         Int  @default(0) // Records pending before run
   pendingAfter          Int  @default(0) // Records pending after run
+  branchBreakdown       Json @default("{}") // Per-branch stats for org-wide runs: {branchId: {assigned, skipped}}
   errors                String?
 
   // Run metadata
@@ -4566,6 +5210,7 @@ enum ExpenseStatus {
 model College {
   id             String   @id @default(uuid())
   organizationId String
+  orgBranchId    String?  // Organization branch for multi-branch support
 
   // Basic Information
   name           String
@@ -4581,6 +5226,7 @@ model College {
   // Location
   address      String
   city         String
+  district     String?
   state        String
   pincode      String?
   googleMapsUrl String?
@@ -4616,6 +5262,7 @@ model College {
 
   // Relations
   organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orgBranch         Branch?            @relation(fields: [orgBranchId], references: [id])
   assignedTo        User               @relation("CollegeAssignedTo", fields: [assignedToId], references: [id])
   secondaryAssignee User?              @relation("CollegeSecondaryAssignee", fields: [secondaryAssigneeId], references: [id])
   contacts          CollegeContact[]
@@ -4629,6 +5276,8 @@ model College {
   @@index([organizationId, city])
   @@index([organizationId, category])
   @@index([organizationId, status])
+  @@index([organizationId, state, district])
+  @@index([organizationId, orgBranchId])
   @@map("colleges")
 }
 
@@ -4665,9 +5314,15 @@ model CollegeContact {
 
 model CollegeVisit {
   id             String @id @default(uuid())
-  collegeId      String
+  collegeId      String? // Optional - null for ad-hoc visits
   organizationId String
   userId         String // Marketing person who visited
+
+  // Ad-hoc visit details (when collegeId is null)
+  visitCollegeName String?
+  visitState       String?
+  visitDistrict    String?
+  visitCity        String?
 
   // Visit Timing
   visitDate    DateTime
@@ -4701,7 +5356,7 @@ model CollegeVisit {
   updatedAt DateTime @updatedAt
 
   // Relations
-  college      College          @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  college      College?         @relation(fields: [collegeId], references: [id], onDelete: Cascade)
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User             @relation("CollegeVisitUser", fields: [userId], references: [id])
   contacts     CollegeContact[] @relation("VisitContacts")
@@ -4710,6 +5365,7 @@ model CollegeVisit {
   @@index([collegeId])
   @@index([organizationId, userId])
   @@index([organizationId, visitDate])
+  @@index([organizationId, visitState, visitDistrict])
   @@map("college_visits")
 }
 
@@ -6116,6 +6772,49 @@ model AgentPerformanceDaily {
   @@map("agent_performance_daily")
 }
 
+// Telecaller Performance Daily (for human telecallers)
+model TelecallerPerformanceDaily {
+  id             String   @id @default(uuid())
+  organizationId String
+  telecallerId   String // User ID of telecaller
+  telecallerName String?
+  date           DateTime @db.Date
+
+  // Call Metrics
+  totalCalls      Int @default(0)
+  answeredCalls   Int @default(0)
+  avgCallDuration Int @default(0) // seconds
+  totalTalkTime   Int @default(0) // seconds
+
+  // Outcome Metrics
+  interestedCount    Int @default(0)
+  convertedCount     Int @default(0)
+  callbacksRequested Int @default(0)
+  noAnswerCount      Int @default(0)
+  wrongNumberCount   Int @default(0)
+  busyCount          Int @default(0)
+  notInterestedCount Int @default(0)
+
+  // Quality Metrics
+  avgSentimentScore  Float @default(0) // -1 to 1
+  positiveCallsCount Int   @default(0)
+  negativeCallsCount Int   @default(0)
+
+  // Performance Metrics
+  conversionRate Float @default(0) // (convertedCount / answeredCalls) * 100
+  answerRate     Float @default(0) // (answeredCalls / totalCalls) * 100
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, telecallerId, date])
+  @@index([organizationId, date])
+  @@index([telecallerId, date])
+  @@map("telecaller_performance_daily")
+}
+
 // ==================== OTP VERIFICATION ====================
 
 model OtpVerification {
@@ -6188,6 +6887,36 @@ enum AdInteractionType {
   IMPRESSION // Ad was shown (synced from platform)
   ENGAGEMENT // User engagement (scroll, time on page, video watch)
   CONVERSION // Click converted to lead
+}
+
+// ==================== EDUCATION ADMISSION MANAGEMENT ====================
+
+enum AdmissionType {
+  DONATION        // Management quota - higher fees
+  NON_DONATION    // Merit-based - regular fees
+  NRI             // NRI quota
+  SCHOLARSHIP     // Scholarship admission
+}
+
+enum AdmissionStatus {
+  INQUIRY
+  INTERESTED
+  VISIT_SCHEDULED
+  VISIT_COMPLETED
+  DOCUMENTS_PENDING
+  ADMISSION_PROCESSING
+  PAYMENT_PENDING
+  ADMITTED
+  ENROLLED
+  DROPPED
+}
+
+enum StudentVisitStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
 }
 
 // Track ad clicks that may or may not result in form submissions
@@ -6438,4 +7167,210 @@ model MessageLog {
   @@index([leadId])
   @@index([type, status])
   @@map("message_logs")
+}
+
+// ==================== EDUCATION ADMISSION MANAGEMENT MODELS ====================
+
+// Partner Universities/Colleges
+model University {
+  id                String   @id @default(uuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name              String
+  shortName         String?
+  type              String?         // ENGINEERING, MEDICAL, ARTS, COMMERCE, etc.
+  city              String?
+  state             String?
+  website           String?
+  contactPerson     String?
+  contactPhone      String?
+  contactEmail      String?
+
+  // Commission structure
+  defaultCommissionPercent  Decimal?  @db.Decimal(5, 2)
+  donationCommissionPercent Decimal?  @db.Decimal(5, 2)
+
+  // Tracking
+  totalAdmissions   Int       @default(0)
+  totalRevenue      Decimal   @default(0) @db.Decimal(14, 2)
+
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  studentVisits     StudentVisit[]
+  admissions        Admission[]
+
+  @@index([organizationId])
+  @@index([organizationId, isActive])
+  @@map("universities")
+}
+
+// Student College Visits
+model StudentVisit {
+  id                String   @id @default(uuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  leadId            String
+  lead              Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  universityId      String
+  university        University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  // Visit details
+  visitDate         DateTime
+  visitTime         String?         // "10:00 AM"
+  status            StudentVisitStatus @default(SCHEDULED)
+
+  // Arranged by
+  arrangedById      String
+  arrangedBy        User     @relation("VisitArrangedBy", fields: [arrangedById], references: [id])
+
+  // Accompanied by (optional - staff who goes with student)
+  accompaniedById   String?
+  accompaniedBy     User?    @relation("VisitAccompaniedBy", fields: [accompaniedById], references: [id])
+
+  // Travel
+  travelArranged    Boolean  @default(false)
+  travelExpense     Decimal? @db.Decimal(10, 2)
+
+  // Outcome
+  feedback          String?  @db.Text
+  studentRating     Int?     // 1-5
+  interestedInAdmission Boolean?
+
+  completedAt       DateTime?
+  notes             String?  @db.Text
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([leadId])
+  @@index([universityId])
+  @@index([organizationId, status])
+  @@index([organizationId, visitDate])
+  @@map("student_visits")
+}
+
+// Admission Records
+model Admission {
+  id                String   @id @default(uuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  admissionNumber   String   @unique
+
+  leadId            String
+  lead              Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  universityId      String
+  university        University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  // Course details
+  courseName        String?
+  branch            String?
+  academicYear      String          // "2024-25"
+
+  // Admission type & fees
+  admissionType     AdmissionType
+  totalFee          Decimal  @db.Decimal(12, 2)
+  donationAmount    Decimal  @default(0) @db.Decimal(12, 2)
+
+  // Payment tracking
+  paidAmount        Decimal  @default(0) @db.Decimal(12, 2)
+  pendingAmount     Decimal  @db.Decimal(12, 2)
+  paymentStatus     String   @default("PENDING") // PENDING, PARTIAL, PAID
+
+  // Commission
+  commissionPercent Decimal  @db.Decimal(5, 2)
+  commissionAmount  Decimal  @db.Decimal(12, 2)
+  commissionStatus  String   @default("PENDING") // PENDING, RECEIVED
+  commissionReceivedAt DateTime?
+
+  // Closed by
+  closedById        String
+  closedBy          User     @relation("AdmissionClosedBy", fields: [closedById], references: [id])
+  closedAt          DateTime @default(now())
+
+  // Payment reminders
+  lastPaymentReminderAt DateTime?
+  paymentReminderCount  Int      @default(0)
+
+  // Status
+  status            String   @default("ACTIVE") // ACTIVE, CANCELLED, REFUNDED
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  payments          AdmissionPayment[]
+
+  @@index([organizationId])
+  @@index([leadId])
+  @@index([universityId])
+  @@index([organizationId, academicYear])
+  @@index([organizationId, admissionType])
+  @@index([organizationId, closedAt])
+  @@map("admissions")
+}
+
+// Admission Payment Records (for installments)
+model AdmissionPayment {
+  id                String   @id @default(uuid())
+  admissionId       String
+  admission         Admission @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+
+  paymentNumber     Int              // 1, 2, 3... for installments
+  amount            Decimal  @db.Decimal(12, 2)
+  paymentType       String           // FEE, DONATION, MISCELLANEOUS
+  paymentMode       String?          // CASH, CHEQUE, ONLINE, UPI
+  referenceNumber   String?
+
+  paidAt            DateTime?
+  receivedById      String?
+  receivedBy        User?    @relation("PaymentReceivedBy", fields: [receivedById], references: [id])
+
+  notes             String?
+  receiptUrl        String?
+
+  createdAt         DateTime @default(now())
+
+  @@index([admissionId])
+  @@index([admissionId, paymentNumber])
+  @@map("admission_payments")
+}
+
+// Business Expenses (General expenses, not visit-specific)
+model BusinessExpense {
+  id                String   @id @default(uuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  category          String           // MARKETING, SALARY, RENT, TRAVEL, UTILITIES, OTHER
+  description       String
+  amount            Decimal  @db.Decimal(12, 2)
+  expenseDate       DateTime
+
+  // Optional links
+  universityId      String?
+  leadId            String?
+
+  // Receipt
+  receiptUrl        String?
+  vendorName        String?
+
+  // Approval
+  status            String   @default("APPROVED") // DRAFT, SUBMITTED, APPROVED, REJECTED
+  createdById       String
+  createdBy         User     @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, expenseDate])
+  @@index([organizationId, category])
+  @@map("business_expenses")
 }

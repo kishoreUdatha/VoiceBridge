@@ -77,6 +77,13 @@ router.get(
   rawImportController.getStats.bind(rawImportController)
 );
 
+// Telecaller Assignment Stats (for admin/manager dashboard)
+router.get(
+  '/stats/telecaller-assignments',
+  authorize('admin', 'manager', 'team_lead'),
+  rawImportController.getTelecallerAssignmentStats.bind(rawImportController)
+);
+
 // Bulk Imports List
 router.get(
   '/',

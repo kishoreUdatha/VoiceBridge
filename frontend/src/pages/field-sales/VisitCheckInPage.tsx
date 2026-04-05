@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { checkIn, checkOut, fetchOpenVisit, fetchTodaySchedule } from '../../store/slices/fieldSales/visitSlice';
-import { fetchColleges } from '../../store/slices/fieldSales/collegeSlice';
+import { fetchStates, fetchDistricts, fetchCities } from '../../store/slices/fieldSales/collegeSlice';
 import { useForm } from 'react-hook-form';
 import {
   MapPinIcon,
@@ -15,7 +15,6 @@ import {
   DocumentTextIcon,
   SignalIcon,
   ExclamationTriangleIcon,
-  PhoneIcon,
   EnvelopeIcon,
   AcademicCapIcon,
   ChartBarIcon,
@@ -33,7 +32,7 @@ import {
   UserCircleIcon,
   PaperClipIcon,
 } from '@heroicons/react/24/outline';
-import { CheckCircleIcon as CheckCircleSolidIcon, MapPinIcon as MapPinSolidIcon, StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
+import { CheckCircleIcon as CheckCircleSolidIcon, MapPinIcon as MapPinSolidIcon } from '@heroicons/react/24/solid';
 import toast from 'react-hot-toast';
 import { VisitPurpose, VisitOutcome, CheckOutData } from '../../services/fieldSales/visit.service';
 
@@ -395,16 +394,20 @@ const visitOutcomes: {
 ];
 
 export default function VisitCheckInPage() {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
   const { openVisit, hasOpenVisit, todaySchedule, isCheckingIn, isCheckingOut } = useAppSelector(
     (state) => state.fieldSalesVisits
   );
-  const { colleges } = useAppSelector((state) => state.fieldSalesColleges);
+  const { states, districts, cities, isLoading: isLoadingLocations } = useAppSelector((state) => state.fieldSalesColleges);
 
-  const [selectedCollegeId, setSelectedCollegeId] = useState(searchParams.get('collegeId') || '');
+  // Location hierarchy state
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+  const [collegeName, setCollegeName] = useState('');
+
   const [selectedPurpose, setSelectedPurpose] = useState<VisitPurpose>('FIRST_INTRODUCTION');
   const [location, setLocation] = useState<{ latitude: number; longitude: number; address?: string } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -451,15 +454,15 @@ export default function VisitCheckInPage() {
   // Email functions
   const openEmailModal = (templateType: EmailTemplateType) => {
     const template = emailTemplates.find(t => t.type === templateType);
-    // Use openVisit.college for checkout view, or selectedCollege for check-in view
-    const collegeName = openVisit?.college?.name || colleges.find(c => c.id === selectedCollegeId)?.name || '';
+    // Use openVisit.college for checkout view, or collegeName for check-in view
+    const collegeDisplayName = openVisit?.college?.name || openVisit?.visitCollegeName || collegeName || '';
     const visitDate = openVisit?.checkInTime ? new Date(openVisit.checkInTime).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
 
-    if (template && (openVisit || selectedCollegeId)) {
+    if (template && (openVisit || collegeName)) {
       let subject = template.subject
-        .replace('{{collegeName}}', collegeName);
+        .replace('{{collegeName}}', collegeDisplayName);
       let body = template.body
-        .replace(/\{\{collegeName\}\}/g, collegeName)
+        .replace(/\{\{collegeName\}\}/g, collegeDisplayName)
         .replace(/\{\{contactName\}\}/g, '{{contactName}}')
         .replace(/\{\{visitDate\}\}/g, visitDate)
         .replace(/\{\{senderName\}\}/g, 'Your Name')
@@ -516,8 +519,27 @@ export default function VisitCheckInPage() {
   useEffect(() => {
     dispatch(fetchOpenVisit());
     dispatch(fetchTodaySchedule());
-    dispatch(fetchColleges({ filter: {}, page: 1, limit: 100 }));
+    dispatch(fetchStates());
   }, [dispatch]);
+
+  // Fetch districts when state changes
+  useEffect(() => {
+    if (selectedState) {
+      dispatch(fetchDistricts(selectedState));
+      setSelectedDistrict('');
+      setSelectedCity('');
+      setCollegeName('');
+    }
+  }, [dispatch, selectedState]);
+
+  // Fetch cities when district changes
+  useEffect(() => {
+    if (selectedDistrict) {
+      dispatch(fetchCities({ state: selectedState, district: selectedDistrict }));
+      setSelectedCity('');
+      setCollegeName('');
+    }
+  }, [dispatch, selectedState, selectedDistrict]);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -541,14 +563,21 @@ export default function VisitCheckInPage() {
   }, []);
 
   const handleCheckIn = async () => {
-    if (!selectedCollegeId) {
-      toast.error('Please select a college');
+    if (!collegeName.trim()) {
+      toast.error('Please enter college name');
+      return;
+    }
+    if (!selectedState) {
+      toast.error('Please select a state');
       return;
     }
     try {
       await dispatch(
         checkIn({
-          collegeId: selectedCollegeId,
+          collegeName: collegeName.trim(),
+          state: selectedState,
+          district: selectedDistrict || undefined,
+          city: selectedCity || undefined,
           purpose: selectedPurpose,
           latitude: location?.latitude,
           longitude: location?.longitude,
@@ -600,7 +629,8 @@ export default function VisitCheckInPage() {
     }
   };
 
-  const selectedCollege = colleges.find(c => c.id === selectedCollegeId);
+  // Check if form is valid for check-in
+  const isCheckInFormValid = collegeName.trim() && selectedState;
 
   // ============ CHECK OUT VIEW ============
   if (hasOpenVisit && openVisit) {
@@ -628,7 +658,7 @@ export default function VisitCheckInPage() {
                   <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
                   <span className="text-xs text-emerald-100">Active</span>
                 </div>
-                <h1 className="text-sm font-semibold">{openVisit.college?.name}</h1>
+                <h1 className="text-sm font-semibold">{openVisit.college?.name || openVisit.visitCollegeName}</h1>
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-6 text-xs">
@@ -638,7 +668,7 @@ export default function VisitCheckInPage() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <MapPinIcon className="w-3.5 h-3.5 text-emerald-200" />
-                    <span>{openVisit.college?.city}</span>
+                    <span>{openVisit.college?.city || openVisit.visitCity || openVisit.visitState}</span>
                   </div>
                   <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
                     openVisit.locationVerified ? 'bg-white/20' : 'bg-red-500/50'
@@ -1159,7 +1189,6 @@ export default function VisitCheckInPage() {
   // Stats calculations
   const completedToday = todaySchedule?.completedCount || 0;
   const scheduledToday = todaySchedule?.scheduledVisits?.length || 0;
-  const totalColleges = colleges.length;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -1197,7 +1226,7 @@ export default function VisitCheckInPage() {
               </div>
               <button
                 onClick={handleCheckIn}
-                disabled={!selectedCollegeId || isCheckingIn}
+                disabled={!isCheckInFormValid || isCheckingIn}
                 className="px-4 py-1.5 bg-white hover:bg-slate-50 text-emerald-600 text-xs font-semibold rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
                 {isCheckingIn ? (
@@ -1222,68 +1251,134 @@ export default function VisitCheckInPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
           {/* Left Column - Main Form */}
           <div className="lg:col-span-8 space-y-3">
-            {/* College Selection Card */}
+            {/* Location & College Selection Card */}
             <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
               <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <BuildingOfficeIcon className="w-4 h-4 text-emerald-600" />
-                  <h2 className="text-xs font-semibold text-slate-900">Select College</h2>
+                  <h2 className="text-xs font-semibold text-slate-900">Visit Location</h2>
                 </div>
-                <span className="text-[10px] text-slate-500">{totalColleges} available</span>
+                {isLoadingLocations && (
+                  <div className="w-3 h-3 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+                )}
               </div>
-              <div className="p-3">
-                <select
-                  value={selectedCollegeId}
-                  onChange={(e) => setSelectedCollegeId(e.target.value)}
-                  className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all appearance-none cursor-pointer"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                    backgroundPosition: 'right 0.5rem center',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundSize: '1em 1em',
-                  }}
-                >
-                  <option value="">Choose a college...</option>
-                  {colleges.map((college) => (
-                    <option key={college.id} value={college.id}>
-                      {college.name} - {college.city}
-                    </option>
-                  ))}
-                </select>
+              <div className="p-3 space-y-3">
+                {/* Location Hierarchy Dropdowns */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {/* State Dropdown */}
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-600 mb-1">State *</label>
+                    <select
+                      value={selectedState}
+                      onChange={(e) => setSelectedState(e.target.value)}
+                      className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all appearance-none cursor-pointer"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1em 1em',
+                      }}
+                    >
+                      <option value="">Select State</option>
+                      {states.map((s) => (
+                        <option key={s.state} value={s.state}>
+                          {s.state}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                {/* Selected College Preview */}
-                {selectedCollege && (
-                  <div className="mt-2 p-2.5 bg-emerald-50 rounded border border-emerald-100">
+                  {/* District Dropdown */}
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-600 mb-1">District</label>
+                    <select
+                      value={selectedDistrict}
+                      onChange={(e) => setSelectedDistrict(e.target.value)}
+                      disabled={!selectedState}
+                      className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1em 1em',
+                      }}
+                    >
+                      <option value="">Select District</option>
+                      {districts.map((d) => (
+                        <option key={d.district} value={d.district}>
+                          {d.district}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* City Dropdown */}
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-600 mb-1">City</label>
+                    <select
+                      value={selectedCity}
+                      onChange={(e) => setSelectedCity(e.target.value)}
+                      disabled={!selectedDistrict}
+                      className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1em 1em',
+                      }}
+                    >
+                      <option value="">Select City</option>
+                      {cities.map((c) => (
+                        <option key={c.city} value={c.city}>
+                          {c.city}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* College Name Input */}
+                <div>
+                  <label className="block text-[10px] font-medium text-slate-600 mb-1">College Name *</label>
+                  <input
+                    type="text"
+                    value={collegeName}
+                    onChange={(e) => setCollegeName(e.target.value)}
+                    placeholder="Enter college/institution name"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all"
+                  />
+                </div>
+
+                {/* Selected Location Preview */}
+                {(selectedState || collegeName) && (
+                  <div className="p-2.5 bg-emerald-50 rounded border border-emerald-100">
                     <div className="flex items-center gap-2.5">
                       <div className="w-9 h-9 bg-emerald-600 rounded flex items-center justify-center text-white font-semibold text-xs">
-                        {selectedCollege.shortName?.substring(0, 2) || selectedCollege.name.substring(0, 2)}
+                        {collegeName ? collegeName.substring(0, 2).toUpperCase() : 'NA'}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xs font-semibold text-slate-900 truncate">{selectedCollege.name}</h3>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] text-slate-600 flex items-center gap-0.5">
-                            <MapPinIcon className="w-3 h-3" />
-                            {selectedCollege.city}
-                          </span>
-                          {selectedCollege.studentStrength && (
+                        <h3 className="text-xs font-semibold text-slate-900 truncate">
+                          {collegeName || 'Enter college name'}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          {selectedCity && (
                             <span className="text-[10px] text-slate-600 flex items-center gap-0.5">
-                              <AcademicCapIcon className="w-3 h-3" />
-                              {selectedCollege.studentStrength.toLocaleString()}
+                              <MapPinIcon className="w-3 h-3" />
+                              {selectedCity}
                             </span>
                           )}
-                          {selectedCollege.category && (
-                            <span className="text-[10px] text-amber-600 flex items-center gap-0.5 font-medium">
-                              <StarSolidIcon className="w-3 h-3" />
-                              {selectedCollege.category}
+                          {selectedDistrict && (
+                            <span className="text-[10px] text-slate-600">
+                              {selectedDistrict}
+                            </span>
+                          )}
+                          {selectedState && (
+                            <span className="text-[10px] text-emerald-600 font-medium">
+                              {selectedState}
                             </span>
                           )}
                         </div>
                       </div>
-                      {selectedCollege.phone && (
-                        <a href={`tel:${selectedCollege.phone}`} className="p-1.5 hover:bg-emerald-100 rounded transition-colors">
-                          <PhoneIcon className="w-4 h-4 text-emerald-600" />
-                        </a>
-                      )}
                     </div>
                   </div>
                 )}
@@ -1476,15 +1571,19 @@ export default function VisitCheckInPage() {
                     {todaySchedule.scheduledVisits.map((visit: any) => (
                       <button
                         key={visit.id}
-                        onClick={() => setSelectedCollegeId(visit.id)}
+                        onClick={() => {
+                          setCollegeName(visit.name || '');
+                          if (visit.state) setSelectedState(visit.state);
+                          if (visit.city) setSelectedCity(visit.city);
+                        }}
                         className={`w-full text-left px-2 py-1.5 rounded transition-all flex items-center gap-2 ${
-                          selectedCollegeId === visit.id
+                          collegeName === visit.name
                             ? 'bg-amber-500 text-white'
                             : 'hover:bg-slate-50'
                         }`}
                       >
                         <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-semibold ${
-                          selectedCollegeId === visit.id
+                          collegeName === visit.name
                             ? 'bg-white/20 text-white'
                             : 'bg-amber-100 text-amber-700'
                         }`}>
@@ -1492,7 +1591,7 @@ export default function VisitCheckInPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-medium truncate">{visit.name}</p>
-                          <p className={`text-[9px] ${selectedCollegeId === visit.id ? 'text-amber-100' : 'text-slate-500'}`}>
+                          <p className={`text-[9px] ${collegeName === visit.name ? 'text-amber-100' : 'text-slate-500'}`}>
                             {visit.city}
                           </p>
                         </div>
@@ -1644,12 +1743,12 @@ export default function VisitCheckInPage() {
                     key={template.type}
                     type="button"
                     onClick={() => {
-                      const collegeName = openVisit?.college?.name || colleges.find(c => c.id === selectedCollegeId)?.name || '';
+                      const collegeDisplayName = openVisit?.college?.name || openVisit?.visitCollegeName || collegeName || '';
                       const visitDate = openVisit?.checkInTime ? new Date(openVisit.checkInTime).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
                       setSelectedTemplate(template.type);
-                      setEmailSubject(template.subject.replace('{{collegeName}}', collegeName));
+                      setEmailSubject(template.subject.replace('{{collegeName}}', collegeDisplayName));
                       setEmailBody(template.body
-                        .replace(/\{\{collegeName\}\}/g, collegeName)
+                        .replace(/\{\{collegeName\}\}/g, collegeDisplayName)
                         .replace(/\{\{visitDate\}\}/g, visitDate)
                         .replace(/\{\{senderName\}\}/g, 'Your Name')
                         .replace(/\{\{companyName\}\}/g, 'Your Company')

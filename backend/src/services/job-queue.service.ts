@@ -21,7 +21,8 @@ export type JobType =
   | 'APIFY_SCRAPE_RUN'
   | 'APIFY_SCRAPE_POLL'
   | 'APIFY_SCRAPE_IMPORT'
-  | 'APIFY_SCHEDULED_CHECK';
+  | 'APIFY_SCHEDULED_CHECK'
+  | 'ADMISSION_PAYMENT_REMINDER';
 
 interface JobData {
   type: JobType;
@@ -246,6 +247,9 @@ class JobQueueService {
 
       case 'APIFY_SCHEDULED_CHECK':
         return this.processApifyScheduledCheck();
+
+      case 'ADMISSION_PAYMENT_REMINDER':
+        return this.processAdmissionPaymentReminders();
 
       default:
         throw new Error(`Unknown job type: ${data.type}`);
@@ -1170,6 +1174,27 @@ class JobQueueService {
   }
 
   /**
+   * Process admission payment reminders
+   */
+  private async processAdmissionPaymentReminders(): Promise<JobResult> {
+    try {
+      const { admissionNotificationService } = await import('./admission-notification.service');
+      const result = await admissionNotificationService.checkAndSendPaymentReminders();
+
+      console.log(`[JobQueue] Admission payment reminders: ${result.sent} sent, ${result.failed} failed`);
+
+      return {
+        success: result.failed === 0,
+        processed: result.sent,
+        failed: result.failed,
+      };
+    } catch (error) {
+      console.error('[JobQueue] Admission payment reminders failed:', error);
+      return { success: false, processed: 0, failed: 1, errors: [(error as Error).message] };
+    }
+  }
+
+  /**
    * Start the scheduled call checker (runs every minute)
    */
   startScheduledCallChecker(): void {
@@ -1291,6 +1316,68 @@ class JobQueueService {
     setInterval(() => {
       this.addJob('AD_INSIGHTS_SYNC_ALL', {});
     }, 4 * 60 * 60 * 1000); // Every 4 hours
+  }
+
+  /**
+   * Schedule recurring admission payment reminder job
+   * Runs daily at 10 AM by default
+   */
+  async scheduleAdmissionPaymentReminderJob(cronExpression?: string): Promise<void> {
+    if (this.queue && this.isRedisAvailable) {
+      // Remove existing repeatable job
+      await this.queue.removeRepeatable('admission-payment-reminder', {
+        cron: cronExpression || '0 10 * * *', // Default: 10 AM daily
+      });
+
+      // Add new repeatable job
+      await this.queue.add(
+        { type: 'ADMISSION_PAYMENT_REMINDER', payload: {} },
+        {
+          repeat: { cron: cronExpression || '0 10 * * *' },
+          jobId: 'admission-payment-reminder',
+        }
+      );
+
+      console.log('[JobQueue] Admission payment reminder job scheduled (daily at 10 AM)');
+    } else {
+      console.log('[JobQueue] Admission payment reminder scheduling requires Redis');
+    }
+  }
+
+  /**
+   * Start the admission payment reminder checker (fallback for in-memory queue)
+   * Runs daily at 10 AM
+   */
+  startAdmissionPaymentReminderChecker(): void {
+    console.log('[JobQueue] Starting admission payment reminder checker (runs daily at 10 AM)');
+
+    // Calculate milliseconds until next 10 AM
+    const getNextRunTime = (): number => {
+      const now = new Date();
+      const next10AM = new Date(now);
+      next10AM.setHours(10, 0, 0, 0);
+
+      // If it's past 10 AM, schedule for tomorrow
+      if (now.getHours() >= 10) {
+        next10AM.setDate(next10AM.getDate() + 1);
+      }
+
+      return next10AM.getTime() - now.getTime();
+    };
+
+    // Schedule first run
+    const scheduleNextRun = () => {
+      const delay = getNextRunTime();
+      console.log(`[JobQueue] Next payment reminder check in ${Math.round(delay / 1000 / 60)} minutes`);
+
+      setTimeout(() => {
+        this.addJob('ADMISSION_PAYMENT_REMINDER', {});
+        // Schedule next run for tomorrow
+        scheduleNextRun();
+      }, delay);
+    };
+
+    scheduleNextRun();
   }
 
   /**

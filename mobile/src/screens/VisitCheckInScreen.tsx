@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Modal,
+  FlatList,
+  TextInput,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -23,29 +26,198 @@ const visitPurposes = [
   { value: 'PAYMENT_FOLLOWUP', label: 'Payment', icon: '💰' },
 ];
 
+interface StateOption {
+  state: string;
+  count?: number;
+}
+
+interface DistrictOption {
+  district: string;
+  state: string;
+  count?: number;
+}
+
+interface CityOption {
+  city: string;
+  state: string;
+  count?: number;
+}
+
+interface DropdownItem {
+  label: string;
+  value: string;
+}
+
+interface CustomDropdownProps {
+  label: string;
+  placeholder: string;
+  value: string;
+  items: DropdownItem[];
+  onSelect: (value: string) => void;
+  disabled?: boolean;
+  loading?: boolean;
+}
+
+function CustomDropdown({ label, placeholder, value, items, onSelect, disabled, loading }: CustomDropdownProps) {
+  const [modalVisible, setModalVisible] = useState(false);
+  const selectedItem = items.find(item => item.value === value);
+
+  return (
+    <View style={styles.dropdownContainer}>
+      <Text style={styles.dropdownLabel}>{label}</Text>
+      <TouchableOpacity
+        style={[styles.dropdownButton, disabled && styles.dropdownDisabled]}
+        onPress={() => !disabled && !loading && setModalVisible(true)}
+        disabled={disabled || loading}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color="#10b981" />
+        ) : (
+          <>
+            <Text style={[styles.dropdownButtonText, !selectedItem && styles.dropdownPlaceholder]}>
+              {selectedItem ? selectedItem.label : placeholder}
+            </Text>
+            <Text style={styles.dropdownArrow}>▼</Text>
+          </>
+        )}
+      </TouchableOpacity>
+
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setModalVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{label}</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={items}
+              keyExtractor={(item) => item.value}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    item.value === value && styles.modalItemSelected,
+                  ]}
+                  onPress={() => {
+                    onSelect(item.value);
+                    setModalVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.modalItemText,
+                      item.value === value && styles.modalItemTextSelected,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  {item.value === value && <Text style={styles.checkmark}>✓</Text>}
+                </TouchableOpacity>
+              )}
+              style={styles.modalList}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+}
+
 export default function VisitCheckInScreen() {
   const navigation = useNavigation<any>();
-  const [colleges, setColleges] = useState<any[]>([]);
-  const [selectedCollege, setSelectedCollege] = useState<string>('');
+
+  // Location hierarchy state
+  const [states, setStates] = useState<StateOption[]>([]);
+  const [districts, setDistricts] = useState<DistrictOption[]>([]);
+  const [cities, setCities] = useState<CityOption[]>([]);
+
+  // Selected values
+  const [selectedState, setSelectedState] = useState<string>('');
+  const [selectedDistrict, setSelectedDistrict] = useState<string>('');
+  const [selectedCity, setSelectedCity] = useState<string>('');
+  const [collegeName, setCollegeName] = useState<string>('');
   const [selectedPurpose, setSelectedPurpose] = useState<string>('');
+
+  // Loading states
+  const [loadingStates, setLoadingStates] = useState(true);
+  const [loadingDistricts, setLoadingDistricts] = useState(false);
+  const [loadingCities, setLoadingCities] = useState(false);
+
   const [location, setLocation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [checkingIn, setCheckingIn] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
 
   useEffect(() => {
-    fetchColleges();
+    fetchStates();
     getLocation();
   }, []);
 
-  const fetchColleges = async () => {
+  // Fetch districts when state changes
+  useEffect(() => {
+    if (selectedState) {
+      fetchDistricts(selectedState);
+      setSelectedDistrict('');
+      setSelectedCity('');
+      setDistricts([]);
+      setCities([]);
+    }
+  }, [selectedState]);
+
+  // Fetch cities when district changes
+  useEffect(() => {
+    if (selectedState && selectedDistrict) {
+      fetchCities(selectedState, selectedDistrict);
+      setSelectedCity('');
+      setCities([]);
+    }
+  }, [selectedDistrict]);
+
+  const fetchStates = async () => {
+    setLoadingStates(true);
     try {
-      const response = await collegeService.getAll({ limit: 100 });
-      setColleges(response.data?.data?.colleges || []);
+      const response = await collegeService.getStates();
+      setStates(response.data?.data || []);
     } catch (error) {
-      console.error('Failed to fetch colleges:', error);
+      console.error('Failed to fetch states:', error);
     } finally {
+      setLoadingStates(false);
       setLoading(false);
+    }
+  };
+
+  const fetchDistricts = async (state: string) => {
+    setLoadingDistricts(true);
+    try {
+      const response = await collegeService.getDistricts(state);
+      setDistricts(response.data?.data || []);
+    } catch (error) {
+      console.error('Failed to fetch districts:', error);
+    } finally {
+      setLoadingDistricts(false);
+    }
+  };
+
+  const fetchCities = async (state: string, district: string) => {
+    setLoadingCities(true);
+    try {
+      const response = await collegeService.getCities(state, district);
+      setCities(response.data?.data || []);
+    } catch (error) {
+      console.error('Failed to fetch cities:', error);
+    } finally {
+      setLoadingCities(false);
     }
   };
 
@@ -68,8 +240,20 @@ export default function VisitCheckInScreen() {
   };
 
   const handleCheckIn = async () => {
-    if (!selectedCollege) {
-      Alert.alert('Error', 'Please select a college');
+    if (!selectedState) {
+      Alert.alert('Error', 'Please select a state');
+      return;
+    }
+    if (!selectedDistrict) {
+      Alert.alert('Error', 'Please select a district');
+      return;
+    }
+    if (!selectedCity) {
+      Alert.alert('Error', 'Please select a city');
+      return;
+    }
+    if (!collegeName.trim()) {
+      Alert.alert('Error', 'Please enter college name');
       return;
     }
     if (!selectedPurpose) {
@@ -84,7 +268,10 @@ export default function VisitCheckInScreen() {
     setCheckingIn(true);
     try {
       await visitService.checkIn({
-        collegeId: selectedCollege,
+        collegeName: collegeName.trim(),
+        state: selectedState,
+        district: selectedDistrict,
+        city: selectedCity,
         purpose: selectedPurpose,
         checkInLocation: {
           latitude: location.latitude,
@@ -101,6 +288,22 @@ export default function VisitCheckInScreen() {
     }
   };
 
+  // Convert data to dropdown items
+  const stateItems: DropdownItem[] = states.map(s => ({
+    label: s.state,
+    value: s.state,
+  }));
+
+  const districtItems: DropdownItem[] = districts.map(d => ({
+    label: d.district,
+    value: d.district,
+  }));
+
+  const cityItems: DropdownItem[] = cities.map(c => ({
+    label: c.city,
+    value: c.city,
+  }));
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -110,7 +313,7 @@ export default function VisitCheckInScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
       {/* Location Status */}
       <View style={styles.locationCard}>
         <Text style={styles.locationIcon}>{location ? '📍' : '⏳'}</Text>
@@ -129,30 +332,50 @@ export default function VisitCheckInScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* College Selection */}
-      <Text style={styles.sectionTitle}>Select College</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.collegeList}>
-        {colleges.map((college) => (
-          <TouchableOpacity
-            key={college.id}
-            style={[
-              styles.collegeChip,
-              selectedCollege === college.id && styles.collegeChipSelected,
-            ]}
-            onPress={() => setSelectedCollege(college.id)}
-          >
-            <Text
-              style={[
-                styles.collegeChipText,
-                selectedCollege === college.id && styles.collegeChipTextSelected,
-              ]}
-              numberOfLines={1}
-            >
-              {college.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* Location Hierarchy Selection */}
+      <Text style={styles.sectionTitle}>Select Location</Text>
+
+      <CustomDropdown
+        label="State"
+        placeholder="Select State"
+        value={selectedState}
+        items={stateItems}
+        onSelect={setSelectedState}
+        loading={loadingStates}
+      />
+
+      <CustomDropdown
+        label="District"
+        placeholder={selectedState ? 'Select District' : 'Select State first'}
+        value={selectedDistrict}
+        items={districtItems}
+        onSelect={setSelectedDistrict}
+        disabled={!selectedState}
+        loading={loadingDistricts}
+      />
+
+      <CustomDropdown
+        label="City"
+        placeholder={selectedDistrict ? 'Select City' : 'Select District first'}
+        value={selectedCity}
+        items={cityItems}
+        onSelect={setSelectedCity}
+        disabled={!selectedDistrict}
+        loading={loadingCities}
+      />
+
+      {/* College Name Text Input */}
+      <View style={styles.inputContainer}>
+        <Text style={styles.dropdownLabel}>College Name</Text>
+        <TextInput
+          style={[styles.textInput, !selectedCity && styles.textInputDisabled]}
+          placeholder={selectedCity ? 'Enter college name' : 'Select City first'}
+          placeholderTextColor="#94a3b8"
+          value={collegeName}
+          onChangeText={setCollegeName}
+          editable={!!selectedCity}
+        />
+      </View>
 
       {/* Purpose Selection */}
       <Text style={styles.sectionTitle}>Visit Purpose</Text>
@@ -181,9 +404,9 @@ export default function VisitCheckInScreen() {
 
       {/* Check In Button */}
       <TouchableOpacity
-        style={[styles.checkInBtn, (!selectedCollege || !selectedPurpose || !location) && styles.checkInBtnDisabled]}
+        style={[styles.checkInBtn, (!collegeName.trim() || !selectedPurpose || !location || !selectedCity) && styles.checkInBtnDisabled]}
         onPress={handleCheckIn}
-        disabled={checkingIn || !selectedCollege || !selectedPurpose || !location}
+        disabled={checkingIn || !collegeName.trim() || !selectedPurpose || !location || !selectedCity}
       >
         {checkingIn ? (
           <ActivityIndicator color="#fff" />
@@ -239,31 +462,120 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1e293b',
     marginBottom: 12,
+    marginTop: 8,
   },
-  collegeList: {
-    marginBottom: 20,
+  dropdownContainer: {
+    marginBottom: 12,
   },
-  collegeChip: {
+  dropdownLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 6,
+  },
+  dropdownButton: {
     backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginRight: 8,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: '#e2e8f0',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  collegeChipSelected: {
-    backgroundColor: '#10b981',
-    borderColor: '#10b981',
+  dropdownDisabled: {
+    backgroundColor: '#f1f5f9',
+    opacity: 0.6,
   },
-  collegeChipText: {
-    fontSize: 13,
+  dropdownButtonText: {
+    fontSize: 14,
+    color: '#1e293b',
+    flex: 1,
+  },
+  dropdownPlaceholder: {
+    color: '#94a3b8',
+  },
+  dropdownArrow: {
+    fontSize: 10,
     color: '#64748b',
-    maxWidth: 150,
+    marginLeft: 8,
   },
-  collegeChipTextSelected: {
-    color: '#fff',
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  modalClose: {
+    fontSize: 18,
+    color: '#64748b',
+    padding: 4,
+  },
+  modalList: {
+    paddingBottom: 20,
+  },
+  modalItem: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  modalItemSelected: {
+    backgroundColor: '#ecfdf5',
+  },
+  modalItemText: {
+    fontSize: 14,
+    color: '#1e293b',
+    flex: 1,
+  },
+  modalItemTextSelected: {
+    color: '#10b981',
     fontWeight: '600',
+  },
+  checkmark: {
+    fontSize: 16,
+    color: '#10b981',
+    fontWeight: '700',
+  },
+  inputContainer: {
+    marginBottom: 12,
+  },
+  textInput: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 14,
+    color: '#1e293b',
+  },
+  textInputDisabled: {
+    backgroundColor: '#f1f5f9',
+    opacity: 0.6,
   },
   purposeGrid: {
     flexDirection: 'row',

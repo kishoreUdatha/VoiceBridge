@@ -243,7 +243,7 @@ export default function ExpenseListPage() {
       formData.append('folder', 'receipts');
       formData.append('isPublic', 'true');
 
-      const response = await api.post('/upload/single', formData, {
+      const response = await api.post('/uploads/single', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 

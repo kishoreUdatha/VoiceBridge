@@ -46,23 +46,23 @@ import {
 // ============================================
 export const LoadingSkeleton: React.FC = () => (
   <div className="min-h-screen bg-gray-50">
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="animate-pulse space-y-6">
+    <div className="max-w-6xl mx-auto px-3 py-3">
+      <div className="animate-pulse space-y-2">
         <div className="flex justify-between items-center">
-          <div className="h-8 bg-gray-200 rounded-lg w-48"></div>
-          <div className="flex gap-3">
-            <div className="h-10 bg-gray-200 rounded-lg w-32"></div>
-            <div className="h-10 bg-gray-200 rounded-lg w-32"></div>
+          <div className="h-6 bg-gray-200 rounded w-36"></div>
+          <div className="flex gap-2">
+            <div className="h-7 bg-gray-200 rounded w-24"></div>
+            <div className="h-7 bg-gray-200 rounded w-20"></div>
           </div>
         </div>
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-4 gap-2">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-24 bg-gray-200 rounded-xl"></div>
+            <div key={i} className="h-14 bg-gray-200 rounded-lg"></div>
           ))}
         </div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-48 bg-gray-200 rounded-xl"></div>
+            <div key={i} className="h-28 bg-gray-200 rounded-lg"></div>
           ))}
         </div>
       </div>
@@ -90,24 +90,29 @@ export const Header: React.FC<HeaderProps> = ({
   onDateRangeChange,
   onRefresh,
 }) => (
-  <div className="mb-8">
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Agent Performance</h1>
-        <p className="text-sm text-gray-500 mt-1">Monitor and compare your voice agents</p>
+  <div className="mb-2">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div className="flex items-center gap-2">
+        <div className="w-7 h-7 rounded-md bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center">
+          <UsersIcon className="h-3.5 w-3.5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-sm font-semibold text-gray-900">Agent Performance</h1>
+          <p className="text-[10px] text-gray-400">Monitor voice agents</p>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5">
         {/* Metric Pills */}
-        <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+        <div className="inline-flex rounded border border-gray-200 bg-white p-0.5">
           {METRIC_OPTIONS.map((option) => (
             <button
               key={option.id}
               onClick={() => onMetricChange(option.id)}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+              className={`px-2 py-0.5 text-[11px] font-medium rounded transition-all ${
                 metric === option.id
                   ? 'bg-gray-900 text-white'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-gray-500 hover:text-gray-900'
               }`}
             >
               {option.label}
@@ -119,7 +124,7 @@ export const Header: React.FC<HeaderProps> = ({
         <select
           value={dateRange}
           onChange={(e) => onDateRangeChange(e.target.value as DateRangeType)}
-          className="h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+          className="px-2 py-1 text-[11px] border border-gray-200 rounded bg-white text-gray-700 focus:ring-1 focus:ring-indigo-500"
         >
           {DATE_RANGE_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -132,9 +137,9 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={onRefresh}
           disabled={loading}
-          className="h-9 w-9 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-gray-900 hover:border-gray-300 transition-all disabled:opacity-50"
+          className="p-1 text-gray-400 hover:text-indigo-600 disabled:opacity-50"
         >
-          <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <ArrowPathIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
     </div>
@@ -157,61 +162,31 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
   avgConversion,
   avgAnswerRate,
 }) => (
-  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-    <StatCard
-      icon={<UsersIcon className="w-5 h-5" />}
-      label="Active Agents"
-      value={totalAgents.toString()}
-      color="blue"
-    />
-    <StatCard
-      icon={<PhoneIcon className="w-5 h-5" />}
-      label="Total Calls"
-      value={totalCalls.toLocaleString()}
-      color="green"
-    />
-    <StatCard
-      icon={<ChartBarIcon className="w-5 h-5" />}
-      label="Avg Conversion"
-      value={`${avgConversion.toFixed(1)}%`}
-      color="purple"
-    />
-    <StatCard
-      icon={<CheckCircleIcon className="w-5 h-5" />}
-      label="Avg Answer Rate"
-      value={`${avgAnswerRate.toFixed(0)}%`}
-      color="amber"
-    />
+  <div className="grid grid-cols-4 gap-2 mb-2">
+    <StatCard label="Agents" value={totalAgents.toString()} icon={UsersIcon} color="text-blue-600" bgColor="bg-blue-50" />
+    <StatCard label="Calls" value={totalCalls.toLocaleString()} icon={PhoneIcon} color="text-emerald-600" bgColor="bg-emerald-50" />
+    <StatCard label="Conv." value={`${avgConversion.toFixed(1)}%`} icon={ChartBarIcon} color="text-violet-600" bgColor="bg-violet-50" />
+    <StatCard label="Answer" value={`${avgAnswerRate.toFixed(0)}%`} icon={CheckCircleIcon} color="text-amber-600" bgColor="bg-amber-50" />
   </div>
 );
 
 const StatCard: React.FC<{
-  icon: React.ReactNode;
   label: string;
   value: string;
-  color: 'blue' | 'green' | 'purple' | 'amber';
-}> = ({ icon, label, value, color }) => {
-  const colors = {
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600',
-    purple: 'bg-purple-50 text-purple-600',
-    amber: 'bg-amber-50 text-amber-600',
-  };
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colors[color]}`}>
-          {icon}
-        </div>
-        <div>
-          <p className="text-2xl font-semibold text-gray-900">{value}</p>
-          <p className="text-sm text-gray-500">{label}</p>
-        </div>
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  bgColor: string;
+}> = ({ label, value, icon: Icon, color, bgColor }) => (
+  <div className={`${bgColor} rounded-lg p-2`}>
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-[10px] text-gray-500 font-medium">{label}</p>
+        <p className={`text-sm font-bold ${color}`}>{value}</p>
       </div>
+      <Icon className={`w-4 h-4 ${color} opacity-60`} />
     </div>
-  );
-};
+  </div>
+);
 
 // ============================================
 // Agent Grid
@@ -231,25 +206,22 @@ export const AgentGrid: React.FC<AgentGridProps> = ({
 }) => {
   if (leaderboard.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-          <UsersIcon className="w-8 h-8 text-gray-400" />
-        </div>
-        <h3 className="text-lg font-medium text-gray-900">No agents found</h3>
-        <p className="text-sm text-gray-500 mt-1">Voice agents will appear here once they make calls</p>
+      <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
+        <UsersIcon className="w-6 h-6 text-gray-400 mx-auto mb-2" />
+        <p className="text-xs text-gray-500">No agents found</p>
       </div>
     );
   }
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-gray-900">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] font-semibold text-gray-700">
           Leaderboard <span className="text-gray-400 font-normal">by {getMetricLabel(metric).toLowerCase()}</span>
-        </h2>
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
         {leaderboard.map((entry, index) => (
           <AgentCard
             key={entry.agentId}
@@ -265,6 +237,23 @@ export const AgentGrid: React.FC<AgentGridProps> = ({
   );
 };
 
+// Color themes for different agents
+const AGENT_COLOR_THEMES = [
+  { bg: 'bg-gradient-to-br from-blue-50 to-blue-100', border: 'border-blue-200', accent: 'text-blue-600', hover: 'hover:border-blue-300', ring: 'ring-blue-500', headerBg: 'bg-blue-600', chartColor: '#3B82F6', chartColorLight: '#93C5FD', metricBg: 'bg-blue-50' },
+  { bg: 'bg-gradient-to-br from-emerald-50 to-emerald-100', border: 'border-emerald-200', accent: 'text-emerald-600', hover: 'hover:border-emerald-300', ring: 'ring-emerald-500', headerBg: 'bg-emerald-600', chartColor: '#10B981', chartColorLight: '#6EE7B7', metricBg: 'bg-emerald-50' },
+  { bg: 'bg-gradient-to-br from-violet-50 to-violet-100', border: 'border-violet-200', accent: 'text-violet-600', hover: 'hover:border-violet-300', ring: 'ring-violet-500', headerBg: 'bg-violet-600', chartColor: '#8B5CF6', chartColorLight: '#C4B5FD', metricBg: 'bg-violet-50' },
+  { bg: 'bg-gradient-to-br from-amber-50 to-amber-100', border: 'border-amber-200', accent: 'text-amber-600', hover: 'hover:border-amber-300', ring: 'ring-amber-500', headerBg: 'bg-amber-600', chartColor: '#F59E0B', chartColorLight: '#FCD34D', metricBg: 'bg-amber-50' },
+  { bg: 'bg-gradient-to-br from-rose-50 to-rose-100', border: 'border-rose-200', accent: 'text-rose-600', hover: 'hover:border-rose-300', ring: 'ring-rose-500', headerBg: 'bg-rose-600', chartColor: '#F43F5E', chartColorLight: '#FDA4AF', metricBg: 'bg-rose-50' },
+  { bg: 'bg-gradient-to-br from-cyan-50 to-cyan-100', border: 'border-cyan-200', accent: 'text-cyan-600', hover: 'hover:border-cyan-300', ring: 'ring-cyan-500', headerBg: 'bg-cyan-600', chartColor: '#06B6D4', chartColorLight: '#67E8F9', metricBg: 'bg-cyan-50' },
+  { bg: 'bg-gradient-to-br from-orange-50 to-orange-100', border: 'border-orange-200', accent: 'text-orange-600', hover: 'hover:border-orange-300', ring: 'ring-orange-500', headerBg: 'bg-orange-600', chartColor: '#F97316', chartColorLight: '#FDBA74', metricBg: 'bg-orange-50' },
+  { bg: 'bg-gradient-to-br from-indigo-50 to-indigo-100', border: 'border-indigo-200', accent: 'text-indigo-600', hover: 'hover:border-indigo-300', ring: 'ring-indigo-500', headerBg: 'bg-indigo-600', chartColor: '#6366F1', chartColorLight: '#A5B4FC', metricBg: 'bg-indigo-50' },
+  { bg: 'bg-gradient-to-br from-pink-50 to-pink-100', border: 'border-pink-200', accent: 'text-pink-600', hover: 'hover:border-pink-300', ring: 'ring-pink-500', headerBg: 'bg-pink-600', chartColor: '#EC4899', chartColorLight: '#F9A8D4', metricBg: 'bg-pink-50' },
+  { bg: 'bg-gradient-to-br from-teal-50 to-teal-100', border: 'border-teal-200', accent: 'text-teal-600', hover: 'hover:border-teal-300', ring: 'ring-teal-500', headerBg: 'bg-teal-600', chartColor: '#14B8A6', chartColorLight: '#5EEAD4', metricBg: 'bg-teal-50' },
+];
+
+// Helper to get color theme by rank
+const getAgentColorTheme = (rank: number) => AGENT_COLOR_THEMES[(rank - 1) % AGENT_COLOR_THEMES.length];
+
 interface AgentCardProps {
   entry: LeaderboardEntry;
   rank: number;
@@ -274,56 +263,53 @@ interface AgentCardProps {
 }
 
 const AgentCard: React.FC<AgentCardProps> = ({ entry, rank, metric, isSelected, onClick }) => {
-  const getRankBadge = () => {
-    if (rank === 1) return { bg: 'bg-yellow-400', text: 'text-yellow-900', icon: true };
-    if (rank === 2) return { bg: 'bg-gray-300', text: 'text-gray-700', icon: false };
-    if (rank === 3) return { bg: 'bg-amber-600', text: 'text-white', icon: false };
-    return { bg: 'bg-gray-100', text: 'text-gray-600', icon: false };
-  };
+  const colorTheme = AGENT_COLOR_THEMES[(rank - 1) % AGENT_COLOR_THEMES.length];
 
-  const badge = getRankBadge();
+  const getRankStyle = () => {
+    if (rank === 1) return 'bg-yellow-400 text-yellow-900';
+    if (rank === 2) return 'bg-gray-300 text-gray-700';
+    if (rank === 3) return 'bg-amber-600 text-white';
+    return 'bg-gray-100 text-gray-600';
+  };
 
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded-xl border p-5 cursor-pointer transition-all hover:shadow-md ${
-        isSelected ? 'border-gray-900 ring-1 ring-gray-900' : 'border-gray-200 hover:border-gray-300'
+      className={`${colorTheme.bg} rounded-lg border p-2 cursor-pointer transition-all hover:shadow-md ${
+        isSelected ? `${colorTheme.border} ring-2 ${colorTheme.ring}` : `${colorTheme.border} ${colorTheme.hover}`
       }`}
     >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className={`w-8 h-8 rounded-full ${badge.bg} flex items-center justify-center`}>
-            {badge.icon ? (
-              <TrophyIcon className="w-4 h-4 text-yellow-900" />
-            ) : (
-              <span className={`text-sm font-bold ${badge.text}`}>{rank}</span>
-            )}
-          </div>
-          <div>
-            <h3 className="font-medium text-gray-900 truncate max-w-[150px]">
-              {entry.agentName || `Agent ${entry.agentId.slice(0, 6)}`}
-            </h3>
-            <p className="text-xs text-gray-500">{entry.metrics.totalCalls} calls</p>
-          </div>
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`w-5 h-5 rounded-full ${getRankStyle()} flex items-center justify-center`}>
+          {rank === 1 ? (
+            <TrophyIcon className="w-3 h-3" />
+          ) : (
+            <span className="text-[10px] font-bold">{rank}</span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-[11px] font-semibold text-gray-900 truncate">
+            {entry.agentName || `Agent ${entry.agentId.slice(0, 6)}`}
+          </h3>
+          <p className="text-[9px] text-gray-500">{entry.metrics.totalCalls} calls</p>
         </div>
         <div className="text-right">
-          <p className="text-xl font-semibold text-gray-900">{getMetricValue(entry, metric)}</p>
-          <p className="text-xs text-gray-500">{getMetricLabel(metric)}</p>
+          <p className={`text-sm font-bold ${colorTheme.accent}`}>{getMetricValue(entry, metric)}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 pt-4 border-t border-gray-100">
-        <div className="text-center">
-          <p className="text-sm font-medium text-gray-900">{entry.metrics.avgAnswerRate.toFixed(0)}%</p>
-          <p className="text-xs text-gray-500">Answer</p>
+      <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-white/50 text-center">
+        <div>
+          <p className="text-[10px] font-semibold text-gray-700">{entry.metrics.avgAnswerRate.toFixed(0)}%</p>
+          <p className="text-[8px] text-gray-500">Ans</p>
         </div>
-        <div className="text-center">
-          <p className="text-sm font-medium text-gray-900">{entry.metrics.avgConversionRate.toFixed(1)}%</p>
-          <p className="text-xs text-gray-500">Convert</p>
+        <div>
+          <p className="text-[10px] font-semibold text-gray-700">{entry.metrics.avgConversionRate.toFixed(1)}%</p>
+          <p className="text-[8px] text-gray-500">Conv</p>
         </div>
-        <div className="text-center">
-          <p className="text-sm font-medium text-gray-900">{formatDuration(entry.metrics.totalTalkTime)}</p>
-          <p className="text-xs text-gray-500">Talk Time</p>
+        <div>
+          <p className="text-[10px] font-semibold text-gray-700">{formatDuration(entry.metrics.totalTalkTime)}</p>
+          <p className="text-[8px] text-gray-500">Time</p>
         </div>
       </div>
     </div>
@@ -347,6 +333,9 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
 }) => {
   if (!agentPerformance || !selectedEntry) return null;
 
+  const colorTheme = getAgentColorTheme(selectedEntry.rank);
+  const gradientId = `callsGradient-${selectedEntry.rank}`;
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-start justify-center min-h-screen pt-4 px-4 pb-20">
@@ -354,119 +343,79 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
         <div className="fixed inset-0 bg-gray-900/50 transition-opacity" onClick={onClose} />
 
         {/* Modal */}
-        <div className="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full mt-8 mb-8">
+        <div className={`relative bg-white rounded-xl shadow-xl max-w-3xl w-full mt-6 mb-6 overflow-hidden border-t-4`} style={{ borderTopColor: colorTheme.chartColor }}>
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gray-900 flex items-center justify-center">
-                <span className="text-lg font-bold text-white">#{selectedEntry.rank}</span>
+          <div className={`flex items-center justify-between px-4 py-3 ${colorTheme.bg}`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-lg ${colorTheme.headerBg} flex items-center justify-center`}>
+                <span className="text-xs font-bold text-white">#{selectedEntry.rank}</span>
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">
+                <h2 className="text-sm font-semibold text-gray-900">
                   {selectedEntry.agentName || `Agent ${selectedEntry.agentId.slice(0, 8)}`}
                 </h2>
-                <p className="text-sm text-gray-500">Detailed performance metrics</p>
+                <p className={`text-[10px] ${colorTheme.accent}`}>Performance details</p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <XMarkIcon className="w-5 h-5 text-gray-500" />
+            <button onClick={onClose} className="p-1 rounded hover:bg-white/50">
+              <XMarkIcon className="w-4 h-4 text-gray-600" />
             </button>
           </div>
 
           {/* Content */}
-          <div className="p-6">
+          <div className="p-4">
             {/* Key Metrics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <MetricBox
-                label="Total Calls"
-                value={agentPerformance.totals.totalCalls.toString()}
-                icon={<PhoneIcon className="w-4 h-4" />}
-              />
-              <MetricBox
-                label="Answer Rate"
-                value={`${agentPerformance.averages.answerRate}%`}
-                icon={<CheckCircleIcon className="w-4 h-4" />}
-                trend={agentPerformance.averages.answerRate >= 50 ? 'up' : 'down'}
-              />
-              <MetricBox
-                label="Conversion Rate"
-                value={`${agentPerformance.averages.conversionRate}%`}
-                icon={<ChartBarIcon className="w-4 h-4" />}
-                trend={agentPerformance.averages.conversionRate >= 15 ? 'up' : 'down'}
-              />
-              <MetricBox
-                label="Total Talk Time"
-                value={formatDuration(agentPerformance.totals.totalTalkTime)}
-                icon={<ClockIcon className="w-4 h-4" />}
-              />
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              <MetricBoxColored label="Total Calls" value={agentPerformance.totals.totalCalls.toString()} icon={<PhoneIcon className="w-3 h-3" />} colorTheme={colorTheme} />
+              <MetricBoxColored label="Answer Rate" value={`${agentPerformance.averages.answerRate}%`} icon={<CheckCircleIcon className="w-3 h-3" />} trend={agentPerformance.averages.answerRate >= 50 ? 'up' : 'down'} colorTheme={colorTheme} />
+              <MetricBoxColored label="Conversion" value={`${agentPerformance.averages.conversionRate}%`} icon={<ChartBarIcon className="w-3 h-3" />} trend={agentPerformance.averages.conversionRate >= 15 ? 'up' : 'down'} colorTheme={colorTheme} />
+              <MetricBoxColored label="Talk Time" value={formatDuration(agentPerformance.totals.totalTalkTime)} icon={<ClockIcon className="w-3 h-3" />} colorTheme={colorTheme} />
             </div>
 
             {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div className="grid grid-cols-2 gap-3 mb-3">
               {/* Daily Trend */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-medium text-gray-900 mb-4">Daily Performance</h3>
-                <div className="h-48">
+              <div className={`${colorTheme.metricBg} rounded-lg p-2`}>
+                <h3 className={`text-[10px] font-semibold ${colorTheme.accent} mb-2`}>Daily Performance</h3>
+                <div className="h-28">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={agentPerformance.dailyTrend} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                    <AreaChart data={agentPerformance.dailyTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                       <defs>
-                        <linearGradient id="callsGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.3} />
-                          <stop offset="100%" stopColor="#3B82F6" stopOpacity={0} />
+                        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={colorTheme.chartColor} stopOpacity={0.3} />
+                          <stop offset="100%" stopColor={colorTheme.chartColor} stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
-                      <XAxis
-                        dataKey="date"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                        tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { day: 'numeric' })}
-                      />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 11 }} />
+                      <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 9 }} tickFormatter={(v) => new Date(v).getDate().toString()} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 9 }} width={25} />
                       <Tooltip content={<ChartTooltip />} />
-                      <Area
-                        type="monotone"
-                        dataKey="calls"
-                        stroke="#3B82F6"
-                        strokeWidth={2}
-                        fill="url(#callsGradient)"
-                      />
+                      <Area type="monotone" dataKey="calls" stroke={colorTheme.chartColor} strokeWidth={1.5} fill={`url(#${gradientId})`} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
               {/* Conversion Breakdown */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-medium text-gray-900 mb-4">Conversion Funnel</h3>
-                <div className="h-48">
+              <div className={`${colorTheme.metricBg} rounded-lg p-2`}>
+                <h3 className={`text-[10px] font-semibold ${colorTheme.accent} mb-2`}>Conversion Funnel</h3>
+                <div className="h-28">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={[
                         { name: 'Calls', value: agentPerformance.totals.totalCalls, fill: '#E5E7EB' },
-                        { name: 'Answered', value: agentPerformance.totals.answeredCalls, fill: '#93C5FD' },
-                        { name: 'Interested', value: agentPerformance.totals.interestedCount, fill: '#60A5FA' },
-                        { name: 'Appointments', value: agentPerformance.totals.appointmentsBooked, fill: '#3B82F6' },
+                        { name: 'Answered', value: agentPerformance.totals.answeredCalls, fill: colorTheme.chartColorLight },
+                        { name: 'Interested', value: agentPerformance.totals.interestedCount, fill: colorTheme.chartColor },
+                        { name: 'Appts', value: agentPerformance.totals.appointmentsBooked, fill: colorTheme.chartColor },
                       ]}
                       layout="vertical"
-                      margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                      margin={{ top: 5, right: 20, left: 0, bottom: 0 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                      <YAxis
-                        type="category"
-                        dataKey="name"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: '#6B7280', fontSize: 12 }}
-                        width={80}
-                      />
+                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 9 }} />
+                      <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 9 }} width={55} />
                       <Tooltip content={<ChartTooltip />} />
-                      <Bar dataKey="value" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="value" radius={[0, 3, 3, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -474,46 +423,34 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
             </div>
 
             {/* Recent Activity Table */}
-            <div className="bg-gray-50 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-200">
-                <h3 className="text-sm font-medium text-gray-900">Recent Activity</h3>
+            <div className={`${colorTheme.metricBg} rounded-lg overflow-hidden`}>
+              <div className={`px-2 py-1.5 border-b ${colorTheme.border}`}>
+                <h3 className={`text-[10px] font-semibold ${colorTheme.accent}`}>Recent Activity</h3>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Calls</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Answered</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Interested</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Conv %</th>
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className={`${colorTheme.bg}`}>
+                    <th className="px-2 py-1.5 text-left font-semibold text-gray-600">Date</th>
+                    <th className="px-2 py-1.5 text-right font-semibold text-gray-600">Calls</th>
+                    <th className="px-2 py-1.5 text-right font-semibold text-gray-600">Ans</th>
+                    <th className="px-2 py-1.5 text-right font-semibold text-gray-600">Int</th>
+                    <th className="px-2 py-1.5 text-right font-semibold text-gray-600">Conv</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {agentPerformance.dailyTrend.slice(-5).reverse().map((day) => (
+                    <tr key={day.date} className="hover:bg-gray-50">
+                      <td className="px-2 py-1.5 text-gray-900">{new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
+                      <td className="px-2 py-1.5 text-right font-medium text-gray-900">{day.calls}</td>
+                      <td className="px-2 py-1.5 text-right text-gray-600">{day.answered}</td>
+                      <td className="px-2 py-1.5 text-right text-gray-600">{day.interested}</td>
+                      <td className="px-2 py-1.5 text-right">
+                        <span className={`font-semibold ${day.conversionRate >= 20 ? 'text-emerald-600' : day.conversionRate >= 10 ? 'text-amber-600' : 'text-red-600'}`}>{Number(day.conversionRate).toFixed(1)}%</span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white">
-                    {agentPerformance.dailyTrend.slice(-5).reverse().map((day) => (
-                      <tr key={day.date} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">{day.calls}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-600">{day.answered}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-600">{day.interested}</td>
-                        <td className="px-4 py-3 text-right">
-                          <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
-                            day.conversionRate >= 20
-                              ? 'bg-green-100 text-green-700'
-                              : day.conversionRate >= 10
-                              ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {day.conversionRate}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -528,21 +465,38 @@ const MetricBox: React.FC<{
   icon: React.ReactNode;
   trend?: 'up' | 'down';
 }> = ({ label, value, icon, trend }) => (
-  <div className="bg-gray-50 rounded-xl p-4">
-    <div className="flex items-center justify-between mb-2">
+  <div className="bg-gray-50 rounded-lg p-2">
+    <div className="flex items-center justify-between mb-1">
       <span className="text-gray-400">{icon}</span>
       {trend && (
-        <span className={trend === 'up' ? 'text-green-500' : 'text-red-500'}>
-          {trend === 'up' ? (
-            <ArrowTrendingUpIcon className="w-4 h-4" />
-          ) : (
-            <ArrowTrendingDownIcon className="w-4 h-4" />
-          )}
+        <span className={trend === 'up' ? 'text-emerald-500' : 'text-red-500'}>
+          {trend === 'up' ? <ArrowTrendingUpIcon className="w-3 h-3" /> : <ArrowTrendingDownIcon className="w-3 h-3" />}
         </span>
       )}
     </div>
-    <p className="text-2xl font-semibold text-gray-900">{value}</p>
-    <p className="text-xs text-gray-500 mt-1">{label}</p>
+    <p className="text-sm font-bold text-gray-900">{value}</p>
+    <p className="text-[9px] text-gray-500">{label}</p>
+  </div>
+);
+
+const MetricBoxColored: React.FC<{
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  trend?: 'up' | 'down';
+  colorTheme: typeof AGENT_COLOR_THEMES[0];
+}> = ({ label, value, icon, trend, colorTheme }) => (
+  <div className={`${colorTheme.metricBg} rounded-lg p-2 border ${colorTheme.border}`}>
+    <div className="flex items-center justify-between mb-1">
+      <span className={colorTheme.accent}>{icon}</span>
+      {trend && (
+        <span className={trend === 'up' ? 'text-emerald-500' : 'text-red-500'}>
+          {trend === 'up' ? <ArrowTrendingUpIcon className="w-3 h-3" /> : <ArrowTrendingDownIcon className="w-3 h-3" />}
+        </span>
+      )}
+    </div>
+    <p className={`text-sm font-bold ${colorTheme.accent}`}>{value}</p>
+    <p className="text-[9px] text-gray-500">{label}</p>
   </div>
 );
 
@@ -553,12 +507,10 @@ const ChartTooltip: React.FC<{
 }> = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm">
-        <p className="font-medium mb-1">{label}</p>
+      <div className="bg-gray-900 text-white px-2 py-1 rounded text-[10px]">
+        <p className="font-medium">{label}</p>
         {payload.map((item, i) => (
-          <p key={i} className="text-gray-300">
-            {item.name}: <span className="text-white font-medium">{item.value}</span>
-          </p>
+          <p key={i} className="text-gray-300">{item.name}: <span className="text-white font-medium">{item.value}</span></p>
         ))}
       </div>
     );

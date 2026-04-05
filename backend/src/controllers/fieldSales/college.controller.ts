@@ -45,6 +45,7 @@ export class CollegeController {
       const filter: any = {
         organizationId,
         city: req.query.city as string,
+        district: req.query.district as string,
         state: req.query.state as string,
         collegeType: req.query.collegeType as any,
         institutionStatus: req.query.institutionStatus as any,
@@ -284,8 +285,10 @@ export class CollegeController {
   async getCities(req: Request, res: Response, next: NextFunction) {
     try {
       const organizationId = req.user!.organizationId;
+      const state = req.query.state as string | undefined;
+      const district = req.query.district as string | undefined;
 
-      const cities = await collegeService.getCities(organizationId);
+      const cities = await collegeService.getCities(organizationId, state, district);
 
       res.json({
         success: true,
@@ -309,6 +312,85 @@ export class CollegeController {
       res.json({
         success: true,
         data: states,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get all districts
+   * GET /api/field-sales/colleges/districts
+   */
+  async getDistricts(req: Request, res: Response, next: NextFunction) {
+    try {
+      const organizationId = req.user!.organizationId;
+      const state = req.query.state as string | undefined;
+
+      const districts = await collegeService.getDistricts(organizationId, state);
+
+      res.json({
+        success: true,
+        data: districts,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get field officers with stats
+   * GET /api/field-sales/colleges/field-officers
+   */
+  async getFieldOfficers(req: Request, res: Response, next: NextFunction) {
+    try {
+      const organizationId = req.user!.organizationId;
+
+      const officers = await collegeService.getFieldOfficers(organizationId);
+
+      res.json({
+        success: true,
+        data: officers,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get all Indian states (static data)
+   * GET /api/field-sales/colleges/all-states
+   */
+  async getAllIndianStates(req: Request, res: Response, next: NextFunction) {
+    try {
+      const states = collegeService.getAllIndianStates();
+
+      res.json({
+        success: true,
+        data: states,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get all districts for a state (static data)
+   * GET /api/field-sales/colleges/all-districts
+   */
+  async getAllIndianDistricts(req: Request, res: Response, next: NextFunction) {
+    try {
+      const state = req.query.state as string;
+
+      if (!state) {
+        throw new BadRequestError('State is required');
+      }
+
+      const districts = collegeService.getAllIndianDistricts(state);
+
+      res.json({
+        success: true,
+        data: districts,
       });
     } catch (error) {
       next(error);

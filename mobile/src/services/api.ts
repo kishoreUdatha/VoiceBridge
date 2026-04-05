@@ -3,14 +3,18 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 
 // Get API URL from app config (can be overridden via environment variables)
-// For physical device testing: API_URL=http://YOUR_PC_IP:3001/api npx expo start
-const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001/api';
+// For physical device testing, use PC's local IP
+// Hardcoding IP for physical device testing (phone must be on same WiFi)
+const API_BASE_URL = 'http://192.168.29.116:3001/api';
+
+console.log('[API] Base URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000,
 });
 
 api.interceptors.request.use(

@@ -1,12 +1,14 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { body, param, query } from 'express-validator';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../config/database';
 import { leadScoringService } from '../services/advanced-features.service';
+import leadScoringServiceExtended from '../services/lead-scoring.service';
 import { authenticate, authorize } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { validate } from '../middlewares/validate';
 import { asyncHandler } from '../utils/asyncHandler';
+import { ApiResponse } from '../utils/apiResponse';
 import OpenAI from 'openai';
 
 const router = Router();
@@ -620,6 +622,174 @@ router.post(
     });
 
     res.json({ success: true, data: score });
+  })
+);
+
+// ==================== Rule-Based Scoring Endpoints ====================
+
+/**
+ * @api {get} /lead-scoring/scoring-rules Get Organization Scoring Rules
+ */
+router.get(
+  '/scoring-rules',
+  asyncHandler(async (req: TenantRequest, res: Response) => {
+    const organizationId = req.organizationId!;
+
+    const rules = await leadScoringServiceExtended.getScoringRules(organizationId);
+
+    return ApiResponse.success(res, 'Scoring rules retrieved', {
+      rules,
+      total: rules.length,
+    });
+  })
+);
+
+/**
+ * @api {post} /lead-scoring/scoring-rules Create Scoring Rule
+ */
+router.post(
+  '/scoring-rules',
+  authorize('admin', 'manager'),
+  validate([
+    body('name').trim().notEmpty().withMessage('Name is required'),
+    body('scoreType').isIn(['DEMOGRAPHIC', 'BEHAVIORAL', 'ENGAGEMENT', 'INTENT']).withMessage('Invalid score type'),
+    body('scoreValue').isInt({ min: -100, max: 100 }).withMessage('Score value must be between -100 and 100'),
+    body('conditions').optional().isArray(),
+    body('scoreAction').optional().isIn(['ADD', 'SUBTRACT', 'SET']),
+    body('decayEnabled').optional().isBoolean(),
+    body('decayDays').optional().isInt({ min: 1 }),
+    body('decayPercent').optional().isInt({ min: 1, max: 100 }),
+  ]),
+  asyncHandler(async (req: TenantRequest, res: Response) => {
+    const organizationId = req.organizationId!;
+
+    const rule = await leadScoringServiceExtended.createScoringRule(organizationId, req.body);
+
+    return ApiResponse.success(res, 'Scoring rule created', rule, 201);
+  })
+);
+
+/**
+ * @api {put} /lead-scoring/scoring-rules/:ruleId Update Scoring Rule
+ */
+router.put(
+  '/scoring-rules/:ruleId',
+  authorize('admin', 'manager'),
+  validate([
+    param('ruleId').isUUID(),
+    body('name').optional().trim().notEmpty(),
+    body('scoreType').optional().isIn(['DEMOGRAPHIC', 'BEHAVIORAL', 'ENGAGEMENT', 'INTENT']),
+    body('scoreValue').optional().isInt({ min: -100, max: 100 }),
+    body('isActive').optional().isBoolean(),
+  ]),
+  asyncHandler(async (req: TenantRequest, res: Response) => {
+    const organizationId = req.organizationId!;
+    const { ruleId } = req.params;
+
+    const rule = await leadScoringServiceExtended.updateScoringRule(ruleId, organizationId, req.body);
+
+    return ApiResponse.success(res, 'Scoring rule updated', rule);
+  })
+);
+
+/**
+ * @api {delete} /lead-scoring/scoring-rules/:ruleId Delete Scoring Rule
+ */
+router.delete(
+  '/scoring-rules/:ruleId',
+  authorize('admin', 'manager'),
+  validate([param('ruleId').isUUID()]),
+  asyncHandler(async (req: TenantRequest, res: Response) => {
+    const organizationId = req.organizationId!;
+    const { ruleId } = req.params;
+
+    await leadScoringServiceExtended.deleteScoringRule(ruleId, organizationId);
+
+    return ApiResponse.success(res, 'Scoring rule deleted');
+  })
+);
+
+/**
+ * @api {post} /lead-scoring/calculate-rule-based/:leadId Calculate Rule-Based Score
+ */
+router.post(
+  '/calculate-rule-based/:leadId',
+  validate([param('leadId').isUUID()]),
+  asyncHandler(async (req: TenantRequest, res: Response) => {
+    const organizationId = req.organizationId!;
+    const { leadId } = req.params;
+
+    const result = await leadScoringServiceExtended.calculateRuleBasedScore(leadId, organizationId);
+
+    return ApiResponse.success(res, 'Score calculated', result);
+  })
+);
+
+/**
+ * @api {post} /lead-scoring/batch-calculate Batch Calculate Rule-Based Scores
+ */
+router.post(
+  '/batch-calculate',
+  authorize('admin', 'manager'),
+  asyncHandler(async (req: TenantRequest, res: Response) => {
+    const organizationId = req.organizationId!;
+
+    const result = await leadScoringServiceExtended.batchCalculateRuleBasedScores(organizationId);
+
+    return ApiResponse.success(res, 'Batch scoring completed', result);
+  })
+);
+
+/**
+ * @api {get} /lead-scoring/hot-leads Get Hot Leads
+ */
+router.get(
+  '/hot-leads',
+  validate([
+    query('limit').optional().isInt({ min: 1, max: 100 }),
+  ]),
+  asyncHandler(async (req: TenantRequest, res: Response) => {
+    const organizationId = req.organizationId!;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    const leads = await leadScoringServiceExtended.getHotLeads(organizationId, limit);
+
+    return ApiResponse.success(res, 'Hot leads retrieved', {
+      leads,
+      total: leads.length,
+    });
+  })
+);
+
+/**
+ * @api {get} /lead-scoring/score-distribution Get Score Distribution
+ */
+router.get(
+  '/score-distribution',
+  asyncHandler(async (req: TenantRequest, res: Response) => {
+    const organizationId = req.organizationId!;
+
+    const distribution = await leadScoringServiceExtended.getScoreDistribution(organizationId);
+
+    return ApiResponse.success(res, 'Score distribution retrieved', distribution);
+  })
+);
+
+/**
+ * @api {post} /lead-scoring/create-default-rules Create Default Scoring Rules
+ */
+router.post(
+  '/create-default-rules',
+  authorize('admin'),
+  asyncHandler(async (req: TenantRequest, res: Response) => {
+    const organizationId = req.organizationId!;
+
+    const rules = await leadScoringServiceExtended.createDefaultScoringRules(organizationId);
+
+    return ApiResponse.success(res, 'Default scoring rules created', {
+      rules,
+      total: rules.length,
+    });
   })
 );
 

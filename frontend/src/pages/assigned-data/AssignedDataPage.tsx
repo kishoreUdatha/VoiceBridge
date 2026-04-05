@@ -64,6 +64,11 @@ export default function AssignedDataPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 50;
   const [selectedRecord, setSelectedRecord] = useState<RawRecord | null>(null);
   const [showCallModal, setShowCallModal] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -72,23 +77,36 @@ export default function AssignedDataPage() {
   useEffect(() => {
     fetchData();
     fetchStats();
-  }, [statusFilter]);
+  }, [statusFilter, page, dateFrom, dateTo]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const params: any = { limit: 100 };
+      const params: any = { limit, page };
       if (statusFilter !== 'ALL') params.status = statusFilter;
       if (search) params.search = search;
+      if (dateFrom) params.dateFrom = dateFrom;
+      if (dateTo) params.dateTo = dateTo;
 
       const res = await api.get('/telecaller/assigned-data', { params });
       setRecords(res.data?.data?.records || []);
+      setTotal(res.data?.data?.total || 0);
     } catch (error) {
       console.error('Failed to fetch assigned data:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  const clearFilters = () => {
+    setSearch('');
+    setStatusFilter('ALL');
+    setDateFrom('');
+    setDateTo('');
+    setPage(1);
+  };
+
+  const hasActiveFilters = search || statusFilter !== 'ALL' || dateFrom || dateTo;
 
   const fetchStats = async () => {
     try {
@@ -101,8 +119,11 @@ export default function AssignedDataPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    setPage(1);
     fetchData();
   };
+
+  const totalPages = Math.ceil(total / limit);
 
   const handleCall = (record: RawRecord) => {
     setSelectedRecord(record);
@@ -184,74 +205,90 @@ export default function AssignedDataPage() {
         </button>
       </div>
 
-      {/* Stats */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
-          <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100">
-            <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
-            <p className="text-xs text-slate-500">Total Assigned</p>
-          </div>
-          <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
-            <p className="text-2xl font-bold text-blue-600">{stats.assigned}</p>
-            <p className="text-xs text-blue-600">To Call</p>
-          </div>
-          <div className="bg-green-50 rounded-lg p-3 border border-green-100">
-            <p className="text-2xl font-bold text-green-600">{stats.interested}</p>
-            <p className="text-xs text-green-600">Interested</p>
-          </div>
-          <div className="bg-red-50 rounded-lg p-3 border border-red-100">
-            <p className="text-2xl font-bold text-red-600">{stats.notInterested}</p>
-            <p className="text-xs text-red-600">Not Interested</p>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-            <p className="text-2xl font-bold text-gray-600">{stats.noAnswer}</p>
-            <p className="text-xs text-gray-600">No Answer</p>
-          </div>
-          <div className="bg-amber-50 rounded-lg p-3 border border-amber-100">
-            <p className="text-2xl font-bold text-amber-600">{stats.callback}</p>
-            <p className="text-xs text-amber-600">Callback</p>
-          </div>
+      {/* Stats + Filters */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 mb-4">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100">
+          {/* Stats */}
+          {stats && (
+            <div className="flex items-center gap-4 text-xs">
+              <span className="text-slate-600">Total: <span className="font-semibold text-slate-800">{stats.total}</span></span>
+              <span className="text-blue-600">To Call: <span className="font-semibold">{stats.assigned}</span></span>
+              <span className="text-green-600">Interested: <span className="font-semibold">{stats.interested}</span></span>
+              <span className="text-red-600">Not Interested: <span className="font-semibold">{stats.notInterested}</span></span>
+              <span className="text-gray-500">No Answer: <span className="font-semibold">{stats.noAnswer}</span></span>
+              <span className="text-amber-600">Callback: <span className="font-semibold">{stats.callback}</span></span>
+            </div>
+          )}
         </div>
-      )}
-
-      {/* Filters */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-6">
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-3 px-4 py-2">
           {/* Search */}
-          <form onSubmit={handleSearch} className="flex-1 min-w-[200px]">
+          <form onSubmit={handleSearch}>
             <div className="relative">
-              <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <MagnifyingGlassIcon className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search by name, phone, email..."
+                placeholder="Search name, phone..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-44 pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
             </div>
           </form>
 
           {/* Status Filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+            className="text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="ALL">All Status</option>
+            <option value="ASSIGNED">To Call</option>
+            <option value="NO_ANSWER">No Answer</option>
+            <option value="CALLBACK_REQUESTED">Callback</option>
+            <option value="INTERESTED">Interested</option>
+            <option value="NOT_INTERESTED">Not Interested</option>
+            <option value="CONVERTED">Converted</option>
+          </select>
+
+          {/* Date Range */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">Status:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="ALL">All Actionable</option>
-              <option value="ASSIGNED">To Call</option>
-              <option value="NO_ANSWER">No Answer</option>
-              <option value="CALLBACK_REQUESTED">Callback Requested</option>
-              <option value="INTERESTED">Interested</option>
-              <option value="NOT_INTERESTED">Not Interested</option>
-            </select>
+            <span className="text-xs text-slate-500">From:</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+              className="text-sm border border-slate-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            <span className="text-xs text-slate-500">To:</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+              className="text-sm border border-slate-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
           </div>
+
+          {/* Clear Filters */}
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="text-sm text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
       {/* Records Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Results count */}
+        {!loading && records.length > 0 && (
+          <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 text-xs text-slate-500">
+            Showing {records.length} of {total} records
+          </div>
+        )}
+
         {loading ? (
           <div className="p-8 text-center text-slate-500">Loading...</div>
         ) : records.length === 0 ? (
@@ -267,7 +304,7 @@ export default function AssignedDataPage() {
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Contact</th>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Phone</th>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Status</th>
-                <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Attempts</th>
+                <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Assigned</th>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Last Call</th>
                 <th className="text-right text-xs font-medium text-slate-500 uppercase px-4 py-3">Actions</th>
               </tr>
@@ -319,11 +356,17 @@ export default function AssignedDataPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <p className="text-sm text-slate-600">{record.callAttempts || 0}</p>
+                    <p className="text-xs text-slate-500">
+                      {record.assignedAt ? new Date(record.assignedAt).toLocaleDateString('en-IN', {
+                        day: '2-digit', month: 'short', year: 'numeric'
+                      }) : '-'}
+                    </p>
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-xs text-slate-400">
-                      {record.lastCallAt ? new Date(record.lastCallAt).toLocaleDateString() : '-'}
+                      {record.lastCallAt ? new Date(record.lastCallAt).toLocaleString('en-IN', {
+                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                      }) : '-'}
                     </p>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -353,6 +396,31 @@ export default function AssignedDataPage() {
               ))}
             </tbody>
           </table>
+        )}
+
+        {/* Pagination */}
+        {!loading && totalPages > 1 && (
+          <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
+            <p className="text-xs text-slate-500">
+              Page {page} of {totalPages}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page === 1}
+                className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                disabled={page >= totalPages}
+                className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

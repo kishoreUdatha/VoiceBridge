@@ -1,8 +1,14 @@
 import rateLimit from 'express-rate-limit';
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
+
+// Check if rate limiting should be disabled (for testing)
+const isTestMode = process.env.DISABLE_RATE_LIMIT === 'true' || process.env.NODE_ENV === 'test';
+
+// No-op middleware for test mode
+const noopMiddleware = (_req: Request, _res: Response, next: NextFunction) => next();
 
 // General API rate limiter
-export const apiLimiter = rateLimit({
+export const apiLimiter = isTestMode ? noopMiddleware : rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: process.env.NODE_ENV === 'production' ? 500 : 5000, // Higher limit for development
   message: {
@@ -18,9 +24,9 @@ export const apiLimiter = rateLimit({
 });
 
 // Strict limiter for authentication endpoints
-export const authLimiter = rateLimit({
+export const authLimiter = isTestMode ? noopMiddleware : rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 10 : 100, // Higher limit for development
+  max: process.env.NODE_ENV === 'production' ? 10 : 1000, // Much higher limit for development
   message: {
     success: false,
     message: 'Too many login attempts, please try again after 15 minutes',

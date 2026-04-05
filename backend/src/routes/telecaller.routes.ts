@@ -163,7 +163,17 @@ router.get('/my-qualified-leads/stats', async (req: TenantRequest, res: Response
 router.get('/assigned-data', async (req: TenantRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { status, search, limit = '50', offset = '0' } = req.query;
+    const { status, search, limit = '50', offset, page, dateFrom, dateTo } = req.query;
+
+    // Support both page and offset - prefer page if provided
+    const limitNum = parseInt(limit as string) || 50;
+    let skipNum = 0;
+    if (page) {
+      const pageNum = parseInt(page as string) || 1;
+      skipNum = (pageNum - 1) * limitNum;
+    } else if (offset) {
+      skipNum = parseInt(offset as string) || 0;
+    }
 
     const whereClause: any = {
       organizationId: req.organization!.id,
@@ -177,6 +187,21 @@ router.get('/assigned-data', async (req: TenantRequest, res: Response) => {
     } else {
       // Default: show all actionable statuses (everything except CONVERTED and NOT_INTERESTED)
       whereClause.status = { in: ['ASSIGNED', 'CALLING', 'CALLBACK_REQUESTED', 'NO_ANSWER', 'INTERESTED'] };
+    }
+
+    // Date filtering on assignedAt
+    if (dateFrom || dateTo) {
+      whereClause.assignedAt = {};
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom as string);
+        fromDate.setHours(0, 0, 0, 0);
+        whereClause.assignedAt.gte = fromDate;
+      }
+      if (dateTo) {
+        const toDate = new Date(dateTo as string);
+        toDate.setHours(23, 59, 59, 999);
+        whereClause.assignedAt.lte = toDate;
+      }
     }
 
     // Search
@@ -200,8 +225,8 @@ router.get('/assigned-data', async (req: TenantRequest, res: Response) => {
           { status: 'asc' }, // ASSIGNED first
           { assignedAt: 'desc' },
         ],
-        take: parseInt(limit as string),
-        skip: parseInt(offset as string),
+        take: limitNum,
+        skip: skipNum,
       }),
       prisma.rawImportRecord.count({ where: whereClause }),
     ]);
@@ -694,6 +719,7 @@ router.get('/all-calls', async (req: TenantRequest, res: Response) => {
     const {
       telecallerId,
       leadId,
+      branchId,
       dateFrom,
       dateTo,
       outcome,
@@ -708,6 +734,13 @@ router.get('/all-calls', async (req: TenantRequest, res: Response) => {
 
     if (telecallerId) {
       whereClause.telecallerId = telecallerId;
+    }
+
+    // Filter by branch - get calls from telecallers in the specified branch
+    if (branchId) {
+      whereClause.telecaller = {
+        branchId: branchId as string,
+      };
     }
 
     if (leadId) {
@@ -1502,6 +1535,105 @@ router.get('/dashboard-stats', async (req: TenantRequest, res: Response) => {
     });
   } catch (error) {
     console.error('[Telecaller Dashboard Stats] Error:', error);
+    ApiResponse.error(res, (error as Error).message, 500);
+  }
+});
+
+// ==================== TEAM LEAD DASHBOARD STATS ====================
+// Get stats for team lead - shows their team members' performance
+router.get('/team-dashboard-stats', async (req: TenantRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = req.organization!.id;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(today);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    // Get team members (telecallers reporting to this team lead)
+    const teamMembers = await prisma.user.findMany({
+      where: {
+        organizationId,
+        managerId: userId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+      },
+    });
+
+    const teamMemberIds = teamMembers.map(m => m.id);
+
+    // Get stats for each team member
+    const teamMemberStats = await Promise.all(
+      teamMembers.map(async (member) => {
+        // Count assigned raw records
+        const assignedCounts = await prisma.rawImportRecord.groupBy({
+          by: ['status'],
+          where: {
+            organizationId,
+            assignedToId: member.id,
+          },
+          _count: true,
+        });
+
+        const totalAssigned = assignedCounts.reduce((sum, c) => sum + c._count, 0);
+        const pending = assignedCounts.find(c => c.status === 'ASSIGNED' || c.status === 'PENDING')?._count || 0;
+        const interested = assignedCounts.find(c => c.status === 'INTERESTED')?._count || 0;
+        const converted = assignedCounts.find(c => c.status === 'CONVERTED')?._count || 0;
+
+        // Count calls today
+        const callsToday = await prisma.telecallerCall.count({
+          where: {
+            telecallerId: member.id,
+            organizationId,
+            startedAt: { gte: today, lte: todayEnd },
+          },
+        });
+
+        const conversionRate = totalAssigned > 0 ? Math.round((converted / totalAssigned) * 100 * 10) / 10 : 0;
+
+        return {
+          id: member.id,
+          firstName: member.firstName,
+          lastName: member.lastName || '',
+          email: member.email,
+          totalAssigned,
+          callsToday,
+          pending,
+          interested,
+          converted,
+          conversionRate,
+        };
+      })
+    );
+
+    // Calculate team totals
+    const teamSize = teamMembers.length;
+    const totalAssigned = teamMemberStats.reduce((sum, m) => sum + m.totalAssigned, 0);
+    const totalPending = teamMemberStats.reduce((sum, m) => sum + m.pending, 0);
+    const totalInterested = teamMemberStats.reduce((sum, m) => sum + m.interested, 0);
+    const totalConverted = teamMemberStats.reduce((sum, m) => sum + m.converted, 0);
+    const callsToday = teamMemberStats.reduce((sum, m) => sum + m.callsToday, 0);
+    const avgConversionRate = teamSize > 0
+      ? Math.round((teamMemberStats.reduce((sum, m) => sum + m.conversionRate, 0) / teamSize) * 10) / 10
+      : 0;
+
+    ApiResponse.success(res, 'Team dashboard stats retrieved', {
+      teamSize,
+      totalAssigned,
+      totalPending,
+      totalInterested,
+      totalConverted,
+      callsToday,
+      avgConversionRate,
+      teamMembers: teamMemberStats,
+    });
+  } catch (error) {
+    console.error('[Team Lead Dashboard Stats] Error:', error);
     ApiResponse.error(res, (error as Error).message, 500);
   }
 });

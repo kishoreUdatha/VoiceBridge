@@ -1,15 +1,12 @@
 /**
  * Push Notification Service
  * Handles FCM push notifications and local notifications
- *
- * Required dependencies (install if not present):
- * - @react-native-firebase/app
- * - @react-native-firebase/messaging
- * - @notifee/react-native (for local notifications)
  */
 
-import { Platform, Alert } from 'react-native';
+import { Platform, Alert, AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import messaging, { FirebaseMessagingTypes } from '@react-native-firebase/messaging';
+import notifee, { AndroidImportance, EventType } from '@notifee/react-native';
 import api from '../api';
 
 // Storage keys
@@ -74,43 +71,57 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 
 // Listeners for notification events
 type NotificationListener = (notification: NotificationPayload) => void;
+type NavigationListener = (screen: string, params?: any) => void;
 
 class NotificationService {
   private initialized: boolean = false;
   private fcmToken: string | null = null;
   private settings: NotificationSettings = DEFAULT_SETTINGS;
   private listeners: Set<NotificationListener> = new Set();
-  private messaging: any = null;
-  private notifee: any = null;
+  private navigationListener: NavigationListener | null = null;
+  private appState: AppStateStatus = 'active';
 
   /**
    * Initialize notification service
-   * Note: Firebase/Notifee are optional - the service works without them
    */
   async init(): Promise<boolean> {
     if (this.initialized) return true;
 
-    console.log('[NotificationService] Initializing...');
+    console.log('[NotificationService] Initializing with Firebase...');
 
     try {
-      // Load saved settings first (this always works)
+      // Load saved settings
       await this.loadSettings();
 
-      // Note: Firebase and Notifee require additional setup
-      // For now, the service runs in basic mode without push notifications
-      // To enable push notifications, install:
-      // - @react-native-firebase/app
-      // - @react-native-firebase/messaging
-      // - @notifee/react-native
-      console.log('[NotificationService] Running in basic mode (no push notification libraries installed)');
+      // Create notification channels (Android)
+      await this.createNotificationChannels();
+
+      // Request permission
+      const hasPermission = await this.requestPermission();
+      if (!hasPermission) {
+        console.warn('[NotificationService] Permission not granted');
+      }
+
+      // Get FCM token
+      await this.getToken();
+
+      // Setup message handlers
+      this.setupMessageHandlers();
+
+      // Setup Notifee event handlers
+      this.setupNotifeeHandlers();
+
+      // Track app state for foreground/background notifications
+      AppState.addEventListener('change', (state) => {
+        this.appState = state;
+      });
 
       this.initialized = true;
-      console.log('[NotificationService] Initialized successfully');
+      console.log('[NotificationService] Initialized successfully with Firebase');
       return true;
     } catch (error) {
       console.error('[NotificationService] Initialization failed:', error);
-      // Still mark as initialized to prevent retry loops
-      this.initialized = true;
+      this.initialized = true; // Prevent retry loops
       return false;
     }
   }
@@ -119,18 +130,20 @@ class NotificationService {
    * Request notification permission
    */
   async requestPermission(): Promise<boolean> {
-    if (!this.messaging) {
-      console.warn('[NotificationService] Messaging not available');
-      return false;
-    }
-
     try {
-      const authStatus = await this.messaging().requestPermission();
+      const authStatus = await messaging().requestPermission();
       const enabled =
-        authStatus === this.messaging.AuthorizationStatus.AUTHORIZED ||
-        authStatus === this.messaging.AuthorizationStatus.PROVISIONAL;
+        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
       console.log('[NotificationService] Permission status:', enabled ? 'granted' : 'denied');
+
+      if (Platform.OS === 'android') {
+        // Request Android 13+ notification permission
+        const notifeePermission = await notifee.requestPermission();
+        console.log('[NotificationService] Notifee permission:', notifeePermission);
+      }
+
       return enabled;
     } catch (error) {
       console.error('[NotificationService] Permission request failed:', error);
@@ -142,10 +155,17 @@ class NotificationService {
    * Get FCM token
    */
   async getToken(): Promise<string | null> {
-    if (!this.messaging) return null;
-
     try {
-      const token = await this.messaging().getToken();
+      // Check if APNs token is available (iOS)
+      if (Platform.OS === 'ios') {
+        const apnsToken = await messaging().getAPNSToken();
+        if (!apnsToken) {
+          console.log('[NotificationService] APNs token not available yet');
+          return null;
+        }
+      }
+
+      const token = await messaging().getToken();
 
       if (token && token !== this.fcmToken) {
         this.fcmToken = token;
@@ -154,7 +174,7 @@ class NotificationService {
         // Register token with backend
         await this.registerTokenWithBackend(token);
 
-        console.log('[NotificationService] FCM Token obtained');
+        console.log('[NotificationService] FCM Token obtained:', token.substring(0, 20) + '...');
       }
 
       return token;
@@ -181,14 +201,12 @@ class NotificationService {
   }
 
   /**
-   * Setup message handlers
+   * Setup Firebase message handlers
    */
   private setupMessageHandlers(): void {
-    if (!this.messaging) return;
-
     // Handle foreground messages
-    this.messaging().onMessage(async (remoteMessage: any) => {
-      console.log('[NotificationService] Foreground message received:', remoteMessage);
+    messaging().onMessage(async (remoteMessage) => {
+      console.log('[NotificationService] Foreground message:', remoteMessage);
 
       const notification = this.parseRemoteMessage(remoteMessage);
 
@@ -199,43 +217,90 @@ class NotificationService {
       }
     });
 
-    // Handle background message tap
-    this.messaging().onNotificationOpenedApp((remoteMessage: any) => {
+    // Handle background message tap (app was in background)
+    messaging().onNotificationOpenedApp((remoteMessage) => {
       console.log('[NotificationService] Notification opened app:', remoteMessage);
       const notification = this.parseRemoteMessage(remoteMessage);
-      this.notifyListeners(notification);
+      this.handleNotificationTap(notification);
     });
 
     // Handle token refresh
-    this.messaging().onTokenRefresh(async (token: string) => {
+    messaging().onTokenRefresh(async (token) => {
       console.log('[NotificationService] Token refreshed');
       this.fcmToken = token;
       await AsyncStorage.setItem(FCM_TOKEN_KEY, token);
       await this.registerTokenWithBackend(token);
     });
 
-    // Check if app was opened from notification
-    this.messaging()
+    // Check if app was opened from notification (app was killed)
+    messaging()
       .getInitialNotification()
-      .then((remoteMessage: any) => {
+      .then((remoteMessage) => {
         if (remoteMessage) {
-          console.log('[NotificationService] App opened from notification:', remoteMessage);
+          console.log('[NotificationService] App opened from killed state:', remoteMessage);
           const notification = this.parseRemoteMessage(remoteMessage);
-          this.notifyListeners(notification);
+          // Delay navigation to ensure app is ready
+          setTimeout(() => {
+            this.handleNotificationTap(notification);
+          }, 1000);
         }
       });
   }
 
   /**
+   * Setup Notifee event handlers
+   */
+  private setupNotifeeHandlers(): void {
+    // Handle foreground notification events
+    notifee.onForegroundEvent(({ type, detail }) => {
+      console.log('[NotificationService] Notifee foreground event:', type);
+
+      if (type === EventType.PRESS) {
+        const notification: NotificationPayload = {
+          id: detail.notification?.id || '',
+          type: (detail.notification?.data?.type as NotificationType) || 'SYSTEM',
+          title: detail.notification?.title || '',
+          body: detail.notification?.body || '',
+          data: detail.notification?.data as any,
+          timestamp: Date.now(),
+        };
+        this.handleNotificationTap(notification);
+      }
+    });
+
+    // Handle background notification events
+    notifee.onBackgroundEvent(async ({ type, detail }) => {
+      console.log('[NotificationService] Notifee background event:', type);
+
+      if (type === EventType.PRESS) {
+        // Navigation will be handled when app comes to foreground
+        console.log('[NotificationService] Background press, data:', detail.notification?.data);
+      }
+    });
+  }
+
+  /**
+   * Handle notification tap - navigate to appropriate screen
+   */
+  private handleNotificationTap(notification: NotificationPayload): void {
+    console.log('[NotificationService] Handling notification tap:', notification.type);
+    this.notifyListeners(notification);
+
+    if (this.navigationListener && notification.data?.screen) {
+      this.navigationListener(notification.data.screen, notification.data);
+    }
+  }
+
+  /**
    * Parse remote message to notification payload
    */
-  private parseRemoteMessage(remoteMessage: any): NotificationPayload {
+  private parseRemoteMessage(remoteMessage: FirebaseMessagingTypes.RemoteMessage): NotificationPayload {
     return {
       id: remoteMessage.messageId || `local-${Date.now()}`,
       type: (remoteMessage.data?.type as NotificationType) || 'SYSTEM',
       title: remoteMessage.notification?.title || 'VoiceBridge',
       body: remoteMessage.notification?.body || '',
-      data: remoteMessage.data || {},
+      data: remoteMessage.data as any,
       timestamp: Date.now(),
     };
   }
@@ -244,32 +309,53 @@ class NotificationService {
    * Create notification channels for Android
    */
   private async createNotificationChannels(): Promise<void> {
-    if (!this.notifee) return;
+    if (Platform.OS !== 'android') return;
 
     try {
       // Main channel for important notifications
-      await this.notifee.createChannel({
+      await notifee.createChannel({
         id: 'voicebridge-main',
         name: 'VoiceBridge Notifications',
-        importance: 4, // HIGH
+        importance: AndroidImportance.HIGH,
+        sound: 'default',
+        vibration: true,
+      });
+
+      // New assignments channel
+      await notifee.createChannel({
+        id: 'voicebridge-assignments',
+        name: 'New Assignments',
+        description: 'Notifications for new lead assignments',
+        importance: AndroidImportance.HIGH,
         sound: 'default',
         vibration: true,
       });
 
       // Follow-up reminders channel
-      await this.notifee.createChannel({
+      await notifee.createChannel({
         id: 'voicebridge-reminders',
         name: 'Follow-up Reminders',
-        importance: 4,
+        description: 'Reminders for scheduled follow-ups and callbacks',
+        importance: AndroidImportance.HIGH,
         sound: 'default',
         vibration: true,
       });
 
+      // AI Analysis channel
+      await notifee.createChannel({
+        id: 'voicebridge-ai',
+        name: 'AI Analysis',
+        description: 'Notifications when call analysis is complete',
+        importance: AndroidImportance.DEFAULT,
+        sound: 'default',
+      });
+
       // Quiet notifications channel
-      await this.notifee.createChannel({
+      await notifee.createChannel({
         id: 'voicebridge-quiet',
         name: 'Quiet Notifications',
-        importance: 2, // LOW
+        description: 'Silent notifications during quiet hours',
+        importance: AndroidImportance.LOW,
         sound: undefined,
         vibration: false,
       });
@@ -284,26 +370,22 @@ class NotificationService {
    * Show local notification
    */
   async showLocalNotification(notification: NotificationPayload): Promise<void> {
-    if (!this.notifee) {
-      // Fallback to Alert if Notifee not available
-      Alert.alert(notification.title, notification.body);
-      return;
-    }
-
     try {
-      const channelId = this.isQuietHours() ? 'voicebridge-quiet' : 'voicebridge-main';
+      const channelId = this.getChannelForType(notification.type);
 
-      await this.notifee.displayNotification({
+      await notifee.displayNotification({
         id: notification.id,
         title: notification.title,
         body: notification.body,
         android: {
           channelId,
           smallIcon: 'ic_notification',
+          color: '#3B82F6',
           pressAction: {
             id: 'default',
           },
-          ...(this.settings.sound && { sound: 'default' }),
+          sound: this.settings.sound ? 'default' : undefined,
+          vibrationPattern: this.settings.vibrate ? [300, 500] : undefined,
         },
         data: notification.data,
       });
@@ -311,6 +393,29 @@ class NotificationService {
       console.log('[NotificationService] Local notification displayed');
     } catch (error) {
       console.error('[NotificationService] Failed to show notification:', error);
+      // Fallback to Alert
+      Alert.alert(notification.title, notification.body);
+    }
+  }
+
+  /**
+   * Get notification channel based on type
+   */
+  private getChannelForType(type: NotificationType): string {
+    if (this.isQuietHours()) {
+      return 'voicebridge-quiet';
+    }
+
+    switch (type) {
+      case 'NEW_ASSIGNMENT':
+        return 'voicebridge-assignments';
+      case 'FOLLOW_UP_REMINDER':
+      case 'CALLBACK_REMINDER':
+        return 'voicebridge-reminders';
+      case 'AI_ANALYSIS_COMPLETE':
+        return 'voicebridge-ai';
+      default:
+        return 'voicebridge-main';
     }
   }
 
@@ -321,15 +426,10 @@ class NotificationService {
     notification: Omit<NotificationPayload, 'id' | 'timestamp'>,
     triggerTime: Date
   ): Promise<string | null> {
-    if (!this.notifee) {
-      console.warn('[NotificationService] Notifee not available for scheduling');
-      return null;
-    }
-
     try {
       const notificationId = `scheduled-${Date.now()}`;
 
-      await this.notifee.createTriggerNotification(
+      await notifee.createTriggerNotification(
         {
           id: notificationId,
           title: notification.title,
@@ -337,6 +437,7 @@ class NotificationService {
           android: {
             channelId: 'voicebridge-reminders',
             smallIcon: 'ic_notification',
+            color: '#3B82F6',
             pressAction: { id: 'default' },
           },
           data: notification.data,
@@ -359,10 +460,8 @@ class NotificationService {
    * Cancel a scheduled notification
    */
   async cancelNotification(notificationId: string): Promise<void> {
-    if (!this.notifee) return;
-
     try {
-      await this.notifee.cancelNotification(notificationId);
+      await notifee.cancelNotification(notificationId);
       console.log('[NotificationService] Notification cancelled:', notificationId);
     } catch (error) {
       console.error('[NotificationService] Failed to cancel notification:', error);
@@ -373,10 +472,8 @@ class NotificationService {
    * Cancel all notifications
    */
   async cancelAllNotifications(): Promise<void> {
-    if (!this.notifee) return;
-
     try {
-      await this.notifee.cancelAllNotifications();
+      await notifee.cancelAllNotifications();
       console.log('[NotificationService] All notifications cancelled');
     } catch (error) {
       console.error('[NotificationService] Failed to cancel notifications:', error);
@@ -422,10 +519,8 @@ class NotificationService {
     const endMinutes = endH * 60 + endM;
 
     if (startMinutes < endMinutes) {
-      // Normal case: quiet hours within same day
       return currentTime >= startMinutes && currentTime < endMinutes;
     } else {
-      // Overnight case: quiet hours span midnight
       return currentTime >= startMinutes || currentTime < endMinutes;
     }
   }
@@ -465,6 +560,13 @@ class NotificationService {
   }
 
   /**
+   * Set navigation listener for handling notification taps
+   */
+  setNavigationListener(listener: NavigationListener): void {
+    this.navigationListener = listener;
+  }
+
+  /**
    * Subscribe to notification events
    */
   subscribe(listener: NotificationListener): () => void {
@@ -489,10 +591,8 @@ class NotificationService {
    * Get pending notifications count
    */
   async getPendingCount(): Promise<number> {
-    if (!this.notifee) return 0;
-
     try {
-      const notifications = await this.notifee.getDisplayedNotifications();
+      const notifications = await notifee.getDisplayedNotifications();
       return notifications.length;
     } catch (error) {
       return 0;
@@ -503,13 +603,18 @@ class NotificationService {
    * Clear badge count
    */
   async clearBadge(): Promise<void> {
-    if (!this.notifee) return;
-
     try {
-      await this.notifee.setBadgeCount(0);
+      await notifee.setBadgeCount(0);
     } catch (error) {
       console.error('[NotificationService] Failed to clear badge:', error);
     }
+  }
+
+  /**
+   * Get FCM token (for debugging/testing)
+   */
+  getCurrentToken(): string | null {
+    return this.fcmToken;
   }
 
   /**
@@ -521,6 +626,7 @@ class NotificationService {
         await api.post('/notifications/unregister-device', {
           token: this.fcmToken,
         });
+        await messaging().deleteToken();
         await AsyncStorage.removeItem(FCM_TOKEN_KEY);
         this.fcmToken = null;
         console.log('[NotificationService] Device unregistered');

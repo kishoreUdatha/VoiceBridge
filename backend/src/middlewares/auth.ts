@@ -15,6 +15,8 @@ export interface AuthenticatedRequest extends Request {
     roleSlug: string; // Kept for backwards compatibility
     permissions: string[];
     managerId: string | null; // Manager ID for team-based access control
+    branchId: string | null; // Branch ID for multi-branch support
+    branchName: string | null; // Branch name for display
   };
 }
 
@@ -38,6 +40,12 @@ export async function authenticate(
       where: { id: decoded.userId },
       include: {
         role: true,
+        branch: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
@@ -56,6 +64,8 @@ export async function authenticate(
       roleSlug: user.role.slug, // Kept for backwards compatibility
       permissions: (user.role.permissions as string[]) || [],
       managerId: user.managerId,
+      branchId: user.branchId,
+      branchName: user.branch?.name || null,
     };
 
     next();
@@ -64,14 +74,21 @@ export async function authenticate(
   }
 }
 
-export function authorize(...allowedRoles: string[]) {
+export function authorize(...allowedRoles: (string | string[])[]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
       ApiResponse.unauthorized(res);
       return;
     }
 
-    if (!allowedRoles.includes(req.user.roleSlug)) {
+    // Flatten array in case authorize(['admin', 'manager']) was called
+    const flatRoles = allowedRoles.flat();
+
+    // Case-insensitive role check
+    const userRole = req.user.roleSlug?.toLowerCase();
+    const allowed = flatRoles.map(r => r.toLowerCase());
+
+    if (!userRole || !allowed.includes(userRole)) {
       ApiResponse.forbidden(res, 'You do not have permission to perform this action');
       return;
     }
@@ -123,6 +140,12 @@ export async function optionalAuth(
       where: { id: decoded.userId },
       include: {
         role: true,
+        branch: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
@@ -137,6 +160,8 @@ export async function optionalAuth(
         roleSlug: user.role.slug,
         permissions: (user.role.permissions as string[]) || [],
         managerId: user.managerId,
+        branchId: user.branchId,
+        branchName: user.branch?.name || null,
       };
     }
 

@@ -42,7 +42,7 @@ const NotificationChannelsPage: React.FC = () => {
     <div className="min-h-screen bg-[#f8fafc]">
       {toast && <Toast toast={toast} onClose={clearToast} />}
 
-      <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="space-y-6">
         <PageHeader onAddChannel={openModal} />
 
         {channels.length > 0 && <StatsOverview channels={channels} />}
