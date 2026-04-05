@@ -16,3 +16,5 @@ export {
   CTASection,
   Footer,
 } from './LandingComponents';
+
+export { DocumentationSection } from './DocumentationSection';

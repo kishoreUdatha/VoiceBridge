@@ -23,6 +23,7 @@ import FormBuilderPage from './pages/forms/FormBuilderPage';
 import LandingPagesPage from './pages/landing/LandingPagesPage';
 import LandingPageBuilderPage from './pages/landing/LandingPageBuilderPage';
 import CampaignsPage from './pages/campaigns/CampaignsPage';
+import CampaignDetailPage from './pages/campaigns/CampaignDetailPage';
 import { VoiceAgentsPage, CreateAgentPage, CreateAgentFromTemplatePage, NewAgentSelectionPage } from './pages/voice-ai';
 import { ConversationalAIAgentWizard } from './pages/voice-ai/ConversationalAIAgentWizard';
 import { ConversationalAIAgentDetail } from './pages/voice-ai/ConversationalAIAgentDetail';
@@ -54,6 +55,7 @@ import {
   TelecallerDashboard,
   TelecallerCallPage,
   TelecallerCallHistory,
+  AdminTelecallerCallHistory,
 } from './pages/telecaller-app';
 import {
   TransferConfigPage,
@@ -61,7 +63,11 @@ import {
   InboundCallsPage,
 } from './pages/hybrid-agent';
 import { AutoAssignSettingsPage, AssignmentSchedulePage, SmsSettingsPage, InstitutionSettingsPage, WhatsAppSettingsPage, VoiceMinutesPage, NotificationChannelsPage, CalendarSettingsPage, EmailSequencesPage, CRMIntegrationPage, PostCallMessagingPage, IntegrationCredentialsPage } from './pages/settings';
+import BranchesPage from './pages/settings/BranchesPage';
+import BranchFormPage from './pages/settings/BranchFormPage';
 import IntegrationSettingsPage from './pages/settings/IntegrationSettingsPage';
+import IndustrySettingsPage from './pages/settings/IndustrySettingsPage';
+import LeadManagementSettingsPage from './pages/settings/LeadManagementSettingsPage';
 import { ReportsPage } from './pages/reports';
 import { SocialMediaAdsPage, InstagramLeadSetupPage, AdIntegrationsPage, FacebookSetupPage, LinkedInSetupPage, GoogleAdsSetupPage, YouTubeSetupPage, TwitterSetupPage, TikTokSetupPage, WebhookUrlsPage } from './pages/ads';
 import { ApifyDashboardPage, ApifyJobsPage, ApifySmartScrapePage, ApifyRecordsPage } from './pages/apify';
@@ -85,10 +91,12 @@ import ApiKeysPage from './pages/api-keys/ApiKeysPage';
 import ApiDocsPage from './pages/api-keys/ApiDocsPage';
 import ApiWebhooksPage from './pages/api-keys/WebhooksPage';
 import { TemplatesPage } from './pages/templates';
+import { DocsPage } from './pages/docs';
 import { ScheduledMessagesPage } from './pages/scheduled-messages';
 import AnalyticsDashboardPage from './pages/analytics/AnalyticsDashboardPage';
 import ConversionFunnelPage from './pages/analytics/ConversionFunnelPage';
 import AgentPerformancePage from './pages/analytics/AgentPerformancePage';
+import TelecallerPerformancePage from './pages/analytics/TelecallerPerformancePage';
 import LeadSourcesPage from './pages/analytics/LeadSourcesPage';
 import {
   ComplianceDashboardPage,
@@ -101,6 +109,7 @@ import ConversationsPage from './pages/conversations/ConversationsPage';
 import AuditLogsPage from './pages/audit-logs/AuditLogsPage';
 import { LeadTrackingPage } from './pages/lead-tracking';
 import { RawImportsPage, RawImportDetailPage } from './pages/raw-imports';
+import { LeadDistributionPage } from './pages/data';
 import { BulkWhatsAppPage } from './pages/whatsapp';
 import { PhoneNumbersPage } from './pages/phone-numbers';
 import { IvrListPage, IvrBuilderPage } from './pages/ivr';
@@ -109,7 +118,6 @@ import { VoicemailPage } from './pages/voicemail';
 import { CallbacksPage } from './pages/callbacks';
 import { InboundAnalyticsDashboard } from './pages/inbound-analytics';
 import { CallMonitoringPage } from './pages/call-monitoring';
-import { CallFlowsPage, CallFlowBuilderPage } from './pages/call-flows';
 
 // Field Sales Pages
 import {
@@ -120,7 +128,15 @@ import {
   VisitCheckInPage,
   DealPipelinePage,
   ExpenseListPage,
+  AdminFieldSalesTracking,
 } from './pages/field-sales';
+
+// Education Admission Management
+import { UniversitiesPage } from './pages/universities';
+import { StudentVisitsPage } from './pages/student-visits';
+import { AdmissionsPage } from './pages/admissions';
+import { ExpensesPage } from './pages/expenses';
+import { ProfitDashboardPage } from './pages/profit';
 
 // Super Admin Pages
 import SuperAdminLayout from './layouts/SuperAdminLayout';
@@ -269,6 +285,9 @@ function App() {
       {/* Public Pricing Page */}
       <Route path="/pricing" element={<PricingPage />} />
 
+      {/* Public Documentation Page */}
+      <Route path="/docs" element={<DocsPage />} />
+
       {/* Public Realtime Voice Test Page */}
       <Route path="/realtime-test" element={<RealtimeTestPage />} />
 
@@ -286,12 +305,14 @@ function App() {
         <Route path="leads/bulk-upload" element={<BulkUploadPage />} />
         <Route path="raw-imports" element={<RawImportsPage />} />
         <Route path="raw-imports/:id" element={<RawImportDetailPage />} />
+        <Route path="assignments" element={<LeadDistributionPage />} />
         <Route path="users" element={<UsersListPage />} />
         <Route path="forms" element={<FormBuilderPage />} />
         <Route path="landing-pages" element={<LandingPagesPage />} />
         <Route path="landing-pages/new" element={<LandingPageBuilderPage />} />
         <Route path="landing-pages/:id/edit" element={<LandingPageBuilderPage />} />
         <Route path="campaigns" element={<CampaignsPage />} />
+        <Route path="campaigns/:id" element={<CampaignDetailPage />} />
         <Route path="voice-ai" element={<VoiceAgentsPage />} />
         <Route path="voice-ai/new" element={<NewAgentSelectionPage />} />
         <Route path="voice-ai/create" element={<CreateAgentPage />} />
@@ -327,6 +348,7 @@ function App() {
         <Route path="telecaller-app" element={<TelecallerDashboard />} />
         <Route path="telecaller-app/call/:leadId" element={<TelecallerCallPage />} />
         <Route path="telecaller-app/calls" element={<TelecallerCallHistory />} />
+        <Route path="telecaller-call-history" element={<AdminTelecallerCallHistory />} />
         <Route path="hybrid-inbox" element={<HybridInboxPage />} />
         <Route path="call-history" element={<InboundCallsPage />} />
         <Route path="transfer-config" element={<TransferConfigPage />} />
@@ -334,6 +356,8 @@ function App() {
         <Route path="settings/assignment-schedules" element={<AssignmentSchedulePage />} />
         <Route path="settings/sms" element={<SmsSettingsPage />} />
         <Route path="settings/institution" element={<InstitutionSettingsPage />} />
+        <Route path="settings/industry" element={<IndustrySettingsPage />} />
+        <Route path="settings/lead-management" element={<LeadManagementSettingsPage />} />
         <Route path="settings/whatsapp" element={<WhatsAppSettingsPage />} />
         <Route path="settings/integrations" element={<IntegrationCredentialsPage />} />
         <Route path="settings/voice-minutes" element={<VoiceMinutesPage />} />
@@ -343,6 +367,9 @@ function App() {
         <Route path="settings/crm-integration" element={<CRMIntegrationPage />} />
         <Route path="settings/integrations-advanced" element={<IntegrationSettingsPage />} />
         <Route path="settings/post-call-messaging" element={<PostCallMessagingPage />} />
+        <Route path="settings/branches" element={<BranchesPage />} />
+        <Route path="settings/branches/new" element={<BranchFormPage />} />
+        <Route path="settings/branches/:id/edit" element={<BranchFormPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="social-media-ads" element={<SocialMediaAdsPage />} />
         <Route path="ad-integrations" element={<AdIntegrationsPage />} />
@@ -392,6 +419,7 @@ function App() {
         <Route path="analytics/lead-sources" element={<LeadSourcesPage />} />
         <Route path="analytics/funnel" element={<ConversionFunnelPage />} />
         <Route path="analytics/agents" element={<AgentPerformancePage />} />
+        <Route path="analytics/telecallers" element={<TelecallerPerformancePage />} />
 
         {/* Compliance */}
         <Route path="compliance" element={<ComplianceDashboardPage />} />
@@ -422,11 +450,6 @@ function App() {
         <Route path="ivr/builder" element={<IvrBuilderPage />} />
         <Route path="ivr/builder/:id" element={<IvrBuilderPage />} />
 
-        {/* Call Flow Builder */}
-        <Route path="call-flows" element={<CallFlowsPage />} />
-        <Route path="call-flows/builder" element={<CallFlowBuilderPage />} />
-        <Route path="call-flows/builder/:id" element={<CallFlowBuilderPage />} />
-
         {/* Queue Management */}
         <Route path="queues" element={<QueueManagementPage />} />
 
@@ -450,6 +473,14 @@ function App() {
         <Route path="field-sales/visits/check-in" element={<VisitCheckInPage />} />
         <Route path="field-sales/deals" element={<DealPipelinePage />} />
         <Route path="field-sales/expenses" element={<ExpenseListPage />} />
+        <Route path="field-sales/tracking" element={<AdminFieldSalesTracking />} />
+
+        {/* Education Admission Management */}
+        <Route path="universities" element={<UniversitiesPage />} />
+        <Route path="student-visits" element={<StudentVisitsPage />} />
+        <Route path="admissions" element={<AdmissionsPage />} />
+        <Route path="expenses" element={<ExpensesPage />} />
+        <Route path="profit" element={<ProfitDashboardPage />} />
       </Route>
 
       {/* Super Admin Routes */}

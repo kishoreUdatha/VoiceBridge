@@ -32,7 +32,17 @@ const api = axios.create({
   withCredentials: true, // Send cookies with requests (httpOnly auth + CSRF)
 });
 
-// Request interceptor - add CSRF token to state-changing requests
+/**
+ * Get selected branch ID from localStorage (for admin branch filtering)
+ */
+function getSelectedBranchId(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('selectedBranchId');
+  }
+  return null;
+}
+
+// Request interceptor - add CSRF token and branch header
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     // Add CSRF token for non-GET requests
@@ -43,6 +53,13 @@ api.interceptors.request.use(
         config.headers['x-csrf-token'] = csrfToken;
       }
     }
+
+    // Add branch ID header for admin branch filtering
+    const selectedBranchId = getSelectedBranchId();
+    if (selectedBranchId && config.headers) {
+      config.headers['x-branch-id'] = selectedBranchId;
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -74,8 +91,12 @@ api.interceptors.response.use(
         // Token refresh failed, redirect to login
         console.error('[API] Token refresh failed:', refreshError);
 
-        // Clear any local state and redirect
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        // Clear any local state and redirect (except for public pages)
+        const publicPaths = ['/login', '/register', '/forgot-password', '/pricing', '/docs', '/realtime-test', '/'];
+        const currentPath = window.location.pathname;
+        const isPublicPage = publicPaths.some(path => currentPath === path || currentPath.startsWith(path + '/'));
+
+        if (typeof window !== 'undefined' && !isPublicPage) {
           window.location.href = '/login';
         }
       }

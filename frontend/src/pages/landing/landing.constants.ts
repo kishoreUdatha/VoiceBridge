@@ -188,23 +188,24 @@ export const FOOTER_SECTIONS: FooterSection[] = [
       { label: 'Pricing', href: '/pricing' },
       { label: 'Industries', href: '#industries' },
       { label: 'Marketplace', href: '/marketplace' },
-      { label: 'API Docs', href: '/api-docs' },
+      { label: 'API Docs', href: '/api-keys/docs' },
+    ],
+  },
+  {
+    title: 'Resources',
+    links: [
+      { label: 'Documentation', href: '/docs' },
+      { label: 'Getting Started', href: '/docs' },
+      { label: 'User Guide', href: '/docs' },
+      { label: 'Video Tutorials', href: '/docs' },
     ],
   },
   {
     title: 'Partners',
     links: [
-      { label: 'Partner Program', href: '/partners/apply' },
-      { label: 'White Label', href: '/partners' },
-      { label: 'Reseller Portal', href: '/partners/dashboard' },
-    ],
-  },
-  {
-    title: 'Company',
-    links: [
-      { label: 'About Us', href: '#' },
-      { label: 'Contact', href: '#' },
-      { label: 'Careers', href: '#' },
+      { label: 'Partner Program', href: '/partner/apply' },
+      { label: 'White Label', href: '/partner' },
+      { label: 'Reseller Portal', href: '/partner' },
     ],
   },
   {

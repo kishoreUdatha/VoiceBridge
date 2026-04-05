@@ -16,6 +16,7 @@ import {
   PricingPreviewSection,
   CTASection,
   Footer,
+  DocumentationSection,
 } from './components';
 import {
   STATS,
@@ -37,6 +38,7 @@ export default function LandingPage() {
       <IndustriesSection industries={INDUSTRIES} />
       <FeaturesSection features={FEATURES} />
       <HowItWorksSection steps={STEPS} />
+      <DocumentationSection />
       <TestimonialsSection />
       <SecuritySection />
       <PricingPreviewSection tiers={PRICING_TIERS} />
