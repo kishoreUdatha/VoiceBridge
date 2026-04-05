@@ -88,16 +88,24 @@ const voiceAINavigation: NavItem[] = [
   { name: 'Call Monitoring', href: '/call-monitoring', icon: EyeIcon, roles: ['admin', 'manager', 'team_lead'] },
 ];
 
-// 4. DATA - Import & Lead Sources
+// 4. DATA MANAGEMENT - Import & Lead Sources
 const dataNavigation: NavItem[] = [
   { name: 'Import Data', href: '/raw-imports', icon: DocumentArrowUpIcon, roles: ['admin', 'manager', 'team_lead'] },
   { name: 'Assignments', href: '/assignments', icon: UserGroupIcon, roles: ['admin', 'manager', 'team_lead'] },
-  { name: 'Ad Integrations', href: '/ad-integrations', icon: ArrowPathRoundedSquareIcon, roles: ['admin', 'manager'] },
-  { name: 'Webhook URLs', href: '/webhook-urls', icon: KeyIcon, roles: ['admin'] },
   { name: 'Web Scraping', href: '/apify-dashboard', icon: MagnifyingGlassCircleIcon, roles: ['admin', 'manager'] },
 ];
 
-// 5. FIELD SALES - B2B College Sales
+// 5. INTEGRATIONS - External connections & APIs
+const integrationsNavigation: NavItem[] = [
+  { name: 'Ad Platforms', href: '/ad-integrations', icon: MegaphoneIcon, roles: ['admin', 'manager'] },
+  { name: 'API Keys', href: '/settings/integrations', icon: KeyIcon, roles: ['admin'] },
+  { name: 'Webhooks', href: '/webhook-urls', icon: ArrowPathRoundedSquareIcon, roles: ['admin'] },
+  { name: 'WhatsApp', href: '/settings/whatsapp', icon: WhatsAppIcon, roles: ['admin', 'manager'] },
+  { name: 'Calendar', href: '/settings/calendar', icon: Cog6ToothIcon, roles: ['admin', 'manager'] },
+  { name: 'Notifications', href: '/settings/notifications', icon: BellIcon, roles: ['admin', 'manager'] },
+];
+
+// 6. FIELD SALES - B2B College Sales
 const fieldSalesNavigation: NavItem[] = [
   { name: 'Overview', href: '/field-sales', icon: BriefcaseIcon, roles: ['admin', 'manager', 'team_lead', 'owner', 'field_sales', 'counselor'] },
   { name: 'Colleges', href: '/field-sales/colleges', icon: BuildingOffice2Icon, roles: ['admin', 'manager', 'team_lead', 'owner', 'field_sales', 'counselor'] },
@@ -106,7 +114,7 @@ const fieldSalesNavigation: NavItem[] = [
   { name: 'Expenses', href: '/field-sales/expenses', icon: CurrencyRupeeIcon, roles: ['admin', 'manager', 'team_lead', 'owner', 'field_sales', 'counselor'] },
 ];
 
-// 6. ADMISSIONS - Education admission management
+// 7. ADMISSIONS - Education admission management
 const admissionsNavigation: NavItem[] = [
   { name: 'Universities', href: '/universities', icon: BuildingOffice2Icon, roles: ['admin', 'manager', 'team_lead'] },
   { name: 'Student Visits', href: '/student-visits', icon: MapPinIcon, roles: ['admin', 'manager', 'team_lead', 'counselor'] },
@@ -115,7 +123,7 @@ const admissionsNavigation: NavItem[] = [
   { name: 'Profit Dashboard', href: '/profit', icon: ReceiptPercentIcon, roles: ['admin'] },
 ];
 
-// 7. REPORTS - Analytics & insights
+// 8. REPORTS - Analytics & insights
 const reportsNavigation: NavItem[] = [
   { name: 'Overview', href: '/analytics', icon: PresentationChartLineIcon, roles: ['admin', 'manager', 'team_lead'] },
   { name: 'Reports', href: '/reports', icon: ChartBarIcon, roles: ['admin', 'manager', 'team_lead'] },
@@ -123,14 +131,12 @@ const reportsNavigation: NavItem[] = [
   { name: 'Performance', href: '/analytics/agents', icon: TrophyIcon, roles: ['admin', 'manager', 'team_lead'] },
 ];
 
-// 8. SETTINGS - Configuration
+// 9. SETTINGS - Configuration
 const settingsNavigation: NavItem[] = [
   { name: 'Users', href: '/users', icon: UsersIcon, roles: ['admin'] },
   { name: 'Organization', href: '/settings/institution', icon: Cog6ToothIcon, roles: ['admin'] },
   { name: 'Industry', href: '/settings/industry', icon: BuildingOffice2Icon, roles: ['admin'] },
   { name: 'Lead Management', href: '/settings/lead-management', icon: QueueListIcon, roles: ['admin', 'manager'] },
-  { name: 'Integrations', href: '/settings/integrations', icon: KeyIcon, roles: ['admin'] },
-  { name: 'Channels', href: '/settings/whatsapp', icon: WhatsAppIcon, roles: ['admin', 'manager'] },
   { name: 'Auto-Assign', href: '/settings/auto-assign', icon: BoltIcon, roles: ['admin', 'manager'] },
   { name: 'Compliance', href: '/compliance', icon: ShieldCheckIcon, roles: ['admin', 'manager'] },
   { name: 'Billing', href: '/subscription', icon: CreditCardIcon, roles: ['admin', 'manager'] },
@@ -150,7 +156,7 @@ export default function DashboardLayout() {
   // Collapsible section states - persisted in localStorage
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
     const saved = localStorage.getItem('navExpandedSections');
-    return saved ? JSON.parse(saved) : { crm: true, voiceAI: true, data: false, fieldSales: false, admissions: false, reports: false, settings: false };
+    return saved ? JSON.parse(saved) : { crm: true, voiceAI: true, data: false, integrations: false, fieldSales: false, admissions: false, reports: false, settings: false };
   });
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
@@ -198,6 +204,7 @@ export default function DashboardLayout() {
 
   const filteredMain = useMemo(() => filterByRole(mainNavigation), [userRole]);
   const filteredCRM = useMemo(() => filterByRole(crmNavigation), [userRole]);
+  const filteredIntegrations = useMemo(() => filterByRole(integrationsNavigation), [userRole]);
   const filteredVoiceAI = useMemo(() => filterByRole(voiceAINavigation), [userRole]);
   const filteredData = useMemo(() => filterByRole(dataNavigation), [userRole]);
   const filteredFieldSales = useMemo(() => filterByRole(fieldSalesNavigation), [userRole]);
@@ -250,6 +257,7 @@ export default function DashboardLayout() {
     crm: UserGroupIcon,
     voiceAI: SparklesIcon,
     data: DocumentArrowUpIcon,
+    integrations: ArrowPathRoundedSquareIcon,
     fieldSales: BriefcaseIcon,
     admissions: AcademicCapIcon,
     reports: ChartBarIcon,
@@ -365,13 +373,24 @@ export default function DashboardLayout() {
               />
             )}
 
-            {/* Data */}
+            {/* Data Management */}
             {showAdvancedSections && filteredData.length > 0 && (
               <CollapsibleSection
-                title="Data"
+                title="Data Management"
                 sectionKey="data"
                 items={filteredData}
                 colorClass="text-sky-400"
+                onClick={() => setSidebarOpen(false)}
+              />
+            )}
+
+            {/* Integrations */}
+            {showAdvancedSections && filteredIntegrations.length > 0 && (
+              <CollapsibleSection
+                title="Integrations"
+                sectionKey="integrations"
+                items={filteredIntegrations}
+                colorClass="text-cyan-400"
                 onClick={() => setSidebarOpen(false)}
               />
             )}
@@ -473,11 +492,19 @@ export default function DashboardLayout() {
                 <NavItemCollapsed key={item.name} item={item} />
               ))}
 
-              {/* Divider + Data */}
+              {/* Divider + Data Management */}
               {showAdvancedSections && filteredData.length > 0 && (
                 <div className="my-2 border-t border-slate-700/50" />
               )}
               {showAdvancedSections && filteredData.map((item) => (
+                <NavItemCollapsed key={item.name} item={item} />
+              ))}
+
+              {/* Divider + Integrations */}
+              {showAdvancedSections && filteredIntegrations.length > 0 && (
+                <div className="my-2 border-t border-slate-700/50" />
+              )}
+              {showAdvancedSections && filteredIntegrations.map((item) => (
                 <NavItemCollapsed key={item.name} item={item} />
               ))}
 
@@ -543,13 +570,23 @@ export default function DashboardLayout() {
                 />
               )}
 
-              {/* Data */}
+              {/* Data Management */}
               {showAdvancedSections && filteredData.length > 0 && (
                 <CollapsibleSection
-                  title="Data"
+                  title="Data Management"
                   sectionKey="data"
                   items={filteredData}
                   colorClass="text-sky-400"
+                />
+              )}
+
+              {/* Integrations */}
+              {showAdvancedSections && filteredIntegrations.length > 0 && (
+                <CollapsibleSection
+                  title="Integrations"
+                  sectionKey="integrations"
+                  items={filteredIntegrations}
+                  colorClass="text-cyan-400"
                 />
               )}
 
