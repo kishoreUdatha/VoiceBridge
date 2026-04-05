@@ -390,8 +390,8 @@ export default function LeadDistributionPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">Assignments</h1>
-          <p className="text-xs text-gray-500">View lead assignments by telecaller</p>
+          <h1 className="text-lg font-semibold text-gray-900">Shared Data</h1>
+          <p className="text-xs text-gray-500">View shared lead data by telecaller</p>
         </div>
         <button
           onClick={loadStats}

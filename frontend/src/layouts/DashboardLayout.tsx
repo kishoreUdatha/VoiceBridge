@@ -27,6 +27,8 @@ import {
   KeyIcon,
   PresentationChartLineIcon,
   DocumentArrowUpIcon,
+  ArrowDownTrayIcon,
+  ShareIcon,
   EyeIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -91,7 +93,8 @@ const voiceAINavigation: NavItem[] = [
 // 4. DATA MANAGEMENT - Import & Lead Sources
 const dataNavigation: NavItem[] = [
   { name: 'Import Data', href: '/raw-imports', icon: DocumentArrowUpIcon, roles: ['admin', 'manager', 'team_lead'] },
-  { name: 'Assignments', href: '/assignments', icon: UserGroupIcon, roles: ['admin', 'manager', 'team_lead'] },
+  { name: 'Export Data', href: '/export-data', icon: ArrowDownTrayIcon, roles: ['admin', 'manager', 'team_lead'] },
+  { name: 'Share Data', href: '/assignments', icon: ShareIcon, roles: ['admin', 'manager', 'team_lead'] },
   { name: 'Web Scraping', href: '/apify-dashboard', icon: MagnifyingGlassCircleIcon, roles: ['admin', 'manager'] },
 ];
 
@@ -290,7 +293,7 @@ export default function DashboardLayout() {
           }`}
         >
           <SectionIcon className={`w-5 h-5 ${colorClass}`} />
-          <span className="flex-1 text-left text-sm font-medium text-slate-300">
+          <span className="flex-1 text-left text-sm font-medium text-slate-300 whitespace-nowrap">
             {title}
           </span>
           <ChevronDownIcon
