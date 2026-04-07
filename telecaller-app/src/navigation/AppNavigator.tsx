@@ -38,6 +38,8 @@ import PerformanceScreen from '../screens/PerformanceScreen';
 import CallAnalysisScreen from '../screens/CallAnalysisScreen';
 import FollowUpsScreen from '../screens/FollowUpsScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
+import CallRecordingSetupScreen from '../screens/CallRecordingSetupScreen';
+import CallSummaryScreen from '../screens/CallSummaryScreen';
 import api from '../api';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -376,8 +378,8 @@ const AppNavigator: React.FC = () => {
             />
             <Stack.Screen
               name="CallAnalysis"
-              component={CallAnalysisScreen}
-              options={{ title: 'Call Analysis', headerBackVisible: false }}
+              component={CallSummaryScreen}
+              options={{ title: 'Call Summary' }}
             />
             <Stack.Screen
               name="FollowUps"
@@ -388,6 +390,11 @@ const AppNavigator: React.FC = () => {
               name="NotificationSettings"
               component={NotificationSettingsScreen}
               options={{ title: 'Notifications' }}
+            />
+            <Stack.Screen
+              name="CallRecordingSetup"
+              component={CallRecordingSetupScreen}
+              options={{ title: 'Call Recording Setup' }}
             />
           </>
         )}

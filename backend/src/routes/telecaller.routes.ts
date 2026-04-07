@@ -858,6 +858,10 @@ router.get('/all-calls', async (req: TenantRequest, res: Response) => {
 
 // Get telecaller's call history
 router.get('/calls', async (req: TenantRequest, res: Response) => {
+  // Prevent caching so newly created/analyzed calls always appear
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   try {
     const userId = req.user!.id;
     const { leadId, dateFrom, dateTo, outcome, limit = '50', offset = '0' } = req.query;
@@ -1285,6 +1289,18 @@ router.get('/calls/:id/analysis', async (req: TenantRequest, res: Response) => {
       coachingEmpathyScore: call.coachingEmpathyScore,
       coachingObjectionScore: call.coachingObjectionScore,
       coachingClosingScore: call.coachingClosingScore,
+      coachingTalkListenFeedback: call.coachingTalkListenFeedback,
+      // Conversation metrics
+      nonSpeechTime: call.nonSpeechTime,
+      enhancedTranscript: call.enhancedTranscript,
+      // Structured data extracted from the call (Person Name, Product, Budget, etc.)
+      extractedData: call.extractedData,
+      // Call meta for header
+      phoneNumber: call.phoneNumber,
+      contactName: call.contactName,
+      startedAt: call.startedAt,
+      endedAt: call.endedAt,
+      createdAt: call.createdAt,
     };
 
     // If no AI analysis yet, generate basic insights from metadata
@@ -2662,50 +2678,45 @@ router.get('/follow-ups/stats', async (req: TenantRequest, res: Response) => {
       // Total follow-ups assigned to this user
       prisma.followUp.count({
         where: {
-          organizationId,
           assigneeId: userId,
           status: { in: ['UPCOMING', 'MISSED'] },
+          lead: { organizationId },
         },
       }),
       // Overdue (scheduled before now, not completed)
       prisma.followUp.count({
         where: {
-          organizationId,
           assigneeId: userId,
           status: 'UPCOMING',
           scheduledAt: { lt: new Date() },
+          lead: { organizationId },
         },
       }),
       // Today's follow-ups
       prisma.followUp.count({
         where: {
-          organizationId,
           assigneeId: userId,
           status: 'UPCOMING',
-          scheduledAt: {
-            gte: todayStart,
-            lte: todayEnd,
-          },
+          scheduledAt: { gte: todayStart, lte: todayEnd },
+          lead: { organizationId },
         },
       }),
       // Upcoming (scheduled in the future)
       prisma.followUp.count({
         where: {
-          organizationId,
           assigneeId: userId,
           status: 'UPCOMING',
           scheduledAt: { gt: new Date() },
+          lead: { organizationId },
         },
       }),
       // Completed in last 30 days
       prisma.followUp.count({
         where: {
-          organizationId,
           assigneeId: userId,
           status: 'COMPLETED',
-          completedAt: {
-            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-          },
+          completedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+          lead: { organizationId },
         },
       }),
     ]);
@@ -2733,10 +2744,10 @@ router.get('/follow-ups/overdue', async (req: TenantRequest, res: Response) => {
 
     const followUps = await prisma.followUp.findMany({
       where: {
-        organizationId,
         assigneeId: userId,
         status: 'UPCOMING',
         scheduledAt: { lt: new Date() },
+        lead: { organizationId },
       },
       include: {
         lead: {
@@ -2746,7 +2757,7 @@ router.get('/follow-ups/overdue', async (req: TenantRequest, res: Response) => {
             lastName: true,
             phone: true,
             email: true,
-            company: true,
+            companyName: true,
             stage: { select: { name: true } },
           },
         },

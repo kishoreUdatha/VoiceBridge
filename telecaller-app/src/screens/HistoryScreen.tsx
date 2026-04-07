@@ -25,6 +25,7 @@ import {
 } from '../utils/formatters';
 import { Call, CallOutcome, RootStackParamList } from '../types';
 import DateRangeFilter, { DateRangeType } from '../components/DateRangeFilter';
+import ConversationTranscript from '../components/ConversationTranscript';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -207,16 +208,13 @@ const ExpandedCallContent: React.FC<{ item: Call }> = ({ item }) => {
       )}
       {item.transcript && (
         <View style={styles.transcriptSection}>
-          <Text style={styles.transcriptLabel}>Transcript:</Text>
-          <Text style={styles.transcriptText} selectable>
-            {item.transcript}
-          </Text>
+          <ConversationTranscript transcript={item.transcript} title="Transcript" />
           {(item as any).qualification?.englishTranscript ? (
-            <View style={{ marginTop: 8 }}>
-              <Text style={styles.transcriptLabel}>English:</Text>
-              <Text style={styles.transcriptText} selectable>
-                {(item as any).qualification.englishTranscript}
-              </Text>
+            <View style={{ marginTop: 12 }}>
+              <ConversationTranscript
+                transcript={(item as any).qualification.englishTranscript}
+                title="English Translation"
+              />
             </View>
           ) : null}
         </View>
@@ -385,7 +383,14 @@ const HistoryScreen: React.FC = () => {
       return (
         <TouchableOpacity
           style={styles.callCard}
-          onPress={() => toggleExpand(item.id)}
+          onPress={() =>
+            navigation.navigate('CallAnalysis', {
+              callId: item.id,
+              duration: item.duration || 0,
+              recordingPath: item.recordingUrl,
+            })
+          }
+          onLongPress={() => toggleExpand(item.id)}
           activeOpacity={0.7}
         >
           <View style={styles.callHeader}>

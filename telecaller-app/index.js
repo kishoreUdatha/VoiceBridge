@@ -2,6 +2,9 @@ import { AppRegistry } from 'react-native';
 import App from './src/App';
 import { name as appName } from './app.json';
 
+// Silence React Native Firebase v22 modular API deprecation warnings until migration is complete.
+globalThis.RNFB_SILENCE_MODULAR_DEPRECATION_WARNINGS = true;
+
 // Lazy-load native push deps so the app boots even when the APK was built without
 // firebase / notifee native modules (or google-services.json is missing).
 try {

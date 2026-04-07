@@ -1450,10 +1450,10 @@ export const CallMonitoringPage: React.FC = () => {
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                     selectedCall.type === 'AI' ? 'bg-violet-100 text-violet-700' : 'bg-gray-200 text-gray-600'
                   }`}>
-                    {selectedCall.type === 'AI' ? <SparklesIcon className="w-5 h-5" /> : selectedCall.agentName.charAt(0)}
+                    {selectedCall.type === 'AI' ? <SparklesIcon className="w-5 h-5" /> : (selectedCall.agentName?.charAt(0) || '?')}
                   </div>
                   <div>
-                    <div className="font-medium text-gray-900">{selectedCall.agentName}</div>
+                    <div className="font-medium text-gray-900">{selectedCall.agentName || 'Unknown'}</div>
                     <div className="text-xs text-gray-500">{selectedCall.type === 'AI' ? 'AI Agent' : 'Telecaller'}</div>
                   </div>
                 </div>

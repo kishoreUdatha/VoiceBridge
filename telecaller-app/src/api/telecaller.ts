@@ -73,7 +73,10 @@ export const telecallerApi = {
         sentimentScore: call.sentiment ? (call.sentiment === 'positive' ? 80 : call.sentiment === 'negative' ? 30 : 50) : undefined,
         createdAt: call.createdAt || new Date().toISOString(),
         updatedAt: call.updatedAt || call.createdAt || new Date().toISOString(),
-      }));
+        qualification: call.qualification || undefined,
+        enhancedTranscript: call.enhancedTranscript || undefined,
+        summary: call.summary || undefined,
+      } as any));
 
       console.log('[TelecallerAPI] Transformed calls count:', transformedCalls.length);
 
@@ -523,7 +526,7 @@ export interface QualifiedLeadsStats {
 export interface CallAnalysis {
   id: string;
   aiAnalyzed: boolean;
-  analysisStatus: 'completed' | 'pending';
+  analysisStatus?: 'completed' | 'pending';
   transcript: string | null;
   sentiment: 'positive' | 'neutral' | 'negative' | null;
   outcome: string | null;
@@ -537,6 +540,8 @@ export interface CallAnalysis {
     requirements?: string;
     buyingSignals?: string[];
     objections?: string[];
+    englishTranscript?: string;
+    detectedLanguage?: string;
     aiAnalyzedAt?: string;
     noConversation?: boolean;
     reason?: string;
@@ -547,12 +552,43 @@ export interface CallAnalysis {
     id: string;
     firstName: string;
     lastName: string;
+    phone?: string;
     leadScore?: {
       overallScore: number;
       grade: string;
       aiClassification: string;
     };
   } | null;
+  // Enhanced analysis fields
+  callQualityScore?: number | null;
+  keyQuestionsAsked?: string[];
+  keyIssuesDiscussed?: string[];
+  sentimentIntensity?: string | null;
+  agentSpeakingTime?: number | null;
+  customerSpeakingTime?: number | null;
+  nonSpeechTime?: number | null;
+  enhancedTranscript?: any;
+  // Coaching
+  coachingPositiveHighlights?: string[];
+  coachingAreasToImprove?: string[];
+  coachingNextCallTips?: string[];
+  coachingSummary?: string | null;
+  coachingTalkListenFeedback?: string | null;
+  coachingEmpathyScore?: number | null;
+  coachingObjectionScore?: number | null;
+  coachingClosingScore?: number | null;
+  // Extracted structured data items
+  extractedData?: {
+    items?: Array<{ label: string; value: string; icon?: string }>;
+    summary?: string;
+  } | null;
+  // Call meta
+  phoneNumber?: string;
+  contactName?: string | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  createdAt?: string;
+  notes?: string | null;
 }
 
 // Performance Analytics Types

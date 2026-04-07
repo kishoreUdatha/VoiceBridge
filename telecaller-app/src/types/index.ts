@@ -180,6 +180,7 @@ export type RootStackParamList = {
   Performance: undefined;
   FollowUps: undefined;
   NotificationSettings: undefined;
+  CallRecordingSetup: undefined;
 };
 
 // Lead Form Data

@@ -1,6 +1,8 @@
 package com.telecallerapptemp.audioplayer;
 
+import android.content.Context;
 import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Handler;
 import android.os.Looper;
@@ -68,6 +70,25 @@ public class AudioPlayerModule extends ReactContextBaseJavaModule {
 
                 sMediaPlayer.setOnPreparedListener(mp -> {
                     Log.d(TAG, "Prepared, duration: " + mp.getDuration() + "ms");
+                    // Force speaker output and max media volume
+                    try {
+                        AudioManager am = (AudioManager) getReactApplicationContext()
+                            .getSystemService(Context.AUDIO_SERVICE);
+                        if (am != null) {
+                            am.setMode(AudioManager.MODE_NORMAL);
+                            am.setSpeakerphoneOn(false);
+                            int maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                            int curVol = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                            Log.d(TAG, "Media volume: " + curVol + "/" + maxVol);
+                            if (curVol < maxVol / 2) {
+                                am.setStreamVolume(AudioManager.STREAM_MUSIC, maxVol, 0);
+                                Log.d(TAG, "Raised media volume to max");
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "AudioManager setup failed: " + e.getMessage());
+                    }
+                    mp.setVolume(1.0f, 1.0f);
                     mp.start();
                     sIsPlaying = true;
                     Log.d(TAG, "Playback started, duration: " + mp.getDuration() + "ms");
@@ -196,6 +217,38 @@ public class AudioPlayerModule extends ReactContextBaseJavaModule {
         } else {
             promise.resolve(0);
         }
+    }
+
+    /**
+     * Seek to a specific position in seconds. Resolves with the actual position
+     * (clamped to 0..duration). If the player is paused, playback resumes from
+     * the new position; if the player is stopped, this is a no-op resolving 0.
+     */
+    @ReactMethod
+    public void seekTo(double seconds, Promise promise) {
+        mainHandler.post(() -> {
+            if (sMediaPlayer == null) {
+                promise.resolve(0.0);
+                return;
+            }
+            try {
+                int target = Math.max(0, (int) (seconds * 1000));
+                int duration = 0;
+                try { duration = sMediaPlayer.getDuration(); } catch (Exception ignored) {}
+                if (duration > 0 && target > duration - 200) target = Math.max(0, duration - 200);
+                sMediaPlayer.seekTo(target);
+                if (!sIsPlaying) {
+                    try {
+                        sMediaPlayer.start();
+                        sIsPlaying = true;
+                    } catch (Exception ignored) {}
+                }
+                promise.resolve(target / 1000.0);
+            } catch (Exception e) {
+                Log.w(TAG, "seekTo failed: " + e.getMessage());
+                promise.resolve(0.0);
+            }
+        });
     }
 
     private void stopInternal() {

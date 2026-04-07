@@ -125,8 +125,20 @@ export function useCallSummary(): UseCallSummaryReturn {
               callQualityScore = 0;
             }
 
+            // Backend returns recording paths like "/uploads/recordings/foo.m4a".
+            // The browser would resolve those against the frontend origin (5173)
+            // and 404. Prefix with the API host so playback works.
+            const apiBase = (import.meta as any).env?.VITE_API_URL || '';
+            const staticHost = apiBase.replace(/\/api\/?$/, '');
+            const absolutize = (u: string | null | undefined) => {
+              if (!u) return u;
+              if (/^https?:\/\//i.test(u)) return u;
+              return staticHost + (u.startsWith('/') ? u : '/' + u);
+            };
+
             setCall({
               ...data,
+              recordingUrl: absolutize(data.recordingUrl),
               callQualityScore,
               sentiment: wasAnswered ? (data.sentiment || 'neutral') : 'neutral',
               sentimentIntensity: data.sentimentIntensity || 'medium',
@@ -265,13 +277,22 @@ export function useCallSummary(): UseCallSummaryReturn {
   const togglePlayback = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    if (!audio.src || audio.src === window.location.href) {
+      console.warn('[useCallSummary] No audio source available for this call');
+      return;
+    }
 
     if (isPlaying) {
       audio.pause();
+      setIsPlaying(false);
     } else {
-      audio.play();
+      audio.play()
+        .then(() => setIsPlaying(true))
+        .catch((err) => {
+          console.warn('[useCallSummary] Audio play failed:', err?.message || err);
+          setIsPlaying(false);
+        });
     }
-    setIsPlaying(!isPlaying);
   }, [isPlaying]);
 
   // Seek to time

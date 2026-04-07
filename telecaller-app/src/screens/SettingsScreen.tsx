@@ -131,6 +131,13 @@ const SettingsScreen: React.FC = () => {
             onPress={() => navigation.navigate('NotificationSettings')}
           />
           <SettingItem
+            icon="record-rec"
+            iconColor="#EF4444"
+            title="Automatic Call Recording"
+            subtitle="Set up auto-record for your device"
+            onPress={() => navigation.navigate('CallRecordingSetup')}
+          />
+          <SettingItem
             icon="microphone"
             iconColor="#10B981"
             title="High Quality Recording"

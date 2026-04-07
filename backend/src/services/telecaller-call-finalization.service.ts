@@ -317,7 +317,7 @@ class TelecallerCallFinalizationService {
       console.log(`[TelecallerAI] Step 4: Extracting structured call data...`);
       let extractedData: ExtractedCallData;
       try {
-        extractedData = await extractCallData(transcriptMessages, undefined, detectedLanguage);
+        extractedData = await extractCallData(transcriptMessages, undefined, 'en');
       } catch (extractError) {
         console.warn(`[TelecallerAI] Data extraction failed, using defaults:`, extractError);
         extractedData = { items: [], summary: '' };
@@ -666,23 +666,50 @@ class TelecallerCallFinalizationService {
             role: 'system',
             content:
               `You are an expert ASR post-processor for telecaller phone calls. The input is a raw ` +
-              `speech-to-text transcript in ${language}. It may contain artifacts from automatic ` +
-              `chunking with overlap (so a sentence near a chunk boundary may appear twice in slightly ` +
-              `different forms), garbled spellings, missing word boundaries, filler sounds, and ` +
-              `mis-detected words. Reconstruct a clean, faithful, well-punctuated rendering of the ` +
-              `actual conversation in the SAME language and native script.\n\n` +
+              `speech-to-text transcript in ${language} from a MONO recording. The recording may ` +
+              `contain ONE speaker (the agent only — because the customer's voice came through the ` +
+              `phone earpiece and was not captured) OR BOTH speakers (if recording was via OEM call ` +
+              `recorder or speakerphone). It may also contain artifacts from automatic chunking with ` +
+              `overlap, garbled spellings, missing word boundaries, filler sounds, and mis-detected ` +
+              `words. Reconstruct a clean, faithful, well-punctuated rendering of the actual ` +
+              `conversation in the SAME language and native script.\n\n` +
               `STRICT RULES:\n` +
               `1. Output ONLY the cleaned transcript — no commentary, no headings, no markdown fences.\n` +
-              `2. NEVER invent content. Only fix what is implied by the surrounding context.\n` +
-              `3. Detect speakers from context (an agent introduces themselves / asks qualifying ` +
-              `questions; a customer answers about themselves). Prefix each turn with "Agent:" or ` +
-              `"Customer:" on its own line.\n` +
+              `2. NEVER invent content. Only fix what is implied by the surrounding text.\n` +
+              `3. Speaker labeling — VERY IMPORTANT:\n` +
+              `   a. Each conversational turn must be on its own line, prefixed with "Agent:" or "Customer:".\n` +
+              `   b. NEVER mix an agent statement and a customer reply into the same line.\n` +
+              `   c. Identify each turn by SEMANTICS, not by line breaks in the input:\n` +
+              `      - AGENT lines: introductions, qualifying questions ("Are you...?", "Did you...?", ` +
+              `"Which branch?", "Are you interested in..?"), explanations of services, calls to action, ` +
+              `pitch language, "Sir/Madam" address, mentions of the company name.\n` +
+              `      - CUSTOMER lines: short answers ("Yes", "No", "Okay"), personal info ("I am...", ` +
+              `"My name is..."), preferences ("I want...", "I am thinking..."), questions back to the ` +
+              `agent about the offering.\n` +
+              `   d. If a sentence contains BOTH a customer answer and an agent follow-up (e.g. "Yes sir, ` +
+              `okay. Are you thinking BTech or Degree?"), SPLIT it into two separate lines:\n` +
+              `      Customer: Yes sir, okay.\n` +
+              `      Agent: Are you thinking BTech or Degree?\n` +
+              `   e. If you genuinely cannot tell who is speaking for a fragment, label it "Agent:" ` +
+              `(default) — never guess "Customer:" without strong evidence.\n` +
+              `   f. If the entire audio appears to contain only the agent's voice (a long monologue ` +
+              `of questions with no clear customer responses), label everything as "Agent:" — do NOT ` +
+              `fabricate "Customer:" turns.\n` +
               `4. Merge duplicate sentences caused by chunk overlap — keep the more complete version.\n` +
               `5. Preserve numbers, money amounts, names, university/college names, dates, phone ` +
-              `numbers and any factual entities EXACTLY as the customer said them.\n` +
+              `numbers and any factual entities EXACTLY as said.\n` +
               `6. Remove pure filler ("umm", "ah", repeated "okay okay") but keep meaningful "okay"s.\n` +
               `7. Add proper punctuation (commas, full stops, question marks) appropriate for ${language}.\n` +
-              `8. If a word looks garbled but you can infer the intended word from context, replace it.`,
+              `8. If a word looks garbled but you can infer the intended word from context, replace it.\n\n` +
+              `EXAMPLE of correct splitting (English for clarity):\n` +
+              `Input: "Hello sir am I speaking with Raju yes sir okay you recently completed intermediate yes sir which branch are you thinking BTech sir"\n` +
+              `Output:\n` +
+              `Agent: Hello sir, am I speaking with Raju?\n` +
+              `Customer: Yes sir.\n` +
+              `Agent: Okay. You recently completed intermediate?\n` +
+              `Customer: Yes sir.\n` +
+              `Agent: Which branch are you thinking?\n` +
+              `Customer: BTech sir.`,
           },
           { role: 'user', content: rawTranscript },
         ],
@@ -1822,7 +1849,7 @@ ${call.summary}
       console.log(`[TelecallerAI] Step 4: Extracting structured call data...`);
       let extractedData: ExtractedCallData;
       try {
-        extractedData = await extractCallData(transcriptMessages, undefined, detectedLanguage);
+        extractedData = await extractCallData(transcriptMessages, undefined, 'en');
       } catch (extractError) {
         console.warn(`[TelecallerAI] Data extraction failed, using defaults:`, extractError);
         extractedData = { items: [], summary: '' };

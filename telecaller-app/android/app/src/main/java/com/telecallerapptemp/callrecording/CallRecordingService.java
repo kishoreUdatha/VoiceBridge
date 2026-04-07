@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.media.AudioManager;
 import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.IBinder;
@@ -44,6 +45,11 @@ public class CallRecordingService extends Service {
     private String currentRecordingPath;
     private boolean isRecording = false;
     private long recordingStartTime;
+
+    // Saved audio routing state so we can restore after the call
+    private boolean prevSpeakerphoneOn = false;
+    private int prevAudioMode = AudioManager.MODE_NORMAL;
+    private boolean audioRoutingChanged = false;
     private long conversationStartTime = 0; // When call is actually answered
     private boolean callAnswered = false;
 
@@ -366,10 +372,10 @@ public class CallRecordingService extends Service {
 
         // Try audio sources - VOICE_COMMUNICATION first (works during active calls on many devices)
         int[] audioSources = {
-            MediaRecorder.AudioSource.VOICE_COMMUNICATION, // Best during active calls
-            MediaRecorder.AudioSource.VOICE_CALL,          // Records both sides if supported
-            MediaRecorder.AudioSource.MIC,                 // Fallback
-            MediaRecorder.AudioSource.VOICE_RECOGNITION,   // Alternative
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+            MediaRecorder.AudioSource.VOICE_CALL,
+            MediaRecorder.AudioSource.MIC,
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
         };
         String[] sourceNames = {"VOICE_COMMUNICATION", "VOICE_CALL", "MIC", "VOICE_RECOGNITION"};
 

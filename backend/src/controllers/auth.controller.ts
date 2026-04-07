@@ -79,11 +79,27 @@ export class AuthController {
 
       const tokens = await authService.refreshTokens(refreshToken);
 
-      // Set new httpOnly cookies
+      // Set new httpOnly cookies (web clients)
       setAuthCookies(res, tokens);
 
-      // Don't return tokens in response body
-      ApiResponse.success(res, 'Tokens refreshed successfully', { message: 'Tokens refreshed' });
+      // Mobile clients can't read httpOnly cookies — return the new tokens in
+      // the body so the JS interceptor can persist them to AsyncStorage.
+      const userAgent = req.headers['user-agent'] || '';
+      const isMobileApp =
+        userAgent.includes('okhttp') ||
+        userAgent.includes('Expo') ||
+        userAgent.includes('React Native') ||
+        req.headers['x-client-type'] === 'mobile';
+
+      if (isMobileApp) {
+        ApiResponse.success(res, 'Tokens refreshed successfully', {
+          token: tokens.accessToken,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        });
+      } else {
+        ApiResponse.success(res, 'Tokens refreshed successfully', { message: 'Tokens refreshed' });
+      }
     } catch (error) {
       next(error);
     }

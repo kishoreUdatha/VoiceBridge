@@ -38,7 +38,7 @@ const USE_PHYSICAL_DEVICE = false;
 const PHYSICAL_DEVICE_IP = Config.PHYSICAL_DEVICE_IP || '192.168.0.106';
 
 // API Port (configurable)
-const API_PORT = Config.API_PORT || '3000';
+const API_PORT = Config.API_PORT || '3001';
 
 // Production API URL (used when env variable is set)
 const PRODUCTION_API_URL = Config.PRODUCTION_API_URL || Config.API_URL || '';

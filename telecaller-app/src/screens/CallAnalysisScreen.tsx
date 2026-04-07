@@ -14,6 +14,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { telecallerApi, CallAnalysis } from '../api/telecaller';
 import { formatDuration } from '../utils/formatters';
 import { RootStackParamList } from '../types';
+import ConversationTranscript from '../components/ConversationTranscript';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'CallAnalysis'>;
 type CallAnalysisRouteProp = RouteProp<RootStackParamList, 'CallAnalysis'>;
@@ -237,9 +238,7 @@ const CallAnalysisScreen: React.FC = () => {
               <View style={styles.resultSection}>
                 <Text style={styles.sectionTitle}>Transcript</Text>
                 <View style={styles.transcriptBox}>
-                  <Text style={styles.transcriptText} selectable>
-                    {analysis.transcript}
-                  </Text>
+                  <ConversationTranscript transcript={analysis.transcript} />
                 </View>
               </View>
             )}
@@ -249,9 +248,9 @@ const CallAnalysisScreen: React.FC = () => {
               <View style={styles.resultSection}>
                 <Text style={styles.sectionTitle}>English Translation</Text>
                 <View style={styles.transcriptBox}>
-                  <Text style={styles.transcriptText} selectable>
-                    {(analysis as any).qualification.englishTranscript}
-                  </Text>
+                  <ConversationTranscript
+                    transcript={(analysis as any).qualification.englishTranscript}
+                  />
                 </View>
               </View>
             )}
