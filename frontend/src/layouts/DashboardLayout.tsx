@@ -91,6 +91,7 @@ const industrySections: Record<Industry, string[]> = {
 // 1. MAIN - Core daily workflow (always visible)
 const mainNavigation: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'counselor', 'telecaller'] },
+  { name: 'Platform Admin', href: '/super-admin/dashboard', icon: ShieldCheckIcon, roles: ['super_admin'] }, // Super Admin only - manage all tenants
   { name: 'My Tasks', href: '/assigned-data', icon: ClipboardDocumentCheckIcon, roles: ['telecaller', 'counselor'] },
   { name: 'Leads', href: '/leads', icon: UserGroupIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'counselor', 'telecaller'] },
 ];
