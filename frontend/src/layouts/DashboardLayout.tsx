@@ -90,80 +90,80 @@ const industrySections: Record<Industry, string[]> = {
 
 // 1. MAIN - Core daily workflow (always visible)
 const mainNavigation: NavItem[] = [
-  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, roles: ['admin', 'manager', 'team_lead', 'counselor', 'telecaller'] },
+  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'counselor', 'telecaller'] },
   { name: 'My Tasks', href: '/assigned-data', icon: ClipboardDocumentCheckIcon, roles: ['telecaller', 'counselor'] },
-  { name: 'Leads', href: '/leads', icon: UserGroupIcon, roles: ['admin', 'manager', 'team_lead', 'counselor', 'telecaller'] },
+  { name: 'Leads', href: '/leads', icon: UserGroupIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'counselor', 'telecaller'] },
 ];
 
 // 2. SALES - Pipeline & Revenue (Real Estate, Insurance, Finance, B2B, Ecommerce)
 const salesNavigation: NavItem[] = [
-  { name: 'Pipeline', href: '/pipeline', icon: FunnelIcon, roles: ['admin', 'manager', 'team_lead'] },
-  { name: 'Quotations', href: '/quotations', icon: DocumentTextIcon, roles: ['admin', 'manager', 'team_lead'] },
-  { name: 'Payments', href: '/payments', icon: CreditCardIcon, roles: ['admin', 'manager'] },
+  { name: 'Pipeline', href: '/pipeline', icon: FunnelIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'] },
+  { name: 'Quotations', href: '/quotations', icon: DocumentTextIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'] },
+  { name: 'Payments', href: '/payments', icon: CreditCardIcon, roles: ['super_admin', 'admin', 'manager'] },
 ];
 
 // 3. OUTREACH - Communication (All industries)
 const communicationNavigation: NavItem[] = [
-  { name: 'Campaigns', href: '/campaigns', icon: MegaphoneIcon, roles: ['admin', 'manager', 'team_lead'] },
-  { name: 'WhatsApp Bulk', href: '/whatsapp/bulk', icon: WhatsAppIcon, roles: ['admin', 'manager', 'team_lead'] },
-  { name: 'Templates', href: '/templates', icon: DocumentTextIcon, roles: ['admin', 'manager'] },
+  { name: 'Campaigns', href: '/campaigns', icon: MegaphoneIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'] },
+  { name: 'WhatsApp Bulk', href: '/whatsapp/bulk', icon: WhatsAppIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'] },
+  { name: 'Templates', href: '/templates', icon: DocumentTextIcon, roles: ['super_admin', 'admin', 'manager'] },
 ];
 
 // 4. CALLING - Voice & Calls (All industries except Ecommerce)
 const voiceAINavigation: NavItem[] = [
-  { name: 'AI Agents', href: '/voice-ai', icon: SparklesIcon, roles: ['admin', 'manager'] },
-  { name: 'Outbound Calls', href: '/outbound-calls', icon: PhoneIcon, roles: ['admin', 'manager', 'team_lead', 'telecaller'] },
-  { name: 'Call Queue', href: '/telecaller-queue', icon: QueueListIcon, roles: ['admin', 'manager', 'team_lead', 'telecaller'] },
+  { name: 'AI Agents', href: '/voice-ai', icon: SparklesIcon, roles: ['super_admin', 'admin', 'manager'] },
+  { name: 'Outbound Calls', href: '/outbound-calls', icon: PhoneIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'telecaller'] },
+  { name: 'Call Queue', href: '/telecaller-queue', icon: QueueListIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'telecaller'] },
 ];
 
 // 5. DATA - Import & Management (All industries)
 const dataNavigation: NavItem[] = [
-  { name: 'Import', href: '/raw-imports', icon: DocumentArrowUpIcon, roles: ['admin', 'manager', 'team_lead'] },
-  { name: 'Distribution', href: '/assignments', icon: ShareIcon, roles: ['admin', 'manager', 'team_lead'] },
+  { name: 'Import', href: '/raw-imports', icon: DocumentArrowUpIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'] },
+  { name: 'Distribution', href: '/assignments', icon: ShareIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'] },
 ];
 
 // 6. REPORTS - Analytics (All industries)
 const analyticsNavigation: NavItem[] = [
-  { name: 'Dashboard', href: '/analytics', icon: PresentationChartLineIcon, roles: ['admin', 'manager', 'team_lead'] },
-  { name: 'Performance', href: '/analytics/agents', icon: TrophyIcon, roles: ['admin', 'manager', 'team_lead'] },
+  { name: 'Dashboard', href: '/analytics', icon: PresentationChartLineIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'] },
+  { name: 'Performance', href: '/analytics/agents', icon: TrophyIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'] },
 ];
 
 // 7. TEAM - Users & Hierarchy Management (All industries)
 const teamNavigation: NavItem[] = [
-  { name: 'Users', href: '/users', icon: UsersIcon, roles: ['admin'] },
-  { name: 'Roles', href: '/roles', icon: ShieldCheckIcon, roles: ['admin'] },
-  { name: 'My Team', href: '/team-management', icon: UserGroupIcon, roles: ['admin', 'manager', 'team_lead'] },
-  { name: 'Leaderboard', href: '/performance', icon: TrophyIcon, roles: ['admin', 'manager', 'team_lead', 'telecaller'] },
+  { name: 'Users', href: '/users', icon: UsersIcon, roles: ['super_admin', 'admin'] },
+  { name: 'Roles', href: '/roles', icon: ShieldCheckIcon, roles: ['super_admin', 'admin'] },
+  { name: 'My Team', href: '/team-management', icon: UserGroupIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'] },
+  { name: 'Leaderboard', href: '/performance', icon: TrophyIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'telecaller'] },
 ];
 
-// 8. INTEGRATIONS - External connections (B2B only)
+// 8. INTEGRATIONS - External connections (B2B only, Super Admin sees all)
 const integrationsNavigation: NavItem[] = [
-  { name: 'Ad Platforms', href: '/ad-integrations', icon: MegaphoneIcon, roles: ['admin', 'manager'] },
-  { name: 'Lead Portals', href: '/integrations/indian-sources', icon: ArrowDownTrayIcon, roles: ['admin', 'manager'] },
-  { name: 'WhatsApp Setup', href: '/settings/whatsapp', icon: WhatsAppIcon, roles: ['admin'] },
+  { name: 'Ad Platforms', href: '/ad-integrations', icon: MegaphoneIcon, roles: ['super_admin', 'admin', 'manager'] },
+  { name: 'Lead Portals', href: '/integrations/indian-sources', icon: ArrowDownTrayIcon, roles: ['super_admin', 'admin', 'manager'] },
+  { name: 'WhatsApp Setup', href: '/settings/whatsapp', icon: WhatsAppIcon, roles: ['super_admin', 'admin'] },
 ];
 
 // 9. SETTINGS - Configuration (All industries)
 const settingsNavigation: NavItem[] = [
-  { name: 'Organization', href: '/settings/institution', icon: BuildingOffice2Icon, roles: ['admin'] },
-  { name: 'Lead Stages', href: '/settings/lead-management', icon: QueueListIcon, roles: ['admin', 'manager'] },
-  { name: 'Auto-Assignment', href: '/settings/auto-assign', icon: BoltIcon, roles: ['admin', 'manager'] },
-  { name: 'Billing', href: '/subscription', icon: CreditCardIcon, roles: ['admin'] },
+  { name: 'Organization', href: '/settings/institution', icon: BuildingOffice2Icon, roles: ['super_admin', 'admin'] },
+  { name: 'Lead Stages', href: '/settings/lead-management', icon: QueueListIcon, roles: ['super_admin', 'admin', 'manager'] },
+  { name: 'Auto-Assignment', href: '/settings/auto-assign', icon: BoltIcon, roles: ['super_admin', 'admin', 'manager'] },
+  { name: 'Billing', href: '/subscription', icon: CreditCardIcon, roles: ['super_admin', 'admin'] },
 ];
 
-// INDUSTRY SPECIFIC SECTIONS
+// INDUSTRY SPECIFIC SECTIONS (Super Admin sees all)
 // Field Sales (B2B only)
 const fieldSalesNavigation: NavItem[] = [
-  { name: 'Dashboard', href: '/field-sales', icon: BriefcaseIcon, roles: ['admin', 'manager', 'team_lead', 'field_sales'] },
-  { name: 'Visits', href: '/field-sales/visits', icon: MapPinIcon, roles: ['admin', 'manager', 'team_lead', 'field_sales'] },
-  { name: 'Expenses', href: '/field-sales/expenses', icon: CurrencyRupeeIcon, roles: ['admin', 'manager', 'team_lead', 'field_sales'] },
+  { name: 'Dashboard', href: '/field-sales', icon: BriefcaseIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'field_sales'] },
+  { name: 'Visits', href: '/field-sales/visits', icon: MapPinIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'field_sales'] },
+  { name: 'Expenses', href: '/field-sales/expenses', icon: CurrencyRupeeIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'field_sales'] },
 ];
 
 // Admissions (Education only)
 const admissionsNavigation: NavItem[] = [
-  { name: 'Universities', href: '/universities', icon: AcademicCapIcon, roles: ['admin', 'manager', 'team_lead'] },
-  { name: 'Campus Visits', href: '/student-visits', icon: MapPinIcon, roles: ['admin', 'manager', 'team_lead', 'counselor'] },
-  { name: 'Applications', href: '/admissions', icon: AcademicCapIcon, roles: ['admin', 'manager', 'team_lead', 'counselor'] },
+  { name: 'Universities', href: '/universities', icon: AcademicCapIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'] },
+  { name: 'Campus Visits', href: '/student-visits', icon: MapPinIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'counselor'] },
+  { name: 'Applications', href: '/admissions', icon: AcademicCapIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'counselor'] },
 ];
 
 // Routes where top header should be hidden
@@ -247,7 +247,8 @@ export default function DashboardLayout() {
   // Get user's role slug (lowercase)
   const rawRole = user?.role || '';
   const userRole = rawRole.toLowerCase().trim();
-  const isAdmin = userRole === 'admin';
+  const isSuperAdmin = userRole === 'super_admin' || userRole === 'superadmin';
+  const isAdmin = userRole === 'admin' || isSuperAdmin;
   const isManager = userRole === 'manager';
   const isTeamLead = userRole === 'team_lead' || userRole === 'teamlead';
   const showAdvancedSections = isAdmin || isManager || isTeamLead;
@@ -256,8 +257,11 @@ export default function DashboardLayout() {
   const orgIndustry = (user?.organizationIndustry || 'generic').toLowerCase().replace(/\s+/g, '_') as Industry;
   const allowedSections = industrySections[orgIndustry] || industrySections.generic;
 
-  // Check if a section should be shown for this industry
-  const isSectionAllowed = (sectionKey: string) => allowedSections.includes(sectionKey);
+  // Super Admin sees ALL sections regardless of industry
+  const allSections = ['main', 'sales', 'communication', 'voiceAI', 'data', 'analytics', 'team', 'integrations', 'fieldSales', 'admissions', 'settings'];
+
+  // Check if a section should be shown for this industry (Super Admin sees all)
+  const isSectionAllowed = (sectionKey: string) => isSuperAdmin ? allSections.includes(sectionKey) : allowedSections.includes(sectionKey);
 
   // Check if telecaller/counselor on dashboard (for dark theme header)
   const isTelecallerDashboard = (userRole === 'telecaller' || userRole === 'counselor') && location.pathname === '/dashboard';
