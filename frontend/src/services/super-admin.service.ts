@@ -54,6 +54,8 @@ export interface PlatformStats {
   overview: {
     totalOrganizations: number;
     activeOrganizations: number;
+    expiredOrganizations: number;
+    trialOrganizations: number;
     newOrganizationsThisMonth: number;
     totalUsers: number;
     activeUsers: number;
@@ -61,31 +63,84 @@ export interface PlatformStats {
   revenue: {
     total: number;
     thisMonth: number;
+    lastMonth: number;
     currency: string;
   };
   usage: {
     thisMonth: {
       leads: number;
       aiCalls: number;
+      voiceMinutes: number;
       sms: number;
+      whatsapp: number;
       emails: number;
+      apiCalls: number;
+      storageGB: number;
     };
   };
   planDistribution: Array<{
     plan: string;
     count: number;
+    revenue: number;
+  }>;
+  subscriptionStatus: Array<{
+    status: string;
+    count: number;
   }>;
   topOrganizations: Array<{
     organizationId: string;
     aiCallsCount: number;
+    voiceMinutes: number;
     leadsCount: number;
     smsCount: number;
+    whatsappCount: number;
+    emailCount: number;
+    usersCount: number;
+    revenue: number;
+    lastActiveAt: string | null;
     organization?: {
       id: string;
       name: string;
       activePlanId: string;
+      subscriptionStatus: string;
+      industry: string;
     };
   }>;
+}
+
+export interface TenantDetails {
+  id: string;
+  name: string;
+  slug: string;
+  email: string;
+  phone?: string;
+  industry: string;
+  activePlanId: string;
+  subscriptionStatus: string;
+  isActive: boolean;
+  createdAt: string;
+  lastActiveAt: string | null;
+  trialEndsAt: string | null;
+  stats: {
+    totalUsers: number;
+    activeUsers: number;
+    totalLeads: number;
+    totalCalls: number;
+    voiceMinutesUsed: number;
+    voiceMinutesLimit: number;
+    smsCount: number;
+    whatsappCount: number;
+    emailCount: number;
+    storageUsedMB: number;
+    apiCallsThisMonth: number;
+    lastLoginAt: string | null;
+  };
+  billing: {
+    totalPaid: number;
+    lastPaymentAt: string | null;
+    nextBillingAt: string | null;
+    paymentStatus: string;
+  };
 }
 
 export interface RevenueData {
