@@ -27,6 +27,7 @@ export function useIvrBuilder() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTestSimulator, setShowTestSimulator] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -189,10 +190,12 @@ export function useIvrBuilder() {
     edges,
     selectedNode,
     showSettings,
+    showTestSimulator,
     saving,
     // Flow state setters
     updateFlow,
     setShowSettings,
+    setShowTestSimulator,
     // Node/Edge handlers
     onNodesChange,
     onEdgesChange,

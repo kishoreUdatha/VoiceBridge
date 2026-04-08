@@ -107,7 +107,8 @@ export class LeadStageService {
   async updateLeadStage(
     leadId: string,
     stageId: string,
-    organizationId: string
+    organizationId: string,
+    userId?: string
   ): Promise<{ lead: any; autoSyncApplied: boolean }> {
     // Get the target stage
     const stage = await prisma.leadStage.findFirst({
@@ -130,11 +131,11 @@ export class LeadStageService {
 
     // Apply auto-sync logic
     if (stage.autoSyncStatus === 'WON') {
-      updateData.status = 'WON';
       updateData.isConverted = true;
+      updateData.convertedAt = new Date();
       autoSyncApplied = true;
     } else if (stage.autoSyncStatus === 'LOST') {
-      updateData.status = 'LOST';
+      updateData.isConverted = false;
       autoSyncApplied = true;
     }
 
@@ -155,12 +156,20 @@ export class LeadStageService {
       },
     });
 
-    // Create activity log
+    // Create activity log with user tracking
     await prisma.leadActivity.create({
       data: {
         leadId,
+        userId: userId || null,
         type: 'STAGE_CHANGED',
+        title: `Stage changed to ${stage.name}`,
         description: `Stage changed to "${stage.name}"${autoSyncApplied ? ` (Status auto-synced to ${stage.autoSyncStatus})` : ''}`,
+        metadata: {
+          previousStageId: lead.stageId,
+          newStageId: stageId,
+          newStageName: stage.name,
+          autoSyncApplied,
+        },
       },
     });
 

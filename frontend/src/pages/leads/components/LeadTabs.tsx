@@ -17,6 +17,12 @@ import {
   QuestionMarkCircleIcon,
   DocumentTextIcon,
   PlayIcon,
+  CurrencyRupeeIcon,
+  FolderIcon,
+  DocumentDuplicateIcon,
+  ArrowDownTrayIcon,
+  EyeIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 import {
   LeadNote,
@@ -28,7 +34,12 @@ import {
   LeadActivity,
   Interest,
   CallLog,
+  LeadPayment,
+  LeadDocument,
 } from '../../../services/leadDetails.service';
+
+// Re-export for convenience
+export type { LeadPayment, LeadDocument };
 import {
   priorityColors,
   taskStatusColors,
@@ -457,36 +468,184 @@ interface TimelineTabProps {
   loading: boolean;
 }
 
+// Get color classes based on activity type
+const getActivityColors = (type: string): { bg: string; icon: string; border: string } => {
+  switch (type) {
+    case 'LEAD_CREATED':
+      return { bg: 'bg-emerald-100', icon: 'text-emerald-600', border: 'border-emerald-400' };
+    case 'STAGE_CHANGED':
+      return { bg: 'bg-purple-100', icon: 'text-purple-600', border: 'border-purple-400' };
+    case 'LEAD_DATA_UPDATED':
+      return { bg: 'bg-blue-100', icon: 'text-blue-600', border: 'border-blue-400' };
+    case 'NOTE_ADDED':
+      return { bg: 'bg-amber-100', icon: 'text-amber-600', border: 'border-amber-400' };
+    case 'CALL_MADE':
+      return { bg: 'bg-green-100', icon: 'text-green-600', border: 'border-green-400' };
+    case 'TASK_CREATED':
+    case 'TASK_COMPLETED':
+      return { bg: 'bg-indigo-100', icon: 'text-indigo-600', border: 'border-indigo-400' };
+    case 'FOLLOWUP_SCHEDULED':
+    case 'FOLLOWUP_COMPLETED':
+      return { bg: 'bg-cyan-100', icon: 'text-cyan-600', border: 'border-cyan-400' };
+    case 'DOCUMENT_UPLOADED':
+      return { bg: 'bg-orange-100', icon: 'text-orange-600', border: 'border-orange-400' };
+    case 'PAYMENT_RECEIVED':
+      return { bg: 'bg-teal-100', icon: 'text-teal-600', border: 'border-teal-400' };
+    default:
+      return { bg: 'bg-slate-100', icon: 'text-slate-600', border: 'border-slate-400' };
+  }
+};
+
+// Format relative time
+const getRelativeTime = (date: string): string => {
+  const now = new Date();
+  const activityDate = new Date(date);
+  const diffMs = now.getTime() - activityDate.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return formatDateTime(date);
+};
+
+// Group activities by date
+const groupActivitiesByDate = (activities: LeadActivity[]): Record<string, LeadActivity[]> => {
+  const groups: Record<string, LeadActivity[]> = {};
+  const today = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+  activities.forEach(activity => {
+    const activityDate = new Date(activity.createdAt).toDateString();
+    let groupKey: string;
+
+    if (activityDate === today) {
+      groupKey = 'Today';
+    } else if (activityDate === yesterday) {
+      groupKey = 'Yesterday';
+    } else {
+      groupKey = new Date(activity.createdAt).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    }
+
+    if (!groups[groupKey]) {
+      groups[groupKey] = [];
+    }
+    groups[groupKey].push(activity);
+  });
+
+  return groups;
+};
+
 export function TimelineTab({ activities, loading }: TimelineTabProps) {
+  const groupedActivities = groupActivitiesByDate(activities);
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-      {loading ? (
-        <LoadingSpinner />
-      ) : (
-        <div className="space-y-4">
-          {activities.map((activity) => {
-            const Icon = getActivityIcon(activity.type);
-            return (
-              <div key={activity.id} className="flex gap-4">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Icon className="h-5 w-5 text-blue-600" />
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-slate-900">Activity Timeline</h3>
+          <span className="px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-600 rounded-full">
+            {activities.length} activities
+          </span>
+        </div>
+      </div>
+
+      <div className="p-6">
+        {loading ? (
+          <LoadingSpinner />
+        ) : activities.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
+              <ClockIcon className="h-8 w-8 text-slate-400" />
+            </div>
+            <p className="text-slate-500 font-medium">No activity recorded yet</p>
+            <p className="text-sm text-slate-400 mt-1">Activities will appear here as you interact with this lead</p>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {Object.entries(groupedActivities).map(([dateGroup, groupActivities]) => (
+              <div key={dateGroup}>
+                {/* Date Group Header */}
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-sm font-semibold text-slate-700">{dateGroup}</span>
+                  <div className="flex-1 h-px bg-slate-200"></div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-900">{activity.title}</p>
-                  <p className="text-xs text-slate-500">{formatDateTime(activity.createdAt)}</p>
-                  {activity.description && <p className="text-sm text-slate-600 mt-1">{activity.description}</p>}
-                  {activity.user && (
-                    <p className="text-xs text-slate-400 mt-1">by {activity.user.firstName} {activity.user.lastName}</p>
-                  )}
+
+                {/* Activities in this group */}
+                <div className="relative">
+                  {/* Vertical timeline line */}
+                  <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-slate-200 via-slate-200 to-transparent"></div>
+
+                  <div className="space-y-1">
+                    {groupActivities.map((activity, index) => {
+                      const Icon = getActivityIcon(activity.type);
+                      const colors = getActivityColors(activity.type);
+                      const isLast = index === groupActivities.length - 1;
+
+                      return (
+                        <div
+                          key={activity.id}
+                          className="relative flex gap-4 group"
+                        >
+                          {/* Icon with ring */}
+                          <div className="relative z-10 flex-shrink-0">
+                            <div className={`w-10 h-10 rounded-full ${colors.bg} flex items-center justify-center ring-4 ring-white shadow-sm group-hover:scale-110 transition-transform`}>
+                              <Icon className={`h-4 w-4 ${colors.icon}`} />
+                            </div>
+                          </div>
+
+                          {/* Content Card */}
+                          <div className={`flex-1 ${isLast ? 'pb-0' : 'pb-6'}`}>
+                            <div className="bg-slate-50 rounded-lg p-4 hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-slate-900">{activity.title}</p>
+                                  {activity.description && (
+                                    <p className="text-sm text-slate-600 mt-1 line-clamp-2">{activity.description}</p>
+                                  )}
+                                  <div className="flex items-center gap-3 mt-2">
+                                    {activity.user && (
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center">
+                                          <span className="text-[10px] font-medium text-primary-700">
+                                            {activity.user.firstName?.[0]}{activity.user.lastName?.[0]}
+                                          </span>
+                                        </div>
+                                        <span className="text-xs text-slate-500">
+                                          {activity.user.firstName} {activity.user.lastName}
+                                        </span>
+                                      </div>
+                                    )}
+                                    <span className="text-xs text-slate-400">•</span>
+                                    <span className="text-xs text-slate-400">{getRelativeTime(activity.createdAt)}</span>
+                                  </div>
+                                </div>
+                                {/* Activity type badge */}
+                                <span className={`px-2 py-1 text-[10px] font-medium rounded-full ${colors.bg} ${colors.icon} whitespace-nowrap`}>
+                                  {activity.type.replace(/_/g, ' ')}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            );
-          })}
-          {activities.length === 0 && (
-            <div className="text-center py-8 text-slate-500">No activity recorded yet</div>
-          )}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -690,6 +849,305 @@ export function ApplicationsTab({ applications, loading, onAddClick, onUpdateSta
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Payment status colors
+const paymentStatusColors: Record<string, string> = {
+  PENDING: 'bg-yellow-100 text-yellow-800',
+  COMPLETED: 'bg-green-100 text-green-800',
+  FAILED: 'bg-red-100 text-red-800',
+  REFUNDED: 'bg-purple-100 text-purple-800',
+  PARTIAL: 'bg-blue-100 text-blue-800',
+};
+
+// Payment type labels
+const paymentTypeLabels: Record<string, string> = {
+  REGISTRATION: 'Registration Fee',
+  TUITION: 'Tuition Fee',
+  EXAM: 'Exam Fee',
+  HOSTEL: 'Hostel Fee',
+  OTHER: 'Other',
+};
+
+// Document status colors
+const documentStatusColors: Record<string, string> = {
+  PENDING: 'bg-yellow-100 text-yellow-800',
+  VERIFIED: 'bg-green-100 text-green-800',
+  REJECTED: 'bg-red-100 text-red-800',
+};
+
+// Document type labels
+const documentTypeLabels: Record<string, string> = {
+  ID_PROOF: 'ID Proof',
+  ADDRESS_PROOF: 'Address Proof',
+  PHOTO: 'Photo',
+  CERTIFICATE: 'Certificate',
+  MARKSHEET: 'Marksheet',
+  OTHER: 'Other',
+};
+
+// Payments Tab
+interface PaymentsTabProps {
+  payments: LeadPayment[];
+  loading: boolean;
+  onAddClick: () => void;
+  onUpdateStatus: (paymentId: string, status: LeadPayment['status']) => void;
+  onDelete: (paymentId: string) => void;
+}
+
+export function PaymentsTab({ payments, loading, onAddClick, onUpdateStatus, onDelete }: PaymentsTabProps) {
+  // Calculate totals
+  const totalAmount = payments.reduce((sum, p) => sum + p.amount, 0);
+  const paidAmount = payments.filter(p => p.status === 'COMPLETED').reduce((sum, p) => sum + p.amount, 0);
+  const pendingAmount = payments.filter(p => p.status === 'PENDING').reduce((sum, p) => sum + p.amount, 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Total Amount</p>
+          <p className="text-xl font-semibold text-slate-900">₹{totalAmount.toLocaleString()}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Paid</p>
+          <p className="text-xl font-semibold text-green-600">₹{paidAmount.toLocaleString()}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Pending</p>
+          <p className="text-xl font-semibold text-yellow-600">₹{pendingAmount.toLocaleString()}</p>
+        </div>
+      </div>
+
+      {/* Payments List */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+          <h3 className="font-medium text-slate-900">Payment History</h3>
+          <button onClick={onAddClick} className="btn btn-primary btn-sm">
+            <PlusIcon className="h-4 w-4 mr-1" /> Add Payment
+          </button>
+        </div>
+        <div className="p-6">
+          {loading ? (
+            <LoadingSpinner />
+          ) : payments.length === 0 ? (
+            <EmptyState icon={CurrencyRupeeIcon} message="No payments recorded" />
+          ) : (
+            <div className="space-y-4">
+              {payments.map((payment) => (
+                <div key={payment.id} className="p-4 bg-slate-50 rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        payment.status === 'COMPLETED' ? 'bg-green-100' :
+                        payment.status === 'PENDING' ? 'bg-yellow-100' :
+                        payment.status === 'FAILED' ? 'bg-red-100' : 'bg-slate-100'
+                      }`}>
+                        <CurrencyRupeeIcon className={`h-5 w-5 ${
+                          payment.status === 'COMPLETED' ? 'text-green-600' :
+                          payment.status === 'PENDING' ? 'text-yellow-600' :
+                          payment.status === 'FAILED' ? 'text-red-600' : 'text-slate-600'
+                        }`} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-lg font-semibold text-slate-900">₹{payment.amount.toLocaleString()}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${paymentStatusColors[payment.status]}`}>
+                            {payment.status}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-600">{paymentTypeLabels[payment.paymentType] || payment.paymentType}</p>
+                        <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
+                          <span>Method: {payment.paymentMethod}</span>
+                          {payment.transactionId && <span>Txn: {payment.transactionId}</span>}
+                          {payment.receiptNo && <span>Receipt: {payment.receiptNo}</span>}
+                        </div>
+                        {payment.paidAt && (
+                          <p className="text-xs text-slate-400 mt-1">Paid on: {formatDateTime(payment.paidAt)}</p>
+                        )}
+                        {payment.dueDate && payment.status === 'PENDING' && (
+                          <p className="text-xs text-orange-500 mt-1">Due: {formatDate(payment.dueDate)}</p>
+                        )}
+                        {payment.notes && <p className="text-sm text-slate-500 mt-2">{payment.notes}</p>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <select
+                        value={payment.status}
+                        onChange={(e) => onUpdateStatus(payment.id, e.target.value as LeadPayment['status'])}
+                        className="text-xs border border-slate-200 rounded px-2 py-1"
+                      >
+                        <option value="PENDING">Pending</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="FAILED">Failed</option>
+                        <option value="REFUNDED">Refunded</option>
+                        <option value="PARTIAL">Partial</option>
+                      </select>
+                      <button onClick={() => onDelete(payment.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Documents Tab
+interface DocumentsTabProps {
+  documents: LeadDocument[];
+  loading: boolean;
+  onAddClick: () => void;
+  onUpdateStatus: (docId: string, status: LeadDocument['status'], rejectionReason?: string) => void;
+  onDelete: (docId: string) => void;
+  onDownload: (doc: LeadDocument) => void;
+}
+
+export function DocumentsTab({ documents, loading, onAddClick, onUpdateStatus, onDelete, onDownload }: DocumentsTabProps) {
+  // Group documents by type
+  const documentsByType = documents.reduce((acc, doc) => {
+    const type = doc.documentType || 'OTHER';
+    if (!acc[type]) acc[type] = [];
+    acc[type].push(doc);
+    return acc;
+  }, {} as Record<string, LeadDocument[]>);
+
+  // Count by status
+  const verifiedCount = documents.filter(d => d.status === 'VERIFIED').length;
+  const pendingCount = documents.filter(d => d.status === 'PENDING').length;
+  const rejectedCount = documents.filter(d => d.status === 'REJECTED').length;
+
+  return (
+    <div className="space-y-4">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Total Documents</p>
+          <p className="text-xl font-semibold text-slate-900">{documents.length}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Verified</p>
+          <p className="text-xl font-semibold text-green-600">{verifiedCount}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Pending</p>
+          <p className="text-xl font-semibold text-yellow-600">{pendingCount}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Rejected</p>
+          <p className="text-xl font-semibold text-red-600">{rejectedCount}</p>
+        </div>
+      </div>
+
+      {/* Documents List */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+          <h3 className="font-medium text-slate-900">Documents</h3>
+          <button onClick={onAddClick} className="btn btn-primary btn-sm">
+            <PlusIcon className="h-4 w-4 mr-1" /> Upload Document
+          </button>
+        </div>
+        <div className="p-6">
+          {loading ? (
+            <LoadingSpinner />
+          ) : documents.length === 0 ? (
+            <EmptyState icon={FolderIcon} message="No documents uploaded" />
+          ) : (
+            <div className="space-y-6">
+              {Object.entries(documentsByType).map(([type, docs]) => (
+                <div key={type}>
+                  <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                    <DocumentDuplicateIcon className="h-4 w-4" />
+                    {documentTypeLabels[type] || type}
+                    <span className="text-xs text-slate-400">({docs.length})</span>
+                  </h4>
+                  <div className="space-y-3">
+                    {docs.map((doc) => (
+                      <div key={doc.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-lg">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          doc.status === 'VERIFIED' ? 'bg-green-100' :
+                          doc.status === 'PENDING' ? 'bg-yellow-100' : 'bg-red-100'
+                        }`}>
+                          <FolderIcon className={`h-5 w-5 ${
+                            doc.status === 'VERIFIED' ? 'text-green-600' :
+                            doc.status === 'PENDING' ? 'text-yellow-600' : 'text-red-600'
+                          }`} />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-medium text-slate-900">{doc.documentName || doc.fileName}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${documentStatusColors[doc.status]}`}>
+                              {doc.status}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            {formatFileSize(doc.fileSize)} • Uploaded {formatDateTime(doc.uploadedAt)}
+                          </p>
+                          {doc.status === 'REJECTED' && doc.rejectionReason && (
+                            <p className="text-xs text-red-500 mt-1">Reason: {doc.rejectionReason}</p>
+                          )}
+                          {doc.status === 'VERIFIED' && doc.verifiedAt && (
+                            <p className="text-xs text-green-600 mt-1">Verified on {formatDateTime(doc.verifiedAt)}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <a
+                            href={doc.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 text-slate-500 hover:bg-slate-200 rounded-lg"
+                            title="View"
+                          >
+                            <EyeIcon className="h-4 w-4" />
+                          </a>
+                          <button
+                            onClick={() => onDownload(doc)}
+                            className="p-2 text-slate-500 hover:bg-slate-200 rounded-lg"
+                            title="Download"
+                          >
+                            <ArrowDownTrayIcon className="h-4 w-4" />
+                          </button>
+                          {doc.status === 'PENDING' && (
+                            <>
+                              <button
+                                onClick={() => onUpdateStatus(doc.id, 'VERIFIED')}
+                                className="p-2 text-green-500 hover:bg-green-50 rounded-lg"
+                                title="Verify"
+                              >
+                                <CheckIcon className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const reason = prompt('Enter rejection reason:');
+                                  if (reason) onUpdateStatus(doc.id, 'REJECTED', reason);
+                                }}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                                title="Reject"
+                              >
+                                <XMarkIcon className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                          <button onClick={() => onDelete(doc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -43,7 +43,20 @@ class WebSocketService {
     // Authentication middleware
     this.io.use(async (socket: AuthenticatedSocket, next) => {
       try {
-        const token = socket.handshake.auth.token;
+        // Try to get token from auth object first, then from cookie
+        let token = socket.handshake.auth.token;
+
+        // If no token in auth, try to get from httpOnly cookie
+        if (!token || token === 'httpOnly-cookie-auth') {
+          const cookies = socket.handshake.headers.cookie;
+          if (cookies) {
+            const accessTokenMatch = cookies.match(/accessToken=([^;]+)/);
+            if (accessTokenMatch) {
+              token = accessTokenMatch[1];
+            }
+          }
+        }
+
         if (!token) {
           return next(new Error('Authentication required'));
         }

@@ -210,6 +210,15 @@ export class LeadRoutingService {
         }
         return this.loadBalanceAssign(lead.id, rule.routingGroup, organizationId);
 
+      case 'ASSIGN_BY_LOCATION':
+        return this.assignByLocation(lead, organizationId);
+
+      case 'ASSIGN_BY_LANGUAGE':
+        return this.assignByLanguage(lead, organizationId);
+
+      case 'ASSIGN_BY_SOURCE':
+        return this.assignBySource(lead, organizationId, rule);
+
       default:
         return { success: false, reason: `Unknown action type: ${rule.actionType}` };
     }
@@ -438,6 +447,192 @@ export class LeadRoutingService {
       assignedToUser: user,
       reason: 'Assigned via load balancing',
     };
+  }
+
+  /**
+   * Assign lead based on location (city/state) matching
+   * Matches lead's city/state to users' assignedRegions
+   */
+  private async assignByLocation(
+    lead: Lead,
+    organizationId: string
+  ): Promise<RoutingResult> {
+    const leadCity = ((lead as any).city || '').toLowerCase().trim();
+    const leadState = ((lead as any).state || '').toLowerCase().trim();
+    const customFields = (lead as any).customFields as Record<string, any> || {};
+    const customCity = (customFields.city || '').toLowerCase().trim();
+    const customState = (customFields.state || '').toLowerCase().trim();
+
+    // Get all active users with assigned regions
+    const users = await prisma.user.findMany({
+      where: {
+        organizationId,
+        isActive: true,
+        assignedRegions: { not: null },
+      },
+      include: {
+        leadAssignments: {
+          where: {
+            isActive: true,
+            createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+          },
+        },
+      },
+    });
+
+    // Find users whose regions match the lead's location
+    const matchingUsers = users.filter((user) => {
+      const regions = (user.assignedRegions as string[]) || [];
+      return regions.some((region) => {
+        const regionLower = region.toLowerCase().trim();
+        return (
+          regionLower === leadCity ||
+          regionLower === leadState ||
+          regionLower === customCity ||
+          regionLower === customState ||
+          leadCity.includes(regionLower) ||
+          leadState.includes(regionLower)
+        );
+      });
+    });
+
+    if (matchingUsers.length === 0) {
+      return { success: false, reason: 'No users found matching lead location' };
+    }
+
+    // Sort by current load (ascending) and pick the least loaded
+    matchingUsers.sort((a, b) => a.leadAssignments.length - b.leadAssignments.length);
+    const selectedUser = matchingUsers[0];
+
+    await this.createAssignment(lead.id, selectedUser.id, organizationId);
+
+    return {
+      success: true,
+      assignedToUserId: selectedUser.id,
+      assignedToUser: {
+        id: selectedUser.id,
+        firstName: selectedUser.firstName,
+        lastName: selectedUser.lastName,
+        email: selectedUser.email,
+      },
+      reason: `Assigned by location match (${leadCity || leadState || customCity || customState})`,
+    };
+  }
+
+  /**
+   * Assign lead based on language preference
+   * Matches lead's language to users' spokenLanguages
+   */
+  private async assignByLanguage(
+    lead: Lead,
+    organizationId: string
+  ): Promise<RoutingResult> {
+    const customFields = (lead as any).customFields as Record<string, any> || {};
+    const leadLanguage = (
+      (lead as any).language ||
+      customFields.language ||
+      customFields.preferredLanguage ||
+      ''
+    ).toLowerCase().trim();
+
+    if (!leadLanguage) {
+      return { success: false, reason: 'Lead has no language preference specified' };
+    }
+
+    // Get all active users with spoken languages
+    const users = await prisma.user.findMany({
+      where: {
+        organizationId,
+        isActive: true,
+        spokenLanguages: { not: null },
+      },
+      include: {
+        leadAssignments: {
+          where: {
+            isActive: true,
+            createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+          },
+        },
+      },
+    });
+
+    // Find users who speak the lead's language
+    const matchingUsers = users.filter((user) => {
+      const languages = (user.spokenLanguages as string[]) || [];
+      return languages.some((lang) => {
+        const langLower = lang.toLowerCase().trim();
+        return langLower === leadLanguage || leadLanguage.includes(langLower);
+      });
+    });
+
+    if (matchingUsers.length === 0) {
+      return { success: false, reason: `No users found speaking ${leadLanguage}` };
+    }
+
+    // Sort by current load (ascending) and pick the least loaded
+    matchingUsers.sort((a, b) => a.leadAssignments.length - b.leadAssignments.length);
+    const selectedUser = matchingUsers[0];
+
+    await this.createAssignment(lead.id, selectedUser.id, organizationId);
+
+    return {
+      success: true,
+      assignedToUserId: selectedUser.id,
+      assignedToUser: {
+        id: selectedUser.id,
+        firstName: selectedUser.firstName,
+        lastName: selectedUser.lastName,
+        email: selectedUser.email,
+      },
+      reason: `Assigned by language match (${leadLanguage})`,
+    };
+  }
+
+  /**
+   * Assign lead based on source (JustDial, IndiaMART, etc.)
+   * Uses rule configuration to route specific sources to specific users/teams
+   */
+  private async assignBySource(
+    lead: Lead,
+    organizationId: string,
+    rule: RuleWithGroup
+  ): Promise<RoutingResult> {
+    const customFields = (lead as any).customFields as Record<string, any> || {};
+    const leadSource = (
+      (lead as any).source ||
+      customFields.source ||
+      ''
+    ).toUpperCase();
+
+    // Get source mapping from rule metadata
+    const metadata = (rule as any).metadata as Record<string, any> || {};
+    const sourceMapping = metadata.sourceMapping as Record<string, string> || {};
+
+    // Check if there's a specific user mapped for this source
+    const mappedUserId = sourceMapping[leadSource];
+    if (mappedUserId) {
+      const user = await prisma.user.findFirst({
+        where: { id: mappedUserId, organizationId, isActive: true },
+        select: { id: true, firstName: true, lastName: true, email: true },
+      });
+
+      if (user) {
+        await this.createAssignment(lead.id, user.id, organizationId);
+        return {
+          success: true,
+          assignedToUserId: user.id,
+          assignedToUser: user,
+          reason: `Assigned by source (${leadSource}) to dedicated user`,
+        };
+      }
+    }
+
+    // If no direct mapping, use the routing group
+    if (rule.routingGroup) {
+      return this.roundRobinAssign(lead.id, rule.routingGroup, organizationId);
+    }
+
+    return { success: false, reason: `No routing configured for source: ${leadSource}` };
   }
 
   /**

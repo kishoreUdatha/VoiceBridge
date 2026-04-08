@@ -427,11 +427,11 @@ export function CloseAdmissionModal({
               <div className="font-medium text-slate-900 text-right">
                 {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(formData.totalFee)}
               </div>
-              {formData.donationAmount > 0 && (
+              {(formData.donationAmount ?? 0) > 0 && (
                 <>
                   <div className="text-slate-500">Donation:</div>
                   <div className="font-medium text-purple-600 text-right">
-                    {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(formData.donationAmount)}
+                    {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(formData.donationAmount ?? 0)}
                   </div>
                 </>
               )}

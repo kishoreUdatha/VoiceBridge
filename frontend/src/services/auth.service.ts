@@ -33,6 +33,8 @@ export interface AuthResponse {
     organizationId: string;
     organizationName: string;
     role: string;
+    onboardingCompleted?: boolean;
+    organizationIndustry?: string | null;
   };
   // Tokens are now in httpOnly cookies, not in response body
   // These fields are kept for backward compatibility but may be undefined
@@ -48,8 +50,10 @@ export const authService = {
     // Tokens are now set via httpOnly cookies by the server
     // No need to store them manually
 
-    // Reconnect socket (cookies will be sent automatically)
-    await socketService.reconnect();
+    // Connect socket in background (don't await - let login complete faster)
+    socketService.reconnect().catch(err => {
+      console.warn('[Auth] Socket reconnect failed:', err);
+    });
 
     return data;
   },

@@ -93,7 +93,24 @@ export default function BulkUploadPage() {
         })
       ).unwrap();
       console.log('Upload result:', result);
-      showToast.success('Data uploaded to raw imports!');
+
+      // Show informative message based on results
+      const inserted = result.insertedRecords || 0;
+      const duplicates = result.duplicateRows || 0;
+      const invalid = result.invalidRows || 0;
+      const total = result.totalRows || 0;
+
+      if (inserted === 0 && duplicates > 0) {
+        showToast.error(`No records imported. All ${duplicates} records are duplicates (phone/email already exists in the system).`);
+      } else if (inserted === 0 && invalid > 0) {
+        showToast.error(`No records imported. All ${invalid} records are invalid (missing required fields).`);
+      } else if (inserted === 0) {
+        showToast.error('No records were imported. Please check the file format.');
+      } else if (duplicates > 0 || invalid > 0) {
+        showToast.success(`Imported ${inserted} of ${total} records. ${duplicates} duplicates, ${invalid} invalid.`);
+      } else {
+        showToast.success(`Successfully imported ${inserted} records!`);
+      }
 
       // Navigate to raw imports detail page if bulkImportId is returned
       if (result.bulkImportId) {

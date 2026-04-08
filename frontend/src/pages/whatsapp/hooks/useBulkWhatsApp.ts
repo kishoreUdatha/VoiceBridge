@@ -259,8 +259,8 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
     try {
       const updatedRecipients = [...recipients];
 
-      // Prepare media data for future use when backend supports it
-      const _mediaData = await Promise.all(
+      // Prepare media data for attachments
+      const mediaData = await Promise.all(
         mediaFiles.map(async (media) => {
           const reader = new FileReader();
           return new Promise<{ type: string; data: string; filename: string }>((resolve) => {
@@ -275,18 +275,28 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
           });
         })
       );
-      void _mediaData; // Suppress unused variable warning until media support is added
 
       for (let i = 0; i < recipients.length; i++) {
         const recipient = recipients[i];
 
         try {
-          // Use the multi-provider messaging API
-          const response = await api.post('/messaging/whatsapp', {
+          // Build request payload with optional media attachments
+          const requestPayload: {
+            to: string;
+            message: string;
+            media?: { type: string; data: string; filename: string }[];
+          } = {
             to: recipient.phone,
             message: message.replace(/{name}/g, recipient.name || ''),
-            // TODO: Handle media attachments when backend supports it
-          });
+          };
+
+          // Include media attachments if available
+          if (mediaData && mediaData.length > 0) {
+            requestPayload.media = mediaData;
+          }
+
+          // Use the multi-provider messaging API
+          const response = await api.post('/messaging/whatsapp', requestPayload);
 
           const result = response.data.data || response.data;
           updatedRecipients[i] = {
@@ -325,14 +335,30 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
     async (filter?: { stageId?: string; source?: string }) => {
       setLoadingLeads(true);
       try {
-        // Build query params
-        const params = new URLSearchParams();
-        params.set('limit', '1000'); // Load up to 1000 leads
-        if (filter?.stageId) params.set('stageId', filter.stageId);
-        if (filter?.source) params.set('source', filter.source);
+        // Load leads in batches (max 100 per request)
+        const allLeads: any[] = [];
+        let page = 1;
+        const limit = 100;
+        let hasMore = true;
 
-        const response = await api.get(`/leads?${params.toString()}`);
-        const leads = response.data.data || response.data.leads || [];
+        while (hasMore && page <= 10) { // Max 10 pages = 1000 leads
+          const params = new URLSearchParams();
+          params.set('page', String(page));
+          params.set('limit', String(limit));
+          if (filter?.stageId) params.set('stageId', filter.stageId);
+          if (filter?.source) params.set('source', filter.source);
+
+          const response = await api.get(`/leads?${params.toString()}`);
+          const leads = response.data.data || response.data.leads || [];
+          allLeads.push(...leads);
+
+          // Check if there are more pages
+          const pagination = response.data.pagination;
+          hasMore = pagination ? page < pagination.totalPages : leads.length === limit;
+          page++;
+        }
+
+        const leads = allLeads;
 
         const newRecipients: Recipient[] = [];
         leads.forEach((lead: any) => {

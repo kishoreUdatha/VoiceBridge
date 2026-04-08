@@ -27,7 +27,26 @@ const createUserValidation = [
     .withMessage('Last name is required'),
   body('phone').optional().trim(),
   body('roleId').isUUID().withMessage('Valid role ID is required'),
-  body('managerId').optional({ nullable: true }).isUUID().withMessage('Valid manager ID is required'),
+  body('managerId')
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') return true;
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(value)) {
+        throw new Error('Valid manager ID is required');
+      }
+      return true;
+    }),
+  body('branchId')
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') return true;
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(value)) {
+        throw new Error('Valid branch ID is required');
+      }
+      return true;
+    }),
 ];
 
 const updateUserValidation = [
@@ -37,7 +56,28 @@ const updateUserValidation = [
   body('phone').optional().trim(),
   body('roleId').optional().isUUID(),
   body('isActive').optional().isBoolean(),
-  body('managerId').optional({ nullable: true }).isUUID().withMessage('Valid manager ID is required'),
+  body('managerId')
+    .optional({ nullable: true })
+    .custom((value) => {
+      // Allow null, undefined, or empty string (will be treated as no manager)
+      if (value === null || value === undefined || value === '') return true;
+      // If a value is provided, it must be a valid UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(value)) {
+        throw new Error('Valid manager ID is required');
+      }
+      return true;
+    }),
+  body('branchId')
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') return true;
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(value)) {
+        throw new Error('Valid branch ID is required');
+      }
+      return true;
+    }),
 ];
 
 const listUsersValidation = [

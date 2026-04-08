@@ -50,7 +50,7 @@ if (configuredFeatures.length > 0) {
 }
 
 // Parse CORS origins (supports comma-separated list)
-function parseCorsOrigins(): string | string[] {
+function parseCorsOrigins(): string | string[] | boolean {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const corsOrigins = process.env.CORS_ORIGINS;
 
@@ -59,21 +59,9 @@ function parseCorsOrigins(): string | string[] {
     return corsOrigins.split(',').map((origin) => origin.trim());
   }
 
-  // In development, allow multiple localhost ports
+  // In development, allow all origins for easy local network testing
   if (!isProduction) {
-    return [
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://localhost:5175',
-      'http://localhost:5176',
-      'http://localhost:5177',
-      'http://localhost:5178',
-      'http://localhost:5179',
-      'http://localhost:5180',
-      'http://localhost:3000',
-      'http://localhost:3001',
-      frontendUrl,
-    ];
+    return true; // Allow all origins in development
   }
 
   return frontendUrl;

@@ -795,4 +795,139 @@ router.put('/language', validate([
   }
 });
 
+// ==================== ONBOARDING ====================
+
+const VALID_INDUSTRIES = [
+  'EDUCATION',
+  'REAL_ESTATE',
+  'HEALTHCARE',
+  'INSURANCE',
+  'FINANCE',
+  'IT_RECRUITMENT',
+  'ECOMMERCE',
+  'GENERAL',
+];
+
+/**
+ * @swagger
+ * /api/organization/complete-onboarding:
+ *   post:
+ *     summary: Complete organization onboarding
+ *     tags: [Organization]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - industry
+ *             properties:
+ *               industry:
+ *                 type: string
+ *                 enum: [EDUCATION, REAL_ESTATE, HEALTHCARE, INSURANCE, FINANCE, IT_RECRUITMENT, ECOMMERCE, GENERAL]
+ *     responses:
+ *       200:
+ *         description: Onboarding completed successfully
+ */
+router.post('/complete-onboarding', validate([
+  body('industry')
+    .trim()
+    .notEmpty().withMessage('Industry is required')
+    .isIn(VALID_INDUSTRIES)
+    .withMessage('Invalid industry'),
+]), async (req: TenantRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId;
+    const { industry } = req.body;
+
+    // Get current organization
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      return ApiResponse.error(res, 'Organization not found', 404);
+    }
+
+    // Update organization with industry and mark onboarding as complete
+    const currentSettings = (organization.settings as any) || {};
+    const updatedSettings = {
+      ...currentSettings,
+      onboardingCompleted: true,
+      onboardingCompletedAt: new Date().toISOString(),
+    };
+
+    const updated = await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        industry: industry,
+        settings: updatedSettings,
+      },
+      select: {
+        id: true,
+        name: true,
+        industry: true,
+        settings: true,
+      },
+    });
+
+    console.log(`[Organization] Completed onboarding for ${updated.name}, industry: ${industry}`);
+
+    return ApiResponse.success(res, 'Onboarding completed successfully', {
+      industry: updated.industry,
+      onboardingCompleted: true,
+    });
+  } catch (error) {
+    console.error('Error completing onboarding:', error);
+    return ApiResponse.error(res, 'Failed to complete onboarding', 500);
+  }
+});
+
+/**
+ * @swagger
+ * /api/organization/onboarding-status:
+ *   get:
+ *     summary: Get organization onboarding status
+ *     tags: [Organization]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Onboarding status retrieved successfully
+ */
+router.get('/onboarding-status', async (req: TenantRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId;
+
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        id: true,
+        name: true,
+        industry: true,
+        settings: true,
+      },
+    });
+
+    if (!organization) {
+      return ApiResponse.error(res, 'Organization not found', 404);
+    }
+
+    const settings = (organization.settings as any) || {};
+    const onboardingCompleted = settings.onboardingCompleted || false;
+
+    return ApiResponse.success(res, 'Onboarding status retrieved', {
+      onboardingCompleted,
+      industry: organization.industry,
+      organizationName: organization.name,
+    });
+  } catch (error) {
+    console.error('Error fetching onboarding status:', error);
+    return ApiResponse.error(res, 'Failed to fetch onboarding status', 500);
+  }
+});
+
 export default router;

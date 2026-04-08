@@ -69,5 +69,13 @@
     "ended": "Call ended",
     "failed": "Call failed",
     "transferred": "Call transferred"
+  },
+  "rawImports": {
+    "assignedToTelecallers": "Records assigned to telecallers successfully",
+    "assignedToAI": "Records assigned to AI agent successfully",
+    "assignFailed": "Could not assign records. Please try again.",
+    "noRecordsToAssign": "All selected records are already assigned. Please select records that haven't been assigned yet.",
+    "converted": "Record converted to lead successfully",
+    "convertFailed": "Failed to convert record to lead"
   }
 }

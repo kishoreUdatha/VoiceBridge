@@ -312,7 +312,7 @@ router.put(
       const { leadId } = req.params;
       const { stageId } = req.body;
 
-      const result = await leadStageService.updateLeadStage(leadId, stageId, organizationId);
+      const result = await leadStageService.updateLeadStage(leadId, stageId, organizationId, req.user?.id);
 
       return ApiResponse.success(res, 'Lead stage updated successfully', {
         lead: result.lead,

@@ -22,7 +22,12 @@ export type JobType =
   | 'APIFY_SCRAPE_POLL'
   | 'APIFY_SCRAPE_IMPORT'
   | 'APIFY_SCHEDULED_CHECK'
-  | 'ADMISSION_PAYMENT_REMINDER';
+  | 'ADMISSION_PAYMENT_REMINDER'
+  | 'INDIAMART_SYNC'
+  | 'INDIAMART_SYNC_ALL'
+  | 'QUICK_CALL_REMINDER'
+  | 'PERFORMANCE_CHECK'
+  | 'DAILY_SUMMARY';
 
 interface JobData {
   type: JobType;
@@ -250,6 +255,21 @@ class JobQueueService {
 
       case 'ADMISSION_PAYMENT_REMINDER':
         return this.processAdmissionPaymentReminders();
+
+      case 'INDIAMART_SYNC':
+        return this.processIndiaMartSync(data.organizationId);
+
+      case 'INDIAMART_SYNC_ALL':
+        return this.processIndiaMartSyncAll();
+
+      case 'QUICK_CALL_REMINDER':
+        return this.processQuickCallReminder(data.payload);
+
+      case 'PERFORMANCE_CHECK':
+        return this.processPerformanceCheck(data.organizationId!);
+
+      case 'DAILY_SUMMARY':
+        return this.processDailySummary(data.organizationId!);
 
       default:
         throw new Error(`Unknown job type: ${data.type}`);
@@ -864,23 +884,53 @@ class JobQueueService {
         throw new Error('Apify integration not configured');
       }
 
-      const { configId, integrationId, actorId, inputConfig, fieldMapping, scraperType, extractEmails = false } = payload;
+      const { configId, integrationId, actorId, inputConfig, fieldMapping, scraperType, extractEmails = false, scrapeJobId } = payload;
 
-      // Start the Apify run
-      const run = await service.startRun(actorId, inputConfig);
+      let run;
+      try {
+        // Start the Apify run
+        run = await service.startRun(actorId, inputConfig);
+      } catch (runError: any) {
+        // If the run fails to start, update the pre-created job to FAILED
+        if (scrapeJobId) {
+          await prisma.apifyScrapeJob.update({
+            where: { id: scrapeJobId },
+            data: {
+              status: 'FAILED',
+              errorMessage: runError.message || 'Failed to start Apify run',
+              completedAt: new Date(),
+            },
+          });
+        }
+        throw runError;
+      }
 
-      // Create job record in database
-      const job = await prisma.apifyScrapeJob.create({
-        data: {
-          integrationId,
-          configId,
-          apifyRunId: run.id,
-          actorId,
-          status: 'RUNNING',
-          startedAt: new Date(),
-          inputSnapshot: inputConfig,
-        },
-      });
+      // Update existing job record or create new one
+      let job;
+      if (scrapeJobId) {
+        // Update the pre-created job record
+        job = await prisma.apifyScrapeJob.update({
+          where: { id: scrapeJobId },
+          data: {
+            apifyRunId: run.id,
+            status: 'RUNNING',
+            startedAt: new Date(),
+          },
+        });
+      } else {
+        // Fallback: create job record in database (for scheduled jobs)
+        job = await prisma.apifyScrapeJob.create({
+          data: {
+            integrationId,
+            configId,
+            apifyRunId: run.id,
+            actorId,
+            status: 'RUNNING',
+            startedAt: new Date(),
+            inputSnapshot: inputConfig,
+          },
+        });
+      }
 
       // Update config last run info
       if (configId) {
@@ -1378,6 +1428,206 @@ class JobQueueService {
     };
 
     scheduleNextRun();
+  }
+
+  /**
+   * Process IndiaMART sync for a single organization
+   */
+  private async processIndiaMartSync(organizationId?: string): Promise<JobResult> {
+    if (!organizationId) {
+      return { success: false, processed: 0, failed: 1, errors: ['Organization ID is required'] };
+    }
+
+    try {
+      const { indiaMartService } = await import('../integrations/indiamart.service');
+      const result = await indiaMartService.syncLeads(organizationId);
+
+      return {
+        success: result.success,
+        processed: result.imported,
+        failed: result.errors,
+        data: {
+          totalFetched: result.totalFetched,
+          duplicates: result.duplicates,
+        },
+      };
+    } catch (error) {
+      console.error('[JobQueue] IndiaMART sync failed:', error);
+      return { success: false, processed: 0, failed: 1, errors: [(error as Error).message] };
+    }
+  }
+
+  /**
+   * Process IndiaMART sync for all active integrations
+   */
+  private async processIndiaMartSyncAll(): Promise<JobResult> {
+    try {
+      const { indiaMartService } = await import('../integrations/indiamart.service');
+      const integrations = await indiaMartService.getActiveIntegrations();
+
+      let totalProcessed = 0;
+      let totalFailed = 0;
+      const errors: string[] = [];
+
+      for (const integration of integrations) {
+        // Check if sync is needed based on interval
+        if (!indiaMartService.needsSync(integration)) {
+          continue;
+        }
+
+        try {
+          const result = await indiaMartService.syncLeads(integration.organizationId);
+          totalProcessed += result.imported;
+          if (!result.success) {
+            totalFailed++;
+            errors.push(`Org ${integration.organizationId}: ${result.message}`);
+          }
+        } catch (error) {
+          totalFailed++;
+          errors.push(`Org ${integration.organizationId}: ${(error as Error).message}`);
+        }
+      }
+
+      console.log(`[JobQueue] IndiaMART sync all: processed ${totalProcessed}, failed ${totalFailed}`);
+
+      return {
+        success: totalFailed === 0,
+        processed: totalProcessed,
+        failed: totalFailed,
+        errors: errors.length > 0 ? errors : undefined,
+      };
+    } catch (error) {
+      console.error('[JobQueue] IndiaMART sync all failed:', error);
+      return { success: false, processed: 0, failed: 1, errors: [(error as Error).message] };
+    }
+  }
+
+  /**
+   * Process a quick call reminder (1-click reminder)
+   */
+  private async processQuickCallReminder(payload: Record<string, any>): Promise<JobResult> {
+    const { leadId, userId, organizationId, reminderMessage, reminderType } = payload;
+
+    try {
+      // Get lead info
+      const lead = await prisma.lead.findFirst({
+        where: { id: leadId, organizationId },
+        include: {
+          assignedTo: true,
+        },
+      });
+
+      if (!lead) {
+        return { success: false, processed: 0, failed: 1, errors: ['Lead not found'] };
+      }
+
+      // Create notification for the user
+      // This can trigger push notification, browser notification, etc.
+      const notification = await prisma.leadActivity.create({
+        data: {
+          leadId,
+          type: 'REMINDER',
+          title: `Call Reminder: ${lead.firstName} ${lead.lastName || ''}`,
+          description: reminderMessage || `Reminder to call ${lead.phone}`,
+          userId,
+        },
+      });
+
+      // If push notifications are available, send them
+      try {
+        const deviceTokens = await prisma.deviceToken.findMany({
+          where: { userId, isActive: true },
+        });
+
+        if (deviceTokens.length > 0) {
+          // Import Firebase dynamically
+          const admin = await import('firebase-admin').catch(() => null);
+          if (admin && admin.apps?.length > 0) {
+            const tokens = deviceTokens.map((t) => t.token);
+            await admin.messaging().sendEachForMulticast({
+              tokens,
+              notification: {
+                title: 'Call Reminder',
+                body: `Time to call ${lead.firstName} ${lead.lastName || ''} - ${lead.phone}`,
+              },
+              data: {
+                type: 'CALL_REMINDER',
+                leadId,
+                phone: lead.phone || '',
+              },
+            });
+          }
+        }
+      } catch (notifError) {
+        console.warn('[JobQueue] Push notification failed:', notifError);
+      }
+
+      console.log(`[JobQueue] Quick call reminder processed for lead ${leadId}`);
+
+      return {
+        success: true,
+        processed: 1,
+        failed: 0,
+        data: { notificationId: notification.id },
+      };
+    } catch (error) {
+      console.error('[JobQueue] Quick call reminder failed:', error);
+      return { success: false, processed: 0, failed: 1, errors: [(error as Error).message] };
+    }
+  }
+
+  /**
+   * Process performance check for an organization
+   */
+  private async processPerformanceCheck(organizationId: string): Promise<JobResult> {
+    try {
+      const { performanceTargetsService } = await import('./performance-targets.service');
+      const alerts = await performanceTargetsService.checkAndSendAlerts(organizationId);
+
+      return {
+        success: true,
+        processed: alerts.length,
+        failed: 0,
+        data: { alertsGenerated: alerts.length },
+      };
+    } catch (error) {
+      console.error('[JobQueue] Performance check failed:', error);
+      return { success: false, processed: 0, failed: 1, errors: [(error as Error).message] };
+    }
+  }
+
+  /**
+   * Process daily summary notifications
+   */
+  private async processDailySummary(organizationId: string): Promise<JobResult> {
+    try {
+      const { performanceTargetsService } = await import('./performance-targets.service');
+      await performanceTargetsService.sendDailySummary(organizationId);
+
+      return {
+        success: true,
+        processed: 1,
+        failed: 0,
+      };
+    } catch (error) {
+      console.error('[JobQueue] Daily summary failed:', error);
+      return { success: false, processed: 0, failed: 1, errors: [(error as Error).message] };
+    }
+  }
+
+  /**
+   * Start periodic IndiaMART sync (every 15 minutes)
+   */
+  startIndiaMartSyncScheduler() {
+    // Run immediately on startup
+    this.addJob('INDIAMART_SYNC_ALL', {});
+
+    // Then run every 15 minutes
+    setInterval(() => {
+      this.addJob('INDIAMART_SYNC_ALL', {});
+    }, 15 * 60 * 1000);
+
+    console.log('[JobQueue] IndiaMART sync scheduler started (every 15 minutes)');
   }
 
   /**

@@ -2,7 +2,8 @@
  * Lead Detail Modals - Extracted modal components
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { LeadPayment, LeadDocument } from '../../../services/leadDetails.service';
 
 interface ModalWrapperProps {
   isOpen: boolean;
@@ -671,17 +672,37 @@ export function EditLeadModal({ isOpen, onClose, onSubmit, lead }: EditLeadModal
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="">Select Source</option>
-              <option value="MANUAL">Manual</option>
-              <option value="WEBSITE">Website</option>
-              <option value="FACEBOOK">Facebook</option>
-              <option value="INSTAGRAM">Instagram</option>
-              <option value="GOOGLE">Google Ads</option>
-              <option value="LINKEDIN">LinkedIn</option>
-              <option value="REFERRAL">Referral</option>
-              <option value="WALK_IN">Walk In</option>
-              <option value="PHONE">Phone Inquiry</option>
-              <option value="EMAIL">Email Inquiry</option>
-              <option value="OTHER">Other</option>
+              <optgroup label="Direct Sources">
+                <option value="MANUAL">Manual</option>
+                <option value="WEBSITE">Website</option>
+                <option value="WALK_IN">Walk In</option>
+                <option value="PHONE">Phone Inquiry</option>
+                <option value="EMAIL">Email Inquiry</option>
+                <option value="REFERRAL">Referral</option>
+              </optgroup>
+              <optgroup label="Social Media">
+                <option value="FACEBOOK">Facebook</option>
+                <option value="INSTAGRAM">Instagram</option>
+                <option value="GOOGLE">Google Ads</option>
+                <option value="LINKEDIN">LinkedIn</option>
+                <option value="YOUTUBE">YouTube</option>
+                <option value="TWITTER">Twitter</option>
+                <option value="TIKTOK">TikTok</option>
+              </optgroup>
+              <optgroup label="Indian Lead Sources">
+                <option value="JUSTDIAL">JustDial</option>
+                <option value="INDIAMART">IndiaMART</option>
+                <option value="SULEKHA">Sulekha</option>
+                <option value="TAWKTO">Tawk.to Chat</option>
+              </optgroup>
+              <optgroup label="Real Estate Portals">
+                <option value="99ACRES">99Acres</option>
+                <option value="MAGICBRICKS">MagicBricks</option>
+                <option value="HOUSING">Housing.com</option>
+              </optgroup>
+              <optgroup label="Other">
+                <option value="OTHER">Other</option>
+              </optgroup>
             </select>
           </div>
 
@@ -711,6 +732,351 @@ export function EditLeadModal({ isOpen, onClose, onSubmit, lead }: EditLeadModal
             className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== PAYMENT MODAL ====================
+
+interface PaymentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (payment: Omit<LeadPayment, 'id' | 'createdAt'>) => void;
+}
+
+export function PaymentModal({ isOpen, onClose, onSubmit }: PaymentModalProps) {
+  const [form, setForm] = useState({
+    amount: '',
+    currency: 'INR',
+    paymentType: 'TUITION' as LeadPayment['paymentType'],
+    paymentMethod: 'UPI' as LeadPayment['paymentMethod'],
+    status: 'PENDING' as LeadPayment['status'],
+    transactionId: '',
+    receiptNo: '',
+    dueDate: '',
+    notes: '',
+  });
+
+  const handleSubmit = () => {
+    onSubmit({
+      amount: parseFloat(form.amount) || 0,
+      currency: form.currency,
+      paymentType: form.paymentType,
+      paymentMethod: form.paymentMethod,
+      status: form.status,
+      transactionId: form.transactionId || undefined,
+      receiptNo: form.receiptNo || undefined,
+      dueDate: form.dueDate || undefined,
+      paidAt: form.status === 'COMPLETED' ? new Date().toISOString() : undefined,
+      notes: form.notes || undefined,
+    });
+    setForm({
+      amount: '',
+      currency: 'INR',
+      paymentType: 'TUITION',
+      paymentMethod: 'UPI',
+      status: 'PENDING',
+      transactionId: '',
+      receiptNo: '',
+      dueDate: '',
+      notes: '',
+    });
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold mb-4">Add Payment</h3>
+
+        <div className="space-y-4">
+          {/* Amount and Currency */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <label className="block text-xs text-slate-500 mb-1">Amount *</label>
+              <input
+                type="number"
+                value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Currency</label>
+              <select
+                value={form.currency}
+                onChange={(e) => setForm({ ...form, currency: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              >
+                <option value="INR">INR</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Payment Type */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Payment Type *</label>
+            <select
+              value={form.paymentType}
+              onChange={(e) => setForm({ ...form, paymentType: e.target.value as LeadPayment['paymentType'] })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            >
+              <option value="REGISTRATION">Registration Fee</option>
+              <option value="TUITION">Tuition Fee</option>
+              <option value="EXAM">Exam Fee</option>
+              <option value="HOSTEL">Hostel Fee</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+
+          {/* Payment Method */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Payment Method *</label>
+            <select
+              value={form.paymentMethod}
+              onChange={(e) => setForm({ ...form, paymentMethod: e.target.value as LeadPayment['paymentMethod'] })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            >
+              <option value="CASH">Cash</option>
+              <option value="CARD">Card</option>
+              <option value="UPI">UPI</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+              <option value="CHEQUE">Cheque</option>
+              <option value="ONLINE">Online</option>
+            </select>
+          </div>
+
+          {/* Status */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Status *</label>
+            <select
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value as LeadPayment['status'] })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            >
+              <option value="PENDING">Pending</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="PARTIAL">Partial</option>
+              <option value="FAILED">Failed</option>
+              <option value="REFUNDED">Refunded</option>
+            </select>
+          </div>
+
+          {/* Transaction ID */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Transaction ID</label>
+            <input
+              type="text"
+              value={form.transactionId}
+              onChange={(e) => setForm({ ...form, transactionId: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              placeholder="TXN123456789"
+            />
+          </div>
+
+          {/* Receipt No */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Receipt Number</label>
+            <input
+              type="text"
+              value={form.receiptNo}
+              onChange={(e) => setForm({ ...form, receiptNo: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              placeholder="RCP-2024-001"
+            />
+          </div>
+
+          {/* Due Date (only show for pending payments) */}
+          {form.status === 'PENDING' && (
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Due Date</label>
+              <input
+                type="date"
+                value={form.dueDate}
+                onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              />
+            </div>
+          )}
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Notes</label>
+            <textarea
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              rows={3}
+              placeholder="Additional notes..."
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!form.amount || parseFloat(form.amount) <= 0}
+            className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Add Payment
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== DOCUMENT MODAL ====================
+
+interface DocumentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (file: File, documentType: LeadDocument['documentType'], documentName: string) => void;
+}
+
+export function DocumentModal({ isOpen, onClose, onSubmit }: DocumentModalProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState({
+    documentType: 'OTHER' as LeadDocument['documentType'],
+    documentName: '',
+    file: null as File | null,
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setForm({
+        ...form,
+        file,
+        documentName: form.documentName || file.name.replace(/\.[^/.]+$/, ''), // Use filename without extension as default name
+      });
+    }
+  };
+
+  const handleSubmit = () => {
+    if (form.file && form.documentName) {
+      onSubmit(form.file, form.documentType, form.documentName);
+      setForm({
+        documentType: 'OTHER',
+        documentName: '',
+        file: null,
+      });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      onClose();
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md">
+        <h3 className="text-lg font-semibold mb-4">Upload Document</h3>
+
+        <div className="space-y-4">
+          {/* Document Type */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Document Type *</label>
+            <select
+              value={form.documentType}
+              onChange={(e) => setForm({ ...form, documentType: e.target.value as LeadDocument['documentType'] })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            >
+              <option value="ID_PROOF">ID Proof (Aadhar, PAN, Passport)</option>
+              <option value="ADDRESS_PROOF">Address Proof</option>
+              <option value="PHOTO">Photo</option>
+              <option value="CERTIFICATE">Certificate</option>
+              <option value="MARKSHEET">Marksheet</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+
+          {/* Document Name */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Document Name *</label>
+            <input
+              type="text"
+              value={form.documentName}
+              onChange={(e) => setForm({ ...form, documentName: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              placeholder="e.g., Aadhar Card, 10th Marksheet"
+            />
+          </div>
+
+          {/* File Upload */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">File *</label>
+            <div
+              className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                form.file ? 'border-green-300 bg-green-50' : 'border-slate-200 hover:border-primary-300 hover:bg-slate-50'
+              }`}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={handleFileChange}
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+              />
+              {form.file ? (
+                <div>
+                  <p className="text-sm font-medium text-green-700">{form.file.name}</p>
+                  <p className="text-xs text-green-600 mt-1">{formatFileSize(form.file.size)}</p>
+                  <p className="text-xs text-slate-500 mt-2">Click to change file</p>
+                </div>
+              ) : (
+                <div>
+                  <svg className="mx-auto h-10 w-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-sm text-slate-600 mt-2">Click to upload</p>
+                  <p className="text-xs text-slate-400 mt-1">PDF, JPG, PNG, DOC (max 10MB)</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200">
+          <button
+            onClick={() => {
+              setForm({ documentType: 'OTHER', documentName: '', file: null });
+              if (fileInputRef.current) fileInputRef.current.value = '';
+              onClose();
+            }}
+            className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!form.file || !form.documentName.trim()}
+            className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Upload Document
           </button>
         </div>
       </div>

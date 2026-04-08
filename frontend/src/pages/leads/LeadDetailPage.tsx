@@ -21,6 +21,7 @@ import {
   CheckBadgeIcon,
   EllipsisHorizontalIcon,
   ChevronDownIcon,
+  CheckIcon,
 } from '@heroicons/react/24/outline';
 import { CheckBadgeIcon as CheckBadgeSolidIcon } from '@heroicons/react/24/solid';
 import toast from 'react-hot-toast';
@@ -34,7 +35,7 @@ const WhatsAppIcon = ({ className }: { className?: string }) => (
 
 // Local imports - extracted components and hooks
 import { useLeadDetailData } from './hooks';
-import { statusOptions, getStatusInfo } from './lead-detail.constants';
+// Status options removed - now using industry-specific stages
 import SmartCallPrep from '../../components/SmartCallPrep';
 import {
   DocumentIcon,
@@ -45,24 +46,28 @@ import {
   PaperClipIcon,
   QuestionMarkCircleIcon,
   DocumentTextIcon,
+  CurrencyRupeeIcon,
+  FolderIcon,
 } from '@heroicons/react/24/outline';
 
-// Primary tabs shown directly, others in dropdown
-const primaryTabs = [
+// All tabs shown directly - compact labels to fit all
+const allTabs = [
   { id: 'overview', label: 'Overview', icon: DocumentIcon },
   { id: 'calls', label: 'Calls', icon: PhoneIcon },
   { id: 'notes', label: 'Notes', icon: ChatBubbleOvalLeftIcon },
   { id: 'tasks', label: 'Tasks', icon: ClipboardDocumentListIcon },
   { id: 'followups', label: 'Follow-ups', icon: CalendarIcon },
-];
-
-const moreTabs = [
   { id: 'timelines', label: 'Timeline', icon: ClockIcon },
   { id: 'interests', label: 'Interests', icon: ClipboardDocumentListIcon },
-  { id: 'attachments', label: 'Attachments', icon: PaperClipIcon },
+  { id: 'attachments', label: 'Files', icon: PaperClipIcon },
   { id: 'queries', label: 'Queries', icon: QuestionMarkCircleIcon },
-  { id: 'applications', label: 'Applications', icon: DocumentTextIcon },
+  { id: 'applications', label: 'Apps', icon: DocumentTextIcon, educationOnly: true },
+  { id: 'payments', label: 'Payments', icon: CurrencyRupeeIcon },
+  { id: 'documents', label: 'Docs', icon: FolderIcon },
 ];
+
+// No more tabs - all visible
+const moreTabs: typeof allTabs = [];
 import {
   OverviewTab,
   NotesTab,
@@ -74,6 +79,10 @@ import {
   AttachmentsTab,
   QueriesTab,
   ApplicationsTab,
+  PaymentsTab,
+  DocumentsTab,
+  LeadPayment,
+  LeadDocument,
   TaskModal,
   FollowUpModal,
   QueryModal,
@@ -84,9 +93,13 @@ import {
   SmsModal,
   EditLeadModal,
   EditLeadFormData,
+  PaymentModal,
+  DocumentModal,
   AdmissionStatusTracker,
   CloseAdmissionModal,
   IndustryJourneyTracker,
+  QuickReminderDropdown,
+  IndustryFieldsForm,
 } from './components';
 import leadDetailsService from '../../services/leadDetails.service';
 import { leadService, AdmissionStatus } from '../../services/lead.service';
@@ -102,8 +115,8 @@ export default function LeadDetailPage() {
 
   // UI state
   const [activeTab, setActiveTab] = useState('overview');
-  const [isEditingStatus, setIsEditingStatus] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState('');
+  const [isEditingStage, setIsEditingStage] = useState(false);
+  const [selectedStageId, setSelectedStageId] = useState('');
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
 
   // Modal states
@@ -119,6 +132,8 @@ export default function LeadDetailPage() {
   const [showMoreDropdown, setShowMoreDropdown] = useState(false);
   const [showCallPrepModal, setShowCallPrepModal] = useState(false);
   const [showCloseAdmissionModal, setShowCloseAdmissionModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
   const moreDropdownRef = useRef<HTMLDivElement>(null);
 
   // Industry-specific lead stages state
@@ -177,10 +192,10 @@ export default function LeadDetailPage() {
     loadIndustryAndStages();
   }, []);
 
-  // Sync status with lead data
+  // Sync stage with lead data
   useEffect(() => {
     if (currentLead) {
-      setSelectedStatus(currentLead.status || 'NEW');
+      setSelectedStageId(currentLead.stageId || '');
     }
   }, [currentLead]);
 
@@ -189,16 +204,36 @@ export default function LeadDetailPage() {
     leadData.loadTabData(activeTab);
   }, [activeTab, leadData.loadTabData]);
 
-  // Status change handler
-  const handleStatusChange = async (newStatus: string) => {
+  // Stage change handler - updates stage and auto-syncs status
+  const handleStageChange = async (newStageId: string) => {
     if (!id) return;
     try {
-      await dispatch(updateLead({ id, data: { status: newStatus } })).unwrap();
-      setSelectedStatus(newStatus);
-      setIsEditingStatus(false);
-      toast.success('Status updated successfully');
+      // Find the selected stage to determine auto-sync status
+      const selectedStage = leadStages.find(s => s.id === newStageId);
+
+      // Determine status based on stage position
+      let newStatus = 'NEW';
+      if (selectedStage) {
+        if (selectedStage.journeyOrder < 0) {
+          newStatus = 'LOST'; // Lost stage
+        } else if (selectedStage.autoSyncStatus === 'WON') {
+          newStatus = 'WON';
+        } else if (selectedStage.autoSyncStatus === 'LOST') {
+          newStatus = 'LOST';
+        } else if (selectedStage.journeyOrder > 1) {
+          newStatus = 'CONTACTED'; // After first stage
+        }
+      }
+
+      // Update both stage and status
+      await api.put(`/lead-stages/lead/${id}/stage`, { stageId: newStageId });
+
+      setSelectedStageId(newStageId);
+      setIsEditingStage(false);
+      dispatch(fetchLeadById(id)); // Refresh lead data
+      toast.success('Lead stage updated successfully');
     } catch {
-      toast.error('Failed to update status');
+      toast.error('Failed to update lead stage');
     }
   };
 
@@ -282,18 +317,6 @@ export default function LeadDetailPage() {
     dispatch(fetchLeadById(id));
   };
 
-  // Industry-specific stage change handler
-  const handleStageChange = async (stageId: string) => {
-    if (!id) return;
-    try {
-      await api.put(`/lead-stages/lead/${id}/stage`, { stageId });
-      dispatch(fetchLeadById(id));
-    } catch (error) {
-      console.error('Failed to update lead stage:', error);
-      throw error;
-    }
-  };
-
   // Handle admission closed success
   const handleAdmissionSuccess = () => {
     if (id) {
@@ -310,7 +333,6 @@ export default function LeadDetailPage() {
     );
   }
 
-  const statusInfo = getStatusInfo(selectedStatus);
   const assignedUser = currentLead.assignments?.[0]?.assignedTo;
 
   // Check if current tab is in more tabs
@@ -323,8 +345,8 @@ export default function LeadDetailPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200">
-        <div className="px-4 py-3">
+      <div className="bg-white border-b border-slate-200 relative z-10">
+        <div className="px-3 py-3">
           {/* Row 1: Back, Name, Status, Badges, Action Buttons */}
           <div className="flex items-center gap-3">
             <button
@@ -360,30 +382,41 @@ export default function LeadDetailPage() {
               </div>
             </div>
 
-            {/* Status Badge */}
-            {isEditingStatus ? (
+            {/* Stage Badge */}
+            {isEditingStage ? (
               <div className="flex items-center gap-1">
                 <select
-                  value={selectedStatus}
-                  onChange={(e) => handleStatusChange(e.target.value)}
+                  value={selectedStageId}
+                  onChange={(e) => handleStageChange(e.target.value)}
                   className="px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary-500"
                 >
-                  {statusOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
+                  <option value="">Select Stage</option>
+                  {leadStages.filter(s => s.journeyOrder >= 0).map((stage) => (
+                    <option key={stage.id} value={stage.id}>{stage.name}</option>
+                  ))}
+                  {leadStages.filter(s => s.journeyOrder < 0).map((stage) => (
+                    <option key={stage.id} value={stage.id}>--- {stage.name} ---</option>
                   ))}
                 </select>
-                <button onClick={() => setIsEditingStatus(false)} className="p-0.5 hover:bg-slate-100 rounded">
+                <button onClick={() => setIsEditingStage(false)} className="p-0.5 hover:bg-slate-100 rounded">
                   <XMarkIcon className="h-3.5 w-3.5 text-slate-500" />
                 </button>
               </div>
             ) : (
               <button
-                onClick={() => setIsEditingStatus(true)}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}
+                onClick={() => setIsEditingStage(true)}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium"
+                style={{
+                  backgroundColor: `${leadStages.find(s => s.id === selectedStageId)?.color || '#94A3B8'}20`,
+                  color: leadStages.find(s => s.id === selectedStageId)?.color || '#64748B',
+                }}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-                {statusInfo.label}
-                <PencilSquareIcon className="h-3 w-3 opacity-60" />
+                <span
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ backgroundColor: leadStages.find(s => s.id === selectedStageId)?.color || '#94A3B8' }}
+                />
+                {leadStages.find(s => s.id === selectedStageId)?.name || 'Select Stage'}
+                <ChevronDownIcon className="h-3 w-3 opacity-60" />
               </button>
             )}
 
@@ -413,6 +446,11 @@ export default function LeadDetailPage() {
               <button onClick={() => setShowSmsModal(true)} className="p-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-600 transition-colors" title="SMS">
                 <ChatBubbleBottomCenterTextIcon className="h-4 w-4" />
               </button>
+              <QuickReminderDropdown
+                leadId={currentLead.id}
+                leadName={`${currentLead.firstName} ${currentLead.lastName}`}
+                compact
+              />
               <a href={`mailto:${currentLead.email}`} className="p-1.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-600 transition-colors" title="Email">
                 <EnvelopeIcon className="h-4 w-4" />
               </a>
@@ -439,7 +477,7 @@ export default function LeadDetailPage() {
           </div>
 
           {/* Row 2: Lead Info */}
-          <div className="flex items-center gap-4 mt-2 pl-12 text-xs">
+          <div className="flex items-center gap-4 mt-2 pl-12 text-xs relative z-20">
             <div className="flex items-center gap-1.5">
               <span className="text-slate-400">Source:</span>
               <span className="font-medium text-slate-700">{(currentLead.source || 'Unknown').replace(/_/g, ' ')}</span>
@@ -454,7 +492,7 @@ export default function LeadDetailPage() {
                 <ChevronDownIcon className="h-3 w-3" />
               </button>
               {showAgentDropdown && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 min-w-[160px] py-1">
+                <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[160px] py-1">
                   {counselors.map((counselor) => (
                     <button
                       key={counselor.id}
@@ -484,76 +522,117 @@ export default function LeadDetailPage() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="px-4 border-t border-slate-100">
+        {/* Tabs - Clean Full Width Style */}
+        <div className="px-3 border-t border-slate-100">
           <div className="flex items-center">
-            <nav className="flex items-center gap-0.5 overflow-x-auto flex-1">
-              {primaryTabs.map((tab) => {
+            {/* Tab Container - Full Width */}
+            <div className="flex items-center gap-0 overflow-x-auto flex-1 scrollbar-hide">
+              {allTabs.filter(tab => !tab.educationOnly || organizationIndustry === 'EDUCATION').map((tab) => {
                 const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                // Get counts for tabs
+                const getTabCount = () => {
+                  switch (tab.id) {
+                    case 'notes': return leadData.notes?.length || 0;
+                    case 'tasks': return leadData.tasks?.length || 0;
+                    case 'followups': return leadData.followUps?.length || 0;
+                    case 'calls': return leadData.callLogs?.length || 0;
+                    case 'timelines': return leadData.activities?.length || 0;
+                    case 'interests': return leadData.interests?.length || 0;
+                    case 'attachments': return leadData.attachments?.length || 0;
+                    case 'queries': return leadData.queries?.length || 0;
+                    case 'applications': return leadData.applications?.length || 0;
+                    case 'payments': return leadData.payments?.length || 0;
+                    case 'documents': return leadData.documents?.length || 0;
+                    default: return 0;
+                  }
+                };
+                const count = getTabCount();
+
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
-                      activeTab === tab.id
-                        ? 'border-primary-500 text-primary-600'
-                        : 'border-transparent text-slate-500 hover:text-slate-700'
+                    className={`relative flex items-center gap-1 px-2.5 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-all duration-200 ${
+                      isActive
+                        ? 'border-primary-600 text-primary-700 bg-primary-50/50'
+                        : 'border-transparent text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
                     }`}
                   >
-                    <Icon className="h-3.5 w-3.5" />
-                    {tab.label}
+                    <Icon className={`h-3.5 w-3.5 ${isActive ? 'text-primary-600' : 'text-slate-500'}`} />
+                    <span>{tab.label}</span>
+                    <span className={`ml-1 min-w-[16px] h-[16px] flex items-center justify-center text-[9px] font-semibold rounded-full transition-opacity ${
+                      count > 0
+                        ? isActive
+                          ? 'bg-primary-600 text-white opacity-100'
+                          : 'bg-slate-200 text-slate-600 opacity-100'
+                        : 'opacity-0'
+                    }`}>
+                      {count || 0}
+                    </span>
                   </button>
                 );
               })}
-            </nav>
-
-            {/* More Dropdown - Outside nav to avoid overflow clipping */}
-            <div className="relative" ref={moreDropdownRef}>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowMoreDropdown(!showMoreDropdown);
-                }}
-                className={`flex items-center gap-1 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
-                  isMoreTabActive
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <EllipsisHorizontalIcon className="h-3.5 w-3.5" />
-                {isMoreTabActive ? activeMoreTab?.label : 'More'}
-                <ChevronDownIcon className="h-3 w-3" />
-              </button>
-              {showMoreDropdown && (
-                <div className="absolute top-full right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-[100] min-w-[160px] py-1">
-                  {moreTabs.map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveTab(tab.id);
-                          setShowMoreDropdown(false);
-                        }}
-                        className={`flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-slate-50 ${
-                          activeTab === tab.id ? 'text-primary-600 bg-primary-50' : 'text-slate-600'
-                        }`}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {tab.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </div>
+
+            {/* More Dropdown - Only show if there are more tabs */}
+            {moreTabs.length > 0 && (
+              <div className="relative" ref={moreDropdownRef}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowMoreDropdown(!showMoreDropdown);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap rounded-lg transition-all duration-200 ${
+                    isMoreTabActive
+                      ? 'bg-primary-50 text-primary-700 ring-1 ring-primary-200'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                  }`}
+                >
+                  <EllipsisHorizontalIcon className="h-4 w-4" />
+                  <span>{isMoreTabActive ? activeMoreTab?.label : 'More'}</span>
+                  <ChevronDownIcon className={`h-3 w-3 transition-transform duration-200 ${showMoreDropdown ? 'rotate-180' : ''}`} />
+                </button>
+                {showMoreDropdown && (
+                  <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-[100] min-w-[180px] py-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                      More Options
+                    </div>
+                    {moreTabs.map((tab) => {
+                      const Icon = tab.icon;
+                      const isActive = activeTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveTab(tab.id);
+                            setShowMoreDropdown(false);
+                          }}
+                          className={`flex items-center gap-2.5 w-full px-3 py-2 text-sm transition-colors ${
+                            isActive
+                              ? 'text-primary-700 bg-primary-50'
+                              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                          }`}
+                        >
+                          <Icon className={`h-4 w-4 ${isActive ? 'text-primary-600' : 'text-slate-400'}`} />
+                          <span className="font-medium">{tab.label}</span>
+                          {isActive && (
+                            <CheckIcon className="h-4 w-4 ml-auto text-primary-600" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Tab Content */}
-      <div className="p-4">
+      <div className="px-3 py-4">
         {/* Industry Journey Tracker - Uses organization's industry-specific stages */}
         {!loadingStages && leadStages.length > 0 ? (
           <IndustryJourneyTracker
@@ -578,7 +657,20 @@ export default function LeadDetailPage() {
           />
         ) : null}
 
-        {activeTab === 'overview' && <OverviewTab lead={currentLead} />}
+        {activeTab === 'overview' && (
+          <div className="space-y-4">
+            <OverviewTab lead={currentLead} />
+            {/* Industry-specific custom fields - show for all industries except EDUCATION (has dedicated models) */}
+            {organizationIndustry !== 'EDUCATION' && organizationIndustry !== 'GENERAL' && (
+              <IndustryFieldsForm
+                leadId={currentLead.id}
+                industry={organizationIndustry}
+                initialValues={currentLead.customFields as Record<string, any>}
+                onSave={() => dispatch(fetchLeadById(currentLead.id))}
+              />
+            )}
+          </div>
+        )}
 
         {activeTab === 'notes' && (
           <NotesTab
@@ -664,6 +756,27 @@ export default function LeadDetailPage() {
             onDelete={leadData.deleteApplication}
           />
         )}
+
+        {activeTab === 'payments' && (
+          <PaymentsTab
+            payments={leadData.payments}
+            loading={leadData.loadingPayments}
+            onAddClick={() => setShowPaymentModal(true)}
+            onUpdateStatus={leadData.updatePaymentStatus}
+            onDelete={leadData.deletePayment}
+          />
+        )}
+
+        {activeTab === 'documents' && (
+          <DocumentsTab
+            documents={leadData.documents}
+            loading={leadData.loadingDocuments}
+            onAddClick={() => setShowDocumentModal(true)}
+            onUpdateStatus={leadData.updateDocumentStatus}
+            onDelete={leadData.deleteDocument}
+            onDownload={leadData.downloadDocument}
+          />
+        )}
       </div>
 
       {/* Modals */}
@@ -745,6 +858,18 @@ export default function LeadDetailPage() {
         leadId={currentLead.id}
         leadName={`${currentLead.firstName} ${currentLead.lastName || ''}`}
         onSuccess={handleAdmissionSuccess}
+      />
+
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onSubmit={(payment) => leadData.addPayment(payment)}
+      />
+
+      <DocumentModal
+        isOpen={showDocumentModal}
+        onClose={() => setShowDocumentModal(false)}
+        onSubmit={(file, documentType, documentName) => leadData.addDocument(file, documentType, documentName)}
       />
     </div>
   );

@@ -15,6 +15,8 @@ import leadDetailsService, {
   LeadActivity,
   Interest,
   CallLog,
+  LeadPayment,
+  LeadDocument,
 } from '../../../services/leadDetails.service';
 
 export interface UseLeadDetailDataReturn {
@@ -28,6 +30,8 @@ export interface UseLeadDetailDataReturn {
   activities: LeadActivity[];
   interests: Interest[];
   callLogs: CallLog[];
+  payments: LeadPayment[];
+  documents: LeadDocument[];
 
   // Loading states
   loadingNotes: boolean;
@@ -39,6 +43,8 @@ export interface UseLeadDetailDataReturn {
   loadingActivities: boolean;
   loadingInterests: boolean;
   loadingCalls: boolean;
+  loadingPayments: boolean;
+  loadingDocuments: boolean;
 
   // Note handlers
   addNote: (content: string) => Promise<void>;
@@ -77,6 +83,17 @@ export interface UseLeadDetailDataReturn {
   // Call handlers
   addCallLog: (callLog: { phoneNumber: string; direction: string; status: string; duration: number; notes?: string }) => Promise<void>;
 
+  // Payment handlers
+  addPayment: (payment: Omit<LeadPayment, 'id' | 'createdAt'>) => Promise<void>;
+  updatePaymentStatus: (paymentId: string, status: LeadPayment['status']) => Promise<void>;
+  deletePayment: (paymentId: string) => Promise<void>;
+
+  // Document handlers
+  addDocument: (file: File, documentType: LeadDocument['documentType'], documentName: string) => Promise<void>;
+  updateDocumentStatus: (docId: string, status: LeadDocument['status'], rejectionReason?: string) => Promise<void>;
+  deleteDocument: (docId: string) => Promise<void>;
+  downloadDocument: (doc: LeadDocument) => void;
+
   // Load functions
   loadTabData: (tab: string) => Promise<void>;
 }
@@ -92,6 +109,8 @@ export function useLeadDetailData(leadId: string | undefined): UseLeadDetailData
   const [activities, setActivities] = useState<LeadActivity[]>([]);
   const [interests, setInterests] = useState<Interest[]>([]);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
+  const [payments, setPayments] = useState<LeadPayment[]>([]);
+  const [documents, setDocuments] = useState<LeadDocument[]>([]);
 
   // Loading states
   const [loadingNotes, setLoadingNotes] = useState(false);
@@ -103,6 +122,8 @@ export function useLeadDetailData(leadId: string | undefined): UseLeadDetailData
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [loadingInterests, setLoadingInterests] = useState(false);
   const [loadingCalls, setLoadingCalls] = useState(false);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
 
   // Load tab data
   const loadTabData = useCallback(async (tab: string) => {
@@ -163,6 +184,28 @@ export function useLeadDetailData(leadId: string | undefined): UseLeadDetailData
           const callsData = await leadDetailsService.getCallLogs(leadId);
           setCallLogs(callsData);
           setLoadingCalls(false);
+          break;
+        case 'payments':
+          setLoadingPayments(true);
+          try {
+            const paymentsData = await leadDetailsService.getPayments(leadId);
+            setPayments(paymentsData);
+          } catch {
+            // API may not exist yet, use empty array
+            setPayments([]);
+          }
+          setLoadingPayments(false);
+          break;
+        case 'documents':
+          setLoadingDocuments(true);
+          try {
+            const documentsData = await leadDetailsService.getDocuments(leadId);
+            setDocuments(documentsData);
+          } catch {
+            // API may not exist yet, use empty array
+            setDocuments([]);
+          }
+          setLoadingDocuments(false);
           break;
       }
     } catch (error) {
@@ -422,6 +465,79 @@ export function useLeadDetailData(leadId: string | undefined): UseLeadDetailData
     }
   }, [leadId]);
 
+  // Payment handlers
+  const addPayment = useCallback(async (paymentData: Omit<LeadPayment, 'id' | 'createdAt'>) => {
+    if (!leadId) return;
+    try {
+      const payment = await leadDetailsService.createPayment(leadId, paymentData);
+      setPayments(prev => [payment, ...prev]);
+      toast.success('Payment recorded');
+    } catch (error) {
+      toast.error('Failed to record payment');
+    }
+  }, [leadId]);
+
+  const updatePaymentStatus = useCallback(async (paymentId: string, status: LeadPayment['status']) => {
+    if (!leadId) return;
+    try {
+      const updated = await leadDetailsService.updatePayment(leadId, paymentId, { status });
+      setPayments(prev => prev.map(p => p.id === paymentId ? updated : p));
+      toast.success('Payment updated');
+    } catch (error) {
+      toast.error('Failed to update payment');
+    }
+  }, [leadId]);
+
+  const deletePayment = useCallback(async (paymentId: string) => {
+    if (!leadId) return;
+    try {
+      await leadDetailsService.deletePayment(leadId, paymentId);
+      setPayments(prev => prev.filter(p => p.id !== paymentId));
+      toast.success('Payment deleted');
+    } catch (error) {
+      toast.error('Failed to delete payment');
+    }
+  }, [leadId]);
+
+  // Document handlers
+  const addDocument = useCallback(async (file: File, documentType: LeadDocument['documentType'], documentName: string) => {
+    if (!leadId || !file) return;
+    try {
+      const document = await leadDetailsService.uploadDocument(leadId, file, documentType, documentName);
+      setDocuments(prev => [document, ...prev]);
+      toast.success('Document uploaded');
+    } catch (error) {
+      toast.error('Failed to upload document');
+    }
+  }, [leadId]);
+
+  const updateDocumentStatus = useCallback(async (docId: string, status: LeadDocument['status'], rejectionReason?: string) => {
+    if (!leadId) return;
+    try {
+      const updated = await leadDetailsService.updateDocument(leadId, docId, { status, rejectionReason });
+      setDocuments(prev => prev.map(d => d.id === docId ? updated : d));
+      toast.success('Document updated');
+    } catch (error) {
+      toast.error('Failed to update document');
+    }
+  }, [leadId]);
+
+  const deleteDocument = useCallback(async (docId: string) => {
+    if (!leadId) return;
+    try {
+      await leadDetailsService.deleteDocument(leadId, docId);
+      setDocuments(prev => prev.filter(d => d.id !== docId));
+      toast.success('Document deleted');
+    } catch (error) {
+      toast.error('Failed to delete document');
+    }
+  }, [leadId]);
+
+  const downloadDocument = useCallback((doc: LeadDocument) => {
+    // Open document URL in new tab or trigger download
+    window.open(doc.fileUrl, '_blank');
+  }, []);
+
   return {
     // Data
     notes,
@@ -433,6 +549,8 @@ export function useLeadDetailData(leadId: string | undefined): UseLeadDetailData
     activities,
     interests,
     callLogs,
+    payments,
+    documents,
 
     // Loading states
     loadingNotes,
@@ -444,6 +562,8 @@ export function useLeadDetailData(leadId: string | undefined): UseLeadDetailData
     loadingActivities,
     loadingInterests,
     loadingCalls,
+    loadingPayments,
+    loadingDocuments,
 
     // Handlers
     addNote,
@@ -467,6 +587,13 @@ export function useLeadDetailData(leadId: string | undefined): UseLeadDetailData
     addInterest,
     deleteInterest,
     addCallLog,
+    addPayment,
+    updatePaymentStatus,
+    deletePayment,
+    addDocument,
+    updateDocumentStatus,
+    deleteDocument,
+    downloadDocument,
     loadTabData,
   };
 }

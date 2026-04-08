@@ -78,6 +78,7 @@ class TelecallerQueueService {
       page?: number;
       limit?: number;
       showAll?: boolean;
+      userRole?: string;
     }
   ) {
     const page = options?.page || 1;
@@ -96,13 +97,78 @@ class TelecallerQueueService {
       where.status = { in: ['PENDING', 'CLAIMED', 'CALLBACK'] };
     }
 
-    // If not showAll, only show unassigned or assigned to current user
-    if (!options?.showAll && userId) {
+    // Role-based filtering
+    const normalizedRole = options?.userRole?.toLowerCase().replace('_', '');
+
+    if (normalizedRole === 'teamlead' && userId) {
+      // Team Lead: see queue items assigned to their team members
+      const teamMembers = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: userId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamMemberIds = teamMembers.map(m => m.id);
+
+      if (teamMemberIds.length > 0) {
+        where.OR = [
+          { assignedToId: null }, // Unassigned items
+          { assignedToId: { in: teamMemberIds } }, // Team members' items
+        ];
+      } else {
+        where.assignedToId = null; // No team, show only unassigned
+      }
+    } else if (normalizedRole === 'manager' && userId) {
+      // Manager: see queue items for their team leads' teams
+      const teamLeads = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: userId,
+          role: { slug: 'team_lead' },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamLeadIds = teamLeads.map(tl => tl.id);
+
+      const allTeamMembers = await prisma.user.findMany({
+        where: {
+          organizationId,
+          OR: [
+            { managerId: { in: teamLeadIds } },
+            { managerId: userId },
+          ],
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const allMemberIds = allTeamMembers.map(m => m.id);
+
+      if (allMemberIds.length > 0) {
+        where.OR = [
+          { assignedToId: null },
+          { assignedToId: { in: allMemberIds } },
+        ];
+      }
+      // If no members, manager sees all (no filter)
+    } else if (normalizedRole === 'telecaller' || normalizedRole === 'counselor') {
+      // Telecaller/Counselor: only see unassigned or their own items
+      if (userId) {
+        where.OR = [
+          { assignedToId: null },
+          { assignedToId: userId },
+        ];
+      }
+    } else if (!options?.showAll && userId) {
+      // Default behavior for other roles if not showAll
       where.OR = [
         { assignedToId: null },
         { assignedToId: userId },
       ];
     }
+    // Admin with showAll sees everything
 
     const [items, total] = await Promise.all([
       prisma.telecallerQueue.findMany({

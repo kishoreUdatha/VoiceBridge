@@ -92,7 +92,7 @@ export const fetchManagers = createAsyncThunk(
 
 export const createUser = createAsyncThunk(
   'users/createUser',
-  async (data: Partial<User> & { password: string }, { rejectWithValue }) => {
+  async (data: Partial<User> & { password?: string }, { rejectWithValue }) => {
     try {
       const response = await userService.create(data);
       return response;

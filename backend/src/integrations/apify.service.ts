@@ -19,15 +19,15 @@ import { config } from '../config';
 const APIFY_API_URL = config.apiUrls.apify;
 
 // Predefined actor IDs for common scrapers
-// These are popular actors from the Apify Store
+// These are popular actors from the Apify Store with free tiers
 export const APIFY_ACTORS = {
-  GOOGLE_MAPS: 'compass/crawler-google-places',
-  LINKEDIN_COMPANY: 'bebity/linkedin-company-scraper',
-  LINKEDIN_PEOPLE: 'bebity/linkedin-profile-scraper',
-  YELLOW_PAGES: 'jupri/yellow-pages-scraper',
+  GOOGLE_MAPS: 'apify~google-maps-scraper',
+  LINKEDIN_COMPANY: 'anchor~linkedin-scraper',
+  LINKEDIN_PEOPLE: 'anchor~linkedin-scraper',
+  YELLOW_PAGES: 'apify~yellow-pages-scraper',
   // Email extraction from websites
-  CONTACT_INFO_SCRAPER: 'apify/contact-info-scraper',
-  EMAIL_EXTRACTOR: 'lukaskrivka/contact-info-scraper',
+  CONTACT_INFO_SCRAPER: 'apify~contact-info-scraper',
+  EMAIL_EXTRACTOR: 'lukaskrivka~contact-info-scraper',
 } as const;
 
 // Default field mappings for each scraper type

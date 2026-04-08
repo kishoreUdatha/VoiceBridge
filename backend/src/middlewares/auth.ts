@@ -8,6 +8,7 @@ export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     organizationId: string;
+    organizationName: string;
     email: string;
     firstName: string;
     lastName: string;
@@ -17,6 +18,8 @@ export interface AuthenticatedRequest extends Request {
     managerId: string | null; // Manager ID for team-based access control
     branchId: string | null; // Branch ID for multi-branch support
     branchName: string | null; // Branch name for display
+    onboardingCompleted: boolean; // Onboarding status
+    organizationIndustry: string | null; // Organization industry
   };
 }
 
@@ -46,6 +49,14 @@ export async function authenticate(
             name: true,
           },
         },
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            industry: true,
+            settings: true,
+          },
+        },
       },
     });
 
@@ -54,9 +65,14 @@ export async function authenticate(
       return;
     }
 
+    // Get onboarding status from organization settings
+    const orgSettings = (user.organization.settings as any) || {};
+    const onboardingCompleted = orgSettings.onboardingCompleted || false;
+
     req.user = {
       id: user.id,
       organizationId: user.organizationId,
+      organizationName: user.organization.name,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -66,6 +82,8 @@ export async function authenticate(
       managerId: user.managerId,
       branchId: user.branchId,
       branchName: user.branch?.name || null,
+      onboardingCompleted,
+      organizationIndustry: user.organization.industry,
     };
 
     next();
@@ -146,13 +164,26 @@ export async function optionalAuth(
             name: true,
           },
         },
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            industry: true,
+            settings: true,
+          },
+        },
       },
     });
 
     if (user && user.isActive) {
+      // Get onboarding status from organization settings
+      const orgSettings = (user.organization.settings as any) || {};
+      const onboardingCompleted = orgSettings.onboardingCompleted || false;
+
       req.user = {
         id: user.id,
         organizationId: user.organizationId,
+        organizationName: user.organization.name,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
@@ -162,6 +193,8 @@ export async function optionalAuth(
         managerId: user.managerId,
         branchId: user.branchId,
         branchName: user.branch?.name || null,
+        onboardingCompleted,
+        organizationIndustry: user.organization.industry,
       };
     }
 

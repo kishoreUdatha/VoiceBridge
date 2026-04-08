@@ -224,10 +224,15 @@ export default function LeadsListPage() {
           {/* Spacer */}
           <div className="flex-1"></div>
 
-          {/* Add Leads Button */}
-          <Link to="/leads/bulk-upload" className="px-3 py-1.5 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1.5 whitespace-nowrap">
+          {/* Create Single Lead Button */}
+          <Link to="/leads/new" className="px-3 py-1.5 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1.5 whitespace-nowrap">
             <PlusIcon className="h-4 w-4" />
-            Add Leads
+            Create Lead
+          </Link>
+
+          {/* Bulk Upload Button */}
+          <Link to="/leads/bulk-upload" className="px-3 py-1.5 text-sm font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors flex items-center gap-1.5 whitespace-nowrap">
+            Bulk Upload
           </Link>
         </div>
       </div>

@@ -26,9 +26,14 @@ export class RawImportController {
 
   async getBulkImport(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      const userRole = req.user?.role || req.user?.roleSlug;
+      const userId = req.user?.id;
+
       const bulkImport = await rawImportService.getBulkImportById(
         req.params.id,
-        req.organizationId!
+        req.organizationId!,
+        userRole,
+        userId
       );
 
       ApiResponse.success(res, 'Bulk import retrieved successfully', bulkImport);
@@ -49,7 +54,14 @@ export class RawImportController {
 
   async getTelecallerAssignmentStats(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const stats = await rawImportService.getTelecallerAssignmentStats(req.organizationId!);
+      const userRole = req.user?.role || req.user?.roleSlug;
+      const userId = req.user?.id;
+
+      const stats = await rawImportService.getTelecallerAssignmentStats(
+        req.organizationId!,
+        userRole,
+        userId
+      );
 
       ApiResponse.success(res, 'Telecaller assignment stats retrieved successfully', stats);
     } catch (error) {
@@ -71,6 +83,9 @@ export class RawImportController {
         assignedToId: req.query.assignedToId as string | undefined,
         assignedAgentId: req.query.assignedAgentId as string | undefined,
         search: req.query.search as string | undefined,
+        // Pass user role and ID for team-based filtering
+        userRole: req.user?.role || req.user?.roleSlug,
+        userId: req.user?.id,
       };
 
       const { records, total } = await rawImportService.getRecords(filter, page, limit);
@@ -99,12 +114,14 @@ export class RawImportController {
   async assignToTelecallers(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { recordIds, telecallerIds } = req.body;
+      const userRole = req.user!.role || req.user!.roleSlug;
 
       const result = await rawImportService.assignToTelecallers(
         recordIds,
         telecallerIds,
         req.user!.id,
-        req.organizationId!
+        req.organizationId!,
+        userRole // Pass user role for team lead validation
       );
 
       ApiResponse.success(res, 'Records assigned to telecallers successfully', result);

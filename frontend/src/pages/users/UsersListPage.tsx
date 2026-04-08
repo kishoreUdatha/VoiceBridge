@@ -136,11 +136,38 @@ export default function UsersListPage() {
   const selectedRole = roles.find(r => r.id === selectedRoleId);
   // Show manager dropdown for all roles except admin and owner
   const showManagerDropdown = selectedRole && !['admin', 'owner'].includes(selectedRole.slug);
-  // Filter managers by selected branch (same branch only)
+
+  // Define role hierarchy - who can manage whom
+  const getValidManagerRoles = (roleSlug: string): string[] => {
+    switch (roleSlug) {
+      case 'telecaller':
+      case 'counselor':
+        return ['team_lead']; // Telecallers & Counselors report to Team Leads
+      case 'team_lead':
+        return ['manager']; // Team Leads report to Managers
+      case 'manager':
+        return ['admin']; // Managers report to Admins
+      case 'field_sales':
+        return ['team_lead', 'manager']; // Field Sales can report to Team Lead or Manager
+      default:
+        return ['admin', 'manager', 'team_lead']; // Default: any manager role
+    }
+  };
+
+  // Filter managers by selected branch AND role hierarchy
   const filteredManagers = useMemo(() => {
     if (!selectedBranchId) return [];
-    return managers.filter((m: any) => m.branchId === selectedBranchId);
-  }, [managers, selectedBranchId]);
+
+    // Get valid manager roles based on selected user role
+    const validManagerRoles = selectedRole ? getValidManagerRoles(selectedRole.slug) : ['admin', 'manager', 'team_lead'];
+
+    // Filter by branch (same branch OR no branch for admins) AND by role hierarchy
+    return managers.filter((m: any) => {
+      const branchMatch = m.branchId === selectedBranchId || m.branchId === null;
+      const roleMatch = validManagerRoles.includes(m.roleSlug);
+      return branchMatch && roleMatch;
+    });
+  }, [managers, selectedBranchId, selectedRole]);
 
   // Clear manager selection when branch changes
   useEffect(() => {
@@ -252,7 +279,9 @@ export default function UsersListPage() {
       setIsCreateModalOpen(false);
       reset();
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to create user');
+      // rejectWithValue returns a string directly, not an object
+      const errorMessage = typeof error === 'string' ? error : (error?.message || 'Failed to create user');
+      toast.error(errorMessage);
     }
   };
 
@@ -265,7 +294,8 @@ export default function UsersListPage() {
       setSelectedUser(null);
       reset();
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to update user');
+      const errorMessage = typeof error === 'string' ? error : (error?.message || 'Failed to update user');
+      toast.error(errorMessage);
     }
   };
 
@@ -1162,12 +1192,12 @@ export default function UsersListPage() {
               </div>
               <div className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-blue-50 rounded-lg"><EnvelopeIcon className="w-4 h-4 text-blue-600" /></div>
-                    <div><p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</p><p className="text-sm text-gray-900 mt-0.5">{selectedUser.email}</p></div>
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="p-2 bg-blue-50 rounded-lg flex-shrink-0"><EnvelopeIcon className="w-4 h-4 text-blue-600" /></div>
+                    <div className="min-w-0"><p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</p><p className="text-sm text-gray-900 mt-0.5 break-all">{selectedUser.email}</p></div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <div className="p-2 bg-green-50 rounded-lg"><PhoneIcon className="w-4 h-4 text-green-600" /></div>
+                    <div className="p-2 bg-green-50 rounded-lg flex-shrink-0"><PhoneIcon className="w-4 h-4 text-green-600" /></div>
                     <div><p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Phone</p><p className="text-sm text-gray-900 mt-0.5">{selectedUser.phone || '—'}</p></div>
                   </div>
                 </div>

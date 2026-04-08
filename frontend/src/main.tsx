@@ -11,6 +11,31 @@ import './index.css';
 // Initialize i18n
 import './i18n';
 
+// Initialize Error Tracking
+import { errorTracker } from './utils/errorTracking';
+errorTracker.init();
+
+// Register Service Worker for PWA (production only)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then((registration) => {
+        console.log('SW registered:', registration.scope);
+      })
+      .catch((error) => {
+        console.log('SW registration failed:', error);
+      });
+  });
+} else if ('serviceWorker' in navigator && import.meta.env.DEV) {
+  // Unregister service workers in development to avoid caching issues
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    registrations.forEach((registration) => {
+      registration.unregister();
+      console.log('SW unregistered for development');
+    });
+  });
+}
+
 // Loading fallback component
 const LoadingSpinner = () => (
   <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -22,7 +47,7 @@ const LoadingSpinner = () => (
 );
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+  // <React.StrictMode>
     <ErrorBoundary>
       <Suspense fallback={<LoadingSpinner />}>
         <Provider store={store}>
@@ -54,5 +79,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         </Provider>
       </Suspense>
     </ErrorBoundary>
-  </React.StrictMode>
+  // </React.StrictMode>
 );

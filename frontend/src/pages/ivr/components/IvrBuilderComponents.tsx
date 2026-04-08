@@ -12,6 +12,7 @@ import {
   X,
   ChevronLeft,
   Trash2,
+  Phone,
 } from 'lucide-react';
 import { FlowState, PaletteItem, MenuOption } from '../ivr-builder.types';
 import { PALETTE_ITEMS, TRANSFER_TYPES } from '../ivr-builder.constants';
@@ -23,6 +24,7 @@ interface HeaderProps {
   isNew: boolean;
   onNameChange: (name: string) => void;
   onSettingsClick: () => void;
+  onTestClick: () => void;
   onSave: () => void;
   onPublish: () => void;
   onBack: () => void;
@@ -34,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
   isNew,
   onNameChange,
   onSettingsClick,
+  onTestClick,
   onSave,
   onPublish,
   onBack,
@@ -57,6 +60,14 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
     </div>
     <div className="flex items-center gap-2">
+      <button
+        onClick={onTestClick}
+        className="flex items-center gap-2 px-3 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg"
+        title="Test Call Flow"
+      >
+        <Phone size={18} />
+        Test
+      </button>
       <button
         onClick={onSettingsClick}
         className="p-2 hover:bg-gray-100 rounded-lg"

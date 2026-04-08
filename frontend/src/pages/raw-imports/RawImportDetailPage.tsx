@@ -85,6 +85,13 @@ export default function RawImportDetailPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterAssignedTo, setFilterAssignedTo] = useState<string>('');
 
+  // Delete confirmation state
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    show: boolean;
+    type: 'single' | 'bulk';
+    recordId?: string;
+  }>({ show: false, type: 'single' });
+
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -162,11 +169,11 @@ export default function RawImportDetailPage() {
 
   const handleAssignTelecallers = async () => {
     if (selectedTelecallers.length === 0) {
-      showToast.error('Please select at least one telecaller');
+      showToast.custom.error('Please select at least one telecaller');
       return;
     }
     if (selectedRecords.length === 0) {
-      showToast.error('Please select records to assign');
+      showToast.custom.error('Please select records to assign');
       return;
     }
 
@@ -174,12 +181,20 @@ export default function RawImportDetailPage() {
       await dispatch(
         assignToTelecallers({ recordIds: selectedRecords, telecallerIds: selectedTelecallers })
       ).unwrap();
-      showToast.success('Records assigned to telecallers successfully');
+      showToast.success('rawImports.assignedToTelecallers');
       closeAssignModal();
       loadRecords();
       dispatch(fetchBulkImportById(id!));
-    } catch {
-      showToast.error('Failed to assign records');
+    } catch (error: any) {
+      // Show the actual error message from API
+      const errorMessage = typeof error === 'string' ? error : (error?.message || 'Could not assign records');
+
+      // Make error message more user-friendly
+      if (errorMessage.toLowerCase().includes('no pending')) {
+        showToast.custom.error('All selected records are already assigned. Please select unassigned records.');
+      } else {
+        showToast.custom.error(errorMessage);
+      }
     }
   };
 
@@ -192,15 +207,15 @@ export default function RawImportDetailPage() {
 
   const handleCreateAndStartCampaign = async () => {
     if (!selectedAgent) {
-      showToast.error('Please select an AI agent');
+      showToast.custom.error('Please select an AI agent');
       return;
     }
     if (selectedRecords.length === 0) {
-      showToast.error('Please select records to assign');
+      showToast.custom.error('Please select records to assign');
       return;
     }
     if (!campaignName.trim()) {
-      showToast.error('Please enter a campaign name');
+      showToast.custom.error('Please enter a campaign name');
       return;
     }
 
@@ -235,14 +250,25 @@ export default function RawImportDetailPage() {
       // Start the campaign
       await api.post(`/outbound-calls/campaigns/${campaignId}/start`);
 
-      showToast.success(`Campaign "${campaignName}" started with ${contacts.length} contacts!`);
+      showToast.custom.success(`Campaign "${campaignName}" started with ${contacts.length} contacts!`);
       closeCampaignModal();
       loadRecords();
       dispatch(fetchBulkImportById(id!));
       dispatch(clearSelectedRecords());
     } catch (error: any) {
       console.error('Campaign creation error:', error);
-      showToast.error(error.response?.data?.message || 'Failed to create campaign');
+      const errorMessage = error.response?.data?.message || error?.message || '';
+
+      // Make error messages more user-friendly
+      if (errorMessage.toLowerCase().includes('no pending')) {
+        showToast.custom.error('All selected records are already assigned. Please select unassigned records.');
+      } else if (errorMessage.toLowerCase().includes('agent')) {
+        showToast.custom.error('Could not connect to AI agent. Please check agent settings and try again.');
+      } else if (errorMessage) {
+        showToast.custom.error(errorMessage);
+      } else {
+        showToast.custom.error('Could not start campaign. Please check your settings and try again.');
+      }
     } finally {
       setIsCreatingCampaign(false);
     }
@@ -253,37 +279,39 @@ export default function RawImportDetailPage() {
     setSelectedTelecallers([]);
   };
 
-  const handleDeleteRecord = async (recordId: string) => {
-    if (!window.confirm('Are you sure you want to delete this record?')) {
+  const handleDeleteRecord = (recordId: string) => {
+    setDeleteConfirm({ show: true, type: 'single', recordId });
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRecords.length === 0) {
+      showToast.custom.error('Please select records to delete');
       return;
     }
+    setDeleteConfirm({ show: true, type: 'bulk' });
+  };
+
+  const handleConfirmDelete = async () => {
     try {
-      await api.delete(`/raw-imports/records/${recordId}`);
-      showToast.success('Record deleted successfully');
+      if (deleteConfirm.type === 'single' && deleteConfirm.recordId) {
+        await api.delete(`/raw-imports/records/${deleteConfirm.recordId}`);
+        showToast.custom.success('Record deleted successfully');
+      } else if (deleteConfirm.type === 'bulk') {
+        await api.post('/raw-imports/records/bulk-delete', { recordIds: selectedRecords });
+        showToast.custom.success(`${selectedRecords.length} record(s) deleted successfully`);
+        dispatch(clearSelectedRecords());
+      }
       loadRecords();
       dispatch(fetchBulkImportById(id!));
     } catch {
-      showToast.error('Failed to delete record');
+      showToast.custom.error('Failed to delete record(s)');
+    } finally {
+      setDeleteConfirm({ show: false, type: 'single' });
     }
   };
 
-  const handleBulkDelete = async () => {
-    if (selectedRecords.length === 0) {
-      showToast.error('Please select records to delete');
-      return;
-    }
-    if (!window.confirm(`Are you sure you want to delete ${selectedRecords.length} record(s)?`)) {
-      return;
-    }
-    try {
-      await api.post('/raw-imports/records/bulk-delete', { recordIds: selectedRecords });
-      showToast.success(`${selectedRecords.length} record(s) deleted successfully`);
-      dispatch(clearSelectedRecords());
-      loadRecords();
-      dispatch(fetchBulkImportById(id!));
-    } catch {
-      showToast.error('Failed to delete records');
-    }
+  const handleCancelDelete = () => {
+    setDeleteConfirm({ show: false, type: 'single' });
   };
 
   const closeCampaignModal = () => {
@@ -296,11 +324,11 @@ export default function RawImportDetailPage() {
 
   const handleAddManualRecord = async () => {
     if (!newRecord.firstName.trim()) {
-      showToast.error('First name is required');
+      showToast.custom.error('First name is required');
       return;
     }
     if (!newRecord.phone.trim()) {
-      showToast.error('Phone number is required');
+      showToast.custom.error('Phone number is required');
       return;
     }
 
@@ -310,12 +338,12 @@ export default function RawImportDetailPage() {
         bulkImportId: id,
         ...newRecord,
       });
-      showToast.success('Record added successfully');
+      showToast.custom.success('Record added successfully');
       closeAddRecordModal();
       loadRecords();
       dispatch(fetchBulkImportById(id!));
     } catch (error: any) {
-      showToast.error(error.response?.data?.message || 'Failed to add record');
+      showToast.custom.error(error.response?.data?.message || 'Failed to add record');
     } finally {
       setIsAddingRecord(false);
     }
@@ -666,6 +694,44 @@ export default function RawImportDetailPage() {
                       Add Record
                     </>
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm.show && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black bg-opacity-30" onClick={handleCancelDelete} />
+            <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <TrashIcon className="h-5 w-5 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {deleteConfirm.type === 'bulk' ? 'Delete Selected Records' : 'Delete Record'}
+                </h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-6">
+                {deleteConfirm.type === 'bulk'
+                  ? `Are you sure you want to delete ${selectedRecords.length} selected record(s)? This action cannot be undone.`
+                  : 'Are you sure you want to delete this record? This action cannot be undone.'}
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={handleCancelDelete}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+                >
+                  Delete
                 </button>
               </div>
             </div>

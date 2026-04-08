@@ -11,6 +11,7 @@ import {
   UserPlusIcon,
   SparklesIcon,
   ChatBubbleLeftRightIcon,
+  ArrowUpTrayIcon,
 } from '@heroicons/react/24/outline';
 
 interface RawRecord {
@@ -72,7 +73,7 @@ export default function AssignedDataPage() {
   const [selectedRecord, setSelectedRecord] = useState<RawRecord | null>(null);
   const [showCallModal, setShowCallModal] = useState(false);
   const [updating, setUpdating] = useState(false);
-  const [_uploadingRecording, setUploadingRecording] = useState(false);
+  const [uploadingRecording, setUploadingRecording] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -165,8 +166,7 @@ export default function AssignedDataPage() {
     }
   };
 
-  // TODO: Enable when recording upload feature is implemented
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // Upload call recording for AI analysis
   const uploadRecording = async (id: string, file: File) => {
     try {
       setUploadingRecording(true);
@@ -187,7 +187,14 @@ export default function AssignedDataPage() {
       setUploadingRecording(false);
     }
   };
-  void uploadRecording; // Suppress unused warning
+
+  // Handle file input change for recording upload
+  const handleRecordingUpload = (recordId: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      uploadRecording(recordId, file);
+    }
+  };
 
   return (
     <div className="p-6 bg-slate-50 min-h-screen -m-6">
@@ -379,6 +386,21 @@ export default function AssignedDataPage() {
                       >
                         <PhoneIcon className="w-4 h-4" />
                       </button>
+
+                      {/* Upload Recording Button */}
+                      <label
+                        className={`p-2 text-white bg-purple-500 hover:bg-purple-600 rounded-lg transition-colors cursor-pointer ${uploadingRecording ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        title="Upload Call Recording for AI Analysis"
+                      >
+                        <ArrowUpTrayIcon className="w-4 h-4" />
+                        <input
+                          type="file"
+                          accept="audio/*,video/*"
+                          className="hidden"
+                          onChange={handleRecordingUpload(record.id)}
+                          disabled={uploadingRecording}
+                        />
+                      </label>
 
                       {/* Convert to Lead (if interested) */}
                       {record.status === 'INTERESTED' && (

@@ -272,9 +272,57 @@ class AnalyticsService {
   }
 
   /**
-   * Get lead conversion stats
+   * Get lead conversion stats with role-based filtering
    */
-  async getLeadStats(organizationId: string, dateRange: DateRange) {
+  async getLeadStats(organizationId: string, dateRange: DateRange, userRole?: string, userId?: string) {
+    // Build base where clause
+    const baseWhere: any = { organizationId };
+
+    // Add role-based filtering
+    const normalizedRole = userRole?.toLowerCase().replace('_', '');
+
+    if (normalizedRole === 'teamlead' && userId) {
+      // Team Lead: see leads assigned to themselves or team members
+      const teamMembers = await prisma.user.findMany({
+        where: { organizationId, managerId: userId, isActive: true },
+        select: { id: true },
+      });
+      const allMemberIds = [userId, ...teamMembers.map(m => m.id)];
+
+      baseWhere.OR = [
+        { assignments: { none: { isActive: true } } },
+        { assignments: { some: { assignedToId: { in: allMemberIds }, isActive: true } } },
+      ];
+    } else if (normalizedRole === 'manager' && userId) {
+      // Manager: see leads assigned to their hierarchy
+      const teamLeads = await prisma.user.findMany({
+        where: { organizationId, managerId: userId, role: { slug: 'team_lead' }, isActive: true },
+        select: { id: true },
+      });
+      const teamLeadIds = teamLeads.map(tl => tl.id);
+
+      const allTeamMembers = await prisma.user.findMany({
+        where: {
+          organizationId,
+          OR: [{ managerId: { in: teamLeadIds } }, { managerId: userId }],
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const allMemberIds = [userId, ...teamLeadIds, ...allTeamMembers.map(m => m.id)];
+
+      baseWhere.OR = [
+        { assignments: { none: { isActive: true } } },
+        { assignments: { some: { assignedToId: { in: allMemberIds }, isActive: true } } },
+      ];
+    } else if (normalizedRole === 'telecaller' || normalizedRole === 'counselor') {
+      // Telecaller/Counselor: only their own assigned leads
+      if (userId) {
+        baseWhere.assignments = { some: { assignedToId: userId, isActive: true } };
+      }
+    }
+    // Admin sees all leads (no filter)
+
     const [
       totalLeads,
       newLeads,
@@ -283,27 +331,27 @@ class AnalyticsService {
       leadsByStage,
     ] = await Promise.all([
       prisma.lead.count({
-        where: { organizationId },
+        where: baseWhere,
       }),
       prisma.lead.count({
-        where: { organizationId, createdAt: { gte: dateRange.start, lte: dateRange.end } },
+        where: { ...baseWhere, createdAt: { gte: dateRange.start, lte: dateRange.end } },
       }),
       prisma.lead.count({
         where: {
-          organizationId,
+          ...baseWhere,
           convertedAt: { gte: dateRange.start, lte: dateRange.end },
         },
       }),
       prisma.lead.groupBy({
         by: ['source'],
-        where: { organizationId, createdAt: { gte: dateRange.start, lte: dateRange.end } },
+        where: { ...baseWhere, createdAt: { gte: dateRange.start, lte: dateRange.end } },
         _count: { id: true },
         orderBy: { _count: { id: 'desc' } },
         take: 10,
       }),
       prisma.lead.groupBy({
         by: ['stageId'],
-        where: { organizationId },
+        where: baseWhere,
         _count: { id: true },
       }),
     ]);
@@ -484,7 +532,7 @@ class AnalyticsService {
   /**
    * Get dashboard summary
    */
-  async getDashboardSummary(organizationId: string) {
+  async getDashboardSummary(organizationId: string, userRole?: string, userId?: string) {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const dateRange = { start: thirtyDaysAgo, end: now };
@@ -497,7 +545,7 @@ class AnalyticsService {
       conversationStats,
     ] = await Promise.all([
       this.getApiUsageStats(organizationId, dateRange),
-      this.getLeadStats(organizationId, dateRange),
+      this.getLeadStats(organizationId, dateRange, userRole, userId),
       this.getMessagingStats(organizationId, dateRange),
       this.getContactListStats(organizationId),
       this.getConversationStats(organizationId, dateRange),

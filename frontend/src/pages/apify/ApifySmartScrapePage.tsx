@@ -12,23 +12,52 @@ import {
   ClockIcon,
   DocumentTextIcon,
   EnvelopeIcon,
+  MapPinIcon,
+  BuildingOfficeIcon,
+  UserGroupIcon,
+  BookOpenIcon,
 } from '@heroicons/react/24/outline';
 
-const EXAMPLE_PROMPTS = [
-  { text: 'Find restaurants in Mumbai', icon: '🍽️' },
-  { text: 'Get gyms and fitness centers in Bangalore', icon: '💪' },
-  { text: 'Find real estate agents in Hyderabad', icon: '🏠' },
-  { text: 'Scrape hotels in Goa', icon: '🏨' },
-  { text: 'Find software companies in Pune', icon: '💻' },
-  { text: 'Get wedding planners in Delhi', icon: '💒' },
-  { text: 'Find dental clinics in Chennai', icon: '🦷' },
-  { text: 'Get car dealers in Ahmedabad', icon: '🚗' },
-];
+const EXAMPLE_PROMPTS: Record<string, { text: string; icon: string }[]> = {
+  google_maps: [
+    { text: 'Find restaurants in Mumbai', icon: '🍽️' },
+    { text: 'Get gyms and fitness centers in Bangalore', icon: '💪' },
+    { text: 'Find real estate agents in Hyderabad', icon: '🏠' },
+    { text: 'Scrape hotels in Goa', icon: '🏨' },
+    { text: 'Find dental clinics in Chennai', icon: '🦷' },
+    { text: 'Get car dealers in Ahmedabad', icon: '🚗' },
+  ],
+  linkedin_company: [
+    { text: 'Find software companies in Bangalore', icon: '💻' },
+    { text: 'Get fintech startups in Mumbai', icon: '🏦' },
+    { text: 'Find marketing agencies in Delhi', icon: '📊' },
+    { text: 'Get IT consulting firms in Hyderabad', icon: '🖥️' },
+    { text: 'Find healthcare companies in Pune', icon: '🏥' },
+    { text: 'Get e-commerce companies in Chennai', icon: '🛒' },
+  ],
+  linkedin_people: [
+    { text: 'Find CTOs in Bangalore startups', icon: '👔' },
+    { text: 'Get marketing managers in Mumbai', icon: '📈' },
+    { text: 'Find HR directors in Delhi', icon: '👥' },
+    { text: 'Get sales heads in Hyderabad', icon: '💼' },
+    { text: 'Find product managers in Pune', icon: '🎯' },
+    { text: 'Get founders in Indian tech', icon: '🚀' },
+  ],
+  yellow_pages: [
+    { text: 'Find plumbers in Delhi', icon: '🔧' },
+    { text: 'Get electricians in Mumbai', icon: '⚡' },
+    { text: 'Find lawyers in Bangalore', icon: '⚖️' },
+    { text: 'Get accountants in Chennai', icon: '📑' },
+    { text: 'Find contractors in Hyderabad', icon: '🏗️' },
+    { text: 'Get movers and packers in Pune', icon: '📦' },
+  ],
+};
 
 interface ScrapeResult {
   searchQueries: string[];
   scraperType: string;
   scraperId?: string;
+  scrapeJobId?: string;
   jobId?: string;
   status?: string;
 }
@@ -41,12 +70,20 @@ interface RecentJob {
   config?: { name: string };
 }
 
+const SCRAPE_SOURCES = [
+  { id: 'google_maps', name: 'Google Maps', icon: MapPinIcon, color: 'text-red-500', description: 'Local businesses' },
+  { id: 'linkedin_company', name: 'LinkedIn Companies', icon: BuildingOfficeIcon, color: 'text-blue-600', description: 'B2B companies' },
+  { id: 'linkedin_people', name: 'LinkedIn People', icon: UserGroupIcon, color: 'text-blue-600', description: 'Professionals' },
+  { id: 'yellow_pages', name: 'Yellow Pages', icon: BookOpenIcon, color: 'text-yellow-600', description: 'Business directory' },
+];
+
 export default function ApifySmartScrapePage() {
   const navigate = useNavigate();
   const [prompt, setPrompt] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<ScrapeResult | null>(null);
   const [alsoFindEmails, setAlsoFindEmails] = useState(true); // Default to true
+  const [selectedSource, setSelectedSource] = useState('google_maps');
 
   // Integration state
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
@@ -117,14 +154,16 @@ export default function ApifySmartScrapePage() {
     try {
       const response = await api.post('/apify/smart-scrape', {
         prompt,
-        extractEmails: alsoFindEmails
+        extractEmails: alsoFindEmails,
+        source: selectedSource
       });
       setResult(response.data.data);
 
+      const sourceName = SCRAPE_SOURCES.find(s => s.id === selectedSource)?.name || 'Selected source';
       if (alsoFindEmails) {
-        toast.success('Scraping started! Emails will be extracted from websites automatically.');
+        toast.success(`Scraping from ${sourceName}! Emails will be extracted automatically.`);
       } else {
-        toast.success('Scraping started! Results will appear in Raw Imports.');
+        toast.success(`Scraping from ${sourceName}! Results will appear in Raw Imports.`);
       }
       checkIntegration(); // Refresh stats
     } catch (error: any) {
@@ -208,21 +247,17 @@ export default function ApifySmartScrapePage() {
 
   // Main scraping interface
   return (
-    <div className="max-w-2xl mx-auto">
+    <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <SparklesIcon className="h-4 w-4 text-purple-600" />
-            Smart Scrape
-          </h1>
-          <p className="text-[10px] text-gray-500">
-            Describe what you want to find - AI handles the rest
-          </p>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <SparklesIcon className="h-5 w-5 text-purple-600" />
+          <h1 className="text-sm font-semibold text-gray-900">Smart Scrape</h1>
+          <span className="text-[10px] text-gray-400">AI-powered lead scraping</span>
         </div>
         <button
           onClick={() => setShowSettings(!showSettings)}
-          className="p-1.5 text-gray-400 hover:text-gray-600 rounded"
+          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
         >
           <Cog6ToothIcon className="h-4 w-4" />
         </button>
@@ -230,174 +265,197 @@ export default function ApifySmartScrapePage() {
 
       {/* Settings panel */}
       {showSettings && (
-        <div className="bg-gray-50 rounded-lg p-3 mb-4 text-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-medium text-gray-700">API Token</span>
-            <span className="text-[10px] text-green-600">● Connected</span>
-          </div>
+        <div className="bg-gray-50 rounded-lg p-3 mb-3 text-xs inline-flex items-center gap-3">
+          <span className="text-green-600 text-[10px]">● Connected</span>
           <input
             type="password"
             value={apiToken}
             onChange={(e) => setApiToken(e.target.value)}
-            placeholder="Enter new token to update..."
-            className="w-full px-2 py-1.5 text-xs border rounded mb-2"
+            placeholder="New token..."
+            className="px-2 py-1 text-xs border rounded w-48"
           />
           <button
             onClick={handleSaveToken}
             disabled={isTestingToken || !apiToken.trim()}
-            className="px-3 py-1 text-[10px] bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+            className="px-2 py-1 text-[10px] bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
           >
-            {isTestingToken ? 'Updating...' : 'Update Token'}
+            {isTestingToken ? 'Updating...' : 'Update'}
           </button>
         </div>
       )}
 
-      {/* Quick Stats */}
-      {stats && (stats.totalLeadsScraped > 0 || stats.totalJobs > 0) && (
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="bg-white rounded-lg border p-2.5 text-center">
-            <div className="text-lg font-semibold text-gray-900">{stats.totalLeadsScraped}</div>
-            <div className="text-[10px] text-gray-500">Leads Scraped</div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {/* Left Column - Main Input */}
+        <div className="lg:col-span-2 space-y-3">
+          {/* Source Selector */}
+          <div className="bg-white rounded-lg border p-3 mb-3">
+            <div className="text-[10px] font-medium text-gray-500 uppercase mb-2">Scrape From</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {SCRAPE_SOURCES.map((source) => {
+                const Icon = source.icon;
+                const isSelected = selectedSource === source.id;
+                return (
+                  <button
+                    key={source.id}
+                    onClick={() => setSelectedSource(source.id)}
+                    className={`flex items-center gap-2 p-2 rounded-lg border transition-colors ${
+                      isSelected
+                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                        : 'border-gray-200 hover:bg-gray-50 text-gray-600'
+                    }`}
+                  >
+                    <Icon className={`h-4 w-4 ${isSelected ? 'text-indigo-600' : source.color}`} />
+                    <div className="text-left">
+                      <div className="text-xs font-medium">{source.name}</div>
+                      <div className="text-[10px] text-gray-400">{source.description}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="bg-white rounded-lg border p-2.5 text-center">
-            <div className="text-lg font-semibold text-gray-900">{stats.totalJobs}</div>
-            <div className="text-[10px] text-gray-500">Total Jobs</div>
-          </div>
-          <div className="bg-white rounded-lg border p-2.5 text-center">
-            <div className="text-lg font-semibold text-gray-900">{stats.recentJobs?.length || 0}</div>
-            <div className="text-[10px] text-gray-500">Recent</div>
-          </div>
-        </div>
-      )}
 
-      {/* Main Input */}
-      <div className="bg-white rounded-lg border p-4 mb-4">
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Example: Find all restaurants in Mumbai with contact details and ratings"
-          className="w-full px-3 py-2 text-sm border-0 focus:ring-0 resize-none placeholder-gray-400"
-          rows={2}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSmartScrape();
-            }
-          }}
-        />
-
-        <div className="flex items-center justify-between pt-2 border-t">
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={alsoFindEmails}
-              onChange={(e) => setAlsoFindEmails(e.target.checked)}
-              className="h-3 w-3 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+          {/* Main Input */}
+          <div className="bg-white rounded-lg border p-3">
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={
+                selectedSource === 'linkedin_company'
+                  ? "e.g., Find software companies in Bangalore"
+                  : selectedSource === 'linkedin_people'
+                  ? "e.g., Find marketing managers in Mumbai"
+                  : selectedSource === 'yellow_pages'
+                  ? "e.g., Find plumbers in Delhi"
+                  : "e.g., Find restaurants in Mumbai"
+              }
+              className="w-full px-2 py-1.5 text-sm border-0 focus:ring-0 resize-none placeholder-gray-400"
+              rows={2}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSmartScrape();
+                }
+              }}
             />
-            <EnvelopeIcon className="h-3 w-3 text-gray-400" />
-            <span className="text-[10px] text-gray-600">Also find emails from websites</span>
-          </label>
-          <button
-            onClick={handleSmartScrape}
-            disabled={isProcessing || !prompt.trim()}
-            className="px-4 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5"
-          >
-            {isProcessing ? (
-              <>
-                <ArrowPathIcon className="h-3 w-3 animate-spin" />
-                Scraping...
-              </>
-            ) : (
-              <>
-                <MagnifyingGlassIcon className="h-3 w-3" />
-                Scrape
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Example Prompts */}
-      <div className="mb-4">
-        <div className="text-[10px] text-gray-500 mb-2">Try these:</div>
-        <div className="flex flex-wrap gap-1.5">
-          {EXAMPLE_PROMPTS.map((example, index) => (
-            <button
-              key={index}
-              onClick={() => setPrompt(example.text)}
-              className="px-2 py-1 text-[10px] bg-gray-100 text-gray-700 rounded-full hover:bg-purple-100 hover:text-purple-700 transition-colors flex items-center gap-1"
-            >
-              <span>{example.icon}</span>
-              <span>{example.text}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Result */}
-      {result && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircleIcon className="h-4 w-4 text-green-600" />
-            <span className="text-sm font-medium text-green-800">Scraping Started!</span>
+            <div className="flex items-center justify-between pt-2 border-t">
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={alsoFindEmails}
+                  onChange={(e) => setAlsoFindEmails(e.target.checked)}
+                  className="h-3 w-3 text-purple-600 rounded border-gray-300"
+                />
+                <EnvelopeIcon className="h-3 w-3 text-gray-400" />
+                <span className="text-[10px] text-gray-600">Find emails</span>
+              </label>
+              <button
+                onClick={handleSmartScrape}
+                disabled={isProcessing || !prompt.trim()}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isProcessing ? (
+                  <><ArrowPathIcon className="h-3 w-3 animate-spin" /> Scraping...</>
+                ) : (
+                  <><MagnifyingGlassIcon className="h-3 w-3" /> Scrape</>
+                )}
+              </button>
+            </div>
           </div>
 
-          <div className="text-xs text-green-700 space-y-1 mb-3">
-            <div><span className="text-green-600">Source:</span> {result.scraperType.replace('_', ' ')}</div>
-            <div><span className="text-green-600">Queries:</span> {result.searchQueries.join(', ')}</div>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => navigate('/apify-jobs')}
-              className="px-3 py-1.5 text-[10px] font-medium text-green-700 bg-green-100 rounded hover:bg-green-200 flex items-center gap-1"
-            >
-              <ClockIcon className="h-3 w-3" />
-              View Progress
-            </button>
-            <button
-              onClick={() => navigate('/raw-imports')}
-              className="px-3 py-1.5 text-[10px] font-medium text-white bg-green-600 rounded hover:bg-green-700 flex items-center gap-1"
-            >
-              <DocumentTextIcon className="h-3 w-3" />
-              View Leads
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Recent Jobs */}
-      {stats?.recentJobs && stats.recentJobs.length > 0 && (
-        <div className="bg-white rounded-lg border p-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-gray-700">Recent Scrapes</span>
-            <button
-              onClick={() => navigate('/apify-jobs')}
-              className="text-[10px] text-purple-600 hover:underline"
-            >
-              View all
-            </button>
-          </div>
-          <div className="space-y-2">
-            {stats.recentJobs.slice(0, 3).map((job) => (
-              <div key={job.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
-                <div className="text-xs text-gray-700">{job.config?.name || 'Smart Scrape'}</div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-gray-500">{job.recordsScraped} leads</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                    job.status === 'SUCCEEDED' ? 'bg-green-100 text-green-700' :
-                    job.status === 'RUNNING' ? 'bg-blue-100 text-blue-700' :
-                    job.status === 'FAILED' ? 'bg-red-100 text-red-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>
-                    {job.status}
-                  </span>
-                </div>
-              </div>
+          {/* Example Prompts */}
+          <div className="flex flex-wrap gap-1.5">
+            {(EXAMPLE_PROMPTS[selectedSource] || EXAMPLE_PROMPTS.google_maps).map((example, index) => (
+              <button
+                key={index}
+                onClick={() => setPrompt(example.text)}
+                className="px-2 py-1 text-[10px] bg-white border text-gray-600 rounded-full hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 transition-colors flex items-center gap-1"
+              >
+                <span>{example.icon}</span>
+                <span>{example.text}</span>
+              </button>
             ))}
           </div>
+
+          {/* Result */}
+          {result && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircleIcon className="h-4 w-4 text-green-600" />
+                  <span className="text-xs font-medium text-green-800">Scraping Started!</span>
+                  <span className="text-[10px] text-green-600">{result.scraperType.replace('_', ' ')}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => navigate(result.scraperId ? `/apify-jobs?configId=${result.scraperId}` : '/apify-jobs')}
+                    className="px-2 py-1 text-[10px] font-medium text-green-700 bg-green-100 rounded hover:bg-green-200"
+                  >
+                    View Progress
+                  </button>
+                  <button onClick={() => navigate('/raw-imports')} className="px-2 py-1 text-[10px] font-medium text-white bg-green-600 rounded hover:bg-green-700">
+                    View Leads
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Right Column - Stats & Recent */}
+        <div className="space-y-3">
+          {/* Quick Stats */}
+          {stats && (
+            <div className="bg-white rounded-lg border p-3">
+              <div className="text-[10px] font-medium text-gray-500 uppercase mb-2">Stats</div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center">
+                  <div className="text-lg font-bold text-gray-900">{stats.totalLeadsScraped}</div>
+                  <div className="text-[10px] text-gray-500">Leads</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-gray-900">{stats.totalJobs}</div>
+                  <div className="text-[10px] text-gray-500">Jobs</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-gray-900">{stats.recentJobs?.length || 0}</div>
+                  <div className="text-[10px] text-gray-500">Recent</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Recent Jobs */}
+          {stats?.recentJobs && stats.recentJobs.length > 0 && (
+            <div className="bg-white rounded-lg border p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-medium text-gray-500 uppercase">Recent Scrapes</span>
+                <button onClick={() => navigate('/apify-jobs')} className="text-[10px] text-purple-600 hover:underline">
+                  View all
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {stats.recentJobs.slice(0, 5).map((job) => (
+                  <div key={job.id} className="flex items-center justify-between py-1 text-xs">
+                    <span className="text-gray-700 truncate max-w-[120px]">{job.config?.name || 'Smart Scrape'}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-400">{job.recordsScraped}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        job.status === 'SUCCEEDED' ? 'bg-green-100 text-green-700' :
+                        job.status === 'RUNNING' ? 'bg-blue-100 text-blue-700' :
+                        job.status === 'FAILED' ? 'bg-red-100 text-red-700' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {job.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

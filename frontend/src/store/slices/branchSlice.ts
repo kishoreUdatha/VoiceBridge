@@ -31,7 +31,7 @@ const initialState: BranchState = {
 
 export const fetchBranches = createAsyncThunk(
   'branches/fetchBranches',
-  async (isActive?: boolean, { rejectWithValue }) => {
+  async (isActive: boolean | undefined, { rejectWithValue }) => {
     try {
       const response = await branchService.getAll(isActive);
       return response;

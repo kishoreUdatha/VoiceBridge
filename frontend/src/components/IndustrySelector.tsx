@@ -21,7 +21,7 @@ import {
 } from '../pages/leads/industry-stages.constants';
 
 // Icon mapping
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+const iconMap: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
   AcademicCapIcon,
   BuildingOffice2Icon,
   HeartIcon,

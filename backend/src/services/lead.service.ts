@@ -55,6 +55,9 @@ interface LeadFilter {
   dateFrom?: Date;
   dateTo?: Date;
   isConverted?: boolean;
+  // Role-based filtering
+  userRole?: string;
+  userId?: string;
 }
 
 export class LeadService {
@@ -78,6 +81,20 @@ export class LeadService {
   }
 
   async create(input: CreateLeadInput) {
+    // If no stageId provided, get the first stage for the organization
+    let stageId = input.stageId;
+    if (!stageId) {
+      const firstStage = await prisma.leadStage.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          journeyOrder: { gt: 0 }, // Positive = progress stage (not lost)
+          isActive: true,
+        },
+        orderBy: { journeyOrder: 'asc' },
+      });
+      stageId = firstStage?.id;
+    }
+
     const lead = await prisma.lead.create({
       data: {
         organizationId: input.organizationId,
@@ -88,7 +105,7 @@ export class LeadService {
         alternatePhone: input.alternatePhone,
         source: input.source || LeadSource.MANUAL,
         sourceDetails: input.sourceDetails,
-        stageId: input.stageId,
+        stageId,
         priority: input.priority || LeadPriority.MEDIUM,
         customFields: input.customFields as Prisma.InputJsonValue || {},
       },
@@ -162,22 +179,115 @@ export class LeadService {
       where.priority = filter.priority;
     }
 
+    // Build role-based condition separately
+    const normalizedRole = filter.userRole?.toLowerCase().replace('_', '');
+    let roleCondition: Prisma.LeadWhereInput | null = null;
+
     if (filter.assignedToId) {
-      where.assignments = {
-        some: {
-          assignedToId: filter.assignedToId,
+      // Explicit filter takes precedence
+      roleCondition = {
+        assignments: {
+          some: {
+            assignedToId: filter.assignedToId,
+            isActive: true,
+          },
+        },
+      };
+    } else if (normalizedRole === 'teamlead' && filter.userId) {
+      // Team Lead: see unassigned leads + leads assigned to themselves or team members
+      const teamMembers = await prisma.user.findMany({
+        where: {
+          organizationId: filter.organizationId,
+          managerId: filter.userId,
           isActive: true,
         },
+        select: { id: true },
+      });
+      // Include team lead themselves + their team members
+      const allMemberIds = [filter.userId, ...teamMembers.map(m => m.id)];
+
+      roleCondition = {
+        OR: [
+          // Unassigned leads (no active assignment)
+          { assignments: { none: { isActive: true } } },
+          // Leads assigned to team lead or their team
+          { assignments: { some: { assignedToId: { in: allMemberIds }, isActive: true } } },
+        ],
+      };
+    } else if (normalizedRole === 'manager' && filter.userId) {
+      // Manager: see unassigned leads + leads assigned to their hierarchy
+      const teamLeads = await prisma.user.findMany({
+        where: {
+          organizationId: filter.organizationId,
+          managerId: filter.userId,
+          role: { slug: 'team_lead' },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamLeadIds = teamLeads.map(tl => tl.id);
+
+      // Get all users under these team leads + direct reports
+      const allTeamMembers = await prisma.user.findMany({
+        where: {
+          organizationId: filter.organizationId,
+          OR: [
+            { managerId: { in: teamLeadIds } },
+            { managerId: filter.userId },
+          ],
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      // Include manager + team leads + all team members
+      const allMemberIds = [filter.userId, ...teamLeadIds, ...allTeamMembers.map(m => m.id)];
+
+      roleCondition = {
+        OR: [
+          // Unassigned leads
+          { assignments: { none: { isActive: true } } },
+          // Leads assigned to anyone in the hierarchy
+          { assignments: { some: { assignedToId: { in: allMemberIds }, isActive: true } } },
+        ],
+      };
+    } else if (normalizedRole === 'telecaller' || normalizedRole === 'counselor') {
+      // Telecaller/Counselor: only see their own assigned leads
+      if (filter.userId) {
+        roleCondition = {
+          assignments: {
+            some: {
+              assignedToId: filter.userId,
+              isActive: true,
+            },
+          },
+        };
+      }
+    }
+    // Admin sees all leads (no filter)
+
+    // Build search condition separately
+    let searchCondition: Prisma.LeadWhereInput | null = null;
+    if (filter.search) {
+      searchCondition = {
+        OR: [
+          { firstName: { contains: filter.search, mode: 'insensitive' } },
+          { lastName: { contains: filter.search, mode: 'insensitive' } },
+          { email: { contains: filter.search, mode: 'insensitive' } },
+          { phone: { contains: filter.search } },
+        ],
       };
     }
 
-    if (filter.search) {
-      where.OR = [
-        { firstName: { contains: filter.search, mode: 'insensitive' } },
-        { lastName: { contains: filter.search, mode: 'insensitive' } },
-        { email: { contains: filter.search, mode: 'insensitive' } },
-        { phone: { contains: filter.search } },
-      ];
+    // Combine conditions using AND
+    const andConditions: Prisma.LeadWhereInput[] = [];
+    if (roleCondition) {
+      andConditions.push(roleCondition);
+    }
+    if (searchCondition) {
+      andConditions.push(searchCondition);
+    }
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     if (filter.dateFrom || filter.dateTo) {
@@ -220,7 +330,7 @@ export class LeadService {
     return { leads, total };
   }
 
-  async update(id: string, organizationId: string, input: UpdateLeadInput) {
+  async update(id: string, organizationId: string, input: UpdateLeadInput, userId?: string) {
     const lead = await prisma.lead.findFirst({
       where: { id, organizationId },
     });
@@ -229,13 +339,27 @@ export class LeadService {
       throw new NotFoundError('Lead not found');
     }
 
+    // Track what fields changed for activity log
+    const changedFields: string[] = [];
+    const oldValues: Record<string, unknown> = {};
+    const newValues: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(input)) {
+      const oldVal = (lead as Record<string, unknown>)[key];
+      if (oldVal !== value && value !== undefined) {
+        changedFields.push(key);
+        oldValues[key] = oldVal;
+        newValues[key] = value;
+      }
+    }
+
     // Set convertedAt timestamp when marking as converted
     const updateData: Record<string, unknown> = { ...input };
     if (input.isConverted === true && !lead.isConverted) {
       updateData.convertedAt = new Date();
     }
 
-    return prisma.lead.update({
+    const updatedLead = await prisma.lead.update({
       where: { id },
       data: updateData,
       include: {
@@ -249,6 +373,48 @@ export class LeadService {
         },
       },
     });
+
+    // Create activity log if there were changes
+    if (changedFields.length > 0) {
+      const fieldLabels: Record<string, string> = {
+        firstName: 'First Name',
+        lastName: 'Last Name',
+        phone: 'Phone',
+        email: 'Email',
+        city: 'City',
+        state: 'State',
+        country: 'Country',
+        address: 'Address',
+        pincode: 'Pincode',
+        company: 'Company',
+        designation: 'Designation',
+        source: 'Source',
+        priority: 'Priority',
+        status: 'Status',
+        isConverted: 'Conversion Status',
+      };
+
+      const changedFieldNames = changedFields
+        .map(f => fieldLabels[f] || f)
+        .join(', ');
+
+      await prisma.leadActivity.create({
+        data: {
+          leadId: id,
+          userId: userId || null,
+          type: 'LEAD_DATA_UPDATED',
+          title: 'Lead details updated',
+          description: `Updated: ${changedFieldNames}`,
+          metadata: {
+            changedFields,
+            oldValues,
+            newValues,
+          },
+        },
+      });
+    }
+
+    return updatedLead;
   }
 
   async delete(id: string, organizationId: string) {

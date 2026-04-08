@@ -779,7 +779,7 @@ router.post(
   ]),
   async (req: TenantRequest, res: Response, next: NextFunction) => {
     try {
-      const { prompt, extractEmails = false } = req.body;
+      const { prompt, extractEmails = false, source } = req.body;
 
       const service = await getApifyServiceForOrg(req.organizationId!);
       if (!service) {
@@ -794,60 +794,81 @@ router.post(
         return ApiResponse.badRequest(res, 'No Apify integration found');
       }
 
+      // Map source to scraper type if provided
+      const sourceToScraperType: Record<string, string> = {
+        'google_maps': 'GOOGLE_MAPS',
+        'linkedin_company': 'LINKEDIN_COMPANY',
+        'linkedin_people': 'LINKEDIN_PEOPLE',
+        'yellow_pages': 'YELLOW_PAGES',
+      };
+      const forcedScraperType = source ? sourceToScraperType[source] : undefined;
+
       // Use AI to interpret the prompt and generate search queries
-      const { searchQueries, scraperType, country, countryCode } = await interpretPromptForScraping(prompt);
+      const { searchQueries, scraperType, country, countryCode } = await interpretPromptForScraping(prompt, forcedScraperType);
 
       // Determine actor ID based on scraper type
+      // Use free/freemium actors where possible
       const actorIds: Record<string, string> = {
-        GOOGLE_MAPS: 'nwua9Gu5YrADL7ZDj', // compass/crawler-google-places
-        LINKEDIN_COMPANY: 'bebity/linkedin-company-scraper',
-        LINKEDIN_PEOPLE: 'bebity/linkedin-profile-scraper',
-        YELLOW_PAGES: 'jupri/yellow-pages-scraper',
+        GOOGLE_MAPS: 'apify~google-maps-scraper',  // Free tier available
+        LINKEDIN_COMPANY: 'anchor~linkedin-scraper',  // Has free tier
+        LINKEDIN_PEOPLE: 'anchor~linkedin-scraper',   // Same scraper for people
+        YELLOW_PAGES: 'apify~yellow-pages-scraper',   // Free tier
       };
 
       const actorId = actorIds[scraperType] || actorIds.GOOGLE_MAPS;
 
-      // Build input config with proper country/language settings
-      const inputConfig: Record<string, any> = {
-        searchStringsArray: searchQueries,
-        maxCrawledPlacesPerSearch: 50,
-        maxCrawledPlaces: 100,
-        extractEmails,
-        language: 'en',
-        deeperCityScrape: true,
-        skipClosedPlaces: true,
-      };
+      // Build input config based on scraper type
+      let inputConfig: Record<string, any> = {};
 
-      // Add country-specific settings for Google Maps
       if (scraperType === 'GOOGLE_MAPS') {
-        inputConfig.countryCode = countryCode.toUpperCase();
+        // Google Maps scraper config
+        inputConfig = {
+          searchStringsArray: searchQueries,
+          maxCrawledPlacesPerSearch: 50,
+          maxCrawledPlaces: 100,
+          extractEmails,
+          language: 'en',
+          deeperCityScrape: true,
+          skipClosedPlaces: true,
+          countryCode: countryCode.toUpperCase(),
+        };
 
-        // Use country-specific Google domain for accurate results
+        // Add country-specific geolocation
         if (countryCode === 'in') {
-          // For India, use Google India Maps URL
-          inputConfig.customGeolocation = {
-            lat: 20.5937,
-            lng: 78.9629,
-          };
-          // Also add India-specific search refinement
-          inputConfig.searchStringsArray = searchQueries.map((q: string) => {
-            // Ensure search includes India if not already
-            if (!q.toLowerCase().includes('india')) {
-              return q;
-            }
-            return q;
-          });
+          inputConfig.customGeolocation = { lat: 20.5937, lng: 78.9629 };
         } else if (countryCode === 'us') {
-          inputConfig.customGeolocation = {
-            lat: 37.0902,
-            lng: -95.7129,
-          };
+          inputConfig.customGeolocation = { lat: 37.0902, lng: -95.7129 };
         } else if (countryCode === 'uk') {
-          inputConfig.customGeolocation = {
-            lat: 55.3781,
-            lng: -3.4360,
-          };
+          inputConfig.customGeolocation = { lat: 55.3781, lng: -3.4360 };
         }
+      } else if (scraperType === 'LINKEDIN_COMPANY') {
+        // LinkedIn Company scraper config
+        // This scraper works with search URLs or direct company URLs
+        inputConfig = {
+          searchUrl: `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(searchQueries[0] || prompt)}`,
+          maxResults: 100,
+          proxy: {
+            useApifyProxy: true,
+            apifyProxyGroups: ['RESIDENTIAL'],
+          },
+        };
+      } else if (scraperType === 'LINKEDIN_PEOPLE') {
+        // LinkedIn People scraper config
+        inputConfig = {
+          searchUrl: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(searchQueries[0] || prompt)}`,
+          maxResults: 100,
+          proxy: {
+            useApifyProxy: true,
+            apifyProxyGroups: ['RESIDENTIAL'],
+          },
+        };
+      } else if (scraperType === 'YELLOW_PAGES') {
+        // Yellow Pages scraper config
+        inputConfig = {
+          search: searchQueries[0] || prompt,
+          location: country,
+          maxItems: 100,
+        };
       }
 
       console.log(`[SmartScrape] Starting scrape with config:`, JSON.stringify(inputConfig, null, 2));
@@ -865,6 +886,18 @@ router.post(
         },
       });
 
+      // Create job record immediately with PENDING status so it shows in the list
+      const scrapeJob = await prisma.apifyScrapeJob.create({
+        data: {
+          integrationId: integration.id,
+          configId: scraper.id,
+          apifyRunId: `pending_${Date.now()}`, // Temporary ID until actual run starts
+          actorId,
+          status: 'PENDING',
+          inputSnapshot: inputConfig,
+        },
+      });
+
       // Start the scrape job with email extraction flag
       const jobId = await jobQueueService.addJob(
         'APIFY_SCRAPE_RUN',
@@ -877,6 +910,7 @@ router.post(
           scraperType,
           isScheduled: false,
           extractEmails, // Pass to job processor
+          scrapeJobId: scrapeJob.id, // Pass the pre-created job ID
         },
         { organizationId: req.organizationId }
       );
@@ -885,6 +919,7 @@ router.post(
         searchQueries,
         scraperType,
         scraperId: scraper.id,
+        scrapeJobId: scrapeJob.id,
         jobId,
         extractEmails,
         status: 'STARTED',
@@ -898,7 +933,7 @@ router.post(
 /**
  * Interpret user prompt and generate search queries with location detection
  */
-async function interpretPromptForScraping(prompt: string): Promise<{
+async function interpretPromptForScraping(prompt: string, forcedScraperType?: string): Promise<{
   searchQueries: string[];
   scraperType: string;
   country: string;
@@ -906,15 +941,25 @@ async function interpretPromptForScraping(prompt: string): Promise<{
 }> {
   const promptLower = prompt.toLowerCase();
 
-  // Detect scraper type based on keywords
-  let scraperType = 'GOOGLE_MAPS';
+  // Use forced scraper type if provided
+  let scraperType = forcedScraperType || 'GOOGLE_MAPS';
 
-  if (promptLower.includes('linkedin company') || promptLower.includes('linkedin companies')) {
-    scraperType = 'LINKEDIN_COMPANY';
-  } else if (promptLower.includes('linkedin profile') || promptLower.includes('linkedin people')) {
-    scraperType = 'LINKEDIN_PEOPLE';
-  } else if (promptLower.includes('yellow pages')) {
-    scraperType = 'YELLOW_PAGES';
+  // Only auto-detect if not forced
+  if (!forcedScraperType) {
+    // Detect scraper type based on keywords
+    if (promptLower.includes('linkedin company') || promptLower.includes('linkedin companies') ||
+        promptLower.includes('linkedin business') || promptLower.includes('company on linkedin')) {
+      scraperType = 'LINKEDIN_COMPANY';
+    } else if (promptLower.includes('linkedin profile') || promptLower.includes('linkedin people') ||
+               promptLower.includes('linkedin person') || promptLower.includes('people on linkedin') ||
+               promptLower.includes('linkedin user') || promptLower.includes('profile on linkedin')) {
+      scraperType = 'LINKEDIN_PEOPLE';
+    } else if (promptLower.includes('linkedin') && !promptLower.includes('google')) {
+      // Generic LinkedIn mention - default to company scraper
+      scraperType = 'LINKEDIN_COMPANY';
+    } else if (promptLower.includes('yellow pages')) {
+      scraperType = 'YELLOW_PAGES';
+    }
   }
 
   // Detect country from prompt

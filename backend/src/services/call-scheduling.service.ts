@@ -161,6 +161,158 @@ export async function cancelScheduledCall(id: string, reason?: string) {
 }
 
 /**
+ * Quick reminder options in minutes
+ */
+export type QuickReminderMinutes = 15 | 30 | 60 | 120 | 1440;
+
+/**
+ * Schedule a quick call reminder
+ * 1-click reminder for: 15min, 30min, 1hr, 2hr, 1day (1440 min)
+ */
+export async function scheduleQuickReminder(data: {
+  organizationId: string;
+  userId: string;
+  leadId: string;
+  reminderMinutes: QuickReminderMinutes;
+}) {
+  // Validate reminder minutes
+  const validMinutes: QuickReminderMinutes[] = [15, 30, 60, 120, 1440];
+  if (!validMinutes.includes(data.reminderMinutes)) {
+    throw new Error('Invalid reminder time. Must be 15, 30, 60, 120, or 1440 minutes');
+  }
+
+  // Get lead info
+  const lead = await prisma.lead.findUnique({
+    where: { id: data.leadId },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      organizationId: true,
+    },
+  });
+
+  if (!lead) {
+    throw new Error('Lead not found');
+  }
+
+  if (lead.organizationId !== data.organizationId) {
+    throw new Error('Lead does not belong to organization');
+  }
+
+  if (!lead.phone) {
+    throw new Error('Lead does not have a phone number');
+  }
+
+  // Check DNC list
+  const isDNC = await isOnDNCList(data.organizationId, lead.phone);
+  if (isDNC) {
+    throw new Error('Phone number is on Do Not Call list');
+  }
+
+  // Calculate reminder time
+  const reminderAt = new Date();
+  reminderAt.setMinutes(reminderAt.getMinutes() + data.reminderMinutes);
+
+  // Get label for notes
+  const reminderLabel =
+    data.reminderMinutes === 15 ? '15 minutes' :
+    data.reminderMinutes === 30 ? '30 minutes' :
+    data.reminderMinutes === 60 ? '1 hour' :
+    data.reminderMinutes === 120 ? '2 hours' :
+    '1 day';
+
+  // Get a default agent for the organization (we'll need to route to an agent)
+  // For reminders, we typically don't auto-call, so agentId may be optional
+  // But for the data model we need it - get the first available agent
+  const agent = await prisma.aIVoiceAgent.findFirst({
+    where: { organizationId: data.organizationId, isActive: true },
+  });
+
+  if (!agent) {
+    throw new Error('No active voice agent configured for organization');
+  }
+
+  // Create the scheduled call reminder
+  const reminder = await prisma.scheduledCall.create({
+    data: {
+      organizationId: data.organizationId,
+      agentId: agent.id,
+      phoneNumber: lead.phone,
+      contactName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Unknown',
+      scheduledAt: reminderAt,
+      leadId: data.leadId,
+      callType: 'REMINDER',
+      priority: 2, // High priority for reminders
+      notes: `Quick reminder set for ${reminderLabel}`,
+    },
+  });
+
+  // Queue the reminder notification job
+  try {
+    const { jobQueueService } = await import('./job-queue.service');
+    await jobQueueService.addJob({
+      type: 'QUICK_CALL_REMINDER',
+      data: {
+        scheduledCallId: reminder.id,
+        userId: data.userId,
+        leadId: data.leadId,
+        reminderAt: reminderAt.toISOString(),
+      },
+      runAt: reminderAt,
+      organizationId: data.organizationId,
+    });
+  } catch (error) {
+    console.warn('[CallScheduling] Could not queue reminder notification:', error);
+    // Continue anyway - reminder is created
+  }
+
+  return {
+    id: reminder.id,
+    scheduledAt: reminder.scheduledAt,
+    leadId: data.leadId,
+    contactName: reminder.contactName,
+    phoneNumber: reminder.phoneNumber,
+    reminderLabel,
+  };
+}
+
+/**
+ * Get reminders for a user
+ */
+export async function getUserReminders(organizationId: string, userId: string, options?: {
+  status?: ScheduledCallStatus;
+  includeExpired?: boolean;
+}) {
+  const where: any = {
+    organizationId,
+    callType: 'REMINDER',
+    status: options?.status || 'PENDING',
+  };
+
+  if (!options?.includeExpired) {
+    where.scheduledAt = { gte: new Date() };
+  }
+
+  return prisma.scheduledCall.findMany({
+    where,
+    orderBy: { scheduledAt: 'asc' },
+    include: {
+      lead: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          email: true,
+        },
+      },
+    },
+  });
+}
+
+/**
  * Get scheduled call by ID
  */
 export async function getScheduledCallById(id: string) {
@@ -179,6 +331,8 @@ export const callSchedulingService = {
   rescheduleCall,
   cancelScheduledCall,
   getScheduledCallById,
+  scheduleQuickReminder,
+  getUserReminders,
 };
 
 export default callSchedulingService;

@@ -11,6 +11,7 @@ import { authenticate, AuthenticatedRequest } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { validate } from '../middlewares/validate';
 import { createWhatsAppService } from '../integrations/whatsapp.service';
+import { postCallWhatsAppService } from '../services/post-call-whatsapp.service';
 
 // Rate limiter for messaging endpoints
 const messagingRateLimiter = rateLimit({
@@ -45,6 +46,23 @@ const emailValidation = [
   body('body').trim().notEmpty().withMessage('Email body is required')
     .isLength({ max: 50000 }).withMessage('Email body must be at most 50000 characters'),
   body('leadId').optional().isUUID().withMessage('Invalid lead ID'),
+];
+
+// Validation for college info WhatsApp
+const collegeInfoValidation = [
+  body('to').trim().notEmpty().withMessage('Phone number is required')
+    .matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid phone number format'),
+  body('collegeName').trim().notEmpty().withMessage('College name is required'),
+  body('courseName').optional().trim().isLength({ max: 200 }).withMessage('Course name must be at most 200 characters'),
+  body('duration').optional().trim().isLength({ max: 100 }).withMessage('Duration must be at most 100 characters'),
+  body('fee').optional().trim().isLength({ max: 100 }).withMessage('Fee must be at most 100 characters'),
+  body('nextBatch').optional().trim().isLength({ max: 100 }).withMessage('Next batch must be at most 100 characters'),
+  body('brochureUrl').optional().trim().isURL().withMessage('Invalid brochure URL'),
+  body('websiteUrl').optional().trim().isURL().withMessage('Invalid website URL'),
+  body('contactNumber').optional().trim().matches(/^[\d+\-() ]{7,20}$/).withMessage('Invalid contact number'),
+  body('counselorName').optional().trim().isLength({ max: 100 }).withMessage('Counselor name must be at most 100 characters'),
+  body('leadId').optional().isUUID().withMessage('Invalid lead ID'),
+  body('callId').optional().isUUID().withMessage('Invalid call ID'),
 ];
 
 const quickSendValidation = [
@@ -199,6 +217,205 @@ router.post('/whatsapp', messagingRateLimiter, validate(whatsappValidation), asy
     res.status(500).json({
       success: false,
       message: 'Failed to send WhatsApp message',
+    });
+  }
+});
+
+/**
+ * Send College Info via WhatsApp
+ * POST /api/messaging/whatsapp/college-info
+ *
+ * Sends college/course information to a prospect via WhatsApp template
+ * Used after AI voice agent calls or manually by telecallers
+ */
+router.post('/whatsapp/college-info', messagingRateLimiter, validate(collegeInfoValidation), async (req: TenantRequest, res: Response) => {
+  try {
+    const {
+      to,
+      collegeName,
+      courseName,
+      duration,
+      fee,
+      nextBatch,
+      brochureUrl,
+      websiteUrl,
+      contactNumber,
+      counselorName,
+      leadId,
+      callId,
+    } = req.body;
+
+    const organizationId = req.organizationId;
+
+    if (!organizationId) {
+      return res.status(401).json({ success: false, message: 'Organization not found' });
+    }
+
+    console.log(`[Messaging] Sending college info to ${to} for ${collegeName}`);
+
+    // Send college info via WhatsApp
+    const result = await postCallWhatsAppService.sendCollegeInfo(
+      to,
+      organizationId,
+      {
+        collegeName,
+        courseName,
+        duration,
+        fee,
+        nextBatch,
+        brochureUrl,
+        websiteUrl,
+        contactNumber,
+        counselorName,
+      },
+      callId
+    );
+
+    // Log activity on lead if provided
+    if (leadId && result.sent) {
+      await prisma.leadActivity.create({
+        data: {
+          leadId,
+          type: 'WHATSAPP_SENT',
+          title: 'College Info Sent via WhatsApp',
+          description: `Sent ${collegeName} - ${courseName || 'course info'} details`,
+          userId: req.user?.id,
+          metadata: { messageId: result.messageId, callId },
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        sent: result.sent,
+        messageId: result.messageId,
+        error: result.error,
+      },
+    });
+  } catch (error) {
+    console.error('Error sending college info WhatsApp:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send college information',
+    });
+  }
+});
+
+/**
+ * Send Course Brochure via WhatsApp
+ * POST /api/messaging/whatsapp/brochure
+ */
+router.post('/whatsapp/brochure', messagingRateLimiter, async (req: TenantRequest, res: Response) => {
+  try {
+    const { to, brochureUrl, courseName, collegeName, leadId, callId } = req.body;
+    const organizationId = req.organizationId;
+
+    if (!organizationId) {
+      return res.status(401).json({ success: false, message: 'Organization not found' });
+    }
+
+    if (!to || !brochureUrl || !courseName || !collegeName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: to, brochureUrl, courseName, collegeName',
+      });
+    }
+
+    const result = await postCallWhatsAppService.sendCourseBrochure(
+      to,
+      organizationId,
+      brochureUrl,
+      courseName,
+      collegeName,
+      callId
+    );
+
+    // Log activity on lead if provided
+    if (leadId && result.sent) {
+      await prisma.leadActivity.create({
+        data: {
+          leadId,
+          type: 'WHATSAPP_SENT',
+          title: 'Course Brochure Sent via WhatsApp',
+          description: `Sent ${courseName} brochure from ${collegeName}`,
+          userId: req.user?.id,
+          metadata: { messageId: result.messageId, brochureUrl, callId },
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        sent: result.sent,
+        messageId: result.messageId,
+        error: result.error,
+      },
+    });
+  } catch (error) {
+    console.error('Error sending brochure WhatsApp:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send brochure',
+    });
+  }
+});
+
+/**
+ * Send Missed Call Follow-up via WhatsApp
+ * POST /api/messaging/whatsapp/missed-call-followup
+ */
+router.post('/whatsapp/missed-call-followup', messagingRateLimiter, async (req: TenantRequest, res: Response) => {
+  try {
+    const { to, agentName, leadId, callId } = req.body;
+    const organizationId = req.organizationId;
+
+    if (!organizationId) {
+      return res.status(401).json({ success: false, message: 'Organization not found' });
+    }
+
+    if (!to) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number is required',
+      });
+    }
+
+    const result = await postCallWhatsAppService.sendMissedCallFollowup(
+      to,
+      organizationId,
+      agentName || 'Our Team',
+      callId
+    );
+
+    // Log activity on lead if provided
+    if (leadId && result.sent) {
+      await prisma.leadActivity.create({
+        data: {
+          leadId,
+          type: 'WHATSAPP_SENT',
+          title: 'Missed Call Follow-up Sent',
+          description: 'Sent missed call follow-up message via WhatsApp',
+          userId: req.user?.id,
+          metadata: { messageId: result.messageId, callId },
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        sent: result.sent,
+        messageId: result.messageId,
+        error: result.error,
+      },
+    });
+  } catch (error) {
+    console.error('Error sending missed call follow-up:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send missed call follow-up',
     });
   }
 });

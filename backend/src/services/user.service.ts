@@ -51,6 +51,10 @@ export class UserService {
 
     const hashedPassword = await bcrypt.hash(input.password, 12);
 
+    // Sanitize empty strings to null for foreign key fields
+    const managerId = input.managerId === '' ? null : input.managerId;
+    const branchId = input.branchId === '' ? null : input.branchId;
+
     const user = await prisma.user.create({
       data: {
         organizationId: input.organizationId,
@@ -60,8 +64,8 @@ export class UserService {
         lastName: input.lastName,
         phone: input.phone,
         roleId: input.roleId,
-        managerId: input.managerId,
-        branchId: input.branchId,
+        managerId,
+        branchId,
       },
       include: {
         role: true,
@@ -178,9 +182,16 @@ export class UserService {
       throw new NotFoundError('User not found');
     }
 
+    // Sanitize empty strings to null for foreign key fields
+    const sanitizedInput = {
+      ...input,
+      managerId: input.managerId === '' ? null : input.managerId,
+      branchId: input.branchId === '' ? null : input.branchId,
+    };
+
     const updatedUser = await prisma.user.update({
       where: { id },
-      data: input,
+      data: sanitizedInput,
       include: {
         role: true,
         manager: {
@@ -217,13 +228,42 @@ export class UserService {
     await prisma.user.delete({ where: { id } });
   }
 
-  async getCounselors(organizationId: string) {
+  async getCounselors(organizationId: string, userRole?: string, userId?: string) {
+    const whereClause: any = {
+      organizationId,
+      role: { slug: 'counselor' },
+      isActive: true,
+    };
+
+    // Role-based filtering
+    const normalizedRole = userRole?.toLowerCase().replace('_', '');
+
+    if ((normalizedRole === 'teamlead') && userId) {
+      // Team Lead: only see their direct reports
+      whereClause.managerId = userId;
+    } else if (normalizedRole === 'manager' && userId) {
+      // Manager: see counselors under their team leads + direct reports
+      const teamLeads = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: userId,
+          role: { slug: 'team_lead' },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamLeadIds = teamLeads.map((tl) => tl.id);
+
+      if (teamLeadIds.length > 0) {
+        whereClause.managerId = { in: [...teamLeadIds, userId] };
+      } else {
+        whereClause.managerId = userId;
+      }
+    }
+    // Admin sees all
+
     const users = await prisma.user.findMany({
-      where: {
-        organizationId,
-        role: { slug: 'counselor' },
-        isActive: true,
-      },
+      where: whereClause,
       select: {
         id: true,
         firstName: true,
@@ -248,18 +288,56 @@ export class UserService {
     }));
   }
 
-  async getTelecallers(organizationId: string) {
+  async getTelecallers(organizationId: string, userRole?: string, userId?: string) {
+    // Build query based on requester's role hierarchy
+    const whereClause: any = {
+      organizationId,
+      role: { slug: { in: ['telecaller', 'counselor'] } },
+      isActive: true,
+    };
+
+    const normalizedRole = userRole?.toLowerCase().replace('_', '');
+
+    // Team Lead: only see their direct reports
+    if ((normalizedRole === 'teamlead' || normalizedRole === 'team_lead') && userId) {
+      whereClause.managerId = userId;
+    }
+    // Manager: see telecallers who report to team leads under them
+    else if (normalizedRole === 'manager' && userId) {
+      // First get all team leads who report to this manager
+      const teamLeads = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: userId,
+          role: { slug: 'team_lead' },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+
+      const teamLeadIds = teamLeads.map((tl) => tl.id);
+
+      // Include telecallers who report to these team leads OR directly to the manager
+      if (teamLeadIds.length > 0) {
+        whereClause.managerId = { in: [...teamLeadIds, userId] };
+      } else {
+        // Manager has no team leads, show only direct reports
+        whereClause.managerId = userId;
+      }
+    }
+    // Admin: sees all telecallers (no filter needed)
+
     const users = await prisma.user.findMany({
-      where: {
-        organizationId,
-        role: { slug: 'telecaller' },
-        isActive: true,
-      },
+      where: whereClause,
       select: {
         id: true,
         firstName: true,
         lastName: true,
         email: true,
+        managerId: true,
+        manager: {
+          select: { firstName: true, lastName: true },
+        },
         _count: {
           select: {
             rawImportsAssignedTo: {
@@ -275,12 +353,13 @@ export class UserService {
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
+      managerName: user.manager ? `${user.manager.firstName} ${user.manager.lastName}` : null,
       activeRecordCount: user._count.rawImportsAssignedTo,
     }));
   }
 
   async getRoles(organizationId: string) {
-    // Only return organization-specific roles to avoid duplicates with system roles
+    // Return only organization-specific roles (no duplicates)
     return prisma.role.findMany({
       where: { organizationId },
       orderBy: { name: 'asc' },
@@ -291,7 +370,8 @@ export class UserService {
     const users = await prisma.user.findMany({
       where: {
         organizationId,
-        role: { slug: 'manager' },
+        // Include admin, manager, and team_lead as potential managers
+        role: { slug: { in: ['admin', 'manager', 'team_lead'] } },
         isActive: true,
       },
       select: {
@@ -305,6 +385,12 @@ export class UserService {
             id: true,
             name: true,
             code: true,
+          },
+        },
+        role: {
+          select: {
+            slug: true,
+            name: true,
           },
         },
         _count: {
@@ -325,6 +411,8 @@ export class UserService {
       email: user.email,
       branchId: user.branchId,
       branchName: user.branch?.name || null,
+      roleSlug: user.role?.slug || null,
+      roleName: user.role?.name || null,
       teamMemberCount: user._count.teamMembers,
     }));
   }

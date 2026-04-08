@@ -30,6 +30,8 @@ interface AuthResult {
     organizationId: string;
     organizationName: string;
     role: string;
+    onboardingCompleted: boolean;
+    organizationIndustry: string | null;
   };
   accessToken: string;
   refreshToken: string;
@@ -178,6 +180,8 @@ export class AuthService {
         organizationId: result.organization.id,
         organizationName: result.organization.name,
         role: 'admin',
+        onboardingCompleted: false, // New organizations haven't completed onboarding
+        organizationIndustry: null, // Industry not set yet
       },
       ...tokens,
     };
@@ -226,6 +230,10 @@ export class AuthService {
       },
     });
 
+    // Get onboarding status from organization settings
+    const orgSettings = (user.organization.settings as any) || {};
+    const onboardingCompleted = orgSettings.onboardingCompleted || false;
+
     return {
       user: {
         id: user.id,
@@ -235,6 +243,8 @@ export class AuthService {
         organizationId: user.organizationId,
         organizationName: user.organization.name,
         role: user.role.slug,
+        onboardingCompleted,
+        organizationIndustry: user.organization.industry,
       },
       ...tokens,
     };

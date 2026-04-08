@@ -18,6 +18,7 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import LeadsListPage from './pages/leads/LeadsListPage';
 import LeadDetailPage from './pages/leads/LeadDetailPage';
 import BulkUploadPage from './pages/leads/BulkUploadPage';
+import CreateLeadPage from './pages/leads/CreateLeadPage';
 import UsersListPage from './pages/users/UsersListPage';
 import FormBuilderPage from './pages/forms/FormBuilderPage';
 import LandingPagesPage from './pages/landing/LandingPagesPage';
@@ -28,6 +29,8 @@ import { VoiceAgentsPage, CreateAgentPage, CreateAgentFromTemplatePage, NewAgent
 import { ConversationalAIAgentWizard } from './pages/voice-ai/ConversationalAIAgentWizard';
 import { ConversationalAIAgentDetail } from './pages/voice-ai/ConversationalAIAgentDetail';
 import { VoiceTemplatesPage, EditTemplatePage } from './pages/voice-templates';
+import CallFlowsPage from './pages/call-flows/CallFlowsPage';
+import CallFlowBuilderPage from './pages/call-flows/CallFlowBuilderPage';
 import {
   OutboundCallsPage,
   CallDetailsPage,
@@ -62,13 +65,14 @@ import {
   HybridInboxPage,
   InboundCallsPage,
 } from './pages/hybrid-agent';
-import { AutoAssignSettingsPage, AssignmentSchedulePage, SmsSettingsPage, InstitutionSettingsPage, WhatsAppSettingsPage, VoiceMinutesPage, NotificationChannelsPage, CalendarSettingsPage, EmailSequencesPage, CRMIntegrationPage, PostCallMessagingPage, IntegrationCredentialsPage } from './pages/settings';
+import { AutoAssignSettingsPage, AssignmentSchedulePage, SmsSettingsPage, InstitutionSettingsPage, WhatsAppSettingsPage, VoiceMinutesPage, NotificationChannelsPage, CalendarSettingsPage, EmailSequencesPage, CRMIntegrationPage, PostCallMessagingPage, IntegrationCredentialsPage, FieldPermissionsPage } from './pages/settings';
 import BranchesPage from './pages/settings/BranchesPage';
 import BranchFormPage from './pages/settings/BranchFormPage';
 import IntegrationSettingsPage from './pages/settings/IntegrationSettingsPage';
 import IndustrySettingsPage from './pages/settings/IndustrySettingsPage';
 import LeadManagementSettingsPage from './pages/settings/LeadManagementSettingsPage';
 import { ReportsPage } from './pages/reports';
+import { RolesListPage } from './pages/roles';
 import { SocialMediaAdsPage, InstagramLeadSetupPage, AdIntegrationsPage, FacebookSetupPage, LinkedInSetupPage, GoogleAdsSetupPage, YouTubeSetupPage, TwitterSetupPage, TikTokSetupPage, WebhookUrlsPage } from './pages/ads';
 import { ApifyDashboardPage, ApifyJobsPage, ApifySmartScrapePage, ApifyRecordsPage } from './pages/apify';
 import { PricingPage } from './pages/pricing';
@@ -94,10 +98,19 @@ import { TemplatesPage } from './pages/templates';
 import { DocsPage } from './pages/docs';
 import { ScheduledMessagesPage } from './pages/scheduled-messages';
 import AnalyticsDashboardPage from './pages/analytics/AnalyticsDashboardPage';
+import AdvancedAnalyticsPage from './pages/analytics/AdvancedAnalyticsPage';
+import SalesForecastingPage from './pages/analytics/SalesForecastingPage';
+import AILeadScoringPage from './pages/ai-scoring/AILeadScoringPage';
+import ChatWidgetSettingsPage from './pages/live-chat/ChatWidgetSettingsPage';
+import ChatInboxPage from './pages/live-chat/ChatInboxPage';
+import QuotationsListPage from './pages/quotations/QuotationsListPage';
+import QuotationBuilderPage from './pages/quotations/QuotationBuilderPage';
+import QuotationDetailPage from './pages/quotations/QuotationDetailPage';
 import ConversionFunnelPage from './pages/analytics/ConversionFunnelPage';
 import AgentPerformancePage from './pages/analytics/AgentPerformancePage';
 import TelecallerPerformancePage from './pages/analytics/TelecallerPerformancePage';
 import LeadSourcesPage from './pages/analytics/LeadSourcesPage';
+import EmailSequenceBuilderPage from './pages/email-sequences/EmailSequenceBuilderPage';
 import {
   ComplianceDashboardPage,
   ConsentManagementPage,
@@ -112,12 +125,49 @@ import { RawImportsPage, RawImportDetailPage } from './pages/raw-imports';
 import { LeadDistributionPage } from './pages/data';
 import { BulkWhatsAppPage } from './pages/whatsapp';
 import { PhoneNumbersPage } from './pages/phone-numbers';
+import NumbersShopPage from './pages/numbers-shop';
 import { IvrListPage, IvrBuilderPage } from './pages/ivr';
 import { QueueManagementPage } from './pages/queues';
 import { VoicemailPage } from './pages/voicemail';
 import { CallbacksPage } from './pages/callbacks';
 import { InboundAnalyticsDashboard } from './pages/inbound-analytics';
 import { CallMonitoringPage } from './pages/call-monitoring';
+import { IndianLeadSourcesPage, ZapierIntegrationPage } from './pages/integrations';
+import { PaymentsDashboard } from './pages/payments';
+import { TeamMessagingPage } from './pages/team-messaging';
+import { TeamManagementDashboard } from './pages/team-management';
+import { QADashboardPage } from './pages/qa';
+import { PerformanceTargetsPage } from './pages/performance';
+import { PendingApprovalsPage, ApprovalWorkflowsPage } from './pages/approvals';
+import { VisualRuleBuilderPage } from './pages/lead-routing';
+import { ActivityFeedPage } from './pages/collaboration';
+import { CommissionDashboardPage } from './pages/commissions';
+import { UnifiedInboxPage } from './pages/unified-inbox';
+import { PredictiveAnalyticsDashboard } from './pages/predictive-analytics';
+import { CustomerHealthDashboard } from './pages/customer-health';
+import { CustomerSegmentationDashboard } from './pages/customer-segmentation';
+import { SentimentAnalysisDashboard } from './pages/sentiment-analysis';
+import { DealIntelligenceDashboard } from './pages/deal-intelligence';
+import ReportBuilderPage from './pages/reports/ReportBuilderPage';
+import WorkflowBuilderPage from './pages/workflows/WorkflowBuilderPage';
+import PipelineKanbanPage from './pages/pipeline/PipelineKanbanPage';
+import BatchOperationsPage from './pages/batch-operations/BatchOperationsPage';
+import AlertsPage from './pages/alerts/AlertsPage';
+
+// Enterprise CRM Features
+import TerritoriesPage from './pages/territories/TerritoriesPage';
+import AccountsPage from './pages/accounts/AccountsPage';
+import TicketsPage from './pages/tickets/TicketsPage';
+import ContractsPage from './pages/contracts/ContractsPage';
+import GamificationPage from './pages/gamification/GamificationPage';
+import ABMCampaignsPage from './pages/abm/ABMCampaignsPage';
+import CustomerJourneyPage from './pages/customer-journey/CustomerJourneyPage';
+import SalesPlaybooksPage from './pages/sales-playbooks/SalesPlaybooksPage';
+import VideoMeetingsPage from './pages/video-meetings/VideoMeetingsPage';
+import SocialCRMPage from './pages/social-crm/SocialCRMPage';
+import ExportBIPage from './pages/export-bi/ExportBIPage';
+import DataEnrichmentPage from './pages/data-enrichment/DataEnrichmentPage';
+import CustomerPortalPage from './pages/customer-portal/CustomerPortalPage';
 
 // Field Sales Pages
 import {
@@ -137,6 +187,9 @@ import { StudentVisitsPage } from './pages/student-visits';
 import { AdmissionsPage } from './pages/admissions';
 import { ExpensesPage } from './pages/expenses';
 import { ProfitDashboardPage } from './pages/profit';
+
+// Onboarding
+import { OnboardingWizard } from './pages/onboarding';
 
 // Super Admin Pages
 import SuperAdminLayout from './layouts/SuperAdminLayout';
@@ -163,8 +216,8 @@ function AuthLoadingSpinner() {
 }
 
 // Protected Route Component
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isInitialized } = useSelector((state: RootState) => state.auth);
+function ProtectedRoute({ children, skipOnboardingCheck = false }: { children: React.ReactNode; skipOnboardingCheck?: boolean }) {
+  const { isAuthenticated, isInitialized, user } = useSelector((state: RootState) => state.auth);
 
   // Wait for auth check to complete before deciding
   if (!isInitialized) {
@@ -173,6 +226,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Redirect to onboarding if not completed (skip for onboarding page itself)
+  if (!skipOnboardingCheck && user && !user.onboardingCompleted) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return <>{children}</>;
@@ -236,14 +294,9 @@ function App() {
       // On initial load, check if httpOnly cookie auth is valid
       dispatch(fetchCurrentUser());
     }
-  }, [dispatch, isInitialized]);
-
-  // Fetch current user if authenticated but user data is missing (rare edge case)
-  useEffect(() => {
-    if (isAuthenticated && !user && isInitialized) {
-      dispatch(fetchCurrentUser());
-    }
-  }, [dispatch, isAuthenticated, user, isInitialized]);
+    // Note: Only run on mount, not when isInitialized changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch]);
 
   return (
     <Routes>
@@ -291,6 +344,16 @@ function App() {
       {/* Public Realtime Voice Test Page */}
       <Route path="/realtime-test" element={<RealtimeTestPage />} />
 
+      {/* Onboarding - Protected but standalone (no DashboardLayout, skip onboarding check) */}
+      <Route
+        path="/onboarding"
+        element={
+          <ProtectedRoute skipOnboardingCheck>
+            <OnboardingWizard />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Protected Routes */}
       <Route
         element={
@@ -301,12 +364,14 @@ function App() {
       >
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="leads" element={<LeadsListPage />} />
-        <Route path="leads/:id" element={<LeadDetailPage />} />
+        <Route path="leads/new" element={<CreateLeadPage />} />
         <Route path="leads/bulk-upload" element={<BulkUploadPage />} />
+        <Route path="leads/:id" element={<LeadDetailPage />} />
         <Route path="raw-imports" element={<RawImportsPage />} />
         <Route path="raw-imports/:id" element={<RawImportDetailPage />} />
         <Route path="assignments" element={<LeadDistributionPage />} />
         <Route path="users" element={<UsersListPage />} />
+        <Route path="roles" element={<RolesListPage />} />
         <Route path="forms" element={<FormBuilderPage />} />
         <Route path="landing-pages" element={<LandingPagesPage />} />
         <Route path="landing-pages/new" element={<LandingPageBuilderPage />} />
@@ -319,6 +384,11 @@ function App() {
         <Route path="voice-ai/create-conversational" element={<ConversationalAIAgentWizard />} />
         <Route path="voice-ai/create-from-template/:templateId" element={<CreateAgentFromTemplatePage />} />
         <Route path="voice-ai/agents/:agentId" element={<ConversationalAIAgentDetail />} />
+
+        {/* Call Flows / IVR Builder */}
+        <Route path="call-flows" element={<CallFlowsPage />} />
+        <Route path="call-flows/builder" element={<CallFlowBuilderPage />} />
+        <Route path="call-flows/builder/:id" element={<CallFlowBuilderPage />} />
 
         {/* Voice Templates */}
         <Route path="voice-templates" element={<VoiceTemplatesPage />} />
@@ -342,6 +412,7 @@ function App() {
         <Route path="advanced/webhooks" element={<WebhooksPage />} />
         <Route path="advanced/realtime" element={<RealTimeDashboardPage />} />
         <Route path="advanced/lead-scoring" element={<LeadScoringPage />} />
+        <Route path="ai-scoring" element={<AILeadScoringPage />} />
         <Route path="telecaller-queue" element={<TelecallerQueuePage />} />
         <Route path="assigned-data" element={<AssignedDataPage />} />
         <Route path="qualified-leads" element={<QualifiedLeadsPage />} />
@@ -358,6 +429,8 @@ function App() {
         <Route path="settings/institution" element={<InstitutionSettingsPage />} />
         <Route path="settings/industry" element={<IndustrySettingsPage />} />
         <Route path="settings/lead-management" element={<LeadManagementSettingsPage />} />
+        <Route path="settings/lead-routing" element={<VisualRuleBuilderPage />} />
+        <Route path="settings/field-permissions" element={<FieldPermissionsPage />} />
         <Route path="settings/whatsapp" element={<WhatsAppSettingsPage />} />
         <Route path="settings/integrations" element={<IntegrationCredentialsPage />} />
         <Route path="settings/voice-minutes" element={<VoiceMinutesPage />} />
@@ -416,10 +489,16 @@ function App() {
 
         {/* Analytics */}
         <Route path="analytics" element={<AnalyticsDashboardPage />} />
+        <Route path="analytics/advanced" element={<AdvancedAnalyticsPage />} />
         <Route path="analytics/lead-sources" element={<LeadSourcesPage />} />
         <Route path="analytics/funnel" element={<ConversionFunnelPage />} />
+        <Route path="analytics/forecasting" element={<SalesForecastingPage />} />
         <Route path="analytics/agents" element={<AgentPerformancePage />} />
         <Route path="analytics/telecallers" element={<TelecallerPerformancePage />} />
+
+        {/* Email Sequences */}
+        <Route path="email-sequences" element={<EmailSequenceBuilderPage />} />
+        <Route path="email-sequences/:id" element={<EmailSequenceBuilderPage />} />
 
         {/* Compliance */}
         <Route path="compliance" element={<ComplianceDashboardPage />} />
@@ -444,6 +523,7 @@ function App() {
 
         {/* Phone Numbers */}
         <Route path="phone-numbers" element={<PhoneNumbersPage />} />
+        <Route path="numbers-shop" element={<NumbersShopPage />} />
 
         {/* IVR Builder */}
         <Route path="ivr" element={<IvrListPage />} />
@@ -464,6 +544,81 @@ function App() {
 
         {/* Call Monitoring */}
         <Route path="call-monitoring" element={<CallMonitoringPage />} />
+
+        {/* Indian Lead Source Integrations */}
+        <Route path="integrations/indian-sources" element={<IndianLeadSourcesPage />} />
+        <Route path="integrations/zapier" element={<ZapierIntegrationPage />} />
+
+        {/* Live Chat */}
+        <Route path="live-chat" element={<ChatInboxPage />} />
+        <Route path="live-chat/settings" element={<ChatWidgetSettingsPage />} />
+
+        {/* Quotation Management */}
+        <Route path="quotations" element={<QuotationsListPage />} />
+        <Route path="quotations/new" element={<QuotationBuilderPage />} />
+        <Route path="quotations/:id" element={<QuotationDetailPage />} />
+        <Route path="quotations/:id/edit" element={<QuotationBuilderPage />} />
+
+        {/* Payments Dashboard */}
+        <Route path="payments" element={<PaymentsDashboard />} />
+
+        {/* Team Communication & Management */}
+        <Route path="team-messaging" element={<TeamMessagingPage />} />
+        <Route path="team-management" element={<TeamManagementDashboard />} />
+
+        {/* Quality Assurance */}
+        <Route path="qa" element={<QADashboardPage />} />
+
+        {/* Team Collaboration */}
+        <Route path="activity-feed" element={<ActivityFeedPage />} />
+
+        {/* Commission Tracking */}
+        <Route path="commissions" element={<CommissionDashboardPage />} />
+
+        {/* Unified Inbox */}
+        <Route path="unified-inbox" element={<UnifiedInboxPage />} />
+
+        {/* Advanced Analytics & Intelligence */}
+        <Route path="predictive-analytics" element={<PredictiveAnalyticsDashboard />} />
+        <Route path="customer-health" element={<CustomerHealthDashboard />} />
+        <Route path="customer-segmentation" element={<CustomerSegmentationDashboard />} />
+        <Route path="sentiment-analysis" element={<SentimentAnalysisDashboard />} />
+        <Route path="deal-intelligence" element={<DealIntelligenceDashboard />} />
+
+        {/* High-Priority CRM Features */}
+        <Route path="report-builder" element={<ReportBuilderPage />} />
+        <Route path="workflow-builder" element={<WorkflowBuilderPage />} />
+        <Route path="pipeline" element={<PipelineKanbanPage />} />
+        <Route path="batch-operations" element={<BatchOperationsPage />} />
+        <Route path="alerts" element={<AlertsPage />} />
+
+        {/* Enterprise CRM Features */}
+        <Route path="territories" element={<TerritoriesPage />} />
+        <Route path="accounts" element={<AccountsPage />} />
+        <Route path="accounts/:id" element={<AccountsPage />} />
+        <Route path="tickets" element={<TicketsPage />} />
+        <Route path="tickets/:id" element={<TicketsPage />} />
+        <Route path="contracts" element={<ContractsPage />} />
+        <Route path="contracts/:id" element={<ContractsPage />} />
+        <Route path="contracts/new" element={<ContractsPage />} />
+        <Route path="gamification" element={<GamificationPage />} />
+        <Route path="abm" element={<ABMCampaignsPage />} />
+        <Route path="abm/:id" element={<ABMCampaignsPage />} />
+        <Route path="abm/new" element={<ABMCampaignsPage />} />
+        <Route path="customer-journey" element={<CustomerJourneyPage />} />
+        <Route path="sales-playbooks" element={<SalesPlaybooksPage />} />
+        <Route path="video-meetings" element={<VideoMeetingsPage />} />
+        <Route path="social-crm" element={<SocialCRMPage />} />
+        <Route path="export-bi" element={<ExportBIPage />} />
+        <Route path="data-enrichment" element={<DataEnrichmentPage />} />
+        <Route path="customer-portal" element={<CustomerPortalPage />} />
+
+        {/* Performance & Targets */}
+        <Route path="performance" element={<PerformanceTargetsPage />} />
+
+        {/* Approval Workflows */}
+        <Route path="approvals" element={<PendingApprovalsPage />} />
+        <Route path="approvals/workflows" element={<ApprovalWorkflowsPage />} />
 
         {/* Field Sales */}
         <Route path="field-sales" element={<FieldSalesDashboard />} />

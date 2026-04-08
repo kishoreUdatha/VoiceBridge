@@ -35,8 +35,9 @@ class TokenService {
   /**
    * Refresh the access token
    * The refresh token is sent automatically via httpOnly cookie
+   * @param options.silent - If true, don't redirect to login on failure (for background operations)
    */
-  async refreshAccessToken(): Promise<boolean> {
+  async refreshAccessToken(options?: { silent?: boolean }): Promise<boolean> {
     // If already refreshing, wait for that to complete
     if (isRefreshing && refreshPromise) {
       return refreshPromise;
@@ -57,8 +58,8 @@ class TokenService {
       } catch (error) {
         console.error('[TokenService] Token refresh failed:', error);
 
-        // Redirect to login
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        // Redirect to login unless silent mode (for background operations like socket connections)
+        if (!options?.silent && typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
           window.location.href = '/login';
         }
 

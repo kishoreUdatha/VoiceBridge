@@ -10,3 +10,4 @@ export { default as EmailSequencesPage } from './EmailSequencesPage';
 export { default as CRMIntegrationPage } from './CRMIntegrationPage';
 export { default as PostCallMessagingPage } from './PostCallMessagingPage';
 export { default as IntegrationCredentialsPage } from './IntegrationCredentialsPage';
+export { default as FieldPermissionsPage } from './FieldPermissionsPage';

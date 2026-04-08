@@ -21,6 +21,7 @@ import { prisma } from '../config/database';
 import { leadLifecycleService } from './lead-lifecycle.service';
 import { analyzeCallEnhanced, generateCoachingSuggestions, extractCallData, EnhancedCallAnalysisResult, CoachingSuggestions, ExtractedCallData } from './voicebot-ai.service';
 import { callAnalyticsService } from './call-analytics.service';
+import { postCallWhatsAppService } from './post-call-whatsapp.service';
 
 
 const openai = process.env.OPENAI_API_KEY
@@ -167,6 +168,51 @@ class CallFinalizationService {
       console.log(`[CallFinalization] Agent performance updated for ${call.agent.name}`);
     } catch (error) {
       console.error('[CallFinalization] Failed to update agent performance:', error);
+    }
+
+    // Send post-call WhatsApp message (async, non-blocking)
+    this.sendPostCallWhatsApp(updatedCall, extractedData).catch(error => {
+      console.error('[CallFinalization] Post-call WhatsApp failed:', error);
+    });
+  }
+
+  /**
+   * Send post-call WhatsApp message with relevant information
+   * Runs asynchronously to not block call finalization
+   */
+  private async sendPostCallWhatsApp(call: any, extractedData: ExtractedCallData) {
+    try {
+      // Only send if outcome qualifies
+      const qualifyingOutcomes = ['INTERESTED', 'CALLBACK_REQUESTED', 'NEEDS_FOLLOWUP', 'CONVERTED'];
+      if (!qualifyingOutcomes.includes(call.outcome)) {
+        console.log(`[CallFinalization] Skipping WhatsApp for outcome: ${call.outcome}`);
+        return;
+      }
+
+      console.log(`[CallFinalization] Initiating post-call WhatsApp for call ${call.id}`);
+
+      const result = await postCallWhatsAppService.processCompletedCall({
+        id: call.id,
+        phoneNumber: call.phoneNumber,
+        organizationId: call.agent?.organizationId,
+        agentId: call.agentId,
+        agentName: call.agent?.name,
+        industry: call.agent?.industry,
+        outcome: call.outcome,
+        sentiment: call.sentiment,
+        summary: call.summary,
+        extractedData: extractedData,
+        transcript: call.transcript as any[],
+        qualification: call.qualification,
+      });
+
+      if (result.sent) {
+        console.log(`[CallFinalization] Post-call WhatsApp sent successfully: ${result.messageId}`);
+      } else {
+        console.log(`[CallFinalization] Post-call WhatsApp not sent: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('[CallFinalization] Error sending post-call WhatsApp:', error);
     }
   }
 

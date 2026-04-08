@@ -211,7 +211,7 @@ export async function deleteCustomVoice(voiceId: string, organizationId: string)
   // Delete metadata file
   fs.unlinkSync(metadataPath);
 
-  // TODO: Also delete from ElevenLabs if provider is elevenlabs
+  // Also delete from ElevenLabs if the voice was cloned there
   if (metadata.elevenLabsVoiceId && process.env.ELEVENLABS_API_KEY) {
     try {
       await deleteElevenLabsVoice(metadata.elevenLabsVoiceId);

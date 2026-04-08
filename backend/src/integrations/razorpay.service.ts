@@ -16,6 +16,33 @@ interface CreateOrderInput {
   splits?: Array<{ amount: number; dueDate: Date }>;
 }
 
+interface CreatePaymentLinkInput {
+  organizationId: string;
+  amount: number;
+  leadId?: string;
+  description?: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  expireBy?: Date;
+  notifyVia?: ('sms' | 'email' | 'whatsapp')[];
+  currency?: string;
+}
+
+interface CreateSubscriptionInput {
+  organizationId: string;
+  leadId?: string;
+  studentProfileId?: string;
+  planName: string;
+  totalAmount: number;
+  installments: number;
+  startDate?: Date;
+  interval?: 'daily' | 'weekly' | 'monthly';
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+}
+
 interface VerifyPaymentInput {
   razorpayOrderId: string;
   razorpayPaymentId: string;
@@ -218,6 +245,459 @@ export class RazorpayService {
       ...order,
       paymentLink,
     };
+  }
+
+  /**
+   * Create a shareable payment link with optional notifications
+   * Enhanced version for lead-based payments with notifications
+   */
+  async createShareablePaymentLink(input: CreatePaymentLinkInput): Promise<{
+    paymentLinkId: string;
+    shortUrl: string;
+    amount: number;
+    currency: string;
+    expiresAt?: Date;
+    status: string;
+    leadId?: string;
+  }> {
+    const razorpay = this.ensureInitialized();
+    const amountInPaise = Math.round(input.amount * 100);
+
+    try {
+      // Create payment link using Razorpay Payment Links API
+      const paymentLink = await circuitBreakers.razorpay.execute(() =>
+        razorpay.paymentLink.create({
+          amount: amountInPaise,
+          currency: input.currency || 'INR',
+          accept_partial: false,
+          description: input.description || 'Payment Request',
+          customer: {
+            name: input.customerName,
+            email: input.customerEmail,
+            contact: input.customerPhone,
+          },
+          notify: {
+            sms: input.notifyVia?.includes('sms') ?? false,
+            email: input.notifyVia?.includes('email') ?? false,
+          },
+          expire_by: input.expireBy ? Math.floor(input.expireBy.getTime() / 1000) : undefined,
+          notes: {
+            organizationId: input.organizationId,
+            leadId: input.leadId || '',
+          },
+        } as any)
+      );
+
+      // Store payment link in database
+      await prisma.payment.create({
+        data: {
+          organizationId: input.organizationId,
+          orderId: (paymentLink as any).id,
+          amount: input.amount,
+          currency: input.currency || 'INR',
+          status: PaymentStatus.PENDING,
+          description: input.description,
+          metadata: {
+            paymentLinkId: (paymentLink as any).id,
+            shortUrl: (paymentLink as any).short_url,
+            type: 'payment_link',
+            leadId: input.leadId,
+            notifyVia: input.notifyVia,
+          },
+        },
+      });
+
+      // Send WhatsApp notification if requested
+      if (input.notifyVia?.includes('whatsapp') && input.customerPhone) {
+        try {
+          const { messagingService } = await import('../services/messaging.service');
+          await messagingService.sendWhatsAppMessage({
+            organizationId: input.organizationId,
+            to: input.customerPhone,
+            template: 'payment_link',
+            variables: {
+              name: input.customerName || 'Customer',
+              amount: input.amount.toString(),
+              link: (paymentLink as any).short_url,
+              description: input.description || 'Payment',
+            },
+          });
+        } catch (whatsappError) {
+          console.warn('[Razorpay] Failed to send WhatsApp notification:', whatsappError);
+        }
+      }
+
+      return {
+        paymentLinkId: (paymentLink as any).id,
+        shortUrl: (paymentLink as any).short_url,
+        amount: input.amount,
+        currency: input.currency || 'INR',
+        expiresAt: input.expireBy,
+        status: 'created',
+        leadId: input.leadId,
+      };
+    } catch (error) {
+      if (error instanceof CircuitBreakerError) {
+        throw new BadRequestError('Payment service is temporarily unavailable. Please try again later.');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Send payment link during an active call
+   * Triggered by call flow action node
+   */
+  async sendPaymentLinkDuringCall(params: {
+    sessionId: string;
+    amount: number;
+    description?: string;
+    organizationId: string;
+  }): Promise<{
+    success: boolean;
+    shortUrl?: string;
+    message: string;
+  }> {
+    try {
+      // Get call session to find lead/customer info
+      const call = await prisma.outboundCall.findFirst({
+        where: {
+          OR: [
+            { id: params.sessionId },
+            { twilioSid: params.sessionId },
+          ],
+        },
+        include: {
+          existingLead: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      if (!call) {
+        return { success: false, message: 'Call session not found' };
+      }
+
+      const customerPhone = call.phoneNumber;
+      const customerName = call.existingLead
+        ? `${call.existingLead.firstName || ''} ${call.existingLead.lastName || ''}`.trim()
+        : 'Customer';
+
+      // Create payment link
+      const paymentLink = await this.createShareablePaymentLink({
+        organizationId: params.organizationId,
+        amount: params.amount,
+        leadId: call.existingLead?.id,
+        description: params.description || 'Payment requested during call',
+        customerName,
+        customerPhone,
+        notifyVia: ['whatsapp'], // Send via WhatsApp during call
+        expireBy: new Date(Date.now() + 24 * 60 * 60 * 1000), // Expires in 24 hours
+      });
+
+      // Update call record with payment link info
+      await prisma.outboundCall.update({
+        where: { id: call.id },
+        data: {
+          extractedData: {
+            ...(call.extractedData as any || {}),
+            paymentLinkSent: true,
+            paymentLinkId: paymentLink.paymentLinkId,
+            paymentAmount: params.amount,
+            paymentLinkUrl: paymentLink.shortUrl,
+          },
+        },
+      });
+
+      return {
+        success: true,
+        shortUrl: paymentLink.shortUrl,
+        message: `Payment link sent to ${customerPhone}`,
+      };
+    } catch (error) {
+      console.error('[Razorpay] Error sending payment link during call:', error);
+      return {
+        success: false,
+        message: (error as Error).message,
+      };
+    }
+  }
+
+  /**
+   * Create a subscription/recurring payment plan
+   * For education/service industries with installment payments
+   */
+  async createSubscription(input: CreateSubscriptionInput): Promise<{
+    subscriptionId: string;
+    planId: string;
+    totalAmount: number;
+    installmentAmount: number;
+    installments: number;
+    startDate: Date;
+    status: string;
+  }> {
+    const razorpay = this.ensureInitialized();
+
+    // Calculate installment amount
+    const installmentAmount = Math.round((input.totalAmount / input.installments) * 100) / 100;
+    const amountInPaise = Math.round(installmentAmount * 100);
+
+    // Determine interval
+    const intervalMap = {
+      daily: 1,
+      weekly: 7,
+      monthly: 30,
+    };
+    const periodDays = intervalMap[input.interval || 'monthly'];
+
+    try {
+      // Create a plan
+      const plan = await circuitBreakers.razorpay.execute(() =>
+        razorpay.plans.create({
+          period: input.interval || 'monthly',
+          interval: 1,
+          item: {
+            name: input.planName,
+            amount: amountInPaise,
+            currency: 'INR',
+            description: `Installment payment plan - ${input.installments} payments of ₹${installmentAmount}`,
+          },
+        })
+      );
+
+      // Create subscription
+      const startDate = input.startDate || new Date();
+      const subscription = await circuitBreakers.razorpay.execute(() =>
+        razorpay.subscriptions.create({
+          plan_id: (plan as any).id,
+          customer_notify: 1,
+          quantity: 1,
+          total_count: input.installments,
+          start_at: Math.floor(startDate.getTime() / 1000),
+          notes: {
+            organizationId: input.organizationId,
+            leadId: input.leadId || '',
+            studentProfileId: input.studentProfileId || '',
+            totalAmount: input.totalAmount.toString(),
+          },
+        })
+      );
+
+      // Store subscription in database
+      await prisma.payment.create({
+        data: {
+          organizationId: input.organizationId,
+          studentProfileId: input.studentProfileId,
+          orderId: (subscription as any).id,
+          amount: input.totalAmount,
+          currency: 'INR',
+          status: PaymentStatus.PENDING,
+          description: `Subscription: ${input.planName}`,
+          metadata: {
+            type: 'subscription',
+            planId: (plan as any).id,
+            subscriptionId: (subscription as any).id,
+            installments: input.installments,
+            installmentAmount,
+            leadId: input.leadId,
+            interval: input.interval || 'monthly',
+          },
+        },
+      });
+
+      // Create payment splits for tracking each installment
+      const splits = Array.from({ length: input.installments }, (_, i) => ({
+        amount: installmentAmount,
+        dueDate: new Date(startDate.getTime() + i * periodDays * 24 * 60 * 60 * 1000),
+      }));
+
+      const payment = await prisma.payment.findFirst({
+        where: { orderId: (subscription as any).id },
+      });
+
+      if (payment) {
+        await prisma.paymentSplit.createMany({
+          data: splits.map((split, index) => ({
+            paymentId: payment.id,
+            splitNumber: index + 1,
+            amount: split.amount,
+            dueDate: split.dueDate,
+            status: PaymentStatus.PENDING,
+          })),
+        });
+      }
+
+      return {
+        subscriptionId: (subscription as any).id,
+        planId: (plan as any).id,
+        totalAmount: input.totalAmount,
+        installmentAmount,
+        installments: input.installments,
+        startDate,
+        status: (subscription as any).status,
+      };
+    } catch (error) {
+      if (error instanceof CircuitBreakerError) {
+        throw new BadRequestError('Payment service is temporarily unavailable. Please try again later.');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get payment analytics for dashboard
+   */
+  async getPaymentAnalytics(organizationId: string, days: number = 30) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const [
+      totalPayments,
+      completedPayments,
+      pendingPayments,
+      failedPayments,
+      recentPayments,
+    ] = await Promise.all([
+      prisma.payment.count({
+        where: { organizationId, createdAt: { gte: startDate } },
+      }),
+      prisma.payment.aggregate({
+        where: { organizationId, status: PaymentStatus.COMPLETED, createdAt: { gte: startDate } },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      prisma.payment.aggregate({
+        where: { organizationId, status: PaymentStatus.PENDING, createdAt: { gte: startDate } },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      prisma.payment.count({
+        where: { organizationId, status: PaymentStatus.FAILED, createdAt: { gte: startDate } },
+      }),
+      prisma.payment.findMany({
+        where: { organizationId, createdAt: { gte: startDate } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        include: {
+          studentProfile: {
+            include: {
+              user: { select: { firstName: true, lastName: true, email: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    // Daily breakdown
+    const dailyBreakdown = await prisma.$queryRaw<Array<{
+      date: Date;
+      count: bigint;
+      total: number;
+    }>>`
+      SELECT
+        DATE("createdAt") as date,
+        COUNT(*) as count,
+        COALESCE(SUM(amount), 0) as total
+      FROM "payments"
+      WHERE "organizationId" = ${organizationId}
+        AND "createdAt" >= ${startDate}
+        AND status = 'COMPLETED'
+      GROUP BY DATE("createdAt")
+      ORDER BY date DESC
+    `;
+
+    return {
+      summary: {
+        totalPayments,
+        completedCount: completedPayments._count,
+        completedAmount: completedPayments._sum.amount || 0,
+        pendingCount: pendingPayments._count,
+        pendingAmount: pendingPayments._sum.amount || 0,
+        failedCount: failedPayments,
+        conversionRate: totalPayments > 0
+          ? Math.round((completedPayments._count / totalPayments) * 100)
+          : 0,
+      },
+      recentPayments,
+      dailyBreakdown: dailyBreakdown.map(d => ({
+        date: d.date,
+        count: Number(d.count),
+        total: d.total,
+      })),
+    };
+  }
+
+  /**
+   * Get payment link status
+   */
+  async getPaymentLinkStatus(paymentLinkId: string) {
+    const razorpay = this.ensureInitialized();
+
+    try {
+      const paymentLink = await circuitBreakers.razorpay.execute(() =>
+        razorpay.paymentLink.fetch(paymentLinkId)
+      );
+
+      return {
+        id: (paymentLink as any).id,
+        status: (paymentLink as any).status,
+        amount: (paymentLink as any).amount / 100,
+        amountPaid: (paymentLink as any).amount_paid / 100,
+        shortUrl: (paymentLink as any).short_url,
+        expiredAt: (paymentLink as any).expire_by
+          ? new Date((paymentLink as any).expire_by * 1000)
+          : null,
+        payments: (paymentLink as any).payments || [],
+      };
+    } catch (error) {
+      if (error instanceof CircuitBreakerError) {
+        throw new BadRequestError('Payment service is temporarily unavailable.');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel a payment link
+   */
+  async cancelPaymentLink(paymentLinkId: string, organizationId: string) {
+    const razorpay = this.ensureInitialized();
+
+    // Verify ownership
+    const payment = await prisma.payment.findFirst({
+      where: {
+        orderId: paymentLinkId,
+        organizationId,
+      },
+    });
+
+    if (!payment) {
+      throw new NotFoundError('Payment link not found');
+    }
+
+    try {
+      await circuitBreakers.razorpay.execute(() =>
+        razorpay.paymentLink.cancel(paymentLinkId)
+      );
+
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: PaymentStatus.FAILED },
+      });
+
+      return { success: true, message: 'Payment link cancelled' };
+    } catch (error) {
+      if (error instanceof CircuitBreakerError) {
+        throw new BadRequestError('Payment service is temporarily unavailable.');
+      }
+      throw error;
+    }
   }
 
   async handleWebhook(payload: Record<string, unknown>, signature: string) {

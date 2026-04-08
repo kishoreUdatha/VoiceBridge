@@ -1,8 +1,14 @@
 import axios, { AxiosInstance } from 'axios';
+import { prisma } from '../config/database';
+import crypto from 'crypto';
 
 /**
  * Exotel API Integration for India Calling
  * Documentation: https://developer.exotel.com/api/
+ *
+ * Supports both:
+ * - Platform-wide credentials (env vars) for VoiceBridge-provided numbers
+ * - Organization-specific credentials (BYOC - Bring Your Own Carrier)
  */
 
 interface ExotelConfig {
@@ -77,20 +83,165 @@ interface ExotelCallDetails {
   RecordingUrl?: string;
 }
 
-class ExotelService {
-  private client: AxiosInstance;
-  private config: ExotelConfig;
-  private baseUrl: string;
+// ==================== ENCRYPTION HELPERS ====================
+// These match the organization-integrations.routes.ts encryption
 
-  constructor() {
-    this.config = {
-      accountSid: process.env.EXOTEL_ACCOUNT_SID || '',
-      apiKey: process.env.EXOTEL_API_KEY || '',
-      apiToken: process.env.EXOTEL_API_TOKEN || '',
-      callerId: process.env.EXOTEL_CALLER_ID || '',
+const ENCRYPTION_KEY = (() => {
+  const key = process.env.CREDENTIALS_ENCRYPTION_KEY;
+  if (!key) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (isProduction) {
+      console.error('FATAL: CREDENTIALS_ENCRYPTION_KEY environment variable is required in production');
+      return '';
+    }
+    return process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+  }
+  return key;
+})();
+
+const IV_LENGTH = 16;
+
+function decrypt(text: string): string {
+  if (!text || !text.includes(':')) return text;
+  try {
+    const parts = text.split(':');
+    const iv = Buffer.from(parts[0], 'hex');
+    const encryptedText = parts[1];
+    const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (e) {
+    return text; // Return as-is if decryption fails (might be unencrypted)
+  }
+}
+
+// ==================== EXOTEL SERVICE CLASS ====================
+
+class ExotelService {
+  private client: AxiosInstance | null = null;
+  private config: ExotelConfig | null = null;
+  private baseUrl: string = '';
+  private organizationId?: string;
+  private configLoaded: boolean = false;
+
+  constructor(organizationId?: string) {
+    this.organizationId = organizationId;
+  }
+
+  /**
+   * Load configuration from org settings or fallback to env vars
+   */
+  private async loadConfig(): Promise<ExotelConfig | null> {
+    if (this.configLoaded && this.config) {
+      return this.config;
+    }
+
+    // 1. Try org-specific credentials first
+    if (this.organizationId) {
+      const orgConfig = await this.loadOrgConfig();
+      if (orgConfig) {
+        this.config = orgConfig;
+        this.configLoaded = true;
+        this.initializeClient();
+        return this.config;
+      }
+    }
+
+    // 2. Fall back to platform (env) credentials
+    const envConfig = this.loadEnvConfig();
+    if (envConfig) {
+      this.config = envConfig;
+      this.configLoaded = true;
+      this.initializeClient();
+      return this.config;
+    }
+
+    return null;
+  }
+
+  /**
+   * Load org-specific Exotel credentials from organization settings
+   */
+  private async loadOrgConfig(): Promise<ExotelConfig | null> {
+    if (!this.organizationId) return null;
+
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: { id: this.organizationId },
+        select: { settings: true },
+      });
+
+      if (!organization?.settings) return null;
+
+      const settings = organization.settings as Record<string, any>;
+      const integrations = settings.integrations
+        ? (typeof settings.integrations === 'string'
+            ? JSON.parse(settings.integrations)
+            : settings.integrations)
+        : {};
+
+      const exotelConfig = integrations.exotel;
+      if (!exotelConfig) return null;
+
+      // Check if org has Exotel configured
+      const accountSid = exotelConfig.accountSid ? decrypt(exotelConfig.accountSid) : '';
+      const apiKey = exotelConfig.apiKey ? decrypt(exotelConfig.apiKey) : '';
+      const apiToken = exotelConfig.apiToken ? decrypt(exotelConfig.apiToken) : '';
+      const callerId = exotelConfig.callerId || '';
+
+      // Need at least accountSid, apiKey, apiToken to be configured
+      if (!accountSid || !apiKey || !apiToken) {
+        return null;
+      }
+
+      console.log(`[Exotel] Loaded org-specific config for org ${this.organizationId}`);
+
+      return {
+        accountSid,
+        apiKey,
+        apiToken,
+        callerId,
+        subdomain: exotelConfig.subdomain || 'api.exotel.com',
+        whatsappNumber: exotelConfig.whatsappNumber || '',
+      };
+    } catch (error) {
+      console.error('[Exotel] Error loading org config:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Load platform-wide Exotel credentials from environment variables
+   */
+  private loadEnvConfig(): ExotelConfig | null {
+    const accountSid = process.env.EXOTEL_ACCOUNT_SID || '';
+    const apiKey = process.env.EXOTEL_API_KEY || '';
+    const apiToken = process.env.EXOTEL_API_TOKEN || '';
+    const callerId = process.env.EXOTEL_CALLER_ID || '';
+
+    if (!accountSid || !apiKey || !apiToken) {
+      return null;
+    }
+
+    console.log('[Exotel] Using platform-wide credentials from env vars');
+
+    return {
+      accountSid,
+      apiKey,
+      apiToken,
+      callerId,
       subdomain: process.env.EXOTEL_SUBDOMAIN || 'api.exotel.com',
       whatsappNumber: process.env.EXOTEL_WHATSAPP_NUMBER || '',
     };
+  }
+
+  /**
+   * Initialize the HTTP client with current config
+   */
+  private initializeClient(): void {
+    if (!this.config) return;
 
     this.baseUrl = `https://${this.config.subdomain}/v1/Accounts/${this.config.accountSid}`;
 
@@ -107,15 +258,79 @@ class ExotelService {
   }
 
   /**
+   * Ensure config is loaded before making API calls
+   */
+  private async ensureConfigLoaded(): Promise<boolean> {
+    if (!this.configLoaded) {
+      await this.loadConfig();
+    }
+    return this.config !== null && this.client !== null;
+  }
+
+  /**
    * Check if Exotel is configured
    */
-  isConfigured(): boolean {
+  async isConfigured(): Promise<boolean> {
+    await this.ensureConfigLoaded();
     return !!(
-      this.config.accountSid &&
-      this.config.apiKey &&
-      this.config.apiToken &&
-      this.config.callerId
+      this.config?.accountSid &&
+      this.config?.apiKey &&
+      this.config?.apiToken
     );
+  }
+
+  /**
+   * Check if Exotel is configured (sync version for backward compatibility)
+   * Note: This only works if config has already been loaded
+   */
+  isConfiguredSync(): boolean {
+    return !!(
+      this.config?.accountSid &&
+      this.config?.apiKey &&
+      this.config?.apiToken
+    );
+  }
+
+  /**
+   * Get the current config (for testing/debugging)
+   */
+  async getConfig(): Promise<ExotelConfig | null> {
+    await this.ensureConfigLoaded();
+    return this.config;
+  }
+
+  /**
+   * Test the connection to Exotel API
+   */
+  async testConnection(): Promise<{ success: boolean; message: string; data?: any }> {
+    const configured = await this.isConfigured();
+    if (!configured) {
+      return {
+        success: false,
+        message: 'Exotel is not configured. Please provide accountSid, apiKey, and apiToken.',
+      };
+    }
+
+    try {
+      // Try to get account details to verify credentials
+      const result = await this.getAccountDetails();
+      if (result.success) {
+        return {
+          success: true,
+          message: 'Successfully connected to Exotel',
+          data: result.data,
+        };
+      }
+      return {
+        success: false,
+        message: result.error || 'Failed to connect to Exotel',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to connect to Exotel',
+      };
+    }
   }
 
   /**
@@ -157,7 +372,8 @@ class ExotelService {
    * For AI calling, we'll use the App (Passthru) flow
    */
   async makeCall(params: MakeCallParams): Promise<CallResponse> {
-    if (!this.isConfigured()) {
+    const configured = await this.isConfigured();
+    if (!configured) {
       return {
         success: false,
         error: 'Exotel is not configured. Please set EXOTEL_ACCOUNT_SID, EXOTEL_API_KEY, EXOTEL_API_TOKEN, and EXOTEL_CALLER_ID.',
@@ -166,7 +382,7 @@ class ExotelService {
 
     try {
       const toNumber = this.formatPhoneNumber(params.to);
-      const callerId = params.callerId || this.config.callerId;
+      const callerId = params.callerId || this.config!.callerId;
 
       // Build form data for outbound IVR call
       // From = customer being called
@@ -265,7 +481,7 @@ class ExotelService {
       });
 
       // Make the API call
-      const response = await this.client.post('/Calls/connect.json', formData);
+      const response = await this.client!.post('/Calls/connect.json', formData);
 
       console.log('Exotel makeCall response:', JSON.stringify(response.data, null, 2));
 
@@ -312,7 +528,8 @@ class ExotelService {
     statusCallback?: string;
     customField?: string;
   }): Promise<CallResponse> {
-    if (!this.isConfigured()) {
+    const configured = await this.isConfigured();
+    if (!configured) {
       return {
         success: false,
         error: 'Exotel is not configured.',
@@ -322,7 +539,7 @@ class ExotelService {
     try {
       const fromNumber = this.formatPhoneNumber(params.from);
       const toNumber = this.formatPhoneNumber(params.to);
-      const callerId = params.callerId || this.config.callerId;
+      const callerId = params.callerId || this.config!.callerId;
 
       const formData = new URLSearchParams();
       formData.append('From', fromNumber); // Agent (called first)
@@ -372,7 +589,7 @@ class ExotelService {
         statusCallback: params.statusCallback,
       });
 
-      const response = await this.client.post('/Calls/connect.json', formData);
+      const response = await this.client!.post('/Calls/connect.json', formData);
 
       console.log('Exotel connectCall response:', JSON.stringify(response.data, null, 2));
 
@@ -416,7 +633,8 @@ class ExotelService {
     recordingChannels?: 'single' | 'dual';
     recordingFormat?: 'mp3' | 'mp3-hq';
   }): Promise<CallResponse> {
-    if (!this.isConfigured()) {
+    const configured = await this.isConfigured();
+    if (!configured) {
       return {
         success: false,
         error: 'Exotel is not configured.',
@@ -425,7 +643,7 @@ class ExotelService {
 
     try {
       const toNumber = this.formatPhoneNumber(params.to);
-      const callerId = params.callerId || this.config.callerId;
+      const callerId = params.callerId || this.config!.callerId;
 
       const formData = new URLSearchParams();
       formData.append('From', toNumber);
@@ -472,7 +690,7 @@ class ExotelService {
         recordingChannels: params.recordingChannels || 'dual',
       });
 
-      const response = await this.client.post('/Calls/connect.json', formData);
+      const response = await this.client!.post('/Calls/connect.json', formData);
 
       console.log('Exotel makeAICall response:', JSON.stringify(response.data, null, 2));
 
@@ -513,7 +731,8 @@ class ExotelService {
     statusCallback?: string;
     customField?: string;
   }): Promise<CallResponse> {
-    if (!this.isConfigured()) {
+    const configured = await this.isConfigured();
+    if (!configured) {
       return {
         success: false,
         error: 'Exotel is not configured.',
@@ -522,7 +741,7 @@ class ExotelService {
 
     try {
       const toNumber = this.formatPhoneNumber(params.to);
-      const callerId = params.callerId || this.config.callerId;
+      const callerId = params.callerId || this.config!.callerId;
 
       const formData = new URLSearchParams();
       formData.append('From', toNumber);
@@ -549,7 +768,7 @@ class ExotelService {
         formData.append('CustomField', params.customField);
       }
 
-      const response = await this.client.post('/Calls/connect.json', formData);
+      const response = await this.client!.post('/Calls/connect.json', formData);
 
       if (response.data && response.data.Call) {
         return {
@@ -578,12 +797,13 @@ class ExotelService {
    * Get call details by Call SID
    */
   async getCallDetails(callSid: string): Promise<CallResponse> {
-    if (!this.isConfigured()) {
+    const configured = await this.isConfigured();
+    if (!configured) {
       return { success: false, error: 'Exotel is not configured.' };
     }
 
     try {
-      const response = await this.client.get(`/Calls/${callSid}.json`);
+      const response = await this.client!.get(`/Calls/${callSid}.json`);
 
       if (response.data && response.data.Call) {
         return {
@@ -646,13 +866,14 @@ class ExotelService {
     encodingType?: 'plain' | 'unicode';
     smsType?: 'transactional' | 'promotional';
   }): Promise<{ success: boolean; messageSid?: string; error?: string }> {
-    if (!this.isConfigured()) {
+    const configured = await this.isConfigured();
+    if (!configured) {
       return { success: false, error: 'Exotel is not configured.' };
     }
 
     try {
       const toNumber = this.formatPhoneNumber(params.to);
-      const senderId = params.senderId || process.env.EXOTEL_SMS_SENDER_ID || this.config.callerId;
+      const senderId = params.senderId || process.env.EXOTEL_SMS_SENDER_ID || this.config!.callerId;
 
       const formData = new URLSearchParams();
       formData.append('From', senderId);
@@ -682,7 +903,7 @@ class ExotelService {
         formData.append('EncodingType', params.encodingType);
       }
 
-      const response = await this.client.post('/Sms/send.json', formData);
+      const response = await this.client!.post('/Sms/send.json', formData);
 
       if (response.data && response.data.SMSMessage) {
         return {
@@ -741,12 +962,13 @@ class ExotelService {
    * Get account details and balance
    */
   async getAccountDetails(): Promise<{ success: boolean; balance?: number; data?: any; error?: string }> {
-    if (!this.isConfigured()) {
+    const configured = await this.isConfigured();
+    if (!configured) {
       return { success: false, error: 'Exotel is not configured.' };
     }
 
     try {
-      const response = await this.client.get('.json');
+      const response = await this.client!.get('.json');
 
       if (response.data && response.data.Account) {
         return {
@@ -816,12 +1038,13 @@ class ExotelService {
   /**
    * Check if WhatsApp is configured
    */
-  isWhatsAppConfigured(): boolean {
+  async isWhatsAppConfigured(): Promise<boolean> {
+    await this.ensureConfigLoaded();
     return !!(
-      this.config.accountSid &&
-      this.config.apiKey &&
-      this.config.apiToken &&
-      this.config.whatsappNumber
+      this.config?.accountSid &&
+      this.config?.apiKey &&
+      this.config?.apiToken &&
+      this.config?.whatsappNumber
     );
   }
 
@@ -830,7 +1053,8 @@ class ExotelService {
    * Documentation: https://developer.exotel.com/api/#whatsapp-send-message
    */
   async sendWhatsApp(params: SendWhatsAppParams): Promise<WhatsAppResponse> {
-    if (!this.isWhatsAppConfigured()) {
+    const whatsappConfigured = await this.isWhatsAppConfigured();
+    if (!whatsappConfigured) {
       return {
         success: false,
         error: 'Exotel WhatsApp is not configured. Please set EXOTEL_WHATSAPP_NUMBER.',
@@ -841,10 +1065,10 @@ class ExotelService {
       const toNumber = this.formatPhoneNumber(params.to);
 
       // Exotel WhatsApp API endpoint
-      const whatsappUrl = `https://${this.config.subdomain}/v2/accounts/${this.config.accountSid}/messages`;
+      const whatsappUrl = `https://${this.config!.subdomain}/v2/accounts/${this.config!.accountSid}/messages`;
 
       const payload: any = {
-        from: this.config.whatsappNumber,
+        from: this.config!.whatsappNumber,
         to: toNumber,
         channel: 'whatsapp',
       };
@@ -893,8 +1117,8 @@ class ExotelService {
 
       const response = await axios.post(whatsappUrl, payload, {
         auth: {
-          username: this.config.apiKey,
-          password: this.config.apiToken,
+          username: this.config!.apiKey,
+          password: this.config!.apiToken,
         },
         headers: {
           'Content-Type': 'application/json',
@@ -937,7 +1161,8 @@ class ExotelService {
     filename?: string;
     caption?: string;
   }): Promise<WhatsAppResponse> {
-    if (!this.isWhatsAppConfigured()) {
+    const whatsappConfigured = await this.isWhatsAppConfigured();
+    if (!whatsappConfigured) {
       return {
         success: false,
         error: 'Exotel WhatsApp is not configured.',
@@ -946,10 +1171,10 @@ class ExotelService {
 
     try {
       const toNumber = this.formatPhoneNumber(params.to);
-      const whatsappUrl = `https://${this.config.subdomain}/v2/accounts/${this.config.accountSid}/messages`;
+      const whatsappUrl = `https://${this.config!.subdomain}/v2/accounts/${this.config!.accountSid}/messages`;
 
       const payload = {
-        from: this.config.whatsappNumber,
+        from: this.config!.whatsappNumber,
         to: toNumber,
         channel: 'whatsapp',
         type: 'document',
@@ -967,8 +1192,8 @@ class ExotelService {
 
       const response = await axios.post(whatsappUrl, payload, {
         auth: {
-          username: this.config.apiKey,
-          password: this.config.apiToken,
+          username: this.config!.apiKey,
+          password: this.config!.apiToken,
         },
         headers: {
           'Content-Type': 'application/json',
@@ -1057,8 +1282,410 @@ class ExotelService {
       status: body.status,
     };
   }
+
+  // ==================== PHONE NUMBER PROVISIONING ====================
+
+  /**
+   * List available phone numbers from Exotel
+   * Documentation: https://developer.exotel.com/api/exophones#available-phone-numbers
+   */
+  async listAvailableNumbers(params: {
+    country?: string;      // Country ISO code (default: IN)
+    type?: 'Landline' | 'Mobile' | 'TollFree';
+    region?: string;       // State/region filter
+    pattern?: string;      // Number pattern to search (e.g., '80' for Bangalore)
+    limit?: number;
+  } = {}): Promise<{
+    success: boolean;
+    numbers?: Array<{
+      phoneNumber: string;
+      friendlyName: string;
+      region: string;
+      type: string;
+      capabilities: { voice: boolean; sms: boolean };
+      monthlyPrice: number;
+      currency: string;
+    }>;
+    error?: string;
+  }> {
+    const configured = await this.isConfigured();
+    if (!configured) {
+      return { success: false, error: 'Exotel is not configured.' };
+    }
+
+    try {
+      const country = params.country || 'IN';
+      const queryParams = new URLSearchParams();
+
+      if (params.type) {
+        queryParams.append('Type', params.type);
+      }
+      if (params.region) {
+        queryParams.append('Region', params.region);
+      }
+      if (params.pattern) {
+        queryParams.append('Contains', params.pattern);
+      }
+      if (params.limit) {
+        queryParams.append('PageSize', params.limit.toString());
+      }
+
+      const url = `/AvailablePhoneNumbers/${country}.json?${queryParams.toString()}`;
+      console.log('[Exotel] Listing available numbers:', url);
+
+      const response = await this.client!.get(url);
+
+      if (response.data && response.data.AvailablePhoneNumbers) {
+        const numbers = response.data.AvailablePhoneNumbers.map((num: any) => ({
+          phoneNumber: num.PhoneNumber || num.phone_number,
+          friendlyName: num.FriendlyName || num.friendly_name || num.PhoneNumber,
+          region: num.Region || num.region || 'Unknown',
+          type: num.Type || num.type || 'Landline',
+          capabilities: {
+            voice: num.Capabilities?.voice !== false,
+            sms: num.Capabilities?.sms === true,
+          },
+          monthlyPrice: parseFloat(num.MonthlyPrice || num.monthly_rental_rate || '500'),
+          currency: num.Currency || 'INR',
+        }));
+
+        return {
+          success: true,
+          numbers,
+        };
+      }
+
+      return {
+        success: true,
+        numbers: [],
+      };
+    } catch (error: any) {
+      console.error('[Exotel] List available numbers error:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.RestException?.Message || error.message,
+      };
+    }
+  }
+
+  /**
+   * Get list of purchased ExoPhones
+   * Documentation: https://developer.exotel.com/api/exophones#incoming-phone-numbers
+   */
+  async listPurchasedNumbers(): Promise<{
+    success: boolean;
+    numbers?: Array<{
+      sid: string;
+      phoneNumber: string;
+      friendlyName: string;
+      region: string;
+      capabilities: { voice: boolean; sms: boolean };
+      voiceUrl?: string;
+      smsUrl?: string;
+    }>;
+    error?: string;
+  }> {
+    const configured = await this.isConfigured();
+    if (!configured) {
+      return { success: false, error: 'Exotel is not configured.' };
+    }
+
+    try {
+      console.log('[Exotel] Fetching purchased numbers from:', this.baseUrl + '/IncomingPhoneNumbers.json');
+      const response = await this.client!.get('/IncomingPhoneNumbers.json');
+
+      console.log('[Exotel] IncomingPhoneNumbers response:', JSON.stringify(response.data, null, 2));
+
+      // Handle different response structures from Exotel API
+      // Exotel returns IncomingPhoneNumbers (array) for multiple, IncomingPhoneNumber (object) for single
+      let phoneNumbers: any[] = [];
+
+      if (response.data?.IncomingPhoneNumbers) {
+        // Multiple numbers - array format
+        phoneNumbers = response.data.IncomingPhoneNumbers;
+      } else if (response.data?.IncomingPhoneNumber) {
+        // Single number - object format (Exotel returns singular when only 1 number)
+        phoneNumbers = [response.data.IncomingPhoneNumber];
+        console.log('[Exotel] Found single number, converting to array');
+      } else if (response.data?.incoming_phone_numbers) {
+        phoneNumbers = response.data.incoming_phone_numbers;
+      } else if (response.data?.Exophones || response.data?.exophones) {
+        phoneNumbers = response.data.Exophones || response.data.exophones;
+      }
+
+      // If still empty, try to find array in response
+      if (phoneNumbers.length === 0 && response.data) {
+        const keys = Object.keys(response.data);
+        for (const key of keys) {
+          if (Array.isArray(response.data[key])) {
+            phoneNumbers = response.data[key];
+            console.log('[Exotel] Found numbers array in key:', key);
+            break;
+          }
+        }
+      }
+
+      if (phoneNumbers.length > 0) {
+        const numbers = phoneNumbers.map((num: any) => ({
+          sid: num.Sid || num.sid || num.PhoneNumberSid,
+          phoneNumber: num.PhoneNumber || num.phone_number || num.IncomingPhoneNumber,
+          friendlyName: num.FriendlyName || num.friendly_name || num.PhoneNumber,
+          region: num.Region || num.region || 'India',
+          capabilities: {
+            voice: num.Capabilities?.voice !== false,
+            sms: num.Capabilities?.sms === true,
+          },
+          voiceUrl: num.VoiceUrl || num.voice_url,
+          smsUrl: num.SmsUrl || num.sms_url,
+        }));
+
+        console.log('[Exotel] Parsed', numbers.length, 'numbers');
+        return {
+          success: true,
+          numbers,
+        };
+      }
+
+      console.log('[Exotel] No numbers found in response');
+      return {
+        success: true,
+        numbers: [],
+      };
+    } catch (error: any) {
+      console.error('[Exotel] List purchased numbers error:', error.response?.data || error.message);
+      console.error('[Exotel] Error status:', error.response?.status);
+      return {
+        success: false,
+        error: error.response?.data?.RestException?.Message || error.message,
+      };
+    }
+  }
+
+  /**
+   * Purchase a phone number from Exotel
+   * Documentation: https://developer.exotel.com/api/exophones#buy-incoming-phone-number
+   */
+  async purchaseNumber(params: {
+    phoneNumber: string;
+    friendlyName?: string;
+    voiceUrl?: string;
+    smsUrl?: string;
+  }): Promise<{
+    success: boolean;
+    exophone?: {
+      sid: string;
+      phoneNumber: string;
+      friendlyName: string;
+      status: string;
+    };
+    error?: string;
+  }> {
+    const configured = await this.isConfigured();
+    if (!configured) {
+      return { success: false, error: 'Exotel is not configured.' };
+    }
+
+    try {
+      const formData = new URLSearchParams();
+      formData.append('PhoneNumber', params.phoneNumber);
+
+      if (params.friendlyName) {
+        formData.append('FriendlyName', params.friendlyName);
+      }
+      if (params.voiceUrl) {
+        formData.append('VoiceUrl', params.voiceUrl);
+      }
+      if (params.smsUrl) {
+        formData.append('SmsUrl', params.smsUrl);
+      }
+
+      console.log('[Exotel] Purchasing number:', params.phoneNumber);
+
+      const response = await this.client!.post('/IncomingPhoneNumbers.json', formData);
+
+      if (response.data && response.data.IncomingPhoneNumber) {
+        const num = response.data.IncomingPhoneNumber;
+        return {
+          success: true,
+          exophone: {
+            sid: num.Sid,
+            phoneNumber: num.PhoneNumber,
+            friendlyName: num.FriendlyName || params.friendlyName || num.PhoneNumber,
+            status: num.Status || 'active',
+          },
+        };
+      }
+
+      return {
+        success: false,
+        error: 'Failed to purchase number - unexpected response',
+      };
+    } catch (error: any) {
+      console.error('[Exotel] Purchase number error:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.RestException?.Message || error.message,
+      };
+    }
+  }
+
+  /**
+   * Update an ExoPhone configuration
+   */
+  async updateExophone(params: {
+    sid: string;
+    friendlyName?: string;
+    voiceUrl?: string;
+    smsUrl?: string;
+  }): Promise<{
+    success: boolean;
+    exophone?: {
+      sid: string;
+      phoneNumber: string;
+      friendlyName: string;
+    };
+    error?: string;
+  }> {
+    const configured = await this.isConfigured();
+    if (!configured) {
+      return { success: false, error: 'Exotel is not configured.' };
+    }
+
+    try {
+      const formData = new URLSearchParams();
+
+      if (params.friendlyName) {
+        formData.append('FriendlyName', params.friendlyName);
+      }
+      if (params.voiceUrl) {
+        formData.append('VoiceUrl', params.voiceUrl);
+      }
+      if (params.smsUrl) {
+        formData.append('SmsUrl', params.smsUrl);
+      }
+
+      const response = await this.client!.put(`/IncomingPhoneNumbers/${params.sid}.json`, formData);
+
+      if (response.data && response.data.IncomingPhoneNumber) {
+        const num = response.data.IncomingPhoneNumber;
+        return {
+          success: true,
+          exophone: {
+            sid: num.Sid,
+            phoneNumber: num.PhoneNumber,
+            friendlyName: num.FriendlyName,
+          },
+        };
+      }
+
+      return {
+        success: false,
+        error: 'Failed to update number',
+      };
+    } catch (error: any) {
+      console.error('[Exotel] Update exophone error:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.RestException?.Message || error.message,
+      };
+    }
+  }
+
+  /**
+   * Release (delete) an ExoPhone
+   */
+  async releaseNumber(sid: string): Promise<{
+    success: boolean;
+    error?: string;
+  }> {
+    const configured = await this.isConfigured();
+    if (!configured) {
+      return { success: false, error: 'Exotel is not configured.' };
+    }
+
+    try {
+      await this.client!.delete(`/IncomingPhoneNumbers/${sid}.json`);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Exotel] Release number error:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.RestException?.Message || error.message,
+      };
+    }
+  }
+
+  /**
+   * Get details of a specific ExoPhone
+   */
+  async getExophoneDetails(sid: string): Promise<{
+    success: boolean;
+    exophone?: {
+      sid: string;
+      phoneNumber: string;
+      friendlyName: string;
+      region: string;
+      capabilities: { voice: boolean; sms: boolean };
+      voiceUrl?: string;
+      smsUrl?: string;
+      status: string;
+    };
+    error?: string;
+  }> {
+    const configured = await this.isConfigured();
+    if (!configured) {
+      return { success: false, error: 'Exotel is not configured.' };
+    }
+
+    try {
+      const response = await this.client!.get(`/IncomingPhoneNumbers/${sid}.json`);
+
+      if (response.data && response.data.IncomingPhoneNumber) {
+        const num = response.data.IncomingPhoneNumber;
+        return {
+          success: true,
+          exophone: {
+            sid: num.Sid,
+            phoneNumber: num.PhoneNumber,
+            friendlyName: num.FriendlyName,
+            region: num.Region || 'Unknown',
+            capabilities: {
+              voice: num.Capabilities?.voice !== false,
+              sms: num.Capabilities?.sms === true,
+            },
+            voiceUrl: num.VoiceUrl,
+            smsUrl: num.SmsUrl,
+            status: num.Status || 'active',
+          },
+        };
+      }
+
+      return {
+        success: false,
+        error: 'ExoPhone not found',
+      };
+    } catch (error: any) {
+      console.error('[Exotel] Get exophone details error:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.RestException?.Message || error.message,
+      };
+    }
+  }
 }
 
-// Export singleton instance
+// ==================== FACTORY FUNCTION ====================
+
+/**
+ * Create an ExotelService instance for a specific organization
+ * If no organizationId is provided, uses platform-wide credentials
+ */
+export function createExotelService(organizationId?: string): ExotelService {
+  return new ExotelService(organizationId);
+}
+
+// ==================== DEFAULT INSTANCE (Platform-wide) ====================
+
+// Export singleton instance for backward compatibility (uses env vars)
 export const exotelService = new ExotelService();
 export default exotelService;

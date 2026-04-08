@@ -4,7 +4,16 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CRM Lead Generation</title>
+    <title>VoiceBridge CRM</title>
+
+    <!-- PWA Meta Tags -->
+    <meta name="description" content="AI-Powered CRM for Indian Lead Management with Voice Calling" />
+    <meta name="theme-color" content="#4F46E5" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="VoiceBridge" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
 
     <!-- Preconnect to Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -68,6 +77,20 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Unregister service worker in development -->
+    <script>
+      if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for (var registration of registrations) {
+              registration.unregister().then(function() {
+                console.log('Service worker unregistered for development');
+              });
+            }
+          });
+        }
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

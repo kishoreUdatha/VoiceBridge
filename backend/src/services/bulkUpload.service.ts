@@ -670,19 +670,31 @@ export class BulkUploadService {
   }> {
     // 1. Parse file
     const parsedRecords = await this.parseFile(buffer, mimetype);
+    console.log(`[BulkUpload] Parsed ${parsedRecords.length} records from file`);
+    if (parsedRecords.length > 0) {
+      console.log(`[BulkUpload] Sample parsed record:`, JSON.stringify(parsedRecords[0]));
+    }
 
     // 2. Validate records
     const { valid, invalid } = this.validateLeads(parsedRecords);
+    console.log(`[BulkUpload] Validation: ${valid.length} valid, ${invalid.length} invalid`);
+    if (invalid.length > 0 && invalid.length <= 5) {
+      console.log(`[BulkUpload] Invalid records:`, JSON.stringify(invalid));
+    } else if (invalid.length > 5) {
+      console.log(`[BulkUpload] First 5 invalid records:`, JSON.stringify(invalid.slice(0, 5)));
+    }
 
-    // 3. Detect duplicates (check both raw_import_records AND leads tables)
+    // 3. Detect duplicates at tenant level (check against both leads AND raw_import_records)
     const recordsForDuplicateCheck = valid.map((r) => ({
       phone: r.phone,
       email: r.email,
     }));
     const { unique, duplicates } = await rawImportService.detectDuplicates(
       organizationId,
-      recordsForDuplicateCheck
+      recordsForDuplicateCheck,
+      { skipRawImportCheck: false } // Check against all existing records in the organization
     );
+    console.log(`[BulkUpload] Duplicate detection: ${unique.length} unique, ${duplicates.length} duplicates`);
 
     // Filter valid records to only unique ones
     const uniquePhones = new Set(unique.map((u) => u.phone));

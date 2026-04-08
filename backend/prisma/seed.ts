@@ -51,6 +51,18 @@ async function main() {
     },
   });
 
+  const teamLeadRole = await prisma.role.upsert({
+    where: { organizationId_slug: { organizationId: organization.id, slug: 'team_lead' } },
+    update: {},
+    create: {
+      organizationId: organization.id,
+      name: 'Team Lead',
+      slug: 'team_lead',
+      description: 'Team supervision - Can monitor telecallers, view team reports and analytics',
+      permissions: ['leads:*', 'users:read', 'reports:read', 'analytics:read'],
+    },
+  });
+
   const counselorRole = await prisma.role.upsert({
     where: { organizationId_slug: { organizationId: organization.id, slug: 'counselor' } },
     update: {},
@@ -86,7 +98,7 @@ async function main() {
       permissions: ['field_sales:*', 'colleges:*', 'visits:*', 'deals:*', 'expenses:*'],
     },
   });
-  console.log('✅ Roles: Admin, Manager, Counselor, Telecaller, Field Sales');
+  console.log('✅ Roles: Admin, Manager, Team Lead, Counselor, Telecaller, Field Sales');
 
   // ==================== USERS BY ROLE ====================
   const hashedPassword = await bcrypt.hash('admin123', 10);

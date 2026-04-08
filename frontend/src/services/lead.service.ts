@@ -31,6 +31,7 @@ export interface Lead {
   convertedAt?: string;
   createdAt: string;
   updatedAt: string;
+  stageId?: string;
   stage?: {
     id: string;
     name: string;

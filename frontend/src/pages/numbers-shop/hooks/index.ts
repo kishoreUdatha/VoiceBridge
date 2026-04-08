@@ -1,0 +1,1 @@
+export { useNumbersShop } from './useNumbersShop';

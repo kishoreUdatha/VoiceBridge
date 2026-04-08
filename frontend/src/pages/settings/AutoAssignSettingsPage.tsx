@@ -461,19 +461,19 @@ export default function AutoAssignSettingsPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleRunNow(schedule.id)}
                       disabled={isRunning}
-                      className="p-1.5 rounded text-blue-600 hover:bg-blue-50"
+                      className="p-1.5 rounded bg-blue-100 text-blue-600 hover:bg-blue-200"
                       title="Run Now"
                     >
                       {isRunning ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <PlayIcon className="w-4 h-4" />}
                     </button>
-                    <button onClick={() => handleOpenModal(schedule)} className="p-1.5 rounded text-slate-500 hover:bg-slate-100" title="Edit">
+                    <button onClick={() => handleOpenModal(schedule)} className="p-1.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200" title="Edit">
                       <PencilIcon className="w-4 h-4" />
                     </button>
-                    <button onClick={() => handleDelete(schedule.id)} className="p-1.5 rounded text-red-500 hover:bg-red-50" title="Delete">
+                    <button onClick={() => handleDelete(schedule.id)} className="p-1.5 rounded bg-red-100 text-red-600 hover:bg-red-200" title="Delete">
                       <TrashIcon className="w-4 h-4" />
                     </button>
                   </div>

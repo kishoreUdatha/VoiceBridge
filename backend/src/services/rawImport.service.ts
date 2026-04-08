@@ -10,6 +10,9 @@ interface RawImportFilter {
   assignedToId?: string;
   assignedAgentId?: string;
   search?: string;
+  // Role-based filtering
+  userRole?: string;
+  userId?: string;
 }
 
 interface BulkImportStats {
@@ -72,7 +75,12 @@ export class RawImportService {
     return { imports, total };
   }
 
-  async getBulkImportById(id: string, organizationId: string) {
+  async getBulkImportById(
+    id: string,
+    organizationId: string,
+    userRole?: string,
+    userId?: string
+  ) {
     const bulkImport = await prisma.bulkImport.findFirst({
       where: { id, organizationId },
       include: {
@@ -86,10 +94,65 @@ export class RawImportService {
       throw new NotFoundError('Bulk import not found');
     }
 
-    // Get status breakdown
+    // Build where clause for status breakdown with role-based filtering
+    const recordWhere: any = { bulkImportId: id };
+    const normalizedRole = userRole?.toLowerCase().replace('_', '');
+
+    // Apply role-based filtering for stats consistency
+    if (normalizedRole === 'teamlead' && userId) {
+      const teamMembers = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: userId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamMemberIds = teamMembers.map(m => m.id);
+
+      if (teamMemberIds.length > 0) {
+        recordWhere.OR = [
+          { assignedToId: null },
+          { assignedToId: { in: teamMemberIds } },
+        ];
+      } else {
+        recordWhere.assignedToId = null;
+      }
+    } else if (normalizedRole === 'manager' && userId) {
+      const teamLeads = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: userId,
+          role: { slug: 'team_lead' },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamLeadIds = teamLeads.map(tl => tl.id);
+
+      const telecallers = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: { in: [...teamLeadIds, userId] },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const telecallerIds = telecallers.map(t => t.id);
+
+      if (telecallerIds.length > 0) {
+        recordWhere.OR = [
+          { assignedToId: null },
+          { assignedToId: { in: telecallerIds } },
+        ];
+      }
+    }
+    // Admin sees all records (no additional filter)
+
+    // Get status breakdown with role-based filtering
     const statusBreakdown = await prisma.rawImportRecord.groupBy({
       by: ['status'],
-      where: { bulkImportId: id },
+      where: recordWhere,
       _count: { status: true },
     });
 
@@ -168,13 +231,100 @@ export class RawImportService {
     if (filter.assignedAgentId) {
       where.assignedAgentId = filter.assignedAgentId;
     }
+
+    // Build search condition separately
+    let searchCondition: any = null;
     if (filter.search) {
-      where.OR = [
-        { firstName: { contains: filter.search, mode: 'insensitive' } },
-        { lastName: { contains: filter.search, mode: 'insensitive' } },
-        { email: { contains: filter.search, mode: 'insensitive' } },
-        { phone: { contains: filter.search } },
-      ];
+      searchCondition = {
+        OR: [
+          { firstName: { contains: filter.search, mode: 'insensitive' } },
+          { lastName: { contains: filter.search, mode: 'insensitive' } },
+          { email: { contains: filter.search, mode: 'insensitive' } },
+          { phone: { contains: filter.search } },
+        ],
+      };
+    }
+
+    // Role-based filtering for team hierarchy
+    // Managers and Team Leads should see:
+    // 1. PENDING records (unassigned) - so they can assign them
+    // 2. Records assigned to their team members
+    const normalizedRole = filter.userRole?.toLowerCase().replace('_', '');
+    let roleCondition: any = null;
+
+    if ((normalizedRole === 'teamlead') && filter.userId) {
+      // Get telecallers who report to this team lead
+      const teamMembers = await prisma.user.findMany({
+        where: {
+          organizationId: filter.organizationId,
+          managerId: filter.userId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamMemberIds = teamMembers.map(m => m.id);
+
+      // Show unassigned records OR records assigned to team members
+      if (teamMemberIds.length > 0) {
+        roleCondition = {
+          OR: [
+            { assignedToId: null }, // Pending/unassigned records
+            { assignedToId: { in: teamMemberIds } }, // Team members' records
+          ],
+        };
+      } else {
+        // No team members, only show unassigned
+        roleCondition = { assignedToId: null };
+      }
+    }
+    // Managers see pending records + records assigned to their team
+    else if (normalizedRole === 'manager' && filter.userId) {
+      // Get team leads who report to this manager
+      const teamLeads = await prisma.user.findMany({
+        where: {
+          organizationId: filter.organizationId,
+          managerId: filter.userId,
+          role: { slug: 'team_lead' },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamLeadIds = teamLeads.map(tl => tl.id);
+
+      // Get all telecallers under these team leads + direct reports
+      const telecallers = await prisma.user.findMany({
+        where: {
+          organizationId: filter.organizationId,
+          managerId: { in: [...teamLeadIds, filter.userId] },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const telecallerIds = telecallers.map(t => t.id);
+
+      // Show unassigned records OR records assigned to team members
+      if (telecallerIds.length > 0) {
+        roleCondition = {
+          OR: [
+            { assignedToId: null }, // Pending/unassigned records
+            { assignedToId: { in: telecallerIds } }, // Team members' records
+          ],
+        };
+      }
+      // If no telecallers, manager sees all (no filter) - they can assign to anyone
+    }
+    // Admin sees all records (no additional filter)
+
+    // Combine search and role conditions using AND
+    const andConditions: any[] = [];
+    if (searchCondition) {
+      andConditions.push(searchCondition);
+    }
+    if (roleCondition) {
+      andConditions.push(roleCondition);
+    }
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const [records, total] = await Promise.all([
@@ -237,23 +387,43 @@ export class RawImportService {
     recordIds: string[],
     telecallerIds: string[],
     assignedById: string,
-    organizationId: string
+    organizationId: string,
+    assignerRole?: string
   ) {
     if (telecallerIds.length === 0) {
       throw new BadRequestError('At least one telecaller is required');
     }
 
-    // Verify telecallers belong to organization
+    // Build telecaller query - team leads can only assign to their team members
+    const telecallerWhere: Prisma.UserWhereInput = {
+      id: { in: telecallerIds },
+      organizationId,
+      isActive: true,
+    };
+
+    // If assigner is a team_lead, only allow assigning to their direct reports
+    const normalizedRole = assignerRole?.toLowerCase();
+    if (normalizedRole === 'team_lead' || normalizedRole === 'teamlead') {
+      telecallerWhere.managerId = assignedById;
+    }
+
+    // Verify telecallers belong to organization (and to team lead's team if applicable)
     const telecallers = await prisma.user.findMany({
-      where: {
-        id: { in: telecallerIds },
-        organizationId,
-        isActive: true,
-      },
-      select: { id: true },
+      where: telecallerWhere,
+      select: { id: true, firstName: true, lastName: true },
     });
 
+    if (telecallers.length === 0) {
+      if (normalizedRole === 'team_lead' || normalizedRole === 'teamlead') {
+        throw new BadRequestError('No valid team members found. Team leads can only assign to their direct reports.');
+      }
+      throw new BadRequestError('Some telecallers are invalid or inactive');
+    }
+
     if (telecallers.length !== telecallerIds.length) {
+      if (normalizedRole === 'team_lead' || normalizedRole === 'teamlead') {
+        throw new BadRequestError('Some telecallers are not in your team. Team leads can only assign to their direct reports.');
+      }
       throw new BadRequestError('Some telecallers are invalid or inactive');
     }
 
@@ -407,7 +577,17 @@ export class RawImportService {
       throw new BadRequestError('Record already converted to lead');
     }
 
-    // Create lead from record
+    // Get the first stage for the organization (lowest positive journeyOrder)
+    const firstStage = await prisma.leadStage.findFirst({
+      where: {
+        organizationId,
+        journeyOrder: { gt: 0 }, // Positive = progress stage (not lost)
+        isActive: true,
+      },
+      orderBy: { journeyOrder: 'asc' },
+    });
+
+    // Create lead from record with first stage assigned
     const lead = await prisma.lead.create({
       data: {
         organizationId,
@@ -419,6 +599,7 @@ export class RawImportService {
         source: additionalData?.source || 'BULK_UPLOAD',
         sourceDetails: `Bulk Import: ${record.bulkImport?.fileName || 'Unknown'}`,
         priority: additionalData?.priority || 'MEDIUM',
+        stageId: firstStage?.id, // Assign first stage
         customFields: record.customFields || {},
       },
     });
@@ -553,25 +734,74 @@ export class RawImportService {
     };
   }
 
-  // Get assignment stats by telecaller (for admin/manager view)
-  async getTelecallerAssignmentStats(organizationId: string) {
+  // Get assignment stats by telecaller (for admin/manager/team_lead view)
+  async getTelecallerAssignmentStats(organizationId: string, userRole?: string, userId?: string) {
+    // Build where clause based on role
+    const whereClause: any = {
+      organizationId,
+      assignedToId: { not: null },
+    };
+
+    // Team Lead: only see stats for their team members
+    const normalizedRole = userRole?.toLowerCase().replace('_', '');
+    let allowedTelecallerIds: string[] | null = null;
+
+    if (normalizedRole === 'teamlead' && userId) {
+      const teamMembers = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: userId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      allowedTelecallerIds = teamMembers.map(m => m.id);
+      if (allowedTelecallerIds.length > 0) {
+        whereClause.assignedToId = { in: allowedTelecallerIds };
+      } else {
+        // No team members, return empty
+        return { telecallers: [], unassignedCount: 0, totalTelecallers: 0 };
+      }
+    }
+    // Manager: see stats for telecallers under their team leads
+    else if (normalizedRole === 'manager' && userId) {
+      const teamLeads = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: userId,
+          role: { slug: 'team_lead' },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamLeadIds = teamLeads.map(tl => tl.id);
+
+      const telecallers = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: { in: [...teamLeadIds, userId] },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      allowedTelecallerIds = telecallers.map(t => t.id);
+      if (allowedTelecallerIds.length > 0) {
+        whereClause.assignedToId = { in: allowedTelecallerIds };
+      }
+    }
+    // Admin sees all
+
     // Get assignment counts grouped by telecaller
     const assignmentStats = await prisma.rawImportRecord.groupBy({
       by: ['assignedToId'],
-      where: {
-        organizationId,
-        assignedToId: { not: null },
-      },
+      where: whereClause,
       _count: { id: true },
     });
 
     // Get status breakdown for each telecaller
     const statusByTelecaller = await prisma.rawImportRecord.groupBy({
       by: ['assignedToId', 'status'],
-      where: {
-        organizationId,
-        assignedToId: { not: null },
-      },
+      where: whereClause,
       _count: { id: true },
     });
 
@@ -650,7 +880,8 @@ export class RawImportService {
 
   async detectDuplicates(
     organizationId: string,
-    records: Array<{ phone: string; email?: string }>
+    records: Array<{ phone: string; email?: string }>,
+    options: { skipRawImportCheck?: boolean } = {}
   ): Promise<{
     unique: typeof records;
     duplicates: Array<{ phone: string; email?: string; reason: string }>;
@@ -662,7 +893,7 @@ export class RawImportService {
     const existingPhones = new Set<string>();
     const existingEmails = new Set<string>();
 
-    // Check against leads table
+    // Check against leads table (always check - these are converted leads)
     for (let i = 0; i < phones.length; i += BATCH_SIZE) {
       const phoneBatch = phones.slice(i, i + BATCH_SIZE);
       const results = await prisma.lead.findMany({
@@ -675,18 +906,22 @@ export class RawImportService {
       results.forEach((l) => existingPhones.add(l.phone));
     }
 
-    // Check against raw_import_records table
-    for (let i = 0; i < phones.length; i += BATCH_SIZE) {
-      const phoneBatch = phones.slice(i, i + BATCH_SIZE);
-      const results = await prisma.rawImportRecord.findMany({
-        where: {
-          organizationId,
-          phone: { in: phoneBatch },
-        },
-        select: { phone: true },
-      });
-      results.forEach((r) => existingPhones.add(r.phone));
+    // Check against raw_import_records table (skip if option set)
+    if (!options.skipRawImportCheck) {
+      for (let i = 0; i < phones.length; i += BATCH_SIZE) {
+        const phoneBatch = phones.slice(i, i + BATCH_SIZE);
+        const results = await prisma.rawImportRecord.findMany({
+          where: {
+            organizationId,
+            phone: { in: phoneBatch },
+          },
+          select: { phone: true },
+        });
+        results.forEach((r) => existingPhones.add(r.phone));
+      }
     }
+
+    console.log(`[RawImport] Duplicate check: ${existingPhones.size} existing phones found (skipRawImportCheck: ${options.skipRawImportCheck || false})`)
 
     // Check emails in leads
     for (let i = 0; i < emails.length; i += BATCH_SIZE) {

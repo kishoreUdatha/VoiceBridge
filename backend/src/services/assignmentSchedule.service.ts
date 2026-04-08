@@ -439,7 +439,8 @@ export class AssignmentScheduleService {
 
     console.log(
       `[AssignmentSchedule] Run completed for schedule ${schedule.name}: ` +
-        `${totalRecordsAssigned} assigned, ${recordsSkipped} skipped`
+        `${totalRecordsAssigned} assigned, ${recordsSkipped} skipped, ` +
+        `pendingBefore: ${pendingBefore}, pendingAfter: ${pendingAfter}`
     );
 
     return runLog;
@@ -452,12 +453,16 @@ export class AssignmentScheduleService {
     dailyLimit: number,
     strategy: DistributionStrategy,
     bulkImportIds: string[] | null,
-    branchId: string | null = null
+    _branchId: string | null = null // Not used - always get all telecallers
   ) {
-    // Get telecallers (filtered by branch if branch-specific schedule)
-    const telecallers = await this.getTelecallerCapacity(organizationId, dailyLimit, branchId);
+    // Get ALL telecallers in the organization (ignore branch filtering)
+    const telecallers = await this.getTelecallerCapacity(organizationId, dailyLimit, null);
+
+    console.log(`[AssignmentSchedule] Found ${telecallers.length} telecallers for org ${organizationId}`);
+    telecallers.forEach(t => console.log(`  - ${t.userName}: available=${t.available}, limit=${t.limit}, pending=${t.pending}`));
 
     if (telecallers.length === 0) {
+      console.log('[AssignmentSchedule] No telecallers found, returning');
       return { totalAssigned: 0, skipped: 0, assignments: [], branchBreakdown: {} };
     }
 
@@ -465,6 +470,7 @@ export class AssignmentScheduleService {
     const totalCapacity = telecallers.reduce((sum, t) => sum + t.available, 0);
 
     if (totalCapacity === 0) {
+      console.log('[AssignmentSchedule] All telecallers at capacity, returning');
       return {
         totalAssigned: 0,
         skipped: telecallers.length,
@@ -473,68 +479,54 @@ export class AssignmentScheduleService {
       };
     }
 
-    // Get pending records (filtered by branch if branch-specific schedule)
+    // Get ALL pending records (ignore branch filtering)
     const pendingRecords = await this.getPendingRecords(
       organizationId,
       totalCapacity,
       bulkImportIds,
-      branchId
+      null // Get all pending records
     );
 
+    console.log(`[AssignmentSchedule] Found ${pendingRecords.length} pending records to assign`);
+
     if (pendingRecords.length === 0) {
+      console.log('[AssignmentSchedule] No pending records found, returning');
       return { totalAssigned: 0, skipped: 0, assignments: [], branchBreakdown: {} };
     }
 
-    // Distribute records based on strategy
+    // Simple distribution to all telecallers based on strategy
     const assignments: AssignmentResult[] = [];
     const recordAssignments: { recordId: string; userId: string }[] = [];
-    let branchBreakdown: BranchBreakdown = {};
 
-    if (branchId) {
-      // Branch-specific schedule: simple distribution within branch
-      switch (strategy) {
-        case 'CAPACITY_BASED':
-          this.distributeByCapacity(
-            pendingRecords,
-            telecallers,
-            recordAssignments,
-            assignments
-          );
-          break;
+    console.log(`[AssignmentSchedule] Using ${strategy} distribution to all telecallers`);
 
-        case 'ROUND_ROBIN':
-          this.distributeRoundRobin(
-            pendingRecords,
-            telecallers,
-            recordAssignments,
-            assignments
-          );
-          break;
+    switch (strategy) {
+      case 'CAPACITY_BASED':
+      case 'PRIORITY_BASED':
+        this.distributeByCapacity(
+          pendingRecords,
+          telecallers,
+          recordAssignments,
+          assignments
+        );
+        break;
 
-        case 'PRIORITY_BASED':
-          this.distributeByCapacity(
-            pendingRecords,
-            telecallers,
-            recordAssignments,
-            assignments
-          );
-          break;
-      }
-      branchBreakdown[branchId] = {
+      case 'ROUND_ROBIN':
+        this.distributeRoundRobin(
+          pendingRecords,
+          telecallers,
+          recordAssignments,
+          assignments
+        );
+        break;
+    }
+
+    const branchBreakdown: BranchBreakdown = {
+      'all': {
         assigned: recordAssignments.length,
         skipped: telecallers.filter((t) => t.available === 0).length,
-      };
-    } else {
-      // Org-wide schedule: branch-aware distribution
-      const result = this.distributeBranchAware(
-        pendingRecords,
-        telecallers,
-        strategy
-      );
-      recordAssignments.push(...result.recordAssignments);
-      assignments.push(...result.assignments);
-      branchBreakdown = result.branchBreakdown;
-    }
+      },
+    };
 
     // Execute assignments in batches
     const BATCH_SIZE = 500;
@@ -721,6 +713,10 @@ export class AssignmentScheduleService {
       telecallersByBranch[branchKey].push(t);
     }
 
+    // Log branch distribution for debugging
+    console.log(`[AssignmentSchedule] Records by branch: ${Object.keys(recordsByBranch).map(k => `${k === NO_BRANCH_KEY ? 'no-branch' : k}=${recordsByBranch[k].length}`).join(', ')}`);
+    console.log(`[AssignmentSchedule] Telecallers by branch: ${Object.keys(telecallersByBranch).map(k => `${k === NO_BRANCH_KEY ? 'no-branch' : k}=${telecallersByBranch[k].length}`).join(', ')}`);
+
     // Track remaining capacity
     const capacityRemaining: Record<string, number> = {};
     telecallers.forEach((t) => {
@@ -735,6 +731,12 @@ export class AssignmentScheduleService {
       // If no telecallers in this branch, try org-level telecallers (no branch)
       if (targetTelecallers.length === 0 && branchKey !== NO_BRANCH_KEY) {
         targetTelecallers = telecallersByBranch[NO_BRANCH_KEY] || [];
+      }
+
+      // If still no telecallers, fall back to ALL telecallers (ignore branch matching)
+      if (targetTelecallers.length === 0) {
+        console.log(`[AssignmentSchedule] No telecallers for branch ${branchKey}, falling back to all telecallers`);
+        targetTelecallers = telecallers;
       }
 
       // Initialize branch breakdown
@@ -965,12 +967,13 @@ export class AssignmentScheduleService {
     branchId: string | null = null
   ): Promise<TelecallerCapacity[]> {
     // Build where clause - filter by branch if specified
+    // Include various telecaller-type roles that can receive assignments
     const whereClause: any = {
       organizationId,
       isActive: true,
       role: {
         slug: {
-          in: ['telecaller', 'counselor', 'sales'],
+          in: ['telecaller', 'counselor', 'caller'],
         },
       },
     };
@@ -1083,7 +1086,7 @@ export class AssignmentScheduleService {
     return capacities;
   }
 
-  async getCapacityStats(organizationId: string, branchId: string | null = null) {
+  async getCapacityStats(organizationId: string, _branchId: string | null = null) {
     // Get all schedules for the org
     const schedules = await prisma.assignmentSchedule.findMany({
       where: { organizationId },
@@ -1097,10 +1100,11 @@ export class AssignmentScheduleService {
     const telecallerLimit = schedules[0]?.telecallerDailyLimit ?? 200;
     const voiceAgentLimit = schedules[0]?.voiceAgentDailyLimit ?? 500;
 
+    // Always get ALL telecallers (ignore branch filtering)
     const telecallerCapacity = await this.getTelecallerCapacity(
       organizationId,
       telecallerLimit,
-      branchId
+      null // Get all telecallers
     );
     const voiceAgentCapacity = await this.getVoiceAgentCapacity(
       organizationId,
@@ -1108,17 +1112,12 @@ export class AssignmentScheduleService {
       voiceAgentLimit
     );
 
-    // Get pending records count (filtered by branch if specified)
-    const pendingWhereClause: any = {
-      organizationId,
-      status: 'PENDING',
-    };
-    if (branchId) {
-      pendingWhereClause.orgBranchId = branchId;
-    }
-
+    // Get ALL pending records count
     const pendingRecords = await prisma.rawImportRecord.count({
-      where: pendingWhereClause,
+      where: {
+        organizationId,
+        status: 'PENDING',
+      },
     });
 
     return {
@@ -1127,7 +1126,6 @@ export class AssignmentScheduleService {
       totalTelecallerCapacity: telecallerCapacity.reduce((sum, t) => sum + t.available, 0),
       totalVoiceAgentCapacity: voiceAgentCapacity.reduce((sum, a) => sum + a.available, 0),
       pendingRecords,
-      branchId,
     };
   }
 

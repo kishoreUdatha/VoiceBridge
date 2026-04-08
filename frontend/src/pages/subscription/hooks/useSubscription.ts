@@ -81,7 +81,10 @@ export function useSubscription() {
     }
   }, [loadData]);
 
-  const openAddOnModal = useCallback(() => {
+  const openAddOnModal = useCallback((addOnType?: string) => {
+    if (addOnType) {
+      setDefaultAddOn(addOnType);
+    }
     setShowAddOnModal(true);
   }, []);
 

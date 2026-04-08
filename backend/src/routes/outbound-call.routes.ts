@@ -981,6 +981,84 @@ router.get('/calls', async (req: TenantRequest, res: Response) => {
 
 // ==================== ANALYTICS ====================
 
+// Get call stats (summary for reports page)
+router.get('/stats', async (req: TenantRequest, res: Response) => {
+  try {
+    const { days } = req.query;
+    const daysNum = days ? parseInt(days as string) : 30;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysNum);
+
+    const [totalCalls, completedCalls, byOutcome, byStatus, avgDuration] = await Promise.all([
+      // Total calls
+      prisma.outboundCall.count({
+        where: {
+          agent: { organizationId: req.organization!.id },
+          createdAt: { gte: startDate },
+        },
+      }),
+      // Completed calls
+      prisma.outboundCall.count({
+        where: {
+          agent: { organizationId: req.organization!.id },
+          status: 'COMPLETED',
+          createdAt: { gte: startDate },
+        },
+      }),
+      // By outcome
+      prisma.outboundCall.groupBy({
+        by: ['outcome'],
+        where: {
+          agent: { organizationId: req.organization!.id },
+          createdAt: { gte: startDate },
+        },
+        _count: true,
+      }),
+      // By status
+      prisma.outboundCall.groupBy({
+        by: ['status'],
+        where: {
+          agent: { organizationId: req.organization!.id },
+          createdAt: { gte: startDate },
+        },
+        _count: true,
+      }),
+      // Average duration
+      prisma.outboundCall.aggregate({
+        where: {
+          agent: { organizationId: req.organization!.id },
+          status: 'COMPLETED',
+          createdAt: { gte: startDate },
+          duration: { gt: 0 },
+        },
+        _avg: { duration: true },
+      }),
+    ]);
+
+    const outcomeDistribution = byOutcome.reduce((acc, item) => {
+      acc[item.outcome || 'UNKNOWN'] = item._count;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const statusDistribution = byStatus.reduce((acc, item) => {
+      acc[item.status] = item._count;
+      return acc;
+    }, {} as Record<string, number>);
+
+    ApiResponse.success(res, 'Stats retrieved', {
+      totalCalls,
+      completedCalls,
+      answerRate: totalCalls > 0 ? Math.round((completedCalls / totalCalls) * 100) : 0,
+      avgDuration: Math.round(avgDuration._avg.duration || 0),
+      outcomeDistribution,
+      statusDistribution,
+      period: { days: daysNum, startDate: startDate.toISOString() },
+    });
+  } catch (error) {
+    ApiResponse.error(res, (error as Error).message, 500);
+  }
+});
+
 // Get call analytics
 router.get('/analytics', async (req: TenantRequest, res: Response) => {
   try {

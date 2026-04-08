@@ -9,3 +9,4 @@ export {
   PropertiesPanel,
   SettingsModal,
 } from './IvrBuilderComponents';
+export { IvrTestSimulator } from './IvrTestSimulator';

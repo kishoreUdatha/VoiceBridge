@@ -1,4 +1,5 @@
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
@@ -52,12 +53,25 @@ const planDetails: Record<string, { name: string; features: string[] }> = {
 
 export default function RegisterPage() {
   const dispatch = useDispatch<AppDispatch>();
-  const { isLoading, error } = useSelector((state: RootState) => state.auth);
+  const navigate = useNavigate();
+  const { isLoading, error, isAuthenticated, user } = useSelector((state: RootState) => state.auth);
   const { t } = useTranslation(['auth', 'validation']);
   const [searchParams] = useSearchParams();
   const selectedPlan = searchParams.get('plan') || 'free';
   const billingCycle = searchParams.get('billing') || 'monthly';
   const planInfo = planDetails[selectedPlan] || planDetails.free;
+
+  // Redirect to onboarding after successful registration
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      // New users go to onboarding, existing users go to dashboard
+      if (!user.onboardingCompleted) {
+        navigate('/onboarding', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const {
     register,

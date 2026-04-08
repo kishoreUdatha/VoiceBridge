@@ -35,6 +35,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
         page: page ? parseInt(page as string) : 1,
         limit: limit ? parseInt(limit as string) : 20,
         showAll: showAll === 'true',
+        userRole: req.user.role || req.user.roleSlug, // Pass role for team-based filtering
       }
     );
 

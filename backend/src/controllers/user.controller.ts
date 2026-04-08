@@ -69,7 +69,10 @@ export class UserController {
 
   async getCounselors(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const counselors = await userService.getCounselors(req.organizationId!);
+      const userRole = req.user!.role || req.user!.roleSlug;
+      const userId = req.user!.id;
+
+      const counselors = await userService.getCounselors(req.organizationId!, userRole, userId);
 
       ApiResponse.success(res, 'Counselors retrieved successfully', counselors);
     } catch (error) {
@@ -79,7 +82,10 @@ export class UserController {
 
   async getTelecallers(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const telecallers = await userService.getTelecallers(req.organizationId!);
+      const userRole = req.user!.role || req.user!.roleSlug;
+      const userId = req.user!.id;
+
+      const telecallers = await userService.getTelecallers(req.organizationId!, userRole, userId);
 
       ApiResponse.success(res, 'Telecallers retrieved successfully', telecallers);
     } catch (error) {

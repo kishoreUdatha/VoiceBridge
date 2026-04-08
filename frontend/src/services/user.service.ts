@@ -9,6 +9,7 @@ export interface User {
   avatar?: string;
   roleId: string;
   managerId?: string | null;
+  branchId?: string | null;
   isActive: boolean;
   createdAt: string;
   role?: Role;
@@ -18,6 +19,10 @@ export interface User {
     lastName: string;
     email: string;
   } | null;
+  branch?: {
+    id: string;
+    name: string;
+  } | null;
   activeLeadCount?: number;
 }
 
@@ -26,6 +31,10 @@ export interface Manager {
   firstName: string;
   lastName: string;
   email: string;
+  branchId: string | null;
+  branchName: string | null;
+  roleSlug: string | null;
+  roleName: string | null;
   teamMemberCount: number;
 }
 
@@ -57,7 +66,7 @@ export const userService = {
     return response.data.data;
   },
 
-  async create(data: Partial<User> & { password: string }): Promise<User> {
+  async create(data: Partial<User> & { password?: string }): Promise<User> {
     const response = await api.post('/users', data);
     return response.data.data;
   },

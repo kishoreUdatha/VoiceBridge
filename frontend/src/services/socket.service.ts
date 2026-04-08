@@ -72,6 +72,8 @@ class SocketService {
       reconnectionDelayMax: 5000,
       timeout: 10000,
       path: '/socket.io/',
+      // Send cookies with websocket requests for httpOnly cookie auth
+      withCredentials: true,
     });
 
     this.setupEventHandlers();
@@ -116,6 +118,7 @@ class SocketService {
 
   /**
    * Handle token errors by refreshing and reconnecting
+   * Uses silent mode to avoid redirecting to login page
    */
   private async handleTokenError(): Promise<void> {
     if (this.isReconnecting) {
@@ -127,7 +130,9 @@ class SocketService {
     console.log('[Socket] Token error detected, attempting to refresh...');
 
     try {
-      const newToken = await tokenService.refreshAccessToken();
+      // Use silent mode to avoid redirecting to login page
+      // Socket failures should degrade gracefully, not interrupt the user
+      const newToken = await tokenService.refreshAccessToken({ silent: true });
 
       if (newToken) {
         console.log('[Socket] Token refreshed, reconnecting...');
@@ -144,7 +149,8 @@ class SocketService {
         // Notify callbacks about token refresh
         this.tokenRefreshCallbacks.forEach((callback) => callback(true));
       } else {
-        console.error('[Socket] Token refresh failed, user needs to re-login');
+        console.warn('[Socket] Token refresh failed, realtime features disabled');
+        // Don't redirect - just disable realtime features
       }
     } catch (error) {
       console.error('[Socket] Error during token refresh:', error);

@@ -27,9 +27,10 @@ function parseDateRange(startDate?: string, endDate?: string, defaultDays: numbe
 router.get(
   '/dashboard',
   asyncHandler(async (req, res) => {
-    const { organizationId } = req.user!;
+    const { organizationId, id: userId } = req.user!;
+    const userRole = req.user!.role || req.user!.roleSlug;
 
-    const summary = await analyticsService.getDashboardSummary(organizationId);
+    const summary = await analyticsService.getDashboardSummary(organizationId, userRole, userId);
 
     res.json({ success: true, data: summary });
   })

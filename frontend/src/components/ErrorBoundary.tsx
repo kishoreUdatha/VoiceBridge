@@ -39,9 +39,29 @@ class ErrorBoundary extends Component<Props, State> {
     // Update state with error info for display
     this.setState({ errorInfo });
 
-    // TODO: Log to error monitoring service (e.g., Sentry, DataDog)
-    // Example:
-    // Sentry.captureException(error, { extra: errorInfo });
+    // Log to error monitoring service if configured
+    this.logErrorToService(error, errorInfo);
+  }
+
+  private logErrorToService(error: Error, errorInfo: ErrorInfo): void {
+    // Send error to backend logging endpoint
+    try {
+      const errorData = {
+        message: error.message,
+        stack: error.stack,
+        componentStack: errorInfo.componentStack,
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Use navigator.sendBeacon for reliable error reporting even if page is closing
+      const blob = new Blob([JSON.stringify(errorData)], { type: 'application/json' });
+      navigator.sendBeacon('/api/errors/frontend', blob);
+    } catch (logError) {
+      // Silently fail if error logging fails
+      console.error('Failed to log error to service:', logError);
+    }
   }
 
   handleReload = (): void => {

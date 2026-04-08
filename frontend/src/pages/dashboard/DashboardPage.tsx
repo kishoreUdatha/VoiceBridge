@@ -38,13 +38,25 @@ import {
 } from '@heroicons/react/24/outline';
 
 const STATUS_COLORS: Record<string, string> = {
-  NEW: '#3B82F6',
-  CONTACTED: '#F59E0B',
-  QUALIFIED: '#10B981',
-  NEGOTIATION: '#8B5CF6',
-  WON: '#059669',
-  LOST: '#EF4444',
-  FOLLOW_UP: '#F97316',
+  // Uppercase versions
+  NEW: '#3B82F6',        // Blue
+  CONTACTED: '#A855F7',  // Violet
+  QUALIFIED: '#F59E0B',  // Orange/Yellow
+  NEGOTIATION: '#EC4899', // Pink
+  PROPOSAL: '#6366F1',   // Indigo
+  WON: '#22C55E',        // Green
+  LOST: '#14B8A6',       // Teal
+  FOLLOW_UP: '#F97316',  // Orange-red
+  // Title case versions (from lead stages) - distinct colors
+  'New': '#3B82F6',       // Blue
+  'Contacted': '#A855F7', // Violet (distinct from Proposal)
+  'Qualified': '#F59E0B', // Orange/Yellow
+  'Negotiation': '#EC4899', // Pink
+  'Proposal': '#6366F1',  // Indigo
+  'Won': '#22C55E',       // Green
+  'Lost': '#14B8A6',      // Teal
+  'Follow Up': '#F97316',
+  'Follow-Up': '#F97316',
 };
 
 const PIE_COLORS = ['#6366F1', '#EC4899', '#14B8A6', '#F59E0B', '#8B5CF6', '#EF4444', '#10B981', '#3B82F6'];
@@ -1190,62 +1202,54 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
   return (
     <div className="space-y-3">
       {/* Compact Header */}
-      <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg p-3 text-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div>
-              <h1 className="text-sm font-semibold">{getGreeting()}, {user?.firstName}</h1>
-              <p className="text-slate-400 text-xs">Admin Dashboard - Full System Control</p>
-            </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-base font-semibold text-gray-900">{getGreeting()}, {user?.firstName}</h1>
+          <p className="text-xs text-gray-500">Organization overview</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium ${allHealthy ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${allHealthy ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+            {allHealthy ? 'Operational' : 'Issues'}
           </div>
-          <div className="flex items-center gap-3">
-            <div className={`hidden md:flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] ${allHealthy ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${allHealthy ? 'bg-emerald-400' : 'bg-amber-400'} animate-pulse`}></span>
-              {allHealthy ? 'All Systems Operational' : 'Issues Detected'}
-            </div>
-            <div className="text-right hidden lg:block px-2 py-1 bg-white/5 rounded">
-              <p className="text-[10px] text-slate-400">Organization</p>
-              <p className="text-xs font-medium">{user?.organization?.name || 'Your Org'}</p>
-            </div>
-            <button onClick={handleRefresh} className="p-1.5 bg-white/10 hover:bg-white/20 rounded transition-all">
-              <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
+          <button onClick={handleRefresh} className="p-1.5 hover:bg-gray-100 rounded-lg transition-all">
+            <ArrowPathIcon className={`w-4 h-4 text-gray-500 ${loading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 
       {/* Compact KPI Row */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-        <Link to="/users" className="bg-white rounded-lg p-2.5 border border-gray-100 hover:border-blue-200 transition-all group">
-          <p className="text-[10px] text-gray-500 uppercase">Users</p>
-          <p className="text-lg font-bold text-gray-900">{orgStats?.totalUsers || 0}</p>
+        <Link to="/users" className="bg-white rounded-lg p-3 border border-gray-200 hover:border-gray-300 transition-all">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Users</p>
+          <p className="text-xl font-bold text-gray-900 mt-1">{orgStats?.totalUsers || 0}</p>
         </Link>
-        <div className="bg-white rounded-lg p-2.5 border border-gray-100">
-          <p className="text-[10px] text-gray-500 uppercase">Telecallers</p>
-          <p className="text-lg font-bold text-blue-600">{orgStats?.totalTelecallers || 0}</p>
+        <div className="bg-white rounded-lg p-3 border border-gray-200">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Telecallers</p>
+          <p className="text-xl font-bold text-blue-600 mt-1">{orgStats?.totalTelecallers || 0}</p>
         </div>
-        <div className="bg-white rounded-lg p-2.5 border border-gray-100">
-          <p className="text-[10px] text-gray-500 uppercase">Team Leads</p>
-          <p className="text-lg font-bold text-purple-600">{orgStats?.totalTeamLeads || 0}</p>
+        <div className="bg-white rounded-lg p-3 border border-gray-200">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Team Leads</p>
+          <p className="text-xl font-bold text-purple-600 mt-1">{orgStats?.totalTeamLeads || 0}</p>
         </div>
-        <Link to="/leads" className="bg-white rounded-lg p-2.5 border border-gray-100 hover:border-indigo-200 transition-all">
-          <p className="text-[10px] text-gray-500 uppercase">Total Leads</p>
-          <p className="text-lg font-bold text-gray-900">{stats?.total || 0}</p>
+        <Link to="/leads" className="bg-white rounded-lg p-3 border border-gray-200 hover:border-gray-300 transition-all">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Total Leads</p>
+          <p className="text-xl font-bold text-gray-900 mt-1">{stats?.total || 0}</p>
         </Link>
-        <Link to="/raw-imports" className="bg-white rounded-lg p-2.5 border border-gray-100 hover:border-amber-200 transition-all">
-          <p className="text-[10px] text-gray-500 uppercase">Pending</p>
-          <p className="text-lg font-bold text-amber-600">{rawImportStats?.pendingRecords || 0}</p>
+        <Link to="/raw-imports" className="bg-white rounded-lg p-3 border border-gray-200 hover:border-gray-300 transition-all">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Pending</p>
+          <p className="text-xl font-bold text-amber-600 mt-1">{rawImportStats?.pendingRecords || 0}</p>
         </Link>
-        <div className="bg-white rounded-lg p-2.5 border border-gray-100">
-          <p className="text-[10px] text-gray-500 uppercase">Converted</p>
-          <p className="text-lg font-bold text-emerald-600">{rawImportStats?.convertedRecords || 0}</p>
+        <div className="bg-white rounded-lg p-3 border border-gray-200">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Converted</p>
+          <p className="text-xl font-bold text-emerald-600 mt-1">{rawImportStats?.convertedRecords || 0}</p>
         </div>
       </div>
 
-      {/* Main Charts Row */}
+      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {/* Lead Sources Bar Chart */}
-        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-100 p-3">
+        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-3">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-semibold text-gray-900">Lead Sources Distribution</h2>
             <Link to="/leads/bulk-upload" className="text-[10px] text-indigo-600">Import →</Link>
@@ -1255,12 +1259,9 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={sourceBarData} barSize={24}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#6B7280' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#6B7280' }} width={25} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 11, borderRadius: 6 }}
-                    formatter={(value: any) => [value, 'Leads']}
-                  />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280' }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280' }} width={25} />
+                  <Tooltip contentStyle={{ fontSize: 11, borderRadius: 6 }} formatter={(value: any) => [value, 'Leads']} />
                   <Bar dataKey="leads" radius={[4, 4, 0, 0]}>
                     {sourceBarData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
@@ -1271,14 +1272,14 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
             </div>
           ) : (
             <div className="h-36 flex flex-col items-center justify-center text-gray-400">
-              <DocumentArrowUpIcon className="w-8 h-8 text-gray-300 mb-1" />
+              <DocumentArrowUpIcon className="w-8 h-8 text-gray-200 mb-1" />
               <p className="text-xs">No lead source data</p>
             </div>
           )}
         </div>
 
         {/* Lead Status Donut */}
-        <div className="bg-white rounded-lg border border-gray-100 p-3">
+        <div className="bg-white rounded-lg border border-gray-200 p-3">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-semibold text-gray-900">Lead Status</h2>
             <Link to="/leads" className="text-[10px] text-indigo-600">View →</Link>
@@ -1289,7 +1290,7 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
                 <div className="h-28 w-28 flex-shrink-0">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={statusPieData} cx="50%" cy="50%" innerRadius={25} outerRadius={45} paddingAngle={2} dataKey="value">
+                      <Pie data={statusPieData} cx="50%" cy="50%" innerRadius={25} outerRadius={42} paddingAngle={2} dataKey="value">
                         {statusPieData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
@@ -1298,12 +1299,12 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="flex-1 space-y-1">
-                  {statusPieData.slice(0, 5).map((entry, index) => (
+                <div className="flex-1 space-y-0.5">
+                  {statusPieData.map((entry, index) => (
                     <div key={index} className="flex items-center justify-between text-[10px]">
                       <div className="flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                        <span className="text-gray-600 truncate max-w-[60px]">{entry.name}</span>
+                        <span className="text-gray-600">{entry.name}</span>
                       </div>
                       <span className="font-semibold text-gray-900">{entry.value}</span>
                     </div>
@@ -1311,27 +1312,27 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
                 </div>
               </>
             ) : (
-              <div className="h-28 w-full flex items-center justify-center text-gray-400 text-xs">No leads yet</div>
+              <div className="h-28 w-full flex items-center justify-center text-gray-400 text-xs">No leads</div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Secondary Row - Pipeline + System Health + Quick Stats */}
+      {/* Secondary Row */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
         {/* Pipeline Funnel */}
-        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-100 p-3">
+        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-3">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-semibold text-gray-900">Pipeline Funnel</h2>
-            <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded">{conversionRate}% conversion</span>
+            <span className="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded">{conversionRate}% conversion</span>
           </div>
-          <div className="h-28">
+          <div className="h-24">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={pipelineData} layout="vertical" barSize={18}>
+              <BarChart data={pipelineData} layout="vertical" barSize={16}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#6B7280' }} />
-                <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#6B7280' }} width={55} />
-                <Tooltip contentStyle={{ fontSize: 10, borderRadius: 6 }} />
+                <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#6B7280' }} width={50} />
+                <Tooltip contentStyle={{ fontSize: 10 }} />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                   {pipelineData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -1340,7 +1341,6 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
               </BarChart>
             </ResponsiveContainer>
           </div>
-          {/* Progress bar */}
           {(rawImportStats?.totalRecords || 0) > 0 && (
             <div className="mt-2 flex h-1.5 rounded-full overflow-hidden bg-gray-100">
               <div className="bg-yellow-400" style={{ width: `${((rawImportStats?.pendingRecords || 0) / (rawImportStats?.totalRecords || 1)) * 100}%` }} />
@@ -1352,9 +1352,9 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
         </div>
 
         {/* System Health */}
-        <div className="bg-white rounded-lg border border-gray-100 p-3">
+        <div className="bg-white rounded-lg border border-gray-200 p-3">
           <div className="flex items-center gap-1.5 mb-2">
-            <ShieldCheckIcon className="w-4 h-4 text-gray-600" />
+            <ShieldCheckIcon className="w-4 h-4 text-gray-500" />
             <h2 className="text-xs font-semibold text-gray-900">System Health</h2>
           </div>
           <div className="space-y-1.5">
@@ -1378,7 +1378,7 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
         </div>
 
         {/* Users by Role */}
-        <div className="bg-white rounded-lg border border-gray-100 p-3">
+        <div className="bg-white rounded-lg border border-gray-200 p-3">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-semibold text-gray-900">Users by Role</h2>
             <Link to="/users" className="text-[10px] text-indigo-600">Manage →</Link>
@@ -1393,7 +1393,7 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
               ))}
             </div>
           ) : (
-            <p className="text-[10px] text-gray-400 text-center py-3">No users yet</p>
+            <p className="text-[10px] text-gray-400 text-center py-2">No users yet</p>
           )}
           <Link to="/users" className="mt-2 block text-center text-[10px] text-indigo-600 py-1.5 bg-indigo-50 rounded hover:bg-indigo-100">
             + Add New User
@@ -1401,13 +1401,13 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
         </div>
       </div>
 
-      {/* Quick Actions - Compact Grid */}
-      <div className="bg-white rounded-lg border border-gray-100 p-3">
+      {/* Quick Actions */}
+      <div className="bg-white rounded-lg border border-gray-200 p-3">
         <h2 className="text-xs font-semibold text-gray-900 mb-2">Quick Actions</h2>
         <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
           {[
             { to: '/users', icon: UsersIcon, label: 'Users', color: 'bg-blue-100 text-blue-600' },
-            { to: '/settings/institution', icon: BuildingOfficeIcon, label: 'Organization', color: 'bg-slate-100 text-slate-600' },
+            { to: '/settings/institution', icon: BuildingOfficeIcon, label: 'Org', color: 'bg-slate-100 text-slate-600' },
             { to: '/settings/auto-assign', icon: BoltIcon, label: 'Auto-Assign', color: 'bg-amber-100 text-amber-600' },
             { to: '/leads/bulk-upload', icon: DocumentArrowUpIcon, label: 'Import', color: 'bg-cyan-100 text-cyan-600' },
             { to: '/voice-ai', icon: SparklesIcon, label: 'Voice AI', color: 'bg-purple-100 text-purple-600' },
@@ -1425,7 +1425,7 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
         </div>
       </div>
 
-      {/* Bottom Actions Row - Horizontal cards */}
+      {/* Bottom Actions */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {[
           { to: '/call-monitoring', icon: EyeIcon, label: 'Call Monitoring', desc: 'Live supervision', color: 'bg-cyan-100 text-cyan-600' },
@@ -1433,21 +1433,16 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
           { to: '/reports', icon: ChartBarIcon, label: 'Reports', desc: 'Export data', color: 'bg-emerald-100 text-emerald-600' },
           { to: '/compliance', icon: ShieldCheckIcon, label: 'Compliance', desc: 'DNC & regulations', color: 'bg-red-100 text-red-600' },
         ].map((item, idx) => (
-          <Link key={idx} to={item.to} className="bg-white rounded-lg p-2.5 border border-gray-100 hover:border-gray-200 transition-all flex items-center gap-2">
+          <Link key={idx} to={item.to} className="bg-white rounded-lg p-2.5 border border-gray-200 hover:border-gray-300 transition-all flex items-center gap-2">
             <div className={`w-8 h-8 rounded-lg ${item.color} flex items-center justify-center flex-shrink-0`}>
               <item.icon className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-gray-900 truncate">{item.label}</p>
-              <p className="text-[10px] text-gray-500 truncate">{item.desc}</p>
+              <p className="text-xs font-medium text-gray-900">{item.label}</p>
+              <p className="text-[10px] text-gray-500">{item.desc}</p>
             </div>
           </Link>
         ))}
-      </div>
-
-      {/* Footer */}
-      <div className="text-[10px] text-gray-400 text-center">
-        Last updated: {lastRefresh.toLocaleTimeString()} | Admin Panel v2.0 | Full system access
       </div>
     </div>
   );

@@ -12,6 +12,8 @@ interface User {
   phone?: string;
   branchId?: string | null;
   branchName?: string | null;
+  onboardingCompleted?: boolean;
+  organizationIndustry?: string;
 }
 
 interface AuthState {

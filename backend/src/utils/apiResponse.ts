@@ -93,7 +93,17 @@ export class ApiResponse {
   }
 
   static validationError(res: Response, errors: unknown): Response {
-    return this.error(res, 'Validation failed', 422, errors);
+    // Extract first error message for better UX
+    let message = 'Validation failed';
+    if (Array.isArray(errors) && errors.length > 0) {
+      const firstError = errors[0];
+      if (firstError.field && firstError.message) {
+        message = `${firstError.field}: ${firstError.message}`;
+      } else if (firstError.message) {
+        message = firstError.message;
+      }
+    }
+    return this.error(res, message, 422, errors);
   }
 
   static serverError(res: Response, message = 'Internal server error'): Response {

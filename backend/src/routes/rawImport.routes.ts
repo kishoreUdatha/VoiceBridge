@@ -113,17 +113,17 @@ router.get(
   rawImportController.getRecord.bind(rawImportController)
 );
 
-// Assignment
+// Assignment - Allow admin, manager, and team_lead to assign leads
 router.post(
   '/assign/telecallers',
-  authorize('admin'),
+  authorize('admin', 'manager', 'team_lead'),
   validate(assignToTelecallersValidation),
   rawImportController.assignToTelecallers.bind(rawImportController)
 );
 
 router.post(
   '/assign/ai-agent',
-  authorize('admin'),
+  authorize('admin', 'manager'),
   validate(assignToAIAgentValidation),
   rawImportController.assignToAIAgent.bind(rawImportController)
 );

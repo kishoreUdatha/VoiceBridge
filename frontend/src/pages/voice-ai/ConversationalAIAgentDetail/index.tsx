@@ -36,7 +36,7 @@ import { VoiceSettingsPanel } from './components/VoiceSettingsPanel';
 import { WorkflowBuilder } from './components/WorkflowBuilder';
 import { AnalysisTab } from './components/AnalysisTab';
 import { TestsTab } from './components/TestsTab';
-// import { useAgentRealtime } from '../../../hooks/useAgentRealtime'; // TODO: Enable when realtime editing is implemented
+import { useAgentRealtime } from '../../../hooks/useAgentRealtime';
 import { useAgentAnalytics } from '../../../hooks/useAgentAnalytics';
 import { RealtimeVoiceWidget } from '../../../components/RealtimeVoiceWidget';
 
@@ -253,14 +253,16 @@ export function ConversationalAIAgentDetail() {
       updater(value);
     }
   }, []);
-  void _handleRealtimeFieldUpdate; // Suppress unused warning - will be used when realtime editing is enabled
-
-  // Real-time sync hook - Disabled due to socket connection causing page redirect issues
-  // TODO: Fix useAgentRealtime hook's socket initialization to not interfere with page rendering
-  // The hook's socket.connectAsync() was causing the page to redirect to dashboard
-  const isRealtimeConnected = false;
-  const viewerCount = 0;
-  const broadcastUpdate = (_field: string, _value: any) => {};
+  // Real-time sync hook - now enabled with fixed socket connection handling
+  const {
+    isConnected: isRealtimeConnected,
+    viewerCount,
+    broadcastUpdate,
+  } = useAgentRealtime({
+    agentId: agentId || '',
+    onFieldUpdate: _handleRealtimeFieldUpdate,
+    userName: 'User', // Could be enhanced to use actual user name
+  });
 
   // Agent analytics hook - fetch real analytics data
   const {

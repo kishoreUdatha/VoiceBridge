@@ -424,6 +424,92 @@ export const sendSms = async (leadId: string, data: { message: string }): Promis
   return response.data.data;
 };
 
+// ==================== PAYMENTS ====================
+
+export interface LeadPayment {
+  id: string;
+  amount: number;
+  currency: string;
+  paymentType: 'REGISTRATION' | 'TUITION' | 'EXAM' | 'HOSTEL' | 'OTHER';
+  paymentMethod: 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'CHEQUE' | 'ONLINE';
+  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED' | 'PARTIAL';
+  transactionId?: string;
+  receiptNo?: string;
+  paidAt?: string;
+  dueDate?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export const getPayments = async (leadId: string): Promise<LeadPayment[]> => {
+  const response = await api.get(`/lead-details/${leadId}/payments`);
+  return response.data.data;
+};
+
+export const createPayment = async (leadId: string, data: Omit<LeadPayment, 'id' | 'createdAt'>): Promise<LeadPayment> => {
+  const response = await api.post(`/lead-details/${leadId}/payments`, data);
+  return response.data.data;
+};
+
+export const updatePayment = async (leadId: string, paymentId: string, data: Partial<LeadPayment>): Promise<LeadPayment> => {
+  const response = await api.put(`/lead-details/${leadId}/payments/${paymentId}`, data);
+  return response.data.data;
+};
+
+export const deletePayment = async (leadId: string, paymentId: string): Promise<void> => {
+  await api.delete(`/lead-details/${leadId}/payments/${paymentId}`);
+};
+
+// ==================== DOCUMENTS ====================
+
+export interface LeadDocument {
+  id: string;
+  documentType: 'ID_PROOF' | 'ADDRESS_PROOF' | 'PHOTO' | 'CERTIFICATE' | 'MARKSHEET' | 'OTHER';
+  documentName: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  verifiedAt?: string;
+  verifiedBy?: string;
+  rejectionReason?: string;
+  uploadedAt: string;
+}
+
+export const getDocuments = async (leadId: string): Promise<LeadDocument[]> => {
+  const response = await api.get(`/lead-details/${leadId}/documents`);
+  return response.data.data;
+};
+
+export const uploadDocument = async (
+  leadId: string,
+  file: File,
+  documentType: LeadDocument['documentType'],
+  documentName: string
+): Promise<LeadDocument> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('documentType', documentType);
+  formData.append('documentName', documentName);
+  const response = await api.post(`/lead-details/${leadId}/documents`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data.data;
+};
+
+export const updateDocument = async (
+  leadId: string,
+  documentId: string,
+  data: { status?: LeadDocument['status']; rejectionReason?: string }
+): Promise<LeadDocument> => {
+  const response = await api.put(`/lead-details/${leadId}/documents/${documentId}`, data);
+  return response.data.data;
+};
+
+export const deleteDocument = async (leadId: string, documentId: string): Promise<void> => {
+  await api.delete(`/lead-details/${leadId}/documents/${documentId}`);
+};
+
 export default {
   // Notes
   getNotes,
@@ -469,4 +555,14 @@ export default {
   // SMS
   getSmsLogs,
   sendSms,
+  // Payments
+  getPayments,
+  createPayment,
+  updatePayment,
+  deletePayment,
+  // Documents
+  getDocuments,
+  uploadDocument,
+  updateDocument,
+  deleteDocument,
 };

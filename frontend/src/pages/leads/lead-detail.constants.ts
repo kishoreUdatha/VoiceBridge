@@ -13,6 +13,8 @@ import {
   PaperClipIcon,
   QuestionMarkCircleIcon,
   DocumentTextIcon,
+  PencilSquareIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
 export const statusOptions = [
@@ -115,6 +117,8 @@ export const getActivityIcon = (type: string) => {
     case 'FOLLOWUP_COMPLETED': return CalendarIcon;
     case 'DOCUMENT_UPLOADED': return PaperClipIcon;
     case 'APPLICATION_SUBMITTED': return DocumentTextIcon;
+    case 'LEAD_DATA_UPDATED': return PencilSquareIcon;
+    case 'STAGE_CHANGED': return ArrowPathIcon;
     default: return DocumentIcon;
   }
 };

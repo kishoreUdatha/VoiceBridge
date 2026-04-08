@@ -18,6 +18,7 @@ import {
   NodePalette,
   PropertiesPanel,
   SettingsModal,
+  IvrTestSimulator,
 } from './components';
 
 export const IvrBuilderPage: React.FC = () => {
@@ -28,9 +29,11 @@ export const IvrBuilderPage: React.FC = () => {
     edges,
     selectedNode,
     showSettings,
+    showTestSimulator,
     saving,
     updateFlow,
     setShowSettings,
+    setShowTestSimulator,
     onNodesChange,
     onEdgesChange,
     onConnect,
@@ -55,6 +58,7 @@ export const IvrBuilderPage: React.FC = () => {
         isNew={isNew}
         onNameChange={(name) => updateFlow({ name })}
         onSettingsClick={() => setShowSettings(true)}
+        onTestClick={() => setShowTestSimulator(true)}
         onSave={handleSave}
         onPublish={handlePublish}
         onBack={navigateBack}
@@ -100,6 +104,16 @@ export const IvrBuilderPage: React.FC = () => {
           flow={flow}
           onUpdate={updateFlow}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {/* Test Simulator Modal */}
+      {showTestSimulator && (
+        <IvrTestSimulator
+          flow={flow}
+          nodes={nodes}
+          edges={edges}
+          onClose={() => setShowTestSimulator(false)}
         />
       )}
     </div>
