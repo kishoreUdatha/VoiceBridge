@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { superAdminService } from '../services/super-admin.service';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState, AppDispatch } from '../store';
+import { logout } from '../store/slices/authSlice';
 import {
   HomeIcon,
   BuildingOffice2Icon,
@@ -11,7 +13,6 @@ import {
   XMarkIcon,
   ChevronDownIcon,
   ShieldCheckIcon,
-  ArrowUturnLeftIcon,
 } from '@heroicons/react/24/outline';
 
 interface NavItem {
@@ -30,32 +31,21 @@ const navigation: NavItem[] = [
 export default function SuperAdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [isImpersonating, setIsImpersonating] = useState(false);
-  const [impersonatedUser, setImpersonatedUser] = useState<any>(null);
   const navigate = useNavigate();
-  const admin = superAdminService.getCurrentAdmin();
+  const dispatch = useDispatch<AppDispatch>();
 
-  useEffect(() => {
-    // Check if impersonating
-    setIsImpersonating(superAdminService.isImpersonating());
-    setImpersonatedUser(superAdminService.getImpersonatedUser());
-  }, []);
+  // Use regular Redux auth instead of superAdminService
+  const { user } = useSelector((state: RootState) => state.auth);
+  const admin = user; // Use the regular logged-in user
 
-  const handleLogout = () => {
-    superAdminService.logout();
-    navigate('/super-admin/login');
+  const handleLogout = async () => {
+    await dispatch(logout());
+    navigate('/login');
   };
 
-  const handleExitImpersonation = async () => {
-    try {
-      await superAdminService.exitImpersonation();
-      setIsImpersonating(false);
-      setImpersonatedUser(null);
-      navigate('/super-admin/dashboard');
-    } catch (error) {
-      console.error('Failed to exit impersonation:', error);
-    }
-  };
+  // Impersonation feature disabled for now (was using superAdminService)
+  const isImpersonating = false;
+  const impersonatedUser = null;
 
   const NavItem = ({ item, onClick }: { item: NavItem; onClick?: () => void }) => (
     <NavLink
