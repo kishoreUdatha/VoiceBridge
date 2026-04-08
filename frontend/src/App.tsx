@@ -228,6 +228,12 @@ function ProtectedRoute({ children, skipOnboardingCheck = false }: { children: R
     return <Navigate to="/login" replace />;
   }
 
+  // Redirect super_admin to Super Admin panel (they shouldn't access regular CRM)
+  const userRole = user?.role?.toLowerCase();
+  if (userRole === 'super_admin' || userRole === 'superadmin') {
+    return <Navigate to="/super-admin/dashboard" replace />;
+  }
+
   // Redirect to onboarding if not completed (skip for onboarding page itself)
   if (!skipOnboardingCheck && user && !user.onboardingCompleted) {
     return <Navigate to="/onboarding" replace />;
@@ -238,7 +244,7 @@ function ProtectedRoute({ children, skipOnboardingCheck = false }: { children: R
 
 // Public Route Component (redirects to dashboard if authenticated)
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isInitialized } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, isInitialized, user } = useSelector((state: RootState) => state.auth);
 
   // Wait for auth check to complete before deciding
   if (!isInitialized) {
@@ -246,6 +252,11 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (isAuthenticated) {
+    // Redirect super_admin to Super Admin panel
+    const userRole = user?.role?.toLowerCase();
+    if (userRole === 'super_admin' || userRole === 'superadmin') {
+      return <Navigate to="/super-admin/dashboard" replace />;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -254,7 +265,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 // Home Route - shows landing page for guests, redirects to dashboard for authenticated
 function HomeRoute() {
-  const { isAuthenticated, isInitialized } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, isInitialized, user } = useSelector((state: RootState) => state.auth);
 
   // Wait for auth check to complete before deciding
   if (!isInitialized) {
@@ -262,6 +273,11 @@ function HomeRoute() {
   }
 
   if (isAuthenticated) {
+    // Redirect super_admin to Super Admin panel
+    const userRole = user?.role?.toLowerCase();
+    if (userRole === 'super_admin' || userRole === 'superadmin') {
+      return <Navigate to="/super-admin/dashboard" replace />;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -270,9 +286,15 @@ function HomeRoute() {
 
 // Super Admin Protected Route
 function SuperAdminProtectedRoute({ children }: { children: React.ReactNode }) {
-  const isAuthenticated = superAdminService.isAuthenticated();
+  // Check super admin service authentication (separate login)
+  const isSuperAdminAuthenticated = superAdminService.isAuthenticated();
 
-  if (!isAuthenticated) {
+  // Also check if user is authenticated via regular login with super_admin role
+  const { isAuthenticated: isRegularAuthenticated, user } = useSelector((state: RootState) => state.auth);
+  const userRole = user?.role?.toLowerCase();
+  const isRegularSuperAdmin = isRegularAuthenticated && (userRole === 'super_admin' || userRole === 'superadmin');
+
+  if (!isSuperAdminAuthenticated && !isRegularSuperAdmin) {
     return <Navigate to="/super-admin/login" replace />;
   }
 
