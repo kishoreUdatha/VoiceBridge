@@ -85,27 +85,97 @@ export default function LoginReportPage() {
 
       const sessions = response.data.data?.sessions || [];
 
-      const logins: LoginRow[] = sessions.map((session: any, index: number) => {
-        const { device, browser } = parseUserAgent(session.userAgent || '');
-        const status: 'active' | 'completed' | 'timeout' =
-          session.status === 'ACTIVE' || session.status === 'ON_BREAK' ? 'active' :
-          session.status === 'ENDED' ? 'completed' : 'timeout';
+      // Group sessions by user + date for consolidation
+      const consolidatedMap = new Map<string, {
+        user: string;
+        reportingManager: string;
+        loginDate: string;
+        firstLoginTime: Date;
+        lastLogoutTime: Date | null;
+        totalDuration: number;
+        ipAddress: string;
+        device: string;
+        browser: string;
+        hasActive: boolean;
+        hasTimeout: boolean;
+        sessionCount: number;
+      }>();
 
-        return {
-          no: index + 1,
-          user: session.user ? `${session.user.firstName || ''} ${session.user.lastName || ''}`.trim() : 'Unknown',
-          reportingManager: session.user?.manager ? `${session.user.manager.firstName || ''} ${session.user.manager.lastName || ''}`.trim() : '-',
-          loginDate: formatDate(session.startedAt),
-          loginTime: formatTime(session.startedAt),
-          logoutTime: session.endedAt ? formatTime(session.endedAt) : '-',
-          duration: formatDuration(session.duration || session.activeTime || 0),
-          ipAddress: session.ipAddress || '-',
-          device: session.device || device,
-          browser: browser,
-          location: '-',
-          status,
-        };
-      });
+      for (const session of sessions) {
+        const userName = session.user ? `${session.user.firstName || ''} ${session.user.lastName || ''}`.trim() : 'Unknown';
+        const loginDate = formatDate(session.startedAt);
+        const key = `${userName}|${loginDate}`;
+
+        const { device, browser } = parseUserAgent(session.userAgent || '');
+        const isActive = session.status === 'ACTIVE' || session.status === 'ON_BREAK';
+        const isTimeout = session.status === 'EXPIRED';
+
+        const existing = consolidatedMap.get(key);
+
+        if (existing) {
+          // Update existing consolidated record
+          const sessionStart = new Date(session.startedAt);
+          const sessionEnd = session.endedAt ? new Date(session.endedAt) : null;
+
+          // Use earliest login time
+          if (sessionStart < existing.firstLoginTime) {
+            existing.firstLoginTime = sessionStart;
+          }
+
+          // Use latest logout time (only if session has ended)
+          if (sessionEnd) {
+            if (!existing.lastLogoutTime || sessionEnd > existing.lastLogoutTime) {
+              existing.lastLogoutTime = sessionEnd;
+            }
+          }
+
+          // Sum durations
+          existing.totalDuration += session.duration || session.activeTime || 0;
+          existing.hasActive = existing.hasActive || isActive;
+          existing.hasTimeout = existing.hasTimeout || isTimeout;
+          existing.sessionCount += 1;
+        } else {
+          // Create new consolidated record
+          consolidatedMap.set(key, {
+            user: userName,
+            reportingManager: session.user?.manager ? `${session.user.manager.firstName || ''} ${session.user.manager.lastName || ''}`.trim() : '-',
+            loginDate,
+            firstLoginTime: new Date(session.startedAt),
+            lastLogoutTime: session.endedAt ? new Date(session.endedAt) : null,
+            totalDuration: session.duration || session.activeTime || 0,
+            ipAddress: session.ipAddress || '-',
+            device: session.device || device,
+            browser,
+            hasActive: isActive,
+            hasTimeout: isTimeout,
+            sessionCount: 1,
+          });
+        }
+      }
+
+      // Convert consolidated map to LoginRow array
+      const logins: LoginRow[] = Array.from(consolidatedMap.values())
+        .sort((a, b) => b.firstLoginTime.getTime() - a.firstLoginTime.getTime()) // Sort by most recent first
+        .map((record, index) => {
+          const status: 'active' | 'completed' | 'timeout' =
+            record.hasActive ? 'active' :
+            record.hasTimeout ? 'timeout' : 'completed';
+
+          return {
+            no: index + 1,
+            user: record.user,
+            reportingManager: record.reportingManager,
+            loginDate: record.loginDate,
+            loginTime: formatTime(record.firstLoginTime),
+            logoutTime: record.hasActive ? '-' : (record.lastLogoutTime ? formatTime(record.lastLogoutTime) : '-'),
+            duration: formatDuration(record.totalDuration),
+            ipAddress: record.ipAddress,
+            device: record.device,
+            browser: record.browser,
+            location: '-',
+            status,
+          };
+        });
 
       const activeCount = logins.filter(l => l.status === 'active').length;
       const completedCount = logins.filter(l => l.status === 'completed').length;
@@ -116,7 +186,7 @@ export default function LoginReportPage() {
       setData({
         logins,
         summary: {
-          totalLogins: logins.length,
+          totalLogins: sessions.length, // Total individual sessions
           uniqueUsers,
           avgSessionDuration: formatDuration(avgDuration),
           activeNow: activeCount,
@@ -254,7 +324,7 @@ export default function LoginReportPage() {
                 <tfoot>
                   <tr className="bg-slate-100 font-semibold">
                     <td className="px-3 py-3 text-sm sticky left-0 bg-slate-100 z-10"></td>
-                    <td className="px-3 py-3 text-sm font-bold sticky left-10 bg-slate-100 z-10">TOTAL: {filteredLogins.length} records</td>
+                    <td className="px-3 py-3 text-sm font-bold sticky left-10 bg-slate-100 z-10">TOTAL: {filteredLogins.length} user-days ({data.summary.totalLogins} sessions)</td>
                     <td className="px-3 py-3 text-sm" colSpan={10}></td>
                   </tr>
                 </tfoot>
