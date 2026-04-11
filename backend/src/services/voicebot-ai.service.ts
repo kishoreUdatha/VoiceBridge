@@ -1099,8 +1099,56 @@ export async function extractCallData(
   // Industry-specific extraction prompts
   const industryPrompts: Record<string, string> = {
     // Education & Training
-    education: `Extract education-related data: student name, parent/guardian name, current class/grade, board (CBSE/ICSE/State), course interested in, preferred college/university, entrance exam scores (JEE/NEET/etc), budget range, decision timeline, parent/guardian involvement, other institutions being considered, hostel requirement.`,
-    EDUCATION: `Extract education-related data: student name, parent/guardian name, current class/grade, board (CBSE/ICSE/State), course interested in, preferred college/university, entrance exam scores (JEE/NEET/etc), budget range, decision timeline, parent/guardian involvement, other institutions being considered, hostel requirement.`,
+    education: `Extract every mentioned detail about the student/parent. Use EXACTLY these labels when the information is present (skip the field if nothing was said about it, don't invent values):
+- "Full Name" (student's full name, combine first + last if both were given)
+- "First Name"
+- "Last Name"
+- "Phone" (student's contact number)
+- "Email"
+- "Current Class" (e.g., 12th, Intermediate 2nd year, B.Tech 3rd year, graduated)
+- "Board" (CBSE / ICSE / State / IB)
+- "Course Interested" (e.g., B.Tech CSE, MBA, MBBS, Diploma in Mechanical)
+- "Specialization" (e.g., AI/ML, Finance, Cardiology)
+- "Colleges Interested" (comma-separated list of every college/university name mentioned)
+- "Other Colleges Considered" (competitor colleges the student is also looking at)
+- "Preferred Location" (city/state preference)
+- "Budget / Fee Range" (yearly or total budget, in rupees or lakhs)
+- "Fee Structure" (any specific fee amounts discussed — tuition, hostel, total package, scholarship, EMI option)
+- "Interest Level" (High / Medium / Low based on enthusiasm, engagement, and concrete next steps)
+- "Timeline" (admission year, when they want to join, decision deadline)
+- "Entrance Exam Score" (JEE / NEET / EAMCET / CAT / GATE rank or score with exam name)
+- "Hostel Required" (Yes / No / Not discussed)
+- "Parent/Guardian Name"
+- "Parent/Guardian Phone"
+- "Parent/Guardian Involvement" (who is making the decision)
+- "Current Qualification / Background"
+- "Reason for Interest" (why this course or college)
+- "Concerns / Objections" (fees too high, location far, placement doubts, etc.)`,
+    EDUCATION: `Extract every mentioned detail about the student/parent. Use EXACTLY these labels when the information is present (skip the field if nothing was said about it, don't invent values):
+- "Full Name" (student's full name, combine first + last if both were given)
+- "First Name"
+- "Last Name"
+- "Phone" (student's contact number)
+- "Email"
+- "Current Class" (e.g., 12th, Intermediate 2nd year, B.Tech 3rd year, graduated)
+- "Board" (CBSE / ICSE / State / IB)
+- "Course Interested" (e.g., B.Tech CSE, MBA, MBBS, Diploma in Mechanical)
+- "Specialization" (e.g., AI/ML, Finance, Cardiology)
+- "Colleges Interested" (comma-separated list of every college/university name mentioned)
+- "Other Colleges Considered" (competitor colleges the student is also looking at)
+- "Preferred Location" (city/state preference)
+- "Budget / Fee Range" (yearly or total budget, in rupees or lakhs)
+- "Fee Structure" (any specific fee amounts discussed — tuition, hostel, total package, scholarship, EMI option)
+- "Interest Level" (High / Medium / Low based on enthusiasm, engagement, and concrete next steps)
+- "Timeline" (admission year, when they want to join, decision deadline)
+- "Entrance Exam Score" (JEE / NEET / EAMCET / CAT / GATE rank or score with exam name)
+- "Hostel Required" (Yes / No / Not discussed)
+- "Parent/Guardian Name"
+- "Parent/Guardian Phone"
+- "Parent/Guardian Involvement" (who is making the decision)
+- "Current Qualification / Background"
+- "Reason for Interest" (why this course or college)
+- "Concerns / Objections" (fees too high, location far, placement doubts, etc.)`,
 
     // Real Estate
     real_estate: `Extract real estate data: buyer/renter name, property type (flat/villa/plot), location preference, budget range, number of bedrooms/BHK, timeline to move, current living situation, financing/loan status, preferred amenities, possession timeline.`,

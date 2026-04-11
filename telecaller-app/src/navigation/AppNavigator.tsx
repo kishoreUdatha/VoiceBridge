@@ -25,6 +25,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import CallScreen from '../screens/CallScreen';
 import OutcomeScreen from '../screens/OutcomeScreen';
 import LeadDetailScreen from '../screens/LeadDetailScreen';
+import LeadDispositionScreen from '../screens/LeadDispositionScreen';
 import EditLeadScreen from '../screens/EditLeadScreen';
 import CreateLeadScreen from '../screens/CreateLeadScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
@@ -335,6 +336,11 @@ const AppNavigator: React.FC = () => {
               name="LeadDetail"
               component={LeadDetailScreen}
               options={{ title: 'Lead Details' }}
+            />
+            <Stack.Screen
+              name="LeadDisposition"
+              component={LeadDispositionScreen}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="EditLead"

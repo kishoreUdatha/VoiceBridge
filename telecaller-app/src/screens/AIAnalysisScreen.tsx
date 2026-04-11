@@ -22,7 +22,7 @@ type AIAnalysisRouteProp = RouteProp<RootStackParamList, 'AIAnalysis'>;
 const AIAnalysisScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<AIAnalysisRouteProp>();
-  const { callId } = route.params;
+  const callId = route.params?.callId;
 
   const [analysis, setAnalysis] = useState<CallAnalysis | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,6 +30,11 @@ const AIAnalysisScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const loadAnalysis = useCallback(async () => {
+    if (!callId) {
+      setIsLoading(false);
+      setError('No call selected for analysis');
+      return;
+    }
     try {
       setIsLoading(true);
       setError(null);

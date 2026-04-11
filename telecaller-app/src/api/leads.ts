@@ -2,6 +2,51 @@ import api, { getErrorMessage } from './index';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Lead, LeadStatus, LeadFormData, ApiResponse, PaginatedResponse, STORAGE_KEYS } from '../types';
 
+export interface LeadDispositionPayload {
+  lead_id: string;
+  call_id?: string;
+  call_connected: boolean;
+  reason: string;
+  other_reason?: string;
+  next_follow_up?: string;
+  reassigned?: boolean;
+  reassign_to?: string;
+  notes?: string;
+  // Extended analysis fields
+  interest_level?: 'hot' | 'warm' | 'cold';
+  customer_sentiment?: 'positive' | 'neutral' | 'negative';
+  is_decision_maker?: boolean;
+  budget_status?: 'ready' | 'considering' | 'no_budget' | 'unknown';
+  topics_discussed?: string[];
+  pain_points?: string[];
+  competitor_mentioned?: string;
+  call_quality?: number; // 1-5
+}
+
+export const submitLeadDisposition = async (
+  payload: LeadDispositionPayload
+): Promise<ApiResponse<any>> => {
+  console.log('[LeadsAPI] Submitting disposition:', payload);
+  const response = await api.post(
+    `/telecaller/leads/${payload.lead_id}/disposition`,
+    payload
+  );
+  return response.data;
+};
+
+export const fetchAssignableTelecallers = async (): Promise<{ id: string; name: string }[]> => {
+  try {
+    const response = await api.get('/telecaller/team');
+    const list = response.data?.data || response.data || [];
+    return list.map((u: any) => ({
+      id: u.id,
+      name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || u.id,
+    }));
+  } catch {
+    return [];
+  }
+};
+
 export const leadsApi = {
   /**
    * Get assigned leads with pagination and filters

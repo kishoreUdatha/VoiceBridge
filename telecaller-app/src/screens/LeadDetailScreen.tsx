@@ -11,6 +11,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList, Lead, Call, LeadStatus } from '../types';
@@ -38,6 +39,24 @@ const STATUS_OPTIONS: LeadStatus[] = [
   'CONVERTED',
   'LOST',
 ];
+
+const InfoRow: React.FC<{
+  icon: string;
+  iconColor: string;
+  label: string;
+  value?: string | null;
+  isLast?: boolean;
+}> = ({ icon, iconColor, label, value, isLast }) => (
+  <View style={[styles.infoRow, isLast && { borderBottomWidth: 0 }]}>
+    <View style={[styles.infoIconWrap, { backgroundColor: iconColor + '1A' }]}>
+      <Icon name={icon} size={18} color={iconColor} />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value || '—'}</Text>
+    </View>
+  </View>
+);
 
 const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { leadId } = route.params;
@@ -142,20 +161,34 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       }
     >
       {/* Header Card */}
-      <View style={styles.headerCard}>
-        <View style={styles.avatarContainer}>
+      <LinearGradient
+        colors={['#6B4EE6', '#5A3FD6', '#A06CD5']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerCard}
+      >
+        <View style={styles.headerBlob} />
+        <LinearGradient
+          colors={['#FFFFFF', '#F3F4F6']}
+          style={styles.avatarContainer}
+        >
           <Text style={styles.avatarText}>
             {(selectedLead.name || selectedLead.firstName || '?').charAt(0).toUpperCase()}
           </Text>
-        </View>
+        </LinearGradient>
         <Text style={styles.leadName}>{selectedLead.name}</Text>
         {selectedLead.company && (
-          <Text style={styles.companyName}>{selectedLead.company}</Text>
+          <View style={styles.companyChip}>
+            <Icon name="office-building" size={12} color="#FFFFFF" />
+            <Text style={styles.companyName}>{selectedLead.company}</Text>
+          </View>
         )}
         <TouchableOpacity
           style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[selectedLead.status] }]}
           onPress={() => setShowStatusPicker(!showStatusPicker)}
+          activeOpacity={0.85}
         >
+          <Icon name="circle" size={8} color="#FFFFFF" />
           <Text style={styles.statusText}>{selectedLead.status}</Text>
           <Icon name="chevron-down" size={16} color="#FFFFFF" />
         </TouchableOpacity>
@@ -180,28 +213,28 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             ))}
           </View>
         )}
-      </View>
+      </LinearGradient>
 
       {/* Quick Actions */}
       <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.actionButton} onPress={handleCall}>
-          <View style={[styles.actionIcon, { backgroundColor: '#10B981' }]}>
-            <Icon name="phone" size={20} color="#FFFFFF" />
-          </View>
+        <TouchableOpacity style={styles.actionButton} onPress={handleCall} activeOpacity={0.7}>
+          <LinearGradient colors={['#10B981', '#059669']} style={styles.actionIcon}>
+            <Icon name="phone" size={22} color="#FFFFFF" />
+          </LinearGradient>
           <Text style={styles.actionText}>Call</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={handleSMS}>
-          <View style={[styles.actionIcon, { backgroundColor: '#3B82F6' }]}>
-            <Icon name="message-text" size={20} color="#FFFFFF" />
-          </View>
+        <TouchableOpacity style={styles.actionButton} onPress={handleSMS} activeOpacity={0.7}>
+          <LinearGradient colors={['#3B82F6', '#1D4ED8']} style={styles.actionIcon}>
+            <Icon name="message-text" size={22} color="#FFFFFF" />
+          </LinearGradient>
           <Text style={styles.actionText}>SMS</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={handleWhatsApp}>
-          <View style={[styles.actionIcon, { backgroundColor: '#25D366' }]}>
-            <Icon name="whatsapp" size={20} color="#FFFFFF" />
-          </View>
+        <TouchableOpacity style={styles.actionButton} onPress={handleWhatsApp} activeOpacity={0.7}>
+          <LinearGradient colors={['#25D366', '#128C7E']} style={styles.actionIcon}>
+            <Icon name="whatsapp" size={22} color="#FFFFFF" />
+          </LinearGradient>
           <Text style={styles.actionText}>WhatsApp</Text>
         </TouchableOpacity>
 
@@ -209,62 +242,54 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           style={styles.actionButton}
           onPress={handleEmail}
           disabled={!selectedLead.email}
+          activeOpacity={0.7}
         >
-          <View style={[styles.actionIcon, { backgroundColor: selectedLead.email ? '#F59E0B' : '#D1D5DB' }]}>
-            <Icon name="email" size={20} color="#FFFFFF" />
-          </View>
+          <LinearGradient
+            colors={selectedLead.email ? ['#F59E0B', '#D97706'] : ['#D1D5DB', '#9CA3AF']}
+            style={styles.actionIcon}
+          >
+            <Icon name="email" size={22} color="#FFFFFF" />
+          </LinearGradient>
           <Text style={styles.actionText}>Email</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Log Call Outcome CTA */}
+      <TouchableOpacity
+        style={styles.dispositionCta}
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate('LeadDisposition', { leadId: selectedLead.id })}
+      >
+        <Icon name="clipboard-edit-outline" size={20} color="#FFFFFF" />
+        <Text style={styles.dispositionCtaText}>Log Call Outcome</Text>
+      </TouchableOpacity>
 
       {/* Contact Info */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Contact Information</Text>
         <View style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <Icon name="phone" size={20} color="#6B7280" />
-            <Text style={styles.infoLabel}>Phone</Text>
-            <Text style={styles.infoValue}>{selectedLead.phone}</Text>
-          </View>
-
+          <InfoRow icon="phone" iconColor="#10B981" label="Phone" value={selectedLead.phone} />
           {selectedLead.email && (
-            <View style={styles.infoRow}>
-              <Icon name="email" size={20} color="#6B7280" />
-              <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>{selectedLead.email}</Text>
-            </View>
+            <InfoRow icon="email" iconColor="#3B82F6" label="Email" value={selectedLead.email} />
           )}
-
           {selectedLead.company && (
-            <View style={styles.infoRow}>
-              <Icon name="domain" size={20} color="#6B7280" />
-              <Text style={styles.infoLabel}>Company</Text>
-              <Text style={styles.infoValue}>{selectedLead.company}</Text>
-            </View>
+            <InfoRow icon="domain" iconColor="#A06CD5" label="Company" value={selectedLead.company} />
           )}
-
-          <View style={styles.infoRow}>
-            <Icon name="tag" size={20} color="#6B7280" />
-            <Text style={styles.infoLabel}>Source</Text>
-            <Text style={styles.infoValue}>{selectedLead.source || 'Unknown'}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Icon name="calendar" size={20} color="#6B7280" />
-            <Text style={styles.infoLabel}>Created</Text>
-            <Text style={styles.infoValue}>
-              {new Date(selectedLead.createdAt).toLocaleDateString()}
-            </Text>
-          </View>
-
+          <InfoRow icon="tag" iconColor="#F59E0B" label="Source" value={selectedLead.source || 'Unknown'} />
+          <InfoRow
+            icon="calendar"
+            iconColor="#6B4EE6"
+            label="Created"
+            value={new Date(selectedLead.createdAt).toLocaleDateString()}
+          />
           {selectedLead.lastContactedAt && (
-            <View style={styles.infoRow}>
-              <Icon name="clock-outline" size={20} color="#6B7280" />
-              <Text style={styles.infoLabel}>Last Contact</Text>
-              <Text style={styles.infoValue}>
-                {new Date(selectedLead.lastContactedAt).toLocaleDateString()}
-              </Text>
-            </View>
+            <InfoRow
+              icon="clock-outline"
+              iconColor="#EC4899"
+              label="Last Contact"
+              value={new Date(selectedLead.lastContactedAt).toLocaleDateString()}
+              isLast
+            />
           )}
         </View>
       </View>
@@ -426,6 +451,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
+  dispositionCta: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    backgroundColor: '#6B4EE6',
+    borderRadius: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#6B4EE6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  dispositionCtaText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
   actionButton: {
     alignItems: 'center',
   },
@@ -464,6 +510,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
     gap: 12,
+  },
+  infoIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   infoLabel: {
     fontSize: 14,

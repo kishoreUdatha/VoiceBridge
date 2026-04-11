@@ -222,12 +222,49 @@ export const telecallerApi = {
   },
 
   /**
-   * Get calls for a specific lead
+   * Get calls for a specific lead.
+   * Backend exposes this as /telecaller/calls?leadId=... — there is no /leads/:id/calls route.
    */
   getCallsByLead: async (leadId: string): Promise<Call[]> => {
     try {
-      const response = await api.get<ApiResponse<Call[]>>(`/leads/${leadId}/calls`);
-      return response.data.data;
+      const params = new URLSearchParams({ leadId, limit: '100', offset: '0' });
+      const response = await api.get(`/telecaller/calls?${params.toString()}`);
+
+      // Backend returns { success, message, data: { calls, total, outcomeCounts } }
+      const responseData = response.data?.data || response.data || {};
+      const calls: any[] = Array.isArray(responseData.calls) ? responseData.calls : [];
+
+      // Transform to the mobile Call shape — mirror getCalls() so this list renders
+      // the same way the main History tab does.
+      const transformed: Call[] = calls.map((call: any) => ({
+        id: call.id,
+        leadId: call.leadId || '',
+        leadName: call.lead
+          ? `${call.lead.firstName || ''} ${call.lead.lastName || ''}`.trim()
+          : call.contactName || 'Unknown',
+        leadPhone: call.lead?.phone || call.phoneNumber || '',
+        userId: call.telecallerId || '',
+        status: call.status || 'COMPLETED',
+        outcome: call.outcome || undefined,
+        duration: call.duration || undefined,
+        notes: call.notes || undefined,
+        recordingUrl: call.recordingUrl || undefined,
+        transcript: call.transcript || undefined,
+        sentimentScore: call.sentiment
+          ? call.sentiment === 'positive'
+            ? 80
+            : call.sentiment === 'negative'
+            ? 30
+            : 50
+          : undefined,
+        createdAt: call.createdAt || new Date().toISOString(),
+        updatedAt: call.updatedAt || call.createdAt || new Date().toISOString(),
+        qualification: call.qualification || undefined,
+        enhancedTranscript: call.enhancedTranscript || undefined,
+        summary: call.summary || undefined,
+      } as any));
+
+      return transformed;
     } catch (error) {
       throw new Error(getErrorMessage(error));
     }

@@ -173,6 +173,103 @@ class TelecallerCallFinalizationService {
   }
 
   /**
+   * Use GPT to split a raw/unlabeled call transcript into proper agent/customer turns.
+   * This gives a real two-sided conversation even when ASR returns a single unlabeled blob.
+   * Returns null on failure so the caller can fall back to the heuristic parser.
+   */
+  private async diarizeTranscriptWithGPT(
+    transcript: string,
+    language?: string
+  ): Promise<Array<{ role: string; content: string }> | null> {
+    if (!openai || !transcript || transcript.trim().length < 20) return null;
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a speaker diarization assistant for a phone sales call between a telecaller (agent) and a prospective student/parent (customer).
+
+You will receive a raw transcript that may be unlabeled or mislabeled. Split it into the actual back-and-forth turns.
+
+Rules:
+- Agent typically: introduces themselves, explains courses/colleges/fees, asks qualifying questions, pitches admissions, handles objections, schedules callbacks.
+- Customer typically: answers questions about themselves (name, class, board, course interested), asks about fees/location/hostel/placements, raises concerns, agrees/disagrees.
+- Preserve the ORIGINAL wording and language of every sentence — do NOT translate or paraphrase, just assign each sentence to the correct speaker.
+- Break long monologues into multiple turns only where a speaker change clearly happens.
+- If a sentence is ambiguous, use surrounding context (questions → agent, answers → customer).
+- Never invent content. If the transcript only contains one side, return only that side's turns honestly.
+${language ? `- The transcript language is ${language}. Keep it in that language.` : ''}
+
+Return JSON:
+{
+  "turns": [
+    { "role": "assistant", "content": "..." },
+    { "role": "user", "content": "..." }
+  ]
+}
+Use "assistant" for the telecaller/agent, and "user" for the customer/student/parent.`,
+          },
+          {
+            role: 'user',
+            content: transcript,
+          },
+        ],
+        temperature: 0,
+        max_tokens: 2500,
+        response_format: { type: 'json_object' },
+      });
+
+      const content = completion.choices[0]?.message?.content;
+      if (!content) return null;
+
+      const parsed = JSON.parse(content);
+      if (!Array.isArray(parsed?.turns)) return null;
+
+      const turns = parsed.turns
+        .map((t: any) => ({
+          role: t?.role === 'user' || t?.role === 'customer' ? 'user' : 'assistant',
+          content: typeof t?.content === 'string' ? t.content.trim() : '',
+        }))
+        .filter((t: { role: string; content: string }) => t.content.length > 0);
+
+      if (turns.length === 0) return null;
+      return turns;
+    } catch (error) {
+      console.warn(`[TelecallerAI] GPT diarization failed:`, (error as any)?.message || error);
+      return null;
+    }
+  }
+
+  /**
+   * Build transcript messages with best available strategy:
+   * 1. If the transcript already has speaker labels — use them.
+   * 2. Otherwise try GPT diarization for a real two-sided conversation.
+   * 3. Fall back to the alternating-sentences heuristic.
+   */
+  private async buildTranscriptMessages(
+    transcript: string,
+    language?: string
+  ): Promise<Array<{ role: string; content: string }>> {
+    if (!transcript || transcript.trim().length === 0) return [];
+
+    const labelPattern = /^(Agent|Telecaller|Assistant|Rep|User|Customer|Caller|Lead):\s*/im;
+    if (labelPattern.test(transcript)) {
+      return this.parseTranscriptToMessages(transcript);
+    }
+
+    const diarized = await this.diarizeTranscriptWithGPT(transcript, language);
+    if (diarized && diarized.length > 0) {
+      console.log(`[TelecallerAI] GPT diarization produced ${diarized.length} turns`);
+      return diarized;
+    }
+
+    console.log(`[TelecallerAI] Falling back to heuristic sentence-alternation parser`);
+    return this.parseTranscriptToMessages(transcript);
+  }
+
+  /**
    * Process a telecaller call recording with full AI analysis
    */
   async processRecording(callId: string, filePath: string): Promise<void> {
@@ -191,7 +288,7 @@ class TelecallerCallFinalizationService {
               lastName: true,
               organizationId: true,
               organization: {
-                select: { preferredLanguage: true }
+                select: { preferredLanguage: true, industry: true }
               }
             },
           },
@@ -251,8 +348,10 @@ class TelecallerCallFinalizationService {
         return;
       }
 
-      // Convert string transcript to message array format for AI analysis
-      const transcriptMessages = this.parseTranscriptToMessages(transcript);
+      // Convert string transcript to message array format for AI analysis.
+      // Try GPT diarization first so we get a real two-sided conversation
+      // even when Sarvam/Whisper return an unlabeled blob.
+      const transcriptMessages = await this.buildTranscriptMessages(transcript, detectedLanguage);
 
       // Step 2: Run enhanced AI analysis (sentiment, outcome, summary, key questions, issues)
       console.log(`[TelecallerAI] Step 2: Running enhanced AI analysis...`);
@@ -316,8 +415,22 @@ class TelecallerCallFinalizationService {
       // Step 4: Extract structured call data with error handling
       console.log(`[TelecallerAI] Step 4: Extracting structured call data...`);
       let extractedData: ExtractedCallData;
+      // Prefer the English-translated transcript so GPT gets clean English input
+      // regardless of the original call language. Fall back to the native transcript
+      // if translation failed or produced something trivial.
+      const extractionSource =
+        englishTranscript && englishTranscript.trim().length > 20
+          ? this.parseTranscriptToMessages(englishTranscript)
+          : transcriptMessages;
+      const industryForExtraction =
+        (call.telecaller?.organization?.industry as string | undefined) || 'EDUCATION';
+      console.log(
+        `[TelecallerAI] Extracting with industry=${industryForExtraction}, source=${
+          extractionSource === transcriptMessages ? 'native' : 'english'
+        }`
+      );
       try {
-        extractedData = await extractCallData(transcriptMessages, undefined, 'en');
+        extractedData = await extractCallData(extractionSource, industryForExtraction, 'en');
       } catch (extractError) {
         console.warn(`[TelecallerAI] Data extraction failed, using defaults:`, extractError);
         extractedData = { items: [], summary: '' };
@@ -331,7 +444,9 @@ class TelecallerCallFinalizationService {
 
       // Step 5: Additional qualification and buying signals
       console.log(`[TelecallerAI] Step 5: Extracting qualification data...`);
-      const qualification = await this.extractQualificationData(transcript);
+      const qualificationSource =
+        englishTranscript && englishTranscript.trim().length > 20 ? englishTranscript : transcript;
+      const qualification = await this.extractQualificationData(qualificationSource);
 
       // Step 6: Detect buying signals and objections
       console.log(`[TelecallerAI] Step 6: Analyzing buying signals...`);
@@ -1018,20 +1133,44 @@ Be concise and actionable.`,
         messages: [
           {
             role: 'system',
-            content: `Extract any customer information mentioned in this call.
-Return a JSON object with any of these fields that were mentioned:
+            content: `You are extracting structured lead qualification data from a phone call transcript between a telecaller and a prospective student/parent (education / admissions domain).
+
+Return a JSON object. Include ONLY the keys for which the information was actually mentioned in the conversation — never guess, never invent, never echo the telecaller's pitch as if the customer said it.
+
+Keys you may return (all optional):
 {
-  "name": "customer name if mentioned",
-  "email": "email if mentioned",
-  "company": "company name if mentioned",
-  "budget": "budget range if discussed",
-  "timeline": "when they want to proceed",
+  "fullName": "student's full name if given",
+  "firstName": "first name only",
+  "lastName": "last name only",
+  "name": "same as fullName, for backward compatibility",
+  "phone": "student phone number if spoken",
+  "email": "email address if spoken",
+  "currentClass": "e.g. 12th, Intermediate 2nd year, B.Tech 3rd year",
+  "board": "CBSE / ICSE / State / IB",
+  "courseInterested": "course they asked about, e.g. B.Tech CSE, MBA, MBBS",
+  "specialization": "specialization/branch if discussed",
+  "collegesInterested": ["array of every college or university name the student/parent mentioned interest in"],
+  "otherCollegesConsidered": ["array of competitor colleges they are also evaluating"],
+  "preferredLocation": "city or state preference",
+  "budget": "overall budget range",
+  "feeStructure": "specific fee amounts discussed (tuition, hostel, total, scholarship, EMI)",
+  "interestLevel": "High | Medium | Low (based on enthusiasm and concrete next steps)",
+  "timeline": "admission year / when they want to join / decision deadline",
+  "entranceExamScore": "JEE / NEET / EAMCET / CAT / GATE rank or score with exam name",
+  "hostelRequired": "Yes | No",
+  "parentName": "parent/guardian name if spoken",
+  "parentPhone": "parent/guardian phone if spoken",
+  "decisionMaker": "who makes the final call (student / parent / both)",
+  "reasonForInterest": "why this course/college",
   "requirements": "specific requirements mentioned",
-  "currentSolution": "what they currently use",
-  "decisionMaker": "true/false if they're the decision maker",
-  "painPoints": ["list of problems they mentioned"]
+  "painPoints": ["list of concerns the student/parent raised"]
 }
-Only include fields that were actually mentioned. Return empty {} if nothing was mentioned.`,
+
+Rules:
+- Omit any key that was not mentioned. Empty object {} is valid.
+- "collegesInterested" must be an array of strings, each string one college name.
+- "interestLevel" must be exactly "High", "Medium", or "Low" if you include it.
+- Do not include commentary or any field not in the list above.`,
           },
           {
             role: 'user',
@@ -1039,7 +1178,7 @@ Only include fields that were actually mentioned. Return empty {} if nothing was
           },
         ],
         temperature: 0,
-        max_tokens: 500,
+        max_tokens: 700,
         response_format: { type: 'json_object' },
       });
 
@@ -1687,7 +1826,7 @@ ${call.summary}
                 lastName: true,
                 organizationId: true,
                 organization: {
-                  select: { preferredLanguage: true }
+                  select: { preferredLanguage: true, industry: true }
                 }
               },
             },
@@ -1783,8 +1922,10 @@ ${call.summary}
         return;
       }
 
-      // Convert string transcript to message array format for AI analysis
-      const transcriptMessages = this.parseTranscriptToMessages(transcript);
+      // Convert string transcript to message array format for AI analysis.
+      // Try GPT diarization first so we get a real two-sided conversation
+      // even when Sarvam/Whisper return an unlabeled blob.
+      const transcriptMessages = await this.buildTranscriptMessages(transcript, detectedLanguage);
 
       // Step 2: Run enhanced AI analysis (sentiment, outcome, summary, key questions, issues)
       console.log(`[TelecallerAI] Step 2: Running enhanced AI analysis...`);
@@ -1848,8 +1989,22 @@ ${call.summary}
       // Step 4: Extract structured call data with error handling
       console.log(`[TelecallerAI] Step 4: Extracting structured call data...`);
       let extractedData: ExtractedCallData;
+      // Prefer the English-translated transcript so GPT gets clean English input
+      // regardless of the original call language. Fall back to the native transcript
+      // if translation failed or produced something trivial.
+      const extractionSource =
+        englishTranscript && englishTranscript.trim().length > 20
+          ? this.parseTranscriptToMessages(englishTranscript)
+          : transcriptMessages;
+      const industryForExtraction =
+        (call.telecaller?.organization?.industry as string | undefined) || 'EDUCATION';
+      console.log(
+        `[TelecallerAI] Extracting with industry=${industryForExtraction}, source=${
+          extractionSource === transcriptMessages ? 'native' : 'english'
+        }`
+      );
       try {
-        extractedData = await extractCallData(transcriptMessages, undefined, 'en');
+        extractedData = await extractCallData(extractionSource, industryForExtraction, 'en');
       } catch (extractError) {
         console.warn(`[TelecallerAI] Data extraction failed, using defaults:`, extractError);
         extractedData = { items: [], summary: '' };
@@ -1863,7 +2018,9 @@ ${call.summary}
 
       // Step 5: Additional qualification and buying signals
       console.log(`[TelecallerAI] Step 5: Extracting qualification data...`);
-      const qualification = await this.extractQualificationData(transcript);
+      const qualificationSource =
+        englishTranscript && englishTranscript.trim().length > 20 ? englishTranscript : transcript;
+      const qualification = await this.extractQualificationData(qualificationSource);
 
       // Step 6: Detect buying signals and objections
       console.log(`[TelecallerAI] Step 6: Analyzing buying signals...`);

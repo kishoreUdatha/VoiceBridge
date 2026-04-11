@@ -298,19 +298,47 @@ const CallSummaryScreen: React.FC = () => {
     const s = itemToText(value);
     if (s) captured.push({ label, value: s, icon });
   };
-  pushIfString("Person's Name", a.qualification?.name, 'account');
-  pushIfString('Specific Requirements', a.qualification?.requirements, 'clipboard-text');
-  pushIfString('Budget / Price Range', a.qualification?.budget, 'currency-inr');
-  pushIfString('Timeline', a.qualification?.timeline, 'calendar-clock');
-  pushIfString('Company', a.qualification?.company, 'domain');
-  pushIfString('Email', a.qualification?.email, 'email');
-  // Also pull items from extractedData
+  const q = a.qualification || {};
+  const joinList = (v: any): string => {
+    if (Array.isArray(v)) return v.filter(Boolean).map((x) => itemToText(x)).filter(Boolean).join(', ');
+    return itemToText(v);
+  };
+  const fullName =
+    itemToText(q.fullName) ||
+    itemToText(q.name) ||
+    [itemToText(q.firstName), itemToText(q.lastName)].filter(Boolean).join(' ').trim();
+  pushIfString('Full Name', fullName, 'account');
+  pushIfString('Phone', q.phone, 'phone');
+  pushIfString('Email', q.email, 'email');
+  pushIfString('Current Class', q.currentClass, 'school-outline');
+  pushIfString('Board', q.board, 'book-open-variant');
+  pushIfString('Course Interested', q.courseInterested, 'school');
+  pushIfString('Specialization', q.specialization, 'book-education');
+  pushIfString('Colleges Interested', joinList(q.collegesInterested), 'town-hall');
+  pushIfString('Other Colleges Considered', joinList(q.otherCollegesConsidered), 'domain');
+  pushIfString('Preferred Location', q.preferredLocation, 'map-marker');
+  pushIfString('Budget / Fee Range', q.budget, 'currency-inr');
+  pushIfString('Fee Structure', q.feeStructure, 'cash-multiple');
+  pushIfString('Interest Level', q.interestLevel, 'star');
+  pushIfString('Timeline', q.timeline, 'calendar-clock');
+  pushIfString('Entrance Exam Score', q.entranceExamScore, 'trophy-outline');
+  pushIfString('Hostel Required', q.hostelRequired, 'home-city');
+  pushIfString('Parent/Guardian Name', q.parentName, 'account-group');
+  pushIfString('Parent/Guardian Phone', q.parentPhone, 'phone-classic');
+  pushIfString('Decision Maker', q.decisionMaker, 'account-check');
+  pushIfString('Reason for Interest', q.reasonForInterest, 'lightbulb-on-outline');
+  pushIfString('Specific Requirements', q.requirements, 'clipboard-text');
+  pushIfString('Company', q.company, 'domain');
+  // Also pull items from extractedData — skip labels already captured from qualification
+  // so the same field (e.g. "Full Name") doesn't appear twice in the Overview list.
   if (Array.isArray(a.extractedData?.items)) {
+    const seenLabels = new Set(captured.map((c) => c.label.trim().toLowerCase()));
     a.extractedData!.items!.forEach((it: any) => {
       const label = itemToText(it?.label);
       const value = itemToText(it?.value);
-      if (label && value) {
+      if (label && value && !seenLabels.has(label.trim().toLowerCase())) {
         captured.push({ label, value, icon: typeof it?.icon === 'string' ? it.icon : 'tag' });
+        seenLabels.add(label.trim().toLowerCase());
       }
     });
   }
@@ -640,6 +668,30 @@ const CallSummaryScreen: React.FC = () => {
       {/* ===== TRANSCRIPT TAB ===== */}
       {mainTab === 'transcript' && (
         <>
+      {/* ===== Captured fields summary (mirrored from Overview) ===== */}
+      {captured.length > 0 && (
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <Icon name="clipboard-list" size={16} color="#3B82F6" />
+            <Text style={styles.cardTitle}>Captured Information</Text>
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>{captured.length}</Text>
+            </View>
+          </View>
+          <View style={styles.capturedGrid}>
+            {captured.map((item, i) => (
+              <View key={`tx-${i}`} style={styles.capturedItem}>
+                <View style={styles.capturedHeader}>
+                  <Icon name={item.icon} size={14} color="#3B82F6" />
+                  <Text style={styles.capturedLabel}>{item.label}</Text>
+                </View>
+                <Text style={styles.capturedValue}>{item.value}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
       {/* ===== Audio Player ===== */}
       {a.recordingUrl && (
         <View style={styles.card}>

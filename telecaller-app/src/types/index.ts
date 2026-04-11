@@ -169,6 +169,7 @@ export type RootStackParamList = {
   OutcomeAssignedData: { callId: string; data: AssignedData; recordingPath?: string };
   CallAnalysis: { callId: string; duration: number; recordingPath?: string };
   LeadDetail: { leadId: string };
+  LeadDisposition: { leadId: string; callId?: string };
   EditLead: { leadId: string };
   CreateLead: undefined;
   Analytics: undefined;

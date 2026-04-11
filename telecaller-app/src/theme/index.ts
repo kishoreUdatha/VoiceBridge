@@ -1,69 +1,69 @@
 /**
- * VoiceBridge Enterprise Theme
- * Clean, minimal, professional design system
+ * VoiceBridge Monochrome Theme
+ * Pure black/white/gray — clean, professional, editorial.
  */
 
-// Enterprise Color Palette - Clean & Professional
+// Monochrome Palette — every "color" maps to a gray scale value
 export const colors = {
-  // Primary - Professional Blue
+  // Primary — black accent
   primary: {
-    50: '#EFF6FF',
-    100: '#DBEAFE',
-    200: '#BFDBFE',
-    300: '#93C5FD',
-    400: '#60A5FA',
-    500: '#2563EB', // Main primary - professional blue
-    600: '#1D4ED8',
-    700: '#1E40AF',
-    800: '#1E3A8A',
-    900: '#172554',
+    50: '#FAFAFA',
+    100: '#F5F5F5',
+    200: '#E5E5E5',
+    300: '#D4D4D4',
+    400: '#A3A3A3',
+    500: '#171717', // Main primary — near-black
+    600: '#0A0A0A',
+    700: '#000000',
+    800: '#000000',
+    900: '#000000',
   },
 
-  // Secondary - Soft Indigo/Violet (used by dashboard accents)
+  // Secondary — same monochrome scale
   secondary: {
-    50: '#F5F3FF',
-    100: '#EDE9FE',
-    200: '#DDD6FE',
-    300: '#C4B5FD',
-    400: '#A78BFA',
-    500: '#8B5CF6',
-    600: '#7C3AED',
-    700: '#6D28D9',
-    800: '#5B21B6',
-    900: '#4C1D95',
+    50: '#FAFAFA',
+    100: '#F5F5F5',
+    200: '#E5E5E5',
+    300: '#D4D4D4',
+    400: '#A3A3A3',
+    500: '#525252',
+    600: '#404040',
+    700: '#262626',
+    800: '#171717',
+    900: '#0A0A0A',
   },
 
-  // Success - Clean Green
+  // Success — dark gray (no green)
   success: {
-    50: '#F0FDF4',
-    100: '#DCFCE7',
-    400: '#4ADE80',
-    500: '#22C55E',
-    600: '#16A34A',
-    700: '#15803D',
+    50: '#FAFAFA',
+    100: '#F5F5F5',
+    400: '#525252',
+    500: '#262626',
+    600: '#171717',
+    700: '#0A0A0A',
   },
 
-  // Warning - Subtle Orange
+  // Warning — mid gray (no orange)
   warning: {
-    50: '#FFFBEB',
-    100: '#FEF3C7',
-    400: '#FBBF24',
-    500: '#F59E0B',
-    600: '#D97706',
-    700: '#B45309',
+    50: '#FAFAFA',
+    100: '#F5F5F5',
+    400: '#737373',
+    500: '#525252',
+    600: '#404040',
+    700: '#262626',
   },
 
-  // Error - Professional Red
+  // Error — near-black (no red)
   error: {
-    50: '#FEF2F2',
-    100: '#FEE2E2',
-    400: '#F87171',
-    500: '#EF4444',
-    600: '#DC2626',
-    700: '#B91C1C',
+    50: '#FAFAFA',
+    100: '#F5F5F5',
+    400: '#525252',
+    500: '#262626',
+    600: '#171717',
+    700: '#0A0A0A',
   },
 
-  // Neutral - Clean Grays
+  // Neutral — clean grays (unchanged)
   neutral: {
     0: '#FFFFFF',
     50: '#FAFAFA',
@@ -78,14 +78,14 @@ export const colors = {
     900: '#171717',
   },
 
-  // Status Colors - Muted & Professional
+  // Status — all monochrome variations
   status: {
-    new: '#2563EB',
-    interested: '#22C55E',
-    notInterested: '#EF4444',
-    noAnswer: '#F59E0B',
-    callback: '#8B5CF6',
-    converted: '#059669',
+    new: '#171717',
+    interested: '#262626',
+    notInterested: '#737373',
+    noAnswer: '#A3A3A3',
+    callback: '#525252',
+    converted: '#0A0A0A',
   },
 
   // Backgrounds
@@ -98,7 +98,7 @@ export const colors = {
 
   // Text
   text: {
-    primary: '#171717',
+    primary: '#0A0A0A',
     secondary: '#525252',
     tertiary: '#A3A3A3',
     inverse: '#FFFFFF',
@@ -106,7 +106,7 @@ export const colors = {
 
   // Borders
   border: {
-    light: '#E5E5E5',
+    light: '#E8E8E8',
     medium: '#D4D4D4',
   },
 };
@@ -143,17 +143,17 @@ export const spacing = {
   '3xl': 40,
 };
 
-// Border Radius
+// Border Radius — squarer for editorial feel
 export const borderRadius = {
-  sm: 6,
-  md: 8,
-  base: 10,
-  lg: 12,
-  xl: 16,
+  sm: 2,
+  md: 4,
+  base: 6,
+  lg: 8,
+  xl: 10,
   full: 9999,
 };
 
-// Shadows - Subtle
+// Shadows — subtle, monochrome
 export const shadows = {
   none: {
     shadowColor: 'transparent',
@@ -165,37 +165,37 @@ export const shadows = {
   sm: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
     elevation: 1,
   },
   md: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   lg: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   xl: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 6,
-  },
-  colored: (color: string) => ({
-    shadowColor: color,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 2,
+  },
+  colored: (_color: string) => ({
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   }),
 };
 
