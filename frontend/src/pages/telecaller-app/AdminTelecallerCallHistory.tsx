@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
 import {
   MagnifyingGlassIcon,
   FunnelIcon,
@@ -118,11 +120,16 @@ const getDateRange = (option: DateRangeOption, customStart?: string, customEnd?:
 };
 
 const AdminTelecallerCallHistory: React.FC = () => {
+  const { user } = useSelector((state: RootState) => state.auth);
   const [calls, setCalls] = useState<Call[]>([]);
   const [telecallers, setTelecallers] = useState<Telecaller[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [outcomeCounts, setOutcomeCounts] = useState<Record<string, number>>({});
+
+  // Check if user is a telecaller/counselor (can only see their own calls)
+  const isTelecaller = user?.role === 'telecaller' || user?.role === 'counselor';
+  const isAdmin = ['super_admin', 'admin', 'manager', 'team_lead'].includes(user?.role || '');
 
   // Filters
   const [selectedTelecaller, setSelectedTelecaller] = useState('');
@@ -145,8 +152,9 @@ const AdminTelecallerCallHistory: React.FC = () => {
     [dateRangeOption, customStartDate, customEndDate]
   );
 
-  // Fetch telecallers for dropdown
+  // Fetch telecallers for dropdown (only for admins)
   useEffect(() => {
+    if (!isAdmin) return; // Skip for telecallers
     const fetchTelecallers = async () => {
       try {
         const res = await api.get('/users/telecallers');
@@ -156,7 +164,7 @@ const AdminTelecallerCallHistory: React.FC = () => {
       }
     };
     fetchTelecallers();
-  }, []);
+  }, [isAdmin]);
 
   // Fetch calls
   const fetchCalls = useCallback(async () => {
@@ -166,13 +174,20 @@ const AdminTelecallerCallHistory: React.FC = () => {
       params.append('limit', limit.toString());
       params.append('offset', ((page - 1) * limit).toString());
 
-      if (selectedTelecaller) params.append('telecallerId', selectedTelecaller);
+      // Only add telecaller filter for admins
+      if (isAdmin && selectedTelecaller) params.append('telecallerId', selectedTelecaller);
       if (selectedOutcome) params.append('outcome', selectedOutcome);
       if (selectedStatus) params.append('status', selectedStatus);
       if (dateRange.dateFrom) params.append('dateFrom', dateRange.dateFrom);
       if (dateRange.dateTo) params.append('dateTo', dateRange.dateTo);
 
-      const res = await api.get(`/telecaller/all-calls?${params.toString()}`);
+      // Use different endpoints based on role
+      // Telecallers see only their own calls, admins see all calls
+      const endpoint = isTelecaller
+        ? `/telecaller/calls?${params.toString()}`
+        : `/telecaller/all-calls?${params.toString()}`;
+
+      const res = await api.get(endpoint);
       const data = res.data.data;
 
       setCalls(data.calls || []);
@@ -184,7 +199,7 @@ const AdminTelecallerCallHistory: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedTelecaller, selectedOutcome, selectedStatus, dateRange, page]);
+  }, [selectedTelecaller, selectedOutcome, selectedStatus, dateRange, page, isTelecaller, isAdmin]);
 
   useEffect(() => {
     fetchCalls();
@@ -297,7 +312,7 @@ const AdminTelecallerCallHistory: React.FC = () => {
   };
 
   const hasActiveFilters =
-    selectedTelecaller || selectedOutcome || selectedStatus || dateRangeOption !== 'today' || searchQuery;
+    (isAdmin && selectedTelecaller) || selectedOutcome || selectedStatus || dateRangeOption !== 'today' || searchQuery;
 
   const totalPages = Math.ceil(total / limit);
 
@@ -306,9 +321,13 @@ const AdminTelecallerCallHistory: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Telecaller Call History</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {isTelecaller ? 'My Call History' : 'Call History'}
+          </h1>
           <p className="text-sm text-gray-500 mt-1">
-            View and analyze calls made by all telecallers
+            {isTelecaller
+              ? 'View and analyze your calls'
+              : 'View and analyze calls made by all telecallers'}
           </p>
         </div>
         <button
@@ -364,19 +383,21 @@ const AdminTelecallerCallHistory: React.FC = () => {
             />
           </div>
 
-          {/* Telecaller Filter */}
-          <select
-            value={selectedTelecaller}
-            onChange={(e) => setSelectedTelecaller(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-          >
-            <option value="">All Telecallers</option>
-            {telecallers.map((tc) => (
-              <option key={tc.id} value={tc.id}>
-                {tc.firstName} {tc.lastName || ''}
-              </option>
-            ))}
-          </select>
+          {/* Telecaller Filter - Only show for admins */}
+          {isAdmin && (
+            <select
+              value={selectedTelecaller}
+              onChange={(e) => setSelectedTelecaller(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">All Telecallers</option>
+              {telecallers.map((tc) => (
+                <option key={tc.id} value={tc.id}>
+                  {tc.firstName} {tc.lastName || ''}
+                </option>
+              ))}
+            </select>
+          )}
 
           {/* Date Range Filter */}
           <div className="relative date-range-dropdown">
@@ -503,7 +524,7 @@ const AdminTelecallerCallHistory: React.FC = () => {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Telecaller</th>
+                {isAdmin && <th className="px-4 py-3 text-left font-medium">Telecaller</th>}
                 <th className="px-4 py-3 text-left font-medium">Contact</th>
                 <th className="px-4 py-3 text-left font-medium">Phone</th>
                 <th className="px-4 py-3 text-left font-medium">Outcome</th>
@@ -517,7 +538,7 @@ const AdminTelecallerCallHistory: React.FC = () => {
             <tbody className="divide-y">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center">
+                  <td colSpan={isAdmin ? 9 : 8} className="px-4 py-8 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
                       <span className="text-gray-500">Loading calls...</span>
@@ -526,28 +547,30 @@ const AdminTelecallerCallHistory: React.FC = () => {
                 </tr>
               ) : filteredCalls.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={isAdmin ? 9 : 8} className="px-4 py-8 text-center text-gray-500">
                     No calls found for the selected filters
                   </td>
                 </tr>
               ) : (
                 filteredCalls.map((call) => (
                   <tr key={call.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <UserIcon className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {call.telecaller
-                              ? `${call.telecaller.firstName} ${call.telecaller.lastName || ''}`
-                              : 'Unknown'}
+                    {isAdmin && (
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <UserIcon className="w-4 h-4 text-blue-600" />
                           </div>
-                          <div className="text-xs text-gray-500">{call.telecaller?.email}</div>
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {call.telecaller
+                                ? `${call.telecaller.firstName} ${call.telecaller.lastName || ''}`
+                                : 'Unknown'}
+                            </div>
+                            <div className="text-xs text-gray-500">{call.telecaller?.email}</div>
+                          </div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">
                         {call.contactName ||

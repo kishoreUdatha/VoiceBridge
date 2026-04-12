@@ -96,6 +96,25 @@ const SOURCE_COLORS: Record<string, string> = {
   'OTHER': '#6B7280',
 };
 
+// Call History Item
+interface CallHistoryItem {
+  id: string;
+  phoneNumber: string;
+  contactName?: string;
+  status: string;
+  outcome?: string;
+  duration?: number;
+  sentiment?: string;
+  summary?: string;
+  createdAt: string;
+  lead?: {
+    id: string;
+    firstName: string;
+    lastName?: string;
+    phone: string;
+  };
+}
+
 // Telecaller Dashboard Stats
 interface DashboardStats {
   today: {
@@ -249,7 +268,9 @@ export default function DashboardPage() {
 // ============================================
 function TelecallerDashboard({ user, getGreeting, currentTime, lastRefresh, setLastRefresh }: any) {
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [callHistory, setCallHistory] = useState<CallHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCall, setSelectedCall] = useState<CallHistoryItem | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -258,12 +279,65 @@ function TelecallerDashboard({ user, getGreeting, currentTime, lastRefresh, setL
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/telecaller/dashboard-stats');
-      setDashboardStats(res.data?.data || null);
+      const [statsRes, callsRes] = await Promise.all([
+        api.get('/telecaller/dashboard-stats'),
+        api.get('/telecaller/calls?limit=20')
+      ]);
+      setDashboardStats(statsRes.data?.data || null);
+      setCallHistory(callsRes.data?.data?.calls || []);
     } catch (error) {
       console.error('Failed to fetch dashboard stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const formatDuration = (seconds?: number) => {
+    if (!seconds) return '--:--';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatCallDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return `Today ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return `Yesterday ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
+           date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getOutcomeColor = (outcome?: string) => {
+    switch (outcome) {
+      case 'INTERESTED':
+      case 'CONVERTED':
+        return 'bg-gradient-to-r from-emerald-400 to-green-500 text-white';
+      case 'NOT_INTERESTED':
+        return 'bg-gradient-to-r from-red-400 to-rose-500 text-white';
+      case 'CALLBACK':
+        return 'bg-gradient-to-r from-amber-400 to-orange-500 text-white';
+      case 'NO_ANSWER':
+        return 'bg-gradient-to-r from-gray-400 to-slate-500 text-white';
+      default:
+        return 'bg-gradient-to-r from-blue-400 to-indigo-500 text-white';
+    }
+  };
+
+  const getSentimentEmoji = (sentiment?: string) => {
+    switch (sentiment) {
+      case 'positive':
+        return { emoji: '😊', color: 'text-green-600' };
+      case 'negative':
+        return { emoji: '😞', color: 'text-red-600' };
+      default:
+        return { emoji: '😐', color: 'text-gray-500' };
     }
   };
 
@@ -284,117 +358,205 @@ function TelecallerDashboard({ user, getGreeting, currentTime, lastRefresh, setL
     : [];
 
   return (
-    <div className="p-3 min-h-screen">
+    <div className="p-4 min-h-screen bg-white">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold text-white">{getGreeting()}, {user?.firstName}</h1>
-          <span className="text-slate-400 text-xs hidden sm:inline">
+          <h1 className="text-base font-semibold text-gray-900">{getGreeting()}, {user?.firstName}</h1>
+          <span className="text-gray-500 text-xs hidden sm:inline">
             {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
           </span>
-          <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/10 rounded-full">
+          <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded-full">
             <span className="relative flex h-1.5 w-1.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
             </span>
-            <span className="text-emerald-400 text-[10px] font-medium">Live</span>
+            <span className="text-emerald-600 text-[10px] font-medium">Live</span>
           </div>
         </div>
-        <button onClick={() => { fetchData(); setLastRefresh(new Date()); }} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded transition-all">
+        <button onClick={() => { fetchData(); setLastRefresh(new Date()); }} className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all">
           <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {/* KPI Cards - All Clickable */}
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
-        <Link to="/leads?assignedToMe=true" className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 hover:border-blue-500/50 hover:bg-slate-700/50 transition-all cursor-pointer">
-          <p className="text-slate-400 text-[10px] uppercase tracking-wide">Leads</p>
-          <p className="text-xl font-bold text-white">{dashboardStats?.leads?.total || 0}</p>
+      {/* KPI Cards - Bright & Vibrant */}
+      <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+        <Link to="/leads?assignedToMe=true" className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-3 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-[1.02] transition-all cursor-pointer group">
+          <p className="text-blue-100 text-[10px] uppercase tracking-wide font-medium">Leads</p>
+          <p className="text-2xl font-bold text-white">{dashboardStats?.leads?.total || 0}</p>
         </Link>
-        <Link to="/call-logs" className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 hover:border-violet-500/50 hover:bg-slate-700/50 transition-all cursor-pointer">
-          <p className="text-slate-400 text-[10px] uppercase tracking-wide">Calls Today</p>
+        <Link to="/telecaller-call-history" className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl p-3 shadow-lg shadow-violet-500/25 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] transition-all cursor-pointer group">
+          <p className="text-violet-100 text-[10px] uppercase tracking-wide font-medium">Calls Today</p>
           <div className="flex items-end justify-between">
-            <p className="text-xl font-bold text-white">{dashboardStats?.today?.calls || 0}<span className="text-slate-500 text-sm font-normal">/{dailyCallTarget}</span></p>
-            <span className={`text-[10px] font-medium ${callsProgress >= 100 ? 'text-emerald-400' : 'text-violet-400'}`}>{Math.round(callsProgress)}%</span>
+            <p className="text-2xl font-bold text-white">{dashboardStats?.today?.calls || 0}<span className="text-violet-200 text-sm font-normal">/{dailyCallTarget}</span></p>
+            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${callsProgress >= 100 ? 'bg-emerald-400 text-emerald-900' : 'bg-white/20 text-white'}`}>{Math.round(callsProgress)}%</span>
           </div>
         </Link>
-        <Link to="/leads?pendingFollowUp=true" className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 hover:border-amber-500/50 hover:bg-slate-700/50 transition-all cursor-pointer">
-          <p className="text-slate-400 text-[10px] uppercase tracking-wide">Follow-ups</p>
-          <p className="text-xl font-bold text-white">{dashboardStats?.today?.followUpsCompleted || 0}<span className="text-amber-400 text-sm ml-1">+{dashboardStats?.today?.pendingFollowUps || 0}</span></p>
+        <Link to="/leads?pendingFollowUp=true" className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl p-3 shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30 hover:scale-[1.02] transition-all cursor-pointer group">
+          <p className="text-amber-100 text-[10px] uppercase tracking-wide font-medium">Follow-ups</p>
+          <p className="text-2xl font-bold text-white">{dashboardStats?.today?.followUpsCompleted || 0}<span className="text-white text-sm font-semibold ml-1 bg-white/20 px-1.5 py-0.5 rounded">+{dashboardStats?.today?.pendingFollowUps || 0}</span></p>
         </Link>
-        <Link to="/leads?converted=true" className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 hover:border-emerald-500/50 hover:bg-slate-700/50 transition-all cursor-pointer">
-          <p className="text-slate-400 text-[10px] uppercase tracking-wide">Conversion</p>
-          <p className="text-xl font-bold text-emerald-400">{dashboardStats?.leads?.conversionRate || 0}%</p>
+        <Link to="/leads?converted=true" className="bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl p-3 shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-500/30 hover:scale-[1.02] transition-all cursor-pointer group">
+          <p className="text-emerald-100 text-[10px] uppercase tracking-wide font-medium">Conversion</p>
+          <p className="text-2xl font-bold text-white">{dashboardStats?.leads?.conversionRate || 0}%</p>
         </Link>
-        <Link to="/leads?stage=Admitted" className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 hover:border-cyan-500/50 hover:bg-slate-700/50 transition-all cursor-pointer">
-          <p className="text-slate-400 text-[10px] uppercase tracking-wide">Win Rate</p>
-          <p className="text-xl font-bold text-cyan-400">{dashboardStats?.leads?.winRate || 0}%</p>
+        <Link to="/leads?stage=Admitted" className="bg-gradient-to-br from-cyan-500 to-blue-500 rounded-xl p-3 shadow-lg shadow-cyan-500/25 hover:shadow-xl hover:shadow-cyan-500/30 hover:scale-[1.02] transition-all cursor-pointer group">
+          <p className="text-cyan-100 text-[10px] uppercase tracking-wide font-medium">Win Rate</p>
+          <p className="text-2xl font-bold text-white">{dashboardStats?.leads?.winRate || 0}%</p>
         </Link>
-        <Link to="/leads?stage=Admitted" className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 hover:border-green-500/50 hover:bg-slate-700/50 transition-all cursor-pointer">
-          <p className="text-slate-400 text-[10px] uppercase tracking-wide">Won</p>
-          <p className="text-xl font-bold text-green-400">{dashboardStats?.leads?.won || 0}</p>
+        <Link to="/leads?stage=Admitted" className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-3 shadow-lg shadow-green-500/25 hover:shadow-xl hover:shadow-green-500/30 hover:scale-[1.02] transition-all cursor-pointer group">
+          <p className="text-green-100 text-[10px] uppercase tracking-wide font-medium">Won</p>
+          <p className="text-2xl font-bold text-white">{dashboardStats?.leads?.won || 0}</p>
         </Link>
       </div>
 
       {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <div className="lg:col-span-2 space-y-3">
-          {/* Weekly Performance */}
-          <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-            <h3 className="text-xs font-semibold text-white uppercase tracking-wide mb-2">Weekly Performance</h3>
-            <div className="h-36">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={weeklyActivity.length > 0 ? weeklyActivity : [
-                  { day: 'Mon', date: '', calls: 0, target: 15 }, { day: 'Tue', date: '', calls: 0, target: 15 },
-                  { day: 'Wed', date: '', calls: 0, target: 15 }, { day: 'Thu', date: '', calls: 0, target: 15 },
-                  { day: 'Fri', date: '', calls: 0, target: 15 }, { day: 'Sat', date: '', calls: 0, target: 10 }, { day: 'Sun', date: '', calls: 0, target: 10 }
-                ]} barSize={28}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
-                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94A3B8' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94A3B8' }} width={30} />
-                  <Tooltip />
-                  <Bar dataKey="calls" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
-                  <Line type="monotone" dataKey="target" stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                </ComposedChart>
-              </ResponsiveContainer>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4">
+          {/* Daily Performance - Donut Chart with Stats */}
+          <div className="bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 rounded-xl p-4 border border-violet-200 shadow-md">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-1.5 h-5 bg-gradient-to-b from-violet-500 to-fuchsia-500 rounded-full"></div>
+              <h3 className="text-sm font-bold text-violet-800 uppercase tracking-wide">Today's Performance</h3>
+            </div>
+            <div className="flex items-center gap-6">
+              {/* Donut Chart */}
+              <div className="relative w-40 h-40 flex-shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Interested', value: dashboardStats?.outcomes?.INTERESTED || 0, fill: '#10B981' },
+                        { name: 'Not Interested', value: dashboardStats?.outcomes?.NOT_INTERESTED || 0, fill: '#EF4444' },
+                        { name: 'No Answer', value: dashboardStats?.outcomes?.NO_ANSWER || 0, fill: '#F59E0B' },
+                        { name: 'Callbacks', value: dashboardStats?.outcomes?.CALLBACK || dashboardStats?.outcomes?.CALLBACK_REQUESTED || 0, fill: '#3B82F6' },
+                        { name: 'Converted', value: dashboardStats?.leads?.converted || 0, fill: '#EC4899' },
+                        { name: 'Other', value: Math.max(0, (dashboardStats?.today?.calls || 0) -
+                          ((dashboardStats?.outcomes?.INTERESTED || 0) +
+                           (dashboardStats?.outcomes?.NOT_INTERESTED || 0) +
+                           (dashboardStats?.outcomes?.NO_ANSWER || 0) +
+                           (dashboardStats?.outcomes?.CALLBACK || dashboardStats?.outcomes?.CALLBACK_REQUESTED || 0) +
+                           (dashboardStats?.leads?.converted || 0))), fill: '#94A3B8' },
+                      ].filter(item => item.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={65}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {[
+                        { fill: '#10B981' },
+                        { fill: '#EF4444' },
+                        { fill: '#F59E0B' },
+                        { fill: '#3B82F6' },
+                        { fill: '#EC4899' },
+                        { fill: '#94A3B8' },
+                      ].map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #E5E7EB', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center Text */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl font-bold text-gray-900">{dashboardStats?.today?.calls || 0}</span>
+                  <span className="text-[10px] text-gray-500 uppercase">Total Calls</span>
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="flex-1 grid grid-cols-3 gap-2">
+                <div className="bg-gradient-to-br from-emerald-100 to-green-100 rounded-lg p-2.5 border border-emerald-200 shadow-sm">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
+                    <span className="text-[10px] text-emerald-700 uppercase font-medium">Interested</span>
+                  </div>
+                  <span className="text-xl font-bold text-emerald-700">{dashboardStats?.outcomes?.INTERESTED || 0}</span>
+                </div>
+                <div className="bg-gradient-to-br from-red-100 to-rose-100 rounded-lg p-2.5 border border-red-200 shadow-sm">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm shadow-red-500/50"></span>
+                    <span className="text-[10px] text-red-700 uppercase font-medium">Not Int.</span>
+                  </div>
+                  <span className="text-xl font-bold text-red-700">{dashboardStats?.outcomes?.NOT_INTERESTED || 0}</span>
+                </div>
+                <div className="bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg p-2.5 border border-amber-200 shadow-sm">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50"></span>
+                    <span className="text-[10px] text-amber-700 uppercase font-medium">No Answer</span>
+                  </div>
+                  <span className="text-xl font-bold text-amber-700">{dashboardStats?.outcomes?.NO_ANSWER || 0}</span>
+                </div>
+                <div className="bg-gradient-to-br from-blue-100 to-indigo-100 rounded-lg p-2.5 border border-blue-200 shadow-sm">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50"></span>
+                    <span className="text-[10px] text-blue-700 uppercase font-medium">Callbacks</span>
+                  </div>
+                  <span className="text-xl font-bold text-blue-700">{dashboardStats?.outcomes?.CALLBACK || dashboardStats?.outcomes?.CALLBACK_REQUESTED || 0}</span>
+                </div>
+                <div className="bg-gradient-to-br from-cyan-100 to-sky-100 rounded-lg p-2.5 border border-cyan-200 shadow-sm">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 shadow-sm shadow-cyan-500/50"></span>
+                    <span className="text-[10px] text-cyan-700 uppercase font-medium">Follow-ups</span>
+                  </div>
+                  <span className="text-xl font-bold text-cyan-700">{dashboardStats?.today?.followUpsCompleted || 0}</span>
+                </div>
+                <div className="bg-gradient-to-br from-pink-100 to-rose-100 rounded-lg p-2.5 border border-pink-200 shadow-sm">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-pink-500 shadow-sm shadow-pink-500/50"></span>
+                    <span className="text-[10px] text-pink-700 uppercase font-medium">Converted</span>
+                  </div>
+                  <span className="text-xl font-bold text-pink-700">{dashboardStats?.leads?.converted || 0}</span>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Assigned Data & Pipeline */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-              <h3 className="text-xs font-semibold text-white uppercase tracking-wide mb-2">Assigned Data</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-gradient-to-br from-blue-100 via-indigo-100 to-blue-50 rounded-xl p-4 border border-blue-200 shadow-md">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-1.5 h-5 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
+                <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wide">Assigned Data</h3>
+              </div>
               <div className="space-y-2">
-                <Link to="/assigned-data" className="flex justify-between items-center hover:bg-slate-700/30 p-1 -mx-1 rounded transition-colors cursor-pointer">
-                  <span className="text-slate-400 text-xs">Total Assigned</span>
-                  <span className="text-white font-bold">{dashboardStats?.assignedData?.totalRawRecords || 0}</span>
+                <Link to="/assigned-data" className="flex justify-between items-center hover:bg-white/60 p-2 -mx-2 rounded-lg transition-colors cursor-pointer">
+                  <span className="text-blue-700 text-sm">Total Assigned</span>
+                  <span className="text-blue-900 font-bold text-lg">{dashboardStats?.assignedData?.totalRawRecords || 0}</span>
                 </Link>
-                <Link to="/assigned-data?status=pending" className="flex justify-between items-center hover:bg-slate-700/30 p-1 -mx-1 rounded transition-colors cursor-pointer">
-                  <span className="text-slate-400 text-xs">Pending Calls</span>
-                  <span className="text-amber-400 font-bold">{dashboardStats?.assignedData?.rawRecords || 0}</span>
+                <Link to="/assigned-data?status=pending" className="flex justify-between items-center hover:bg-white/60 p-2 -mx-2 rounded-lg transition-colors cursor-pointer">
+                  <span className="text-blue-700 text-sm">Pending Calls</span>
+                  <span className="text-amber-600 font-bold text-lg">{dashboardStats?.assignedData?.rawRecords || 0}</span>
                 </Link>
-                <Link to="/calling-queue" className="flex justify-between items-center hover:bg-slate-700/30 p-1 -mx-1 rounded transition-colors cursor-pointer">
-                  <span className="text-slate-400 text-xs">In Queue</span>
-                  <span className="text-blue-400 font-bold">{dashboardStats?.assignedData?.queueItems || 0}</span>
+                <Link to="/calling-queue" className="flex justify-between items-center hover:bg-white/60 p-2 -mx-2 rounded-lg transition-colors cursor-pointer">
+                  <span className="text-blue-700 text-sm">In Queue</span>
+                  <span className="text-indigo-600 font-bold text-lg">{dashboardStats?.assignedData?.queueItems || 0}</span>
                 </Link>
               </div>
             </div>
-            <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-              <h3 className="text-xs font-semibold text-white uppercase tracking-wide mb-2">Lead Pipeline</h3>
+            <div className="bg-gradient-to-br from-purple-100 via-fuchsia-100 to-pink-100 rounded-xl p-4 border border-purple-200 shadow-md">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-1.5 h-5 bg-gradient-to-b from-purple-500 to-fuchsia-500 rounded-full shadow-sm shadow-purple-500/50"></div>
+                <h3 className="text-xs font-bold text-purple-800 uppercase tracking-wide">Lead Pipeline</h3>
+              </div>
               <div className="space-y-1">
                 {waterfallData.length > 0 ? (
                   waterfallData.map((stage, idx) => (
                     <Link
                       key={idx}
                       to={`/leads?stage=${encodeURIComponent(stage.name)}`}
-                      className="flex justify-between items-center hover:bg-slate-700/30 p-1 -mx-1 rounded transition-colors cursor-pointer"
+                      className="flex justify-between items-center hover:bg-white/70 p-2.5 -mx-2 rounded-lg transition-all hover:shadow-sm cursor-pointer"
                     >
-                      <span className="text-xs" style={{ color: stage.fill }}>{stage.name}</span>
-                      <span className="text-white text-xs font-bold">{stage.value}</span>
+                      <span className="text-sm font-semibold" style={{ color: stage.fill }}>{stage.name}</span>
+                      <span className="text-purple-900 text-sm font-bold">{stage.value}</span>
                     </Link>
                   ))
                 ) : (
-                  <p className="text-slate-400 text-xs text-center py-2">No leads assigned yet</p>
+                  <p className="text-purple-400 text-sm text-center py-3 font-medium">No leads assigned yet</p>
                 )}
               </div>
             </div>
@@ -402,90 +564,229 @@ function TelecallerDashboard({ user, getGreeting, currentTime, lastRefresh, setL
         </div>
 
         {/* Right Column */}
-        <div className="space-y-3">
-          {/* Call Outcomes */}
-          <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-            <h3 className="text-xs font-semibold text-white uppercase tracking-wide mb-2">Call Outcomes</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { label: 'Connected', value: dashboardStats?.outcomes?.CONNECTED || 0, color: 'text-emerald-400', outcome: 'CONNECTED' },
-                { label: 'No Answer', value: dashboardStats?.outcomes?.NO_ANSWER || 0, color: 'text-amber-400', outcome: 'NO_ANSWER' },
-                { label: 'Busy', value: dashboardStats?.outcomes?.BUSY || 0, color: 'text-orange-400', outcome: 'BUSY' },
-                { label: 'Failed', value: dashboardStats?.outcomes?.FAILED || 0, color: 'text-red-400', outcome: 'FAILED' },
-              ].map((item, idx) => (
-                <Link
-                  key={idx}
-                  to={`/call-logs?outcome=${item.outcome}`}
-                  className="text-center p-2 bg-slate-700/30 hover:bg-slate-700/50 rounded transition-colors cursor-pointer"
-                >
-                  <p className={`text-lg font-bold ${item.color}`}>{item.value}</p>
-                  <p className="text-[10px] text-slate-400">{item.label}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-
+        <div className="space-y-4">
           {/* Pending Follow-ups List */}
-          <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-            <h3 className="text-xs font-semibold text-white uppercase tracking-wide mb-2">Pending Follow-ups</h3>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
+          <div className="bg-gradient-to-br from-amber-100 via-orange-100 to-yellow-100 rounded-xl p-4 border border-amber-200 shadow-md">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1.5 h-5 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full shadow-sm shadow-amber-500/50"></div>
+              <h3 className="text-xs font-bold text-amber-800 uppercase tracking-wide">Pending Follow-ups</h3>
+            </div>
+            <div className="space-y-2 max-h-52 overflow-y-auto">
               {dashboardStats?.pendingFollowUpsList && dashboardStats.pendingFollowUpsList.length > 0 ? (
                 dashboardStats.pendingFollowUpsList.map((followUp) => (
                   <Link
                     key={followUp.id}
                     to={`/leads/${followUp.leadId}`}
-                    className="block p-2 bg-slate-700/30 hover:bg-slate-700/50 rounded transition-colors"
+                    className="block p-3 bg-white/80 hover:bg-white rounded-lg transition-all hover:shadow-md border border-amber-200 shadow-sm"
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="text-white text-xs font-medium">{followUp.leadName}</p>
+                        <p className="text-amber-900 text-sm font-semibold">{followUp.leadName}</p>
                         {followUp.phone && (
-                          <p className="text-slate-400 text-[10px]">{followUp.phone}</p>
+                          <p className="text-amber-600 text-xs font-medium">{followUp.phone}</p>
                         )}
                       </div>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                        followUp.type === 'scheduled' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'
+                      <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold shadow-sm ${
+                        followUp.type === 'scheduled' ? 'bg-gradient-to-r from-emerald-400 to-green-500 text-white' : 'bg-gradient-to-r from-red-400 to-rose-500 text-white'
                       }`}>
-                        {followUp.type === 'scheduled' ? 'Scheduled' : 'Needs Attention'}
+                        {followUp.type === 'scheduled' ? 'Scheduled' : 'Overdue'}
                       </span>
                     </div>
                     {followUp.scheduledAt && (
-                      <p className="text-emerald-400 text-[10px] mt-1">
+                      <p className="text-orange-600 text-xs mt-1.5 font-bold">
                         {new Date(followUp.scheduledAt).toLocaleString('en-IN', {
                           day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
                         })}
                       </p>
                     )}
                     {followUp.notes && (
-                      <p className="text-slate-500 text-[10px] mt-0.5 truncate">{followUp.notes}</p>
+                      <p className="text-amber-500 text-xs mt-1 truncate font-medium">{followUp.notes}</p>
                     )}
                   </Link>
                 ))
               ) : (
-                <p className="text-slate-400 text-xs text-center py-2">No pending follow-ups</p>
+                <p className="text-amber-500 text-sm text-center py-4 font-medium">No pending follow-ups</p>
               )}
             </div>
           </div>
 
           {/* Quick Actions */}
-          <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-            <h3 className="text-xs font-semibold text-white uppercase tracking-wide mb-2">Quick Actions</h3>
+          <div className="bg-gradient-to-br from-indigo-100 via-violet-100 to-purple-100 rounded-xl p-4 border border-indigo-200 shadow-md">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1.5 h-5 bg-gradient-to-b from-indigo-500 to-violet-500 rounded-full shadow-sm shadow-indigo-500/50"></div>
+              <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wide">Quick Actions</h3>
+            </div>
             <div className="space-y-2">
-              <Link to="/assigned-data" className="flex items-center gap-2 p-2 bg-blue-500/20 hover:bg-blue-500/30 rounded text-blue-400 text-xs">
-                <PhoneIcon className="w-4 h-4" /> Start Calling
+              <Link to="/assigned-data" className="flex items-center gap-2 p-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 rounded-lg text-white text-sm font-bold shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-[1.02] transition-all">
+                <PhoneIcon className="w-5 h-5" /> Start Calling
               </Link>
-              <Link to="/leads?pendingFollowUp=true" className="flex items-center gap-2 p-2 bg-amber-500/20 hover:bg-amber-500/30 rounded text-amber-400 text-xs">
-                <ArrowPathIcon className="w-4 h-4" /> View All Follow-ups
+              <Link to="/leads?pendingFollowUp=true" className="flex items-center gap-2 p-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 rounded-lg text-white text-sm font-bold shadow-lg shadow-amber-500/30 hover:shadow-xl hover:shadow-amber-500/40 hover:scale-[1.02] transition-all">
+                <ArrowPathIcon className="w-5 h-5" /> View All Follow-ups
               </Link>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Call History Section */}
+      <div className="mt-4 bg-gradient-to-br from-slate-100 via-gray-100 to-zinc-100 rounded-xl p-4 border border-slate-200 shadow-md">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-5 bg-gradient-to-b from-slate-500 to-gray-600 rounded-full shadow-sm shadow-slate-500/50"></div>
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Recent Call History</h3>
+          </div>
+          <span className="text-xs font-semibold text-slate-500 bg-white px-2 py-1 rounded-full border border-slate-200">{callHistory.length} calls</span>
+        </div>
+
+        {callHistory.length > 0 ? (
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {callHistory.map((call) => (
+              <div
+                key={call.id}
+                onClick={() => setSelectedCall(call)}
+                className="bg-white/80 hover:bg-white rounded-lg p-3 border border-slate-200 hover:border-slate-300 hover:shadow-md cursor-pointer transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-xs font-bold">
+                          {(call.contactName || call.lead?.firstName || call.phoneNumber).charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">
+                          {call.contactName || (call.lead ? `${call.lead.firstName} ${call.lead.lastName || ''}`.trim() : call.phoneNumber)}
+                        </p>
+                        <p className="text-xs text-slate-500">{call.phoneNumber}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <div className="text-right">
+                      <p className="text-sm font-mono font-bold text-slate-700">{formatDuration(call.duration)}</p>
+                      <p className="text-[10px] text-slate-400">{formatCallDate(call.createdAt)}</p>
+                    </div>
+                    {call.outcome && (
+                      <span className={`text-[10px] px-2 py-1 rounded-full font-bold shadow-sm ${getOutcomeColor(call.outcome)}`}>
+                        {call.outcome.replace('_', ' ')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <div className="w-16 h-16 bg-slate-200 rounded-full mx-auto flex items-center justify-center mb-3">
+              <PhoneIcon className="w-8 h-8 text-slate-400" />
+            </div>
+            <p className="text-slate-500 font-medium">No calls recorded yet</p>
+            <p className="text-slate-400 text-xs mt-1">Start making calls to see your history here</p>
+          </div>
+        )}
+      </div>
+
+      {/* Call Detail Modal */}
+      {selectedCall && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedCall(null)}>
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white">Call Details</h2>
+              <button
+                onClick={() => setSelectedCall(null)}
+                className="p-1.5 hover:bg-white/20 rounded-full transition-colors"
+              >
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Contact Info */}
+              <div className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-xl p-4 text-center border border-slate-200">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full mx-auto flex items-center justify-center mb-3 shadow-lg shadow-blue-500/30">
+                  <span className="text-2xl font-bold text-white">
+                    {(selectedCall.contactName || selectedCall.phoneNumber).charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <h3 className="font-bold text-slate-800 text-lg">
+                  {selectedCall.contactName || (selectedCall.lead ? `${selectedCall.lead.firstName} ${selectedCall.lead.lastName || ''}`.trim() : 'Unknown')}
+                </h3>
+                <p className="text-slate-500">{selectedCall.phoneNumber}</p>
+              </div>
+
+              {/* Call Stats */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-gradient-to-br from-violet-100 to-purple-100 rounded-xl p-3 text-center border border-violet-200">
+                  <div className="text-lg font-bold text-violet-700">{formatDuration(selectedCall.duration)}</div>
+                  <div className="text-[10px] text-violet-500 font-medium uppercase">Duration</div>
+                </div>
+                <div className={`rounded-xl p-3 text-center border ${
+                  selectedCall.outcome === 'INTERESTED' || selectedCall.outcome === 'CONVERTED'
+                    ? 'bg-gradient-to-br from-emerald-100 to-green-100 border-emerald-200'
+                    : selectedCall.outcome === 'NOT_INTERESTED'
+                    ? 'bg-gradient-to-br from-red-100 to-rose-100 border-red-200'
+                    : 'bg-gradient-to-br from-amber-100 to-orange-100 border-amber-200'
+                }`}>
+                  <div className={`text-lg font-bold ${
+                    selectedCall.outcome === 'INTERESTED' || selectedCall.outcome === 'CONVERTED'
+                      ? 'text-emerald-700'
+                      : selectedCall.outcome === 'NOT_INTERESTED'
+                      ? 'text-red-700'
+                      : 'text-amber-700'
+                  }`}>
+                    {selectedCall.outcome?.replace('_', ' ') || '-'}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-medium uppercase">Outcome</div>
+                </div>
+                <div className="bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl p-3 text-center border border-blue-200">
+                  <div className={`text-lg font-bold ${getSentimentEmoji(selectedCall.sentiment).color}`}>
+                    {selectedCall.sentiment || '-'}
+                  </div>
+                  <div className="text-[10px] text-blue-500 font-medium uppercase">Sentiment</div>
+                </div>
+              </div>
+
+              {/* Summary */}
+              {selectedCall.summary && (
+                <div>
+                  <h4 className="font-bold text-slate-700 mb-2 text-sm">Call Summary</h4>
+                  <div className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-xl p-4 text-slate-600 text-sm border border-slate-200">
+                    {selectedCall.summary}
+                  </div>
+                </div>
+              )}
+
+              {/* Timestamp */}
+              <div className="text-center text-slate-400 text-sm">
+                {new Date(selectedCall.createdAt).toLocaleString()}
+              </div>
+
+              {/* Call Again Button */}
+              {selectedCall.lead && (
+                <Link
+                  to={`/leads/${selectedCall.lead.id}`}
+                  onClick={() => setSelectedCall(null)}
+                  className="block w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-center rounded-xl font-bold shadow-lg shadow-green-500/30 transition-all hover:shadow-xl hover:shadow-green-500/40"
+                >
+                  View Lead Details
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
-      <div className="flex items-center justify-between text-[10px] text-slate-500 mt-3">
-        <span>Last updated: {lastRefresh.toLocaleTimeString()}</span>
-        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Real-time</span>
+      <div className="flex items-center justify-between text-xs mt-4 pt-3 border-t border-gray-200">
+        <span className="text-gray-500 font-medium">Last updated: {lastRefresh.toLocaleTimeString()}</span>
+        <span className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-100 to-green-100 px-3 py-1 rounded-full border border-emerald-200">
+          <span className="w-2 h-2 rounded-full bg-gradient-to-r from-emerald-500 to-green-500 animate-pulse shadow-sm shadow-emerald-500/50"></span>
+          <span className="text-emerald-700 font-bold">Real-time</span>
+        </span>
       </div>
     </div>
   );

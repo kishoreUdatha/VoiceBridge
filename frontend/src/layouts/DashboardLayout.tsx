@@ -230,9 +230,9 @@ const communicationNavigation: NavItem[] = [
 
 // Calling - Voice & AI Calls
 const voiceAINavigation: NavItem[] = [
-  { name: 'Call Center', href: '/outbound-calls', icon: PhoneIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'telecaller'], permission: 'calls_view' },
+  { name: 'Outbound Calls', href: '/outbound-calls', icon: PhoneIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'telecaller', 'counselor'] }, // All roles - has AI analysis
   { name: 'AI Voice Agents', href: '/voice-ai', icon: SparklesIcon, roles: ['super_admin', 'admin', 'manager'], permission: 'voice_ai_view' },
-  { name: 'Call Queue', href: '/telecaller-queue', icon: QueueListIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead', 'telecaller'], permission: 'calls_view' },
+  { name: 'Call Queue', href: '/telecaller-queue', icon: QueueListIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'], permission: 'calls_view' },
   { name: 'Call Monitoring', href: '/call-monitoring', icon: PhoneIcon, roles: ['super_admin', 'admin', 'manager'], permission: 'calls_view' },
 ];
 
@@ -243,12 +243,10 @@ const dataNavigation: NavItem[] = [
   { name: 'Export Data', href: '/export', icon: ArrowDownTrayIcon, roles: ['super_admin', 'admin', 'manager'], permission: 'leads_export' },
 ];
 
-// Reports - Analytics & Insights
+// Reports - Analytics & Insights (consolidated - all reports accessible from main page)
 const getAnalyticsNavigation = (industry: string): NavItem[] => [
-  { name: 'Analytics', href: '/analytics', icon: PresentationChartLineIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'], permission: 'reports_view' },
-  { name: 'Reports', href: '/reports', icon: ChartBarIcon, roles: ['super_admin', 'admin', 'manager'], permission: 'reports_view' },
-  { name: `${getLabel(industry, 'team')} Performance`, href: '/reports/user-performance', icon: TrophyIcon, roles: ['super_admin', 'admin', 'manager'], permission: 'reports_view' },
-  { name: 'Revenue', href: '/reports/payments', icon: CurrencyRupeeIcon, roles: ['super_admin', 'admin', 'manager'], permission: 'reports_view' },
+  { name: 'All Reports', href: '/reports', icon: ChartBarIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'], permission: 'reports_view' },
+  { name: 'Payments', href: '/reports/payments', icon: CurrencyRupeeIcon, roles: ['super_admin', 'admin', 'manager'], permission: 'reports_view' },
   { name: 'Audit Logs', href: '/reports/audit', icon: EyeIcon, roles: ['super_admin', 'admin'], permission: 'reports_view' },
 ];
 
@@ -552,11 +550,13 @@ export default function DashboardLayout() {
   // Check if a section should be shown for this industry (Super Admin / Admin sees all)
   const isSectionAllowed = useCallback((sectionKey: string) => {
     if (isSuperAdmin || isAdmin) return allSections.includes(sectionKey);
+    // Telecallers/counselors see voiceAI section for "My Calls"
+    if (sectionKey === 'voiceAI' && (userRole === 'telecaller' || userRole === 'counselor')) return true;
     return allowedSections.includes(sectionKey);
-  }, [isSuperAdmin, isAdmin, allowedSections]);
+  }, [isSuperAdmin, isAdmin, allowedSections, userRole]);
 
-  // Check if telecaller/counselor on dashboard (for dark theme header)
-  const isTelecallerDashboard = (userRole === 'telecaller' || userRole === 'counselor') && location.pathname === '/dashboard';
+  // Check if telecaller/counselor on dashboard (no longer used for dark theme - now white)
+  const isTelecallerDashboard = false; // Disabled dark theme for telecaller dashboard
 
   // Filter navigation based on user role AND permissions
   const filterByRole = useCallback((items: NavItem[], alwaysShowNames: string[] = []) => {

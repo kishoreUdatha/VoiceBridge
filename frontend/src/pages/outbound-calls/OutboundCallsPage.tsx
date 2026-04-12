@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import {
   PhoneIcon,
   PlusIcon,
@@ -14,6 +15,7 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';
+import { RootState } from '../../store';
 
 interface Campaign {
   id: string;
@@ -108,13 +110,27 @@ const statusLabels: Record<string, string> = {
 
 export const OutboundCallsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useSelector((state: RootState) => state.auth);
+
+  // Role-based access:
+  // - super_admin, admin: see ALL calls
+  // - manager, team_lead: see calls from their team members
+  // - telecaller, counselor: see only their own calls
+  const isTelecaller = user?.role === 'telecaller' || user?.role === 'counselor';
+  const isFullAdmin = user?.role === 'super_admin' || user?.role === 'admin';
+  const isTeamManager = user?.role === 'manager' || user?.role === 'team_lead';
+  const canViewAllCalls = isFullAdmin || isTeamManager;
+
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [calls, setCalls] = useState<OutboundCall[]>([]);
   const [telecallerCalls, setTelecallerCalls] = useState<TelecallerCall[]>([]);
   const [telecallerCallsTotal, setTelecallerCallsTotal] = useState(0);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'campaigns' | 'calls' | 'telecaller-calls'>('campaigns');
+  // Telecallers go directly to their calls tab, managers/team leads see telecaller-calls tab
+  const [activeTab, setActiveTab] = useState<'campaigns' | 'calls' | 'telecaller-calls'>(
+    isTelecaller ? 'telecaller-calls' : (isTeamManager ? 'telecaller-calls' : 'campaigns')
+  );
 
   // Telecaller calls filters
   const [telecallers, setTelecallers] = useState<Telecaller[]>([]);
@@ -128,19 +144,30 @@ export const OutboundCallsPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-    fetchTelecallers();
-  }, []);
+    // Fetch telecallers list for anyone who can view all calls (admins, managers, team leads)
+    if (canViewAllCalls) {
+      fetchTelecallers();
+    }
+  }, [canViewAllCalls]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       // Add cache-busting to force fresh data
       const timestamp = Date.now();
+
+      // Use different endpoint based on role:
+      // - telecallers: /telecaller/calls (own calls only)
+      // - managers/team_leads/admins: /telecaller/all-calls (backend filters based on role)
+      const telecallerCallsEndpoint = isTelecaller
+        ? `/telecaller/calls?limit=50&_t=${timestamp}`
+        : `/telecaller/all-calls?limit=50&_t=${timestamp}`;
+
       const [campaignsRes, callsRes, analyticsRes, telecallerCallsRes] = await Promise.all([
         api.get('/outbound-calls/campaigns'),
         api.get('/outbound-calls/calls?limit=10'),
         api.get('/outbound-calls/analytics'),
-        api.get(`/telecaller/all-calls?limit=50&_t=${timestamp}`).catch((err) => {
+        api.get(telecallerCallsEndpoint).catch((err) => {
           console.error('Telecaller calls fetch error:', err);
           return { data: { success: false, error: err.message } };
         }),
@@ -206,13 +233,18 @@ export const OutboundCallsPage: React.FC = () => {
       setTcLoading(true);
       const params = new URLSearchParams();
       params.append('limit', '100');
-      if (tcFilterTelecaller) params.append('telecallerId', tcFilterTelecaller);
+      // Apply telecaller filter for admins/managers/team_leads who can view all calls
+      if (canViewAllCalls && tcFilterTelecaller) params.append('telecallerId', tcFilterTelecaller);
       if (tcFilterOutcome) params.append('outcome', tcFilterOutcome);
       if (tcFilterDateFrom) params.append('dateFrom', tcFilterDateFrom);
       if (tcFilterDateTo) params.append('dateTo', tcFilterDateTo);
       params.append('_t', Date.now().toString());
 
-      const res = await api.get(`/telecaller/all-calls?${params.toString()}`);
+      // Use different endpoint based on role:
+      // - telecallers: /telecaller/calls (own calls only)
+      // - managers/team_leads/admins: /telecaller/all-calls (backend filters based on role)
+      const endpoint = isTelecaller ? '/telecaller/calls' : '/telecaller/all-calls';
+      const res = await api.get(`${endpoint}?${params.toString()}`);
       if (res.data.success) {
         let calls = res.data.data?.calls || [];
         // Client-side search filter
@@ -285,27 +317,36 @@ export const OutboundCallsPage: React.FC = () => {
     <div>
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">AI Calling Campaigns</h1>
+          <h1 className="text-lg font-semibold text-gray-900">
+            {isTelecaller ? 'My Calls' : (isTeamManager ? 'Team Calls' : 'AI Calling Campaigns')}
+          </h1>
           <p className="text-xs text-gray-500">
-            Manage AI-powered outbound calling campaigns
+            {isTelecaller
+              ? 'View your call history and AI analysis'
+              : (isTeamManager
+                ? 'View calls from your team members'
+                : 'Manage AI-powered outbound calling campaigns')}
           </p>
         </div>
-        <div className="flex gap-1.5">
-          <button
-            onClick={() => navigate('/outbound-calls/single')}
-            className="btn btn-outline btn-sm flex items-center gap-1 text-xs"
-          >
-            <PhoneIcon className="h-4 w-4" />
-            Single Call
-          </button>
-          <button
-            onClick={() => navigate('/outbound-calls/campaigns/create')}
-            className="btn btn-primary btn-sm flex items-center gap-1 text-xs"
-          >
-            <PlusIcon className="h-4 w-4" />
-            New Campaign
-          </button>
-        </div>
+        {/* Only show campaign controls for full admins */}
+        {isFullAdmin && (
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => navigate('/outbound-calls/single')}
+              className="btn btn-outline btn-sm flex items-center gap-1 text-xs"
+            >
+              <PhoneIcon className="h-4 w-4" />
+              Single Call
+            </button>
+            <button
+              onClick={() => navigate('/outbound-calls/campaigns/create')}
+              className="btn btn-primary btn-sm flex items-center gap-1 text-xs"
+            >
+              <PlusIcon className="h-4 w-4" />
+              New Campaign
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -338,44 +379,71 @@ export const OutboundCallsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200 mb-4">
-        <nav className="-mb-px flex gap-4">
-          <button
-            onClick={() => setActiveTab('campaigns')}
-            className={`py-2 px-1 border-b-2 text-xs font-medium ${
-              activeTab === 'campaigns'
-                ? 'border-primary-600 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <CpuChipIcon className="h-4 w-4 inline mr-1" />
-            AI Campaigns ({campaigns.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('calls')}
-            className={`py-2 px-1 border-b-2 text-xs font-medium ${
-              activeTab === 'calls'
-                ? 'border-primary-600 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <CpuChipIcon className="h-4 w-4 inline mr-1" />
-            AI Calls ({calls.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('telecaller-calls')}
-            className={`py-2 px-1 border-b-2 text-xs font-medium ${
-              activeTab === 'telecaller-calls'
-                ? 'border-primary-600 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <UserGroupIcon className="h-4 w-4 inline mr-1" />
-            Telecaller Calls ({telecallerCallsTotal})
-          </button>
-        </nav>
-      </div>
+      {/* Tabs based on role */}
+      {isTelecaller ? (
+        // Telecallers only see their own calls tab
+        <div className="border-b border-gray-200 mb-4">
+          <nav className="-mb-px flex gap-4">
+            <button
+              className="py-2 px-1 border-b-2 text-xs font-medium border-primary-600 text-primary-600"
+            >
+              <PhoneIcon className="h-4 w-4 inline mr-1" />
+              My Calls ({telecallerCallsTotal})
+            </button>
+          </nav>
+        </div>
+      ) : isTeamManager ? (
+        // Managers/Team Leads see team calls tab
+        <div className="border-b border-gray-200 mb-4">
+          <nav className="-mb-px flex gap-4">
+            <button
+              className="py-2 px-1 border-b-2 text-xs font-medium border-primary-600 text-primary-600"
+            >
+              <UserGroupIcon className="h-4 w-4 inline mr-1" />
+              Team Calls ({telecallerCallsTotal})
+            </button>
+          </nav>
+        </div>
+      ) : (
+        // Full admins see all tabs
+        <div className="border-b border-gray-200 mb-4">
+          <nav className="-mb-px flex gap-4">
+            <button
+              onClick={() => setActiveTab('campaigns')}
+              className={`py-2 px-1 border-b-2 text-xs font-medium ${
+                activeTab === 'campaigns'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <CpuChipIcon className="h-4 w-4 inline mr-1" />
+              AI Campaigns ({campaigns.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('calls')}
+              className={`py-2 px-1 border-b-2 text-xs font-medium ${
+                activeTab === 'calls'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <CpuChipIcon className="h-4 w-4 inline mr-1" />
+              AI Calls ({calls.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('telecaller-calls')}
+              className={`py-2 px-1 border-b-2 text-xs font-medium ${
+                activeTab === 'telecaller-calls'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <UserGroupIcon className="h-4 w-4 inline mr-1" />
+              Telecaller Calls ({telecallerCallsTotal})
+            </button>
+          </nav>
+        </div>
+      )}
 
       {/* Campaigns Table */}
       {activeTab === 'campaigns' && (
@@ -614,7 +682,9 @@ export const OutboundCallsPage: React.FC = () => {
       <div className="card">
         <div className="card-header py-2">
           <div className="flex justify-between items-center mb-3">
-            <h2 className="text-sm font-medium">Telecaller Calls</h2>
+            <h2 className="text-sm font-medium">
+              {isTelecaller ? 'My Calls' : (isTeamManager ? 'Team Calls' : 'Telecaller Calls')}
+            </h2>
             <span className="text-[10px] text-gray-500">{telecallerCallsTotal} total</span>
           </div>
           {/* Filters */}
@@ -629,16 +699,19 @@ export const OutboundCallsPage: React.FC = () => {
                 className="w-full pl-7 pr-2 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary-500"
               />
             </div>
-            <select
-              value={tcFilterTelecaller}
-              onChange={(e) => setTcFilterTelecaller(e.target.value)}
-              className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
-            >
-              <option value="">All Telecallers</option>
-              {telecallers.map((tc) => (
-                <option key={tc.id} value={tc.id}>{tc.firstName} {tc.lastName}</option>
-              ))}
-            </select>
+            {/* Show telecaller filter for admins, managers, and team leads */}
+            {canViewAllCalls && (
+              <select
+                value={tcFilterTelecaller}
+                onChange={(e) => setTcFilterTelecaller(e.target.value)}
+                className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="">{isTeamManager ? 'All Team Members' : 'All Telecallers'}</option>
+                {telecallers.map((tc) => (
+                  <option key={tc.id} value={tc.id}>{tc.firstName} {tc.lastName}</option>
+                ))}
+              </select>
+            )}
             <select
               value={tcFilterOutcome}
               onChange={(e) => setTcFilterOutcome(e.target.value)}
@@ -682,7 +755,10 @@ export const OutboundCallsPage: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Contact</th>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Telecaller</th>
+                {/* Show telecaller column for admins, managers, team leads */}
+                {canViewAllCalls && (
+                  <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Telecaller</th>
+                )}
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Duration</th>
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Outcome</th>
@@ -694,15 +770,15 @@ export const OutboundCallsPage: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {tcLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan={canViewAllCalls ? 8 : 7} className="px-4 py-6 text-center text-gray-500">
                     <p className="text-xs">Loading...</p>
                   </td>
                 </tr>
               ) : telecallerCalls.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan={canViewAllCalls ? 8 : 7} className="px-4 py-6 text-center text-gray-500">
                     <UserGroupIcon className="h-6 w-6 mx-auto text-gray-300 mb-1" />
-                    <p className="text-xs">No telecaller calls found</p>
+                    <p className="text-xs">{isTelecaller ? 'No calls found' : (isTeamManager ? 'No team calls found' : 'No telecaller calls found')}</p>
                   </td>
                 </tr>
               ) : (
@@ -714,9 +790,12 @@ export const OutboundCallsPage: React.FC = () => {
                       </p>
                       <p className="text-[10px] text-gray-500">{call.phoneNumber}</p>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-600">
-                      {call.telecaller ? `${call.telecaller.firstName} ${call.telecaller.lastName}` : '-'}
-                    </td>
+                    {/* Show telecaller column for admins, managers, team leads */}
+                    {canViewAllCalls && (
+                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-600">
+                        {call.telecaller ? `${call.telecaller.firstName} ${call.telecaller.lastName}` : '-'}
+                      </td>
+                    )}
                     <td className="px-3 py-2 whitespace-nowrap">
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                         call.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
