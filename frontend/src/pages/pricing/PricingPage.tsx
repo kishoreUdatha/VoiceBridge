@@ -10,12 +10,13 @@ import {
   PricingCards,
   TrustBadges,
   ComparisonToggle,
-  ComparisonTable,
+  CategoryComparisonTable,
+  AddOnsSection,
   FAQSection,
   CTASection,
   Footer,
 } from './components';
-import { PLANS, FEATURE_COMPARISON, FAQ_ITEMS, TRUST_BADGES } from './pricing.constants';
+import { PLANS, FEATURE_CATEGORIES, FAQ_ITEMS, TRUST_BADGES, ADD_ONS } from './pricing.constants';
 
 export default function PricingPage() {
   const {
@@ -45,7 +46,9 @@ export default function PricingPage() {
         onToggle={toggleComparison}
       />
 
-      {showComparison && <ComparisonTable features={FEATURE_COMPARISON} />}
+      {showComparison && <CategoryComparisonTable categories={FEATURE_CATEGORIES} />}
+
+      <AddOnsSection addOns={ADD_ONS} />
 
       <FAQSection items={FAQ_ITEMS} />
 

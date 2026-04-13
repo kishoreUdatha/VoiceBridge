@@ -51,6 +51,7 @@ interface TelecallerCall {
   status: string;
   duration: number | null;
   outcome: string | null;
+  callType?: 'OUTBOUND' | 'INBOUND';
   notes?: string;
   transcript?: string;
   sentiment?: string;
@@ -77,6 +78,17 @@ interface Analytics {
   leadsGenerated: number;
   conversionRate: string | number;
   avgDuration: number;
+  // New stats for telecallers
+  totalConnected?: number;
+  totalUnconnected?: number;
+  totalLost?: number;
+  todayPerformance?: {
+    calls: number;
+    connected: number;
+    unconnected: number;
+    lost: number;
+    interested: number;
+  };
 }
 
 const campaignStatusColors: Record<string, { bg: string; text: string; label: string }> = {
@@ -126,6 +138,8 @@ export const OutboundCallsPage: React.FC = () => {
   const [telecallerCalls, setTelecallerCalls] = useState<TelecallerCall[]>([]);
   const [telecallerCallsTotal, setTelecallerCallsTotal] = useState(0);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [aiCallsAnalytics, setAiCallsAnalytics] = useState<Analytics | null>(null);
+  const [telecallerAnalytics, setTelecallerAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   // Telecallers go directly to their calls tab, managers/team leads see telecaller-calls tab
   const [activeTab, setActiveTab] = useState<'campaigns' | 'calls' | 'telecaller-calls'>(
@@ -157,16 +171,22 @@ export const OutboundCallsPage: React.FC = () => {
       const timestamp = Date.now();
 
       // Use different endpoint based on role:
-      // - telecallers: /telecaller/calls (own calls only)
+      // - telecallers: /telecaller/calls (own calls only) + /telecaller/stats (own stats)
       // - managers/team_leads/admins: /telecaller/all-calls (backend filters based on role)
       const telecallerCallsEndpoint = isTelecaller
         ? `/telecaller/calls?limit=50&_t=${timestamp}`
         : `/telecaller/all-calls?limit=50&_t=${timestamp}`;
 
+      // Use telecaller-specific stats for telecallers/counselors
+      // For admins, use source=ai to get only AI call analytics (not combined with telecaller calls)
+      const analyticsEndpoint = isTelecaller
+        ? `/telecaller/stats?_t=${timestamp}`
+        : `/outbound-calls/analytics?source=ai&_t=${timestamp}`;
+
       const [campaignsRes, callsRes, analyticsRes, telecallerCallsRes] = await Promise.all([
         api.get('/outbound-calls/campaigns'),
         api.get('/outbound-calls/calls?limit=10'),
-        api.get('/outbound-calls/analytics'),
+        api.get(analyticsEndpoint),
         api.get(telecallerCallsEndpoint).catch((err) => {
           console.error('Telecaller calls fetch error:', err);
           return { data: { success: false, error: err.message } };
@@ -175,18 +195,98 @@ export const OutboundCallsPage: React.FC = () => {
 
       if (campaignsRes.data.success) setCampaigns(campaignsRes.data.data);
       if (callsRes.data.success) setCalls(callsRes.data.data.calls || []);
-      if (analyticsRes.data.success) setAnalytics(analyticsRes.data.data);
+
+      // Handle analytics based on role
+      if (analyticsRes.data.success) {
+        if (isTelecaller) {
+          // Transform telecaller stats to match Analytics interface
+          const tcStats = analyticsRes.data.data;
+          const callsByOutcome = tcStats.callsByOutcome || {};
+          const answeredCalls = Object.entries(callsByOutcome)
+            .filter(([outcome]) => !['NO_ANSWER', 'BUSY', 'VOICEMAIL', null].includes(outcome))
+            .reduce((sum, [, count]) => sum + (count as number), 0);
+
+          // Leads = INTERESTED calls (potential leads)
+          // Conversion = only CONVERTED (won) calls
+          const interestedCalls = callsByOutcome['INTERESTED'] || 0;
+          const convertedCalls = callsByOutcome['CONVERTED'] || 0;
+
+          const telecallerStats = {
+            totalCalls: tcStats.totalCalls || 0,
+            completedCalls: tcStats.totalCalls || 0,
+            answeredCalls: answeredCalls,
+            answerRate: tcStats.totalCalls > 0
+              ? ((answeredCalls / tcStats.totalCalls) * 100).toFixed(1)
+              : '0.0',
+            leadsGenerated: interestedCalls + convertedCalls,
+            conversionRate: tcStats.totalCalls > 0
+              ? Math.round((convertedCalls / tcStats.totalCalls) * 100)
+              : 0,
+            avgDuration: tcStats.averageCallDuration || 0,
+            totalConnected: tcStats.totalConnected || 0,
+            totalUnconnected: tcStats.totalUnconnected || 0,
+            totalLost: tcStats.totalLost || 0,
+            todayPerformance: tcStats.todayPerformance,
+          };
+          setAnalytics(telecallerStats);
+          setTelecallerAnalytics(telecallerStats);
+        } else {
+          // For admin - this is AI calls analytics
+          setAiCallsAnalytics(analyticsRes.data.data);
+          setAnalytics(analyticsRes.data.data);
+        }
+      }
 
       // Debug telecaller calls response
       console.log('Full telecaller response:', telecallerCallsRes);
       console.log('Telecaller data:', telecallerCallsRes.data);
 
       if (telecallerCallsRes.data.success) {
-        const calls = telecallerCallsRes.data.data?.calls || [];
+        const tcCalls = telecallerCallsRes.data.data?.calls || [];
         const total = telecallerCallsRes.data.data?.total || 0;
-        console.log(`Setting ${calls.length} telecaller calls, total: ${total}`);
-        setTelecallerCalls(calls);
+        console.log(`Setting ${tcCalls.length} telecaller calls, total: ${total}`);
+        setTelecallerCalls(tcCalls);
         setTelecallerCallsTotal(total);
+
+        // For admin - compute telecaller analytics from the calls data
+        if (!isTelecaller) {
+          const connectedOutcomes = ['INTERESTED', 'NOT_INTERESTED', 'CALLBACK_REQUESTED', 'CONVERTED', 'CONNECTED'];
+          const unconnectedOutcomes = ['NO_ANSWER', 'BUSY', 'VOICEMAIL'];
+
+          let connected = 0, unconnected = 0, lost = 0, totalDuration = 0, durationCount = 0;
+
+          tcCalls.forEach((call: TelecallerCall) => {
+            const outcome = call.outcome?.toUpperCase().replace(/ /g, '_') || '';
+            if (connectedOutcomes.includes(outcome)) connected++;
+            if (unconnectedOutcomes.includes(outcome)) unconnected++;
+            if (outcome === 'NOT_INTERESTED') lost++;
+            if (call.duration) {
+              totalDuration += call.duration;
+              durationCount++;
+            }
+          });
+
+          const converted = tcCalls.filter((c: TelecallerCall) =>
+            c.outcome?.toUpperCase().replace(/ /g, '_') === 'CONVERTED'
+          ).length;
+
+          const interested = tcCalls.filter((c: TelecallerCall) =>
+            ['INTERESTED', 'CONVERTED'].includes(c.outcome?.toUpperCase().replace(/ /g, '_') || '')
+          ).length;
+
+          setTelecallerAnalytics({
+            totalCalls: total,
+            completedCalls: total,
+            answeredCalls: connected,
+            answerRate: total > 0 ? ((connected / total) * 100).toFixed(1) : '0.0',
+            leadsGenerated: interested,
+            conversionRate: total > 0 ? Math.round((converted / total) * 100) : 0,
+            avgDuration: durationCount > 0 ? Math.round(totalDuration / durationCount) : 0,
+            totalConnected: connected,
+            totalUnconnected: unconnected,
+            totalLost: lost,
+          });
+        }
       } else {
         console.error('Telecaller calls failed:', telecallerCallsRes.data);
       }
@@ -274,6 +374,48 @@ export const OutboundCallsPage: React.FC = () => {
     }
   }, [tcFilterTelecaller, tcFilterOutcome, tcFilterDateFrom, tcFilterDateTo, activeTab]);
 
+  // Recalculate telecaller analytics when telecallerCalls changes
+  useEffect(() => {
+    if (!isTelecaller && telecallerCalls.length >= 0) {
+      const connectedOutcomes = ['INTERESTED', 'NOT_INTERESTED', 'CALLBACK_REQUESTED', 'CONVERTED', 'CONNECTED'];
+      const unconnectedOutcomes = ['NO_ANSWER', 'BUSY', 'VOICEMAIL'];
+
+      let connected = 0, unconnected = 0, lost = 0, totalDuration = 0, durationCount = 0;
+
+      telecallerCalls.forEach((call) => {
+        const outcome = call.outcome?.toUpperCase().replace(/ /g, '_') || '';
+        if (connectedOutcomes.includes(outcome)) connected++;
+        if (unconnectedOutcomes.includes(outcome)) unconnected++;
+        if (outcome === 'NOT_INTERESTED') lost++;
+        if (call.duration) {
+          totalDuration += call.duration;
+          durationCount++;
+        }
+      });
+
+      const converted = telecallerCalls.filter((c) =>
+        c.outcome?.toUpperCase().replace(/ /g, '_') === 'CONVERTED'
+      ).length;
+
+      const interested = telecallerCalls.filter((c) =>
+        ['INTERESTED', 'CONVERTED'].includes(c.outcome?.toUpperCase().replace(/ /g, '_') || '')
+      ).length;
+
+      setTelecallerAnalytics({
+        totalCalls: telecallerCallsTotal || telecallerCalls.length,
+        completedCalls: telecallerCallsTotal || telecallerCalls.length,
+        answeredCalls: connected,
+        answerRate: telecallerCallsTotal > 0 ? ((connected / telecallerCallsTotal) * 100).toFixed(1) : '0.0',
+        leadsGenerated: interested,
+        conversionRate: telecallerCallsTotal > 0 ? Math.round((converted / telecallerCallsTotal) * 100) : 0,
+        avgDuration: durationCount > 0 ? Math.round(totalDuration / durationCount) : 0,
+        totalConnected: connected,
+        totalUnconnected: unconnected,
+        totalLost: lost,
+      });
+    }
+  }, [telecallerCalls, telecallerCallsTotal, isTelecaller]);
+
   const clearTcFilters = () => {
     setTcFilterTelecaller('');
     setTcFilterOutcome('');
@@ -318,14 +460,19 @@ export const OutboundCallsPage: React.FC = () => {
       <div className="flex justify-between items-center mb-4">
         <div>
           <h1 className="text-lg font-semibold text-gray-900">
-            {isTelecaller ? 'My Calls' : (isTeamManager ? 'Team Calls' : 'AI Calling Campaigns')}
+            {isTelecaller ? 'My Calls' : (isTeamManager ? 'Team Calls' : (
+              activeTab === 'campaigns' ? 'AI Calling Campaigns' :
+              activeTab === 'calls' ? 'AI Calls' : 'Telecaller Calls'
+            ))}
           </h1>
           <p className="text-xs text-gray-500">
             {isTelecaller
               ? 'View your call history and AI analysis'
               : (isTeamManager
                 ? 'View calls from your team members'
-                : 'Manage AI-powered outbound calling campaigns')}
+                : (activeTab === 'campaigns' ? 'Manage AI-powered outbound calling campaigns' :
+                   activeTab === 'calls' ? 'View AI agent call history' :
+                   'View all telecaller call history'))}
           </p>
         </div>
         {/* Only show campaign controls for full admins */}
@@ -349,35 +496,217 @@ export const OutboundCallsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Stats Cards */}
-      {analytics && (
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
-          <div className="card p-2">
-            <p className="text-xs text-gray-500">Total Calls</p>
-            <p className="text-lg font-semibold text-gray-900">{analytics.totalCalls}</p>
-          </div>
-          <div className="card p-2">
-            <p className="text-xs text-gray-500">Answered</p>
-            <p className="text-lg font-semibold text-green-600">{analytics.answeredCalls}</p>
-          </div>
-          <div className="card p-2">
-            <p className="text-xs text-gray-500">Answer Rate</p>
-            <p className="text-lg font-semibold text-blue-600">{analytics.answerRate}%</p>
-          </div>
-          <div className="card p-2">
-            <p className="text-xs text-gray-500">Leads</p>
-            <p className="text-lg font-semibold text-purple-600">{analytics.leadsGenerated}</p>
-          </div>
-          <div className="card p-2">
-            <p className="text-xs text-gray-500">Conversion</p>
-            <p className="text-lg font-semibold text-primary-600">{analytics.conversionRate}%</p>
-          </div>
-          <div className="card p-2">
-            <p className="text-xs text-gray-500">Avg Duration</p>
-            <p className="text-lg font-semibold text-gray-900">{formatDuration(analytics.avgDuration)}</p>
-          </div>
-        </div>
-      )}
+      {/* Stats Cards - Tab-specific View */}
+      {(() => {
+        // For campaigns tab, show campaign summary stats
+        if (activeTab === 'campaigns') {
+          const totalContacts = campaigns.reduce((sum, c) => sum + c.totalContacts, 0);
+          const completedCalls = campaigns.reduce((sum, c) => sum + c.completedCalls, 0);
+          const successfulCalls = campaigns.reduce((sum, c) => sum + c.successfulCalls, 0);
+          const leadsGenerated = campaigns.reduce((sum, c) => sum + c.leadsGenerated, 0);
+          const runningCount = campaigns.filter(c => c.status === 'RUNNING').length;
+
+          return (
+            <div className="card p-3 mb-4">
+              <div className="grid grid-cols-6 gap-3">
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Campaigns</p>
+                  <p className="text-xl font-bold text-gray-900">{campaigns.length}</p>
+                  <p className="text-[10px] text-green-600 mt-0.5">{runningCount} Running</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Total Contacts</p>
+                  <p className="text-xl font-bold text-blue-600">{totalContacts}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Completed</p>
+                  <p className="text-xl font-bold text-green-600">{completedCalls}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Successful</p>
+                  <p className="text-xl font-bold text-emerald-600">{successfulCalls}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Leads</p>
+                  <p className="text-xl font-bold text-purple-600">{leadsGenerated}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Success Rate</p>
+                  <p className="text-xl font-bold text-primary-600">
+                    {completedCalls > 0 ? Math.round((successfulCalls / completedCalls) * 100) : 0}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // For AI Calls tab - show AI calls analytics
+        if (activeTab === 'calls') {
+          const aiStats = aiCallsAnalytics;
+          return (
+            <div className="card p-3 mb-4">
+              <div className="grid grid-cols-6 gap-3">
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Total Calls</p>
+                  <p className="text-xl font-bold text-gray-900">{aiStats?.totalCalls || 0}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Answered</p>
+                  <p className="text-xl font-bold text-green-600">{aiStats?.answeredCalls || 0}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Answer Rate</p>
+                  <p className="text-xl font-bold text-blue-600">{aiStats?.answerRate || 0}%</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Leads</p>
+                  <p className="text-xl font-bold text-purple-600">{aiStats?.leadsGenerated || 0}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Conversion</p>
+                  <p className="text-xl font-bold text-primary-600">{aiStats?.conversionRate || 0}%</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-1">Avg Duration</p>
+                  <p className="text-xl font-bold text-gray-900">{formatDuration(aiStats?.avgDuration || 0)}</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // For Telecaller Calls tab - compute stats directly from the calls with all outcomes
+        if (activeTab === 'telecaller-calls') {
+          // Count all outcomes
+          let interested = 0, notInterested = 0, callback = 0, converted = 0;
+          let noAnswer = 0, busy = 0, voicemail = 0, pending = 0;
+          let totalDuration = 0, durationCount = 0;
+
+          telecallerCalls.forEach((call) => {
+            const outcome = call.outcome?.toUpperCase().replace(/ /g, '_') || '';
+
+            switch (outcome) {
+              case 'INTERESTED': interested++; break;
+              case 'NOT_INTERESTED': notInterested++; break;
+              case 'CALLBACK_REQUESTED': case 'CALLBACK': callback++; break;
+              case 'CONVERTED': converted++; break;
+              case 'NO_ANSWER': noAnswer++; break;
+              case 'BUSY': busy++; break;
+              case 'VOICEMAIL': voicemail++; break;
+              case 'CONNECTED': interested++; break; // Count CONNECTED as interested
+              default: if (!outcome) pending++;
+            }
+
+            if (call.duration) {
+              totalDuration += call.duration;
+              durationCount++;
+            }
+          });
+
+          const connected = interested + notInterested + callback + converted;
+          const unconnected = noAnswer + busy + voicemail;
+
+          const lost = notInterested;
+
+          return (
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {/* Summary Card */}
+              <div className="card p-2.5 bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200">
+                <h4 className="text-[9px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Summary</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="text-lg font-bold text-slate-800">{telecallerCallsTotal}</p>
+                    <p className="text-[9px] text-slate-500">Total</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-purple-600">
+                      {telecallerCallsTotal > 0 ? Math.round((converted / telecallerCallsTotal) * 100) : 0}%
+                    </p>
+                    <p className="text-[9px] text-slate-500">Conversion</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-blue-600">
+                      {formatDuration(durationCount > 0 ? Math.round(totalDuration / durationCount) : 0)}
+                    </p>
+                    <p className="text-[9px] text-slate-500">Avg Duration</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-slate-400">{pending}</p>
+                    <p className="text-[9px] text-slate-500">Pending</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Connected Outcomes Card */}
+              <div className="card p-2.5 bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-[9px] font-semibold text-green-700 uppercase tracking-wide">Connected</h4>
+                  <span className="text-sm font-bold text-green-600">{connected}</span>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-600">Interested</span>
+                    <span className="text-xs font-semibold text-green-600 bg-green-100 px-1.5 py-0.5 rounded">{interested}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-600">Callback</span>
+                    <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">{callback}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-600">Converted</span>
+                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded">{converted}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Not Connected Card */}
+              <div className="card p-2.5 bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-[9px] font-semibold text-amber-700 uppercase tracking-wide">Not Connected</h4>
+                  <span className="text-sm font-bold text-amber-600">{unconnected}</span>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-600">No Answer</span>
+                    <span className="text-xs font-semibold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">{noAnswer}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-600">Busy</span>
+                    <span className="text-xs font-semibold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">{busy}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-600">Voicemail</span>
+                    <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{voicemail}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lost Card */}
+              <div className="card p-2.5 bg-gradient-to-br from-red-50 to-rose-50 border-red-200">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-[9px] font-semibold text-red-700 uppercase tracking-wide">Lost</h4>
+                  <span className="text-sm font-bold text-red-600">{lost}</span>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-600">Not Interested</span>
+                    <span className="text-xs font-semibold text-red-600 bg-red-100 px-1.5 py-0.5 rounded">{notInterested}</span>
+                  </div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-red-100">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] text-gray-500">Loss Rate</span>
+                    <span className="text-xs font-bold text-red-600">
+                      {telecallerCallsTotal > 0 ? Math.round((lost / telecallerCallsTotal) * 100) : 0}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+      })()}
 
       {/* Tabs based on role */}
       {isTelecaller ? (
@@ -760,6 +1089,7 @@ export const OutboundCallsPage: React.FC = () => {
                   <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Telecaller</th>
                 )}
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Type</th>
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Duration</th>
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Outcome</th>
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">AI Analysis</th>
@@ -770,13 +1100,13 @@ export const OutboundCallsPage: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {tcLoading ? (
                 <tr>
-                  <td colSpan={canViewAllCalls ? 8 : 7} className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan={canViewAllCalls ? 9 : 8} className="px-4 py-6 text-center text-gray-500">
                     <p className="text-xs">Loading...</p>
                   </td>
                 </tr>
               ) : telecallerCalls.length === 0 ? (
                 <tr>
-                  <td colSpan={canViewAllCalls ? 8 : 7} className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan={canViewAllCalls ? 9 : 8} className="px-4 py-6 text-center text-gray-500">
                     <UserGroupIcon className="h-6 w-6 mx-auto text-gray-300 mb-1" />
                     <p className="text-xs">{isTelecaller ? 'No calls found' : (isTeamManager ? 'No team calls found' : 'No telecaller calls found')}</p>
                   </td>
@@ -804,6 +1134,13 @@ export const OutboundCallsPage: React.FC = () => {
                         'bg-gray-100 text-gray-700'
                       }`}>
                         {statusLabels[call.status] || call.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        call.callType === 'INBOUND' ? 'bg-teal-100 text-teal-700' : 'bg-sky-100 text-sky-700'
+                      }`}>
+                        {call.callType === 'INBOUND' ? '↙ Inbound' : '↗ Outbound'}
                       </span>
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-600">

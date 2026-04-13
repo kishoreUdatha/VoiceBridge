@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import { NotFoundError } from '../utils/errors';
 import { LeadSource, LeadPriority, Prisma, AdmissionStatus, AdmissionType } from '@prisma/client';
 import { leadPipelineService } from './lead-pipeline.service';
+import { leadLifecycleService } from './lead-lifecycle.service';
 
 interface CreateLeadInput {
   organizationId: string;
@@ -716,8 +717,25 @@ export class LeadService {
             },
           },
         },
+        stage: { select: { name: true } },
       },
     });
+
+    // Auto-complete pending follow-ups if stage changed to a completed stage (Won, Lost, Closed, etc.)
+    if (input.stageId && input.stageId !== lead.stageId && updatedLead.stage) {
+      try {
+        const completedCount = await leadLifecycleService.completeFollowUpsOnStageChange(
+          id,
+          updatedLead.stage.name,
+          userId
+        );
+        if (completedCount > 0) {
+          console.log(`[LeadService] Auto-completed ${completedCount} follow-ups for lead ${id} (stage: ${updatedLead.stage.name})`);
+        }
+      } catch (error) {
+        console.error(`[LeadService] Failed to auto-complete follow-ups for lead ${id}:`, error);
+      }
+    }
 
     // Create activity log if there were changes
     if (changedFields.length > 0) {

@@ -96,7 +96,7 @@ router.get('/roles', userController.getRoles.bind(userController));
 
 router.post(
   '/',
-  authorize('admin'),
+  authorize('admin', 'org_admin', 'super_admin'),
   validate(createUserValidation),
   userController.create.bind(userController)
 );
@@ -116,14 +116,14 @@ router.get(
 
 router.put(
   '/:id',
-  authorize('admin'),
+  authorize('admin', 'org_admin', 'super_admin'),
   validate(updateUserValidation),
   userController.update.bind(userController)
 );
 
 router.delete(
   '/:id',
-  authorize('admin'),
+  authorize('admin', 'org_admin', 'super_admin'),
   validate([param('id').isUUID().withMessage('Invalid user ID')]),
   userController.delete.bind(userController)
 );
@@ -131,7 +131,7 @@ router.delete(
 // Reset password (admin only)
 router.post(
   '/:id/reset-password',
-  authorize('admin'),
+  authorize('admin', 'org_admin', 'super_admin'),
   validate([
     param('id').isUUID().withMessage('Invalid user ID'),
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),

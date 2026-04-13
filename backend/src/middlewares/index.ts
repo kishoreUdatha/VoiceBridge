@@ -61,3 +61,10 @@ export { csrfTokenSetter, csrfProtection, csrfTokenEndpoint } from './csrf';
 
 // Error Handling
 export { errorHandler, notFoundHandler } from './errorHandler';
+
+// Maintenance Mode
+export {
+  maintenanceMiddleware,
+  setMaintenanceMode,
+  getMaintenanceMode,
+} from './maintenance.middleware';

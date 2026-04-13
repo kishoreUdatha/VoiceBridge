@@ -69,6 +69,7 @@ class UserTrendsService {
 
     // Current period
     const currentEnd = endDate ? new Date(endDate) : new Date();
+    currentEnd.setHours(23, 59, 59, 999); // Include full day
     const currentStart = startDate ? new Date(startDate) : new Date(currentEnd.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // Calculate period length for previous comparison
@@ -76,8 +77,8 @@ class UserTrendsService {
     const previousEnd = new Date(currentStart.getTime() - 1); // Day before current start
     const previousStart = new Date(previousEnd.getTime() - periodLength);
 
-    // Get current period call data
-    const currentCalls = await prisma.callLog.findMany({
+    // Get current period call data from callLog
+    const currentCallLogs = await prisma.callLog.findMany({
       where: {
         organizationId,
         startedAt: { gte: currentStart, lte: currentEnd },
@@ -85,14 +86,44 @@ class UserTrendsService {
       select: { duration: true, status: true },
     });
 
-    // Get previous period call data
-    const previousCalls = await prisma.callLog.findMany({
+    // Get current period telecaller calls
+    const currentTelecallerCalls = await prisma.telecallerCall.findMany({
+      where: {
+        organizationId,
+        startedAt: { gte: currentStart, lte: currentEnd },
+      },
+      select: { duration: true, status: true },
+    });
+
+    // Combine current calls
+    const currentCalls = [
+      ...currentCallLogs.map(c => ({ duration: c.duration, status: c.status })),
+      ...currentTelecallerCalls.map(c => ({ duration: c.duration, status: c.status })),
+    ];
+
+    // Get previous period call data from callLog
+    const previousCallLogs = await prisma.callLog.findMany({
       where: {
         organizationId,
         startedAt: { gte: previousStart, lte: previousEnd },
       },
       select: { duration: true, status: true },
     });
+
+    // Get previous period telecaller calls
+    const previousTelecallerCalls = await prisma.telecallerCall.findMany({
+      where: {
+        organizationId,
+        startedAt: { gte: previousStart, lte: previousEnd },
+      },
+      select: { duration: true, status: true },
+    });
+
+    // Combine previous calls
+    const previousCalls = [
+      ...previousCallLogs.map(c => ({ duration: c.duration, status: c.status })),
+      ...previousTelecallerCalls.map(c => ({ duration: c.duration, status: c.status })),
+    ];
 
     // Get current period breaks
     const currentBreaks = await prisma.userBreak.findMany({
@@ -196,10 +227,11 @@ class UserTrendsService {
     const userIds = parseUserIds(userId);
 
     const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999); // Include full day
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Get all calls with caller info
-    const calls = await prisma.callLog.findMany({
+    // Get all calls from callLog with caller info
+    const callLogs = await prisma.callLog.findMany({
       where: {
         organizationId,
         startedAt: { gte: start, lte: end },
@@ -219,16 +251,38 @@ class UserTrendsService {
       },
     });
 
+    // Get telecaller calls
+    const telecallerCalls = await prisma.telecallerCall.findMany({
+      where: {
+        organizationId,
+        startedAt: { gte: start, lte: end },
+        ...(userIds && userIds.length > 0 && { telecallerId: { in: userIds } }),
+      },
+      select: {
+        telecallerId: true,
+        status: true,
+        duration: true,
+        telecaller: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
     // Group by user
     const userMap = new Map<string, UserCallMetric>();
 
-    calls.forEach(call => {
-      const userId = call.callerId;
+    // Process callLog entries
+    callLogs.forEach(call => {
+      const usrId = call.callerId;
       const userName = `${call.caller.firstName || ''} ${call.caller.lastName || ''}`.trim() || 'Unknown';
 
-      if (!userMap.has(userId)) {
-        userMap.set(userId, {
-          userId,
+      if (!userMap.has(usrId)) {
+        userMap.set(usrId, {
+          userId: usrId,
           userName,
           totalCalls: 0,
           connectedCalls: 0,
@@ -236,9 +290,32 @@ class UserTrendsService {
         });
       }
 
-      const metrics = userMap.get(userId)!;
+      const metrics = userMap.get(usrId)!;
       metrics.totalCalls++;
       if (call.status === 'COMPLETED' || call.status === 'IN_PROGRESS') {
+        metrics.connectedCalls++;
+      }
+      metrics.totalDuration += (call.duration || 0) / 60; // Convert to minutes
+    });
+
+    // Process telecaller calls
+    telecallerCalls.forEach(call => {
+      const usrId = call.telecallerId;
+      const userName = `${call.telecaller.firstName || ''} ${call.telecaller.lastName || ''}`.trim() || 'Unknown';
+
+      if (!userMap.has(usrId)) {
+        userMap.set(usrId, {
+          userId: usrId,
+          userName,
+          totalCalls: 0,
+          connectedCalls: 0,
+          totalDuration: 0,
+        });
+      }
+
+      const metrics = userMap.get(usrId)!;
+      metrics.totalCalls++;
+      if (call.status === 'COMPLETED' || call.status === 'CONNECTED') {
         metrics.connectedCalls++;
       }
       metrics.totalDuration += (call.duration || 0) / 60; // Convert to minutes
@@ -257,9 +334,11 @@ class UserTrendsService {
     const userIds = parseUserIds(userId);
 
     const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999); // Include full day
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const calls = await prisma.callLog.findMany({
+    // Get callLog entries
+    const callLogs = await prisma.callLog.findMany({
       where: {
         organizationId,
         startedAt: { gte: start, lte: end },
@@ -279,18 +358,52 @@ class UserTrendsService {
       },
     });
 
+    // Get telecaller calls
+    const telecallerCalls = await prisma.telecallerCall.findMany({
+      where: {
+        organizationId,
+        startedAt: { gte: start, lte: end },
+        duration: { not: null },
+        ...(userIds && userIds.length > 0 && { telecallerId: { in: userIds } }),
+      },
+      select: {
+        telecallerId: true,
+        duration: true,
+        telecaller: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
     // Group by user
     const userMap = new Map<string, { userId: string; userName: string; duration: number }>();
 
-    calls.forEach(call => {
-      const userId = call.callerId;
+    // Process callLog
+    callLogs.forEach(call => {
+      const usrId = call.callerId;
       const userName = `${call.caller.firstName || ''} ${call.caller.lastName || ''}`.trim() || 'Unknown';
 
-      if (!userMap.has(userId)) {
-        userMap.set(userId, { userId, userName, duration: 0 });
+      if (!userMap.has(usrId)) {
+        userMap.set(usrId, { userId: usrId, userName, duration: 0 });
       }
 
-      userMap.get(userId)!.duration += (call.duration || 0) / 60; // minutes
+      userMap.get(usrId)!.duration += (call.duration || 0) / 60; // minutes
+    });
+
+    // Process telecaller calls
+    telecallerCalls.forEach(call => {
+      const usrId = call.telecallerId;
+      const userName = `${call.telecaller.firstName || ''} ${call.telecaller.lastName || ''}`.trim() || 'Unknown';
+
+      if (!userMap.has(usrId)) {
+        userMap.set(usrId, { userId: usrId, userName, duration: 0 });
+      }
+
+      userMap.get(usrId)!.duration += (call.duration || 0) / 60; // minutes
     });
 
     return Array.from(userMap.values())
@@ -306,6 +419,7 @@ class UserTrendsService {
     const userIds = parseUserIds(userId);
 
     const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999); // Include full day
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // Get all leads with their assignments and stages
@@ -384,6 +498,7 @@ class UserTrendsService {
     const userIds = parseUserIds(userId);
 
     const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999); // Include full day
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // Get leads with LOST stage
@@ -448,6 +563,7 @@ class UserTrendsService {
     const userIds = parseUserIds(userId);
 
     const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999); // Include full day
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // Get all breaks with user info

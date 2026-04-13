@@ -5,8 +5,9 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { PlusIcon, XMarkIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, XMarkIcon, CheckIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
 import leadTagsService, { LeadTag } from '../../services/lead-tags.service';
+import api from '../../services/api';
 
 interface TagSelectorProps {
   leadId: string;
@@ -19,6 +20,9 @@ interface DropdownPosition {
   left: number;
 }
 
+// Follow Up tag names to check
+const FOLLOW_UP_TAG_NAMES = ['Follow Up', 'follow up', 'Follow-Up', 'FollowUp', 'FOLLOW UP'];
+
 const TagSelector: React.FC<TagSelectorProps> = ({ leadId, onTagsChange, compact = false }) => {
   const [allTags, setAllTags] = useState<LeadTag[]>([]);
   const [leadTags, setLeadTags] = useState<LeadTag[]>([]);
@@ -29,6 +33,13 @@ const TagSelector: React.FC<TagSelectorProps> = ({ leadId, onTagsChange, compact
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Follow-up date modal state
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpTime, setFollowUpTime] = useState('10:00');
+  const [pendingFollowUpTag, setPendingFollowUpTag] = useState<LeadTag | null>(null);
+  const [followUpError, setFollowUpError] = useState('');
 
   const updateDropdownPosition = useCallback(() => {
     if (buttonRef.current) {
@@ -98,8 +109,45 @@ const TagSelector: React.FC<TagSelectorProps> = ({ leadId, onTagsChange, compact
     }
   };
 
+  // Check if a tag is a "Follow Up" tag
+  const isFollowUpTag = (tag: LeadTag) => {
+    return FOLLOW_UP_TAG_NAMES.some(name =>
+      tag.name.toLowerCase() === name.toLowerCase()
+    );
+  };
+
   const handleToggleTag = async (tag: LeadTag) => {
     const isAssigned = leadTags.some((t) => t.id === tag.id);
+
+    // If assigning "Follow Up" tag, check for existing follow-up first
+    if (!isAssigned && isFollowUpTag(tag)) {
+      try {
+        setSaving(true);
+        // Check if there's already an upcoming follow-up
+        const response = await api.get(`/lead-details/${leadId}/follow-ups`);
+        const existingFollowUps = response.data?.data || [];
+        const upcomingFollowUp = existingFollowUps.find((f: any) => f.status === 'UPCOMING');
+
+        if (upcomingFollowUp) {
+          const scheduledDate = new Date(upcomingFollowUp.scheduledAt).toLocaleDateString();
+          alert(`This lead already has a scheduled follow-up on ${scheduledDate}. Please reschedule the existing one instead of adding a new tag.`);
+          setShowDropdown(false);
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to check existing follow-ups:', err);
+      } finally {
+        setSaving(false);
+      }
+
+      setPendingFollowUpTag(tag);
+      setFollowUpDate('');
+      setFollowUpTime('10:00');
+      setFollowUpError('');
+      setShowFollowUpModal(true);
+      setShowDropdown(false);
+      return;
+    }
 
     try {
       setSaving(true);
@@ -134,6 +182,53 @@ const TagSelector: React.FC<TagSelectorProps> = ({ leadId, onTagsChange, compact
     } finally {
       setSaving(false);
     }
+  };
+
+  // Handle follow-up tag assignment with date
+  const handleFollowUpConfirm = async () => {
+    if (!followUpDate) {
+      setFollowUpError('Please select a follow-up date');
+      return;
+    }
+
+    if (!pendingFollowUpTag) return;
+
+    try {
+      setSaving(true);
+      setFollowUpError('');
+
+      // Create the follow-up schedule
+      const scheduledAt = new Date(`${followUpDate}T${followUpTime}:00`);
+
+      // Schedule the follow-up
+      await api.post(`/lead-details/${leadId}/follow-ups`, {
+        scheduledAt: scheduledAt.toISOString(),
+        followUpType: 'MANUAL',
+        message: 'Follow-up scheduled via tag assignment',
+      });
+
+      // Assign the tag
+      await leadTagsService.assignTagsToLead(leadId, [pendingFollowUpTag.id]);
+      const newTags = [...leadTags, pendingFollowUpTag];
+      setLeadTags(newTags);
+      onTagsChange?.(newTags);
+
+      setShowFollowUpModal(false);
+      setPendingFollowUpTag(null);
+    } catch (err: any) {
+      console.error('Failed to assign follow-up tag:', err);
+      const errorMsg = err.response?.data?.message || 'Failed to schedule follow-up';
+      setFollowUpError(errorMsg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFollowUpCancel = () => {
+    setShowFollowUpModal(false);
+    setPendingFollowUpTag(null);
+    setFollowUpDate('');
+    setFollowUpError('');
   };
 
   const handleRemoveTag = async (tagId: string, e: React.MouseEvent) => {
@@ -245,6 +340,80 @@ const TagSelector: React.FC<TagSelectorProps> = ({ leadId, onTagsChange, compact
 
       {/* Dropdown rendered via portal to escape overflow:hidden containers */}
       {createPortal(dropdownContent, document.body)}
+
+      {/* Follow-up Date Modal */}
+      {showFollowUpModal && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={handleFollowUpCancel}
+          />
+
+          {/* Modal */}
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                <CalendarDaysIcon className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Schedule Follow-up</h3>
+                <p className="text-sm text-gray-500">Select a date and time for the follow-up</p>
+              </div>
+            </div>
+
+            {followUpError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                {followUpError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Follow-up Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={followUpDate}
+                  onChange={(e) => setFollowUpDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Follow-up Time
+                </label>
+                <input
+                  type="time"
+                  value={followUpTime}
+                  onChange={(e) => setFollowUpTime(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleFollowUpCancel}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFollowUpConfirm}
+                disabled={saving || !followUpDate}
+                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Scheduling...' : 'Schedule Follow-up'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

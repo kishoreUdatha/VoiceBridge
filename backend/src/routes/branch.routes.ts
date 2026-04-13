@@ -63,7 +63,7 @@ const assignManagerValidation = [
 // Create branch (admin only)
 router.post(
   '/',
-  authorize('admin'),
+  authorize('admin', 'org_admin', 'super_admin'),
   validate(createBranchValidation),
   branchController.create.bind(branchController)
 );
@@ -85,7 +85,7 @@ router.get(
 // Update branch (admin only)
 router.patch(
   '/:id',
-  authorize('admin'),
+  authorize('admin', 'org_admin', 'super_admin'),
   validate(updateBranchValidation),
   branchController.update.bind(branchController)
 );
@@ -93,7 +93,7 @@ router.patch(
 // Delete branch (admin only)
 router.delete(
   '/:id',
-  authorize('admin'),
+  authorize('admin', 'org_admin', 'super_admin'),
   param('id').isUUID(),
   branchController.delete.bind(branchController)
 );
@@ -101,7 +101,7 @@ router.delete(
 // Assign manager to branch (admin only)
 router.post(
   '/:id/manager',
-  authorize('admin'),
+  authorize('admin', 'org_admin', 'super_admin'),
   validate(assignManagerValidation),
   branchController.assignManager.bind(branchController)
 );
@@ -109,7 +109,7 @@ router.post(
 // Assign users to branch (admin only)
 router.post(
   '/:id/users',
-  authorize('admin'),
+  authorize('admin', 'org_admin', 'super_admin'),
   validate(assignUsersValidation),
   branchController.assignUsers.bind(branchController)
 );
@@ -117,7 +117,7 @@ router.post(
 // Remove users from branch (admin only)
 router.delete(
   '/:id/users',
-  authorize('admin'),
+  authorize('admin', 'org_admin', 'super_admin'),
   validate(assignUsersValidation),
   branchController.removeUsers.bind(branchController)
 );

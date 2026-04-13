@@ -127,7 +127,7 @@ router.get('/industry', async (req: TenantRequest, res: Response) => {
  * Set organization's industry and create default stages
  * Admin only
  */
-router.put('/industry', authorize('admin'), validate(industryValidation), async (req: TenantRequest, res: Response) => {
+router.put('/industry', authorize('admin', 'org_admin', 'super_admin'), validate(industryValidation), async (req: TenantRequest, res: Response) => {
   try {
     const organizationId = req.organizationId!;
     const { industry, resetStages = false } = req.body;

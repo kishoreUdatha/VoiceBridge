@@ -33,6 +33,9 @@ const STAGE_SLUGS = {
   LOST: 'LOST',
 } as const;
 
+// Completed stages where follow-ups should not be allowed
+const COMPLETED_STAGES = ['Won', 'WON', 'Lost', 'LOST', 'Closed', 'CLOSED', 'Admitted', 'ADMITTED', 'Enrolled', 'ENROLLED', 'Dropped', 'DROPPED'];
+
 // Stage progression order (by slug)
 const STAGE_ORDER = [
   STAGE_SLUGS.NEW,
@@ -534,11 +537,27 @@ class LeadLifecycleService {
 
   /**
    * Schedule a manual follow-up
+   * Validates that lead is not in a completed stage (Won, Lost, Closed, etc.)
    */
   async scheduleFollowUp(
     leadId: string,
     config: FollowUpConfig
   ): Promise<FollowUp> {
+    // Check if lead exists and get its stage
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      include: { stage: { select: { name: true } } },
+    });
+
+    if (!lead) {
+      throw new Error('Lead not found');
+    }
+
+    // Check if lead is in a completed stage
+    if (lead.stage && COMPLETED_STAGES.includes(lead.stage.name)) {
+      throw new Error(`Cannot schedule follow-up for a lead in "${lead.stage.name}" stage. The lead has already been closed.`);
+    }
+
     const followUp = await prisma.followUp.create({
       data: {
         leadId,
@@ -965,6 +984,95 @@ class LeadLifecycleService {
       return 'Strong interest shown - entering negotiation';
     }
     return `Auto-progressed based on ${outcome} outcome`;
+  }
+
+  /**
+   * Auto-complete pending follow-ups and remove "Follow Up" tag when a lead moves to a completed stage
+   * Called when lead stage is updated to Won, Lost, Closed, Admitted, Enrolled, or Dropped
+   */
+  async completeFollowUpsOnStageChange(leadId: string, newStageName: string, userId?: string): Promise<number> {
+    // Check if the new stage is a completed stage
+    if (!COMPLETED_STAGES.includes(newStageName)) {
+      return 0;
+    }
+
+    let actionsPerformed = 0;
+
+    // 1. Find and complete all pending follow-ups for this lead
+    const pendingFollowUps = await prisma.followUp.findMany({
+      where: {
+        leadId,
+        status: 'UPCOMING',
+      },
+    });
+
+    if (pendingFollowUps.length > 0) {
+      const now = new Date();
+      await prisma.followUp.updateMany({
+        where: {
+          leadId,
+          status: 'UPCOMING',
+        },
+        data: {
+          status: 'COMPLETED',
+          completedAt: now,
+          notes: `Auto-completed: Lead moved to "${newStageName}" stage`,
+        },
+      });
+
+      // Clear nextFollowUpAt on the lead
+      await prisma.lead.update({
+        where: { id: leadId },
+        data: { nextFollowUpAt: null },
+      });
+
+      actionsPerformed += pendingFollowUps.length;
+    }
+
+    // 2. Remove "Follow Up" tag from this lead
+    const followUpTag = await prisma.leadTag.findFirst({
+      where: {
+        OR: [
+          { name: 'Follow Up' },
+          { name: 'follow up' },
+          { name: 'Follow-Up' },
+          { name: 'FollowUp' },
+        ],
+      },
+    });
+
+    if (followUpTag) {
+      const tagRemoved = await prisma.leadTagAssignment.deleteMany({
+        where: {
+          leadId,
+          tagId: followUpTag.id,
+        },
+      });
+
+      if (tagRemoved.count > 0) {
+        actionsPerformed += 1;
+      }
+    }
+
+    // Log activity
+    if (userId && actionsPerformed > 0) {
+      const message = pendingFollowUps.length > 0
+        ? `${pendingFollowUps.length} pending follow-up(s) auto-completed and "Follow Up" tag removed due to stage change to "${newStageName}"`
+        : `"Follow Up" tag removed due to stage change to "${newStageName}"`;
+
+      await this.logActivity(leadId, userId, ActivityType.NOTE_ADDED, message,
+        { completedCount: pendingFollowUps.length, newStage: newStageName }
+      );
+    }
+
+    return actionsPerformed;
+  }
+
+  /**
+   * Check if a stage name is a completed stage
+   */
+  isCompletedStage(stageName: string): boolean {
+    return COMPLETED_STAGES.includes(stageName);
   }
 }
 

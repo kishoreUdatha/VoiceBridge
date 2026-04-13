@@ -37,10 +37,10 @@ import {
 import { Stat, Differentiator, Industry, Feature, PricingTier, Step, FooterSection } from './landing.types';
 
 export const STATS: Stat[] = [
-  { value: '50,000+', label: 'AI Calls/Day', color: 'text-blue-600' },
-  { value: '89%', label: 'Answer Rate', color: 'text-green-600' },
-  { value: '25+', label: 'Features', color: 'text-purple-600' },
-  { value: '6+', label: 'Ad Platforms', color: 'text-orange-600' },
+  { value: '2M+', label: 'AI Calls Made', color: 'text-blue-600' },
+  { value: '500+', label: 'Active Businesses', color: 'text-green-600' },
+  { value: '10+', label: 'Indian Languages', color: 'text-purple-600' },
+  { value: '30+', label: 'Integrations', color: 'text-orange-600' },
 ];
 
 export const DIFFERENTIATORS: Differentiator[] = [
@@ -168,10 +168,10 @@ export const FEATURES: Feature[] = [
 ];
 
 export const PRICING_TIERS: PricingTier[] = [
-  { id: 'free', name: 'Free', price: '₹0', description: '100 leads, 1 user', link: '/register?plan=free' },
-  { id: 'starter', name: 'Starter', price: '₹1,499', period: '/mo', description: '2K leads, 50 AI calls', link: '/pricing' },
-  { id: 'growth', name: 'Growth', price: '₹3,999', period: '/mo', description: '10K leads, 200 AI calls', isPopular: true, link: '/pricing' },
-  { id: 'business', name: 'Business', price: '₹7,999', period: '/mo', description: '50K leads, 1000 AI calls', link: '/pricing' },
+  { id: 'starter', name: 'Starter', price: '₹2,999', period: '/mo', description: '500 AI mins, 5 users', link: '/register?plan=starter' },
+  { id: 'growth', name: 'Growth', price: '₹7,999', period: '/mo', description: '2,000 AI mins, 15 users', isPopular: true, link: '/register?plan=growth' },
+  { id: 'business', name: 'Business', price: '₹19,999', period: '/mo', description: '5,000 AI mins, 50 users', link: '/register?plan=business' },
+  { id: 'enterprise', name: 'Enterprise', price: 'Custom', description: 'Unlimited, white label', link: '/pricing' },
 ];
 
 export const STEPS: Step[] = [

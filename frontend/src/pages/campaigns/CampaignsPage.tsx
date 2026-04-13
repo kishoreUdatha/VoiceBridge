@@ -11,10 +11,7 @@ import {
   TrashIcon,
   PlayIcon,
   MagnifyingGlassIcon,
-  ChevronRightIcon,
-  ChevronLeftIcon,
   UsersIcon,
-  CheckIcon,
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 
@@ -42,6 +39,15 @@ interface Lead {
   email?: string | null;
   stage?: { name: string } | null;
   source?: string | null;
+}
+
+interface Template {
+  id: string;
+  name: string;
+  type: 'SMS' | 'EMAIL' | 'WHATSAPP';
+  category?: string;
+  subject?: string;
+  content: string;
 }
 
 const typeIcons = {
@@ -72,7 +78,6 @@ export default function CampaignsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [campaignType, setCampaignType] = useState<'SMS' | 'EMAIL' | 'WHATSAPP'>('SMS');
   const [creating, setCreating] = useState(false);
-  const [step, setStep] = useState(1);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -88,9 +93,26 @@ export default function CampaignsPage() {
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [leadSearch, setLeadSearch] = useState('');
 
+  // Templates state
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+
   useEffect(() => {
     fetchCampaigns();
   }, []);
+
+  const fetchTemplates = async (type: 'SMS' | 'EMAIL' | 'WHATSAPP') => {
+    setLoadingTemplates(true);
+    try {
+      const response = await api.get(`/templates?type=${type}&limit=50`);
+      setTemplates(response.data.data || []);
+    } catch (err) {
+      console.error('Failed to fetch templates:', err);
+      setTemplates([]);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
 
   const fetchCampaigns = async () => {
     setLoading(true);
@@ -152,9 +174,17 @@ export default function CampaignsPage() {
     setCampaignType(type);
     setFormData({ name: '', content: '', subject: '' });
     setSelectedLeads([]);
-    setStep(1);
     setShowCreateModal(true);
     fetchLeads(type);
+    fetchTemplates(type);
+  };
+
+  const applyTemplate = (template: Template) => {
+    setFormData({
+      ...formData,
+      content: template.content,
+      subject: template.subject || '',
+    });
   };
 
   const handleCreateCampaign = async () => {
@@ -238,19 +268,6 @@ export default function CampaignsPage() {
            lead.phone?.includes(search) ||
            lead.email?.toLowerCase().includes(search);
   });
-
-  const goToStep2 = () => {
-    if (!formData.name || !formData.content) {
-      setError('Please fill in campaign name and message');
-      return;
-    }
-    if (campaignType === 'EMAIL' && !formData.subject) {
-      setError('Please enter email subject');
-      return;
-    }
-    setError('');
-    setStep(2);
-  };
 
   return (
     <div>
@@ -446,245 +463,192 @@ export default function CampaignsPage() {
         )}
       </div>
 
-      {/* Create Campaign Modal - Multi Step */}
+      {/* Create Campaign Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex min-h-screen items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black/50" onClick={() => setShowCreateModal(false)} />
-            <div className="relative bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setShowCreateModal(false)}
+          />
 
-              {/* Header with Steps */}
-              <div className="px-6 py-4 border-b">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-lg font-semibold">Create {campaignType} Campaign</h2>
-                  <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">×</button>
+          {/* Modal */}
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Create {campaignType} Campaign
+              </h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+              {/* Campaign Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Campaign Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter campaign name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+
+              {/* Recipients */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-sm font-medium text-gray-700">
+                    Recipients ({selectedLeads.length} selected)
+                  </label>
+                  <button
+                    onClick={selectAllLeads}
+                    className="text-xs text-primary-600 hover:text-primary-700"
+                  >
+                    {selectedLeads.length === leads.length && leads.length > 0 ? 'Deselect all' : 'Select all'}
+                  </button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${step === 1 ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'}`}>
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${step === 1 ? 'bg-primary-600 text-white' : 'bg-gray-300'}`}>1</span>
-                    Campaign Details
-                  </div>
-                  <ChevronRightIcon className="h-4 w-4 text-gray-400" />
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${step === 2 ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'}`}>
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${step === 2 ? 'bg-primary-600 text-white' : 'bg-gray-300'}`}>2</span>
-                    Select Recipients
-                  </div>
+                <div className="border border-gray-300 rounded-lg max-h-32 overflow-y-auto">
+                  {loadingLeads ? (
+                    <div className="p-4 text-center text-gray-500 text-sm">
+                      <ArrowPathIcon className="w-5 h-5 animate-spin mx-auto mb-1" />
+                      Loading leads...
+                    </div>
+                  ) : leads.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500 text-sm">
+                      No leads with {campaignType === 'EMAIL' ? 'email' : 'phone numbers'}
+                    </div>
+                  ) : (
+                    <div className="p-2 flex flex-wrap gap-1.5">
+                      {leads.map((lead) => (
+                        <label
+                          key={lead.id}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm cursor-pointer transition-colors ${
+                            selectedLeads.includes(lead.id)
+                              ? 'bg-primary-100 text-primary-700 border border-primary-300'
+                              : 'bg-gray-100 text-gray-600 border border-transparent hover:bg-gray-200'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedLeads.includes(lead.id)}
+                            onChange={() => toggleLeadSelection(lead.id)}
+                            className="sr-only"
+                          />
+                          {lead.firstName} {lead.lastName || ''}
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Step 1: Campaign Details */}
-              {step === 1 && (
-                <div className="flex-1 overflow-y-auto p-6">
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Campaign Name *</label>
-                      <input
-                        type="text"
-                        placeholder="e.g., New Batch Announcement"
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      />
-                    </div>
-
-                    {campaignType === 'EMAIL' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Subject Line *</label>
-                        <input
-                          type="text"
-                          placeholder="Email subject"
-                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500"
-                          value={formData.subject}
-                          onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                        />
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Message *</label>
-                      <textarea
-                        rows={5}
-                        placeholder="Enter your message..."
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500"
-                        value={formData.content}
-                        onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Use <code className="bg-gray-100 px-1 rounded">{'{name}'}</code> to personalize with recipient's name
-                      </p>
-                    </div>
-
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <p className="text-sm text-blue-800">
-                        <strong>Next:</strong> Select leads from your CRM to receive this campaign
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 2: Select Recipients */}
-              {step === 2 && (
-                <div className="flex-1 overflow-hidden flex flex-col">
-                  <div className="p-4 border-b bg-gray-50">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="relative flex-1">
-                        <MagnifyingGlassIcon className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                          type="text"
-                          placeholder="Search leads by name, phone, email..."
-                          className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg"
-                          value={leadSearch}
-                          onChange={(e) => setLeadSearch(e.target.value)}
-                        />
-                      </div>
-                      <button
-                        onClick={selectAllLeads}
-                        className="px-3 py-2 text-sm border rounded-lg hover:bg-white flex items-center gap-2"
-                      >
-                        {selectedLeads.length === filteredLeads.length && filteredLeads.length > 0 ? (
-                          <>Deselect All</>
-                        ) : (
-                          <>Select All ({filteredLeads.length})</>
-                        )}
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-4 mt-3 text-sm">
-                      <span className="text-gray-600">
-                        <UsersIcon className="h-4 w-4 inline mr-1" />
-                        {leads.length} leads available
-                        {totalLeadsFetched > leads.length && (
-                          <span className="text-gray-400 ml-1">
-                            (of {totalLeadsFetched} total)
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-primary-600 font-medium">
-                        <CheckIcon className="h-4 w-4 inline mr-1" />
-                        {selectedLeads.length} selected
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto p-4">
-                    {loadingLeads ? (
-                      <div className="flex items-center justify-center py-12">
-                        <ArrowPathIcon className="h-6 w-6 animate-spin text-gray-400" />
-                      </div>
-                    ) : filteredLeads.length === 0 ? (
-                      <div className="text-center py-12 text-gray-500">
-                        <UsersIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                        {totalLeadsFetched === 0 ? (
-                          <>
-                            <p className="font-medium">No leads found</p>
-                            <p className="text-sm mt-1 mb-4">
-                              You need to import or create leads first
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="font-medium">
-                              Found {totalLeadsFetched} leads but none with {campaignType === 'EMAIL' ? 'email addresses' : 'phone numbers'}
-                            </p>
-                            <p className="text-sm mt-1 mb-4">
-                              Update your leads or import new ones with {campaignType === 'EMAIL' ? 'email' : 'phone'} data
-                            </p>
-                          </>
-                        )}
-                        <div className="flex justify-center gap-3">
-                          <Link to="/leads" className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">
-                            View Leads
-                          </Link>
-                          <Link to="/leads/bulk-upload" className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">
-                            Import Leads
-                          </Link>
-                        </div>
-                      </div>
+              {/* Template Selector */}
+              {templates.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Use Template <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto p-2 bg-gray-50 rounded-lg border border-gray-200">
+                    {loadingTemplates ? (
+                      <span className="text-sm text-gray-500">Loading templates...</span>
                     ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        {filteredLeads.map((lead) => (
-                          <label
-                            key={lead.id}
-                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                              selectedLeads.includes(lead.id)
-                                ? 'bg-primary-50 border-primary-300'
-                                : 'hover:bg-gray-50 border-gray-200'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedLeads.includes(lead.id)}
-                              onChange={() => toggleLeadSelection(lead.id)}
-                              className="rounded border-gray-300 text-primary-600"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium text-gray-900 truncate">
-                                {lead.firstName} {lead.lastName || ''}
-                              </div>
-                              <div className="text-xs text-gray-500 truncate">
-                                {campaignType === 'EMAIL' ? lead.email : lead.phone}
-                              </div>
-                            </div>
-                            {lead.stage?.name && (
-                              <span className="text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-600">
-                                {lead.stage.name}
-                              </span>
-                            )}
-                          </label>
-                        ))}
-                      </div>
+                      templates.map((template) => (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => applyTemplate(template)}
+                          className="px-3 py-1.5 text-xs font-medium bg-white border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 transition-colors truncate max-w-[150px]"
+                          title={template.content.substring(0, 100)}
+                        >
+                          {template.name}
+                        </button>
+                      ))
                     )}
                   </div>
+                  <p className="text-xs text-gray-400 mt-1">Click a template to use its content</p>
                 </div>
               )}
 
-              {/* Footer */}
-              <div className="px-6 py-4 border-t bg-gray-50 flex items-center justify-between">
-                {step === 1 ? (
+              {/* Subject - Email only */}
+              {campaignType === 'EMAIL' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Subject
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Email subject"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    value={formData.subject}
+                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                  />
+                </div>
+              )}
+
+              {/* Message */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-sm font-medium text-gray-700">Message</label>
+                  {campaignType === 'SMS' && (
+                    <span className={`text-xs ${formData.content.length > 160 ? 'text-orange-600' : 'text-gray-400'}`}>
+                      {formData.content.length}/160
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  rows={5}
+                  placeholder={`Type your ${campaignType.toLowerCase()} message here...`}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                  maxLength={campaignType === 'SMS' ? 320 : campaignType === 'WHATSAPP' ? 1024 : undefined}
+                />
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, content: formData.content + '{name}' })}
+                  className="mt-1 text-xs text-primary-600 hover:text-primary-700"
+                >
+                  + Insert recipient name
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 px-5 py-4 border-t bg-gray-50 rounded-b-xl">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateCampaign}
+                disabled={creating || selectedLeads.length === 0 || !formData.name || !formData.content || (campaignType === 'EMAIL' && !formData.subject)}
+                className="px-5 py-2 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {creating ? (
                   <>
-                    <button
-                      onClick={() => setShowCreateModal(false)}
-                      className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={goToStep2}
-                      className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2"
-                    >
-                      Next: Select Recipients
-                      <ChevronRightIcon className="h-4 w-4" />
-                    </button>
+                    <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                    Creating...
                   </>
                 ) : (
                   <>
-                    <button
-                      onClick={() => setStep(1)}
-                      className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 flex items-center gap-2"
-                    >
-                      <ChevronLeftIcon className="h-4 w-4" />
-                      Back
-                    </button>
-                    <button
-                      onClick={handleCreateCampaign}
-                      disabled={creating || selectedLeads.length === 0}
-                      className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"
-                    >
-                      {creating ? (
-                        <>
-                          <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                          Creating...
-                        </>
-                      ) : (
-                        <>
-                          <PaperAirplaneIcon className="h-4 w-4" />
-                          Create Campaign ({selectedLeads.length} recipients)
-                        </>
-                      )}
-                    </button>
+                    <PaperAirplaneIcon className="w-4 h-4" />
+                    Create & Send
                   </>
                 )}
-              </div>
+              </button>
             </div>
           </div>
         </div>

@@ -626,6 +626,9 @@ class UserPerformanceReportsService {
     const { organizationId, dateRange = this.getDefaultDateRange() } = filters;
     const now = new Date();
 
+    console.log('[UserPerformance] getComprehensiveReport called for org:', organizationId);
+    console.log('[UserPerformance] Date range:', dateRange);
+
     // Get all users in organization (single query)
     const users = await prisma.user.findMany({
       where: { organizationId, isActive: true },
@@ -639,6 +642,8 @@ class UserPerformanceReportsService {
       },
       take: 50,
     });
+
+    console.log('[UserPerformance] Found users:', users.length);
 
     if (users.length === 0) {
       return {
@@ -820,12 +825,25 @@ class UserPerformanceReportsService {
       closureValue: s.closureValue,
     }));
 
+    console.log('[UserPerformance] Raw summary count:', summary.length);
+    console.log('[UserPerformance] Users with activity:', summary.filter(s => s.leadsAssigned > 0 || s.callsMade > 0 || s.conversions > 0 || s.followUpsCompleted > 0).length);
+    console.log('[UserPerformance] Calls data:', calls.length, 'groups');
+
+    // Return all users - even those with zero activity (showing zeros is better than hiding users)
+    // Sort by conversions desc, then by calls desc
+    const sortedSummary = summary.sort((a, b) => {
+      if (b.conversions !== a.conversions) return b.conversions - a.conversions;
+      return b.callsMade - a.callsMade;
+    });
+
+    console.log('[UserPerformance] Returning all users count:', sortedSummary.length);
+
     return {
-      summary: summary.filter(s => s.leadsAssigned > 0 || s.callsMade > 0 || s.conversions > 0),
-      leadsPerUser: leadsPerUser.filter(l => l.totalAssigned > 0),
-      callsPerUser: callsPerUser.filter(c => c.totalCalls > 0),
-      followUpsPerUser: followUpsPerUser.filter(f => f.totalScheduled > 0),
-      conversionPerUser: conversionPerUser.filter(c => c.leadsAssigned > 0 || c.conversions > 0),
+      summary: sortedSummary,
+      leadsPerUser: leadsPerUser.sort((a, b) => b.totalAssigned - a.totalAssigned),
+      callsPerUser: callsPerUser.sort((a, b) => b.totalCalls - a.totalCalls),
+      followUpsPerUser: followUpsPerUser.sort((a, b) => b.completed - a.completed),
+      conversionPerUser: conversionPerUser.sort((a, b) => b.closureValue - a.closureValue),
     };
   }
 

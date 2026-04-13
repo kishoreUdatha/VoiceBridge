@@ -83,6 +83,16 @@ const reports: ReportItem[] = [
     bgColor: 'bg-blue-50',
   },
   {
+    id: 'user-performance',
+    name: 'User Performance',
+    description: 'Team performance with leads, calls, follow-ups & conversions',
+    category: 'user',
+    icon: ArrowTrendingUpIcon,
+    path: '/reports/user-performance',
+    color: 'text-emerald-600',
+    bgColor: 'bg-emerald-50',
+  },
+  {
     id: 'user-activity',
     name: 'User Activity Report',
     description: 'Insights into breaks information and calling metrics',

@@ -20,6 +20,7 @@ interface UseTemplatesReturn {
   variables: Variable[];
   categories: string[];
   loading: boolean;
+  seeding: boolean;
 
   // Filters
   typeFilter: string;
@@ -55,6 +56,7 @@ interface UseTemplatesReturn {
   insertVariable: (variable: string) => void;
   updateSmsInfo: (content: string) => Promise<void>;
   closePreviewModal: () => void;
+  seedDefaultTemplates: () => Promise<void>;
 }
 
 export function useTemplates(): UseTemplatesReturn {
@@ -78,6 +80,7 @@ export function useTemplates(): UseTemplatesReturn {
   const [formData, setFormData] = useState<TemplateFormData>(initialFormData);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [smsInfo, setSmsInfo] = useState<SmsInfo | null>(null);
 
@@ -240,11 +243,26 @@ export function useTemplates(): UseTemplatesReturn {
     setSelectedTemplate(null);
   }, []);
 
+  const seedDefaultTemplates = useCallback(async () => {
+    setSeeding(true);
+    try {
+      const response = await api.post('/templates/seed');
+      if (response.data.created > 0) {
+        fetchTemplates();
+      }
+    } catch (error) {
+      console.error('Failed to seed templates:', error);
+    } finally {
+      setSeeding(false);
+    }
+  }, [fetchTemplates]);
+
   return {
     templates,
     variables,
     categories,
     loading,
+    seeding,
     typeFilter,
     setTypeFilter,
     categoryFilter,
@@ -272,6 +290,7 @@ export function useTemplates(): UseTemplatesReturn {
     insertVariable,
     updateSmsInfo,
     closePreviewModal,
+    seedDefaultTemplates,
   };
 }
 

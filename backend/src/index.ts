@@ -17,6 +17,7 @@ import testCallRoutes from './routes/test-call.routes';
 import voicebotRoutes, { initializeVoiceBotWebSocket } from './routes/voicebot.routes';
 import { initializeScheduledJobs } from './services/job-initializer.service';
 import { csrfTokenSetter, csrfProtection, csrfTokenEndpoint } from './middlewares/csrf';
+import { maintenanceMiddleware } from './middlewares/maintenance.middleware';
 import fs from 'fs';
 import path from 'path';
 
@@ -182,6 +183,9 @@ app.use('/api', apiLimiter);
 
 // Audit logging
 app.use('/api', auditMiddleware);
+
+// Maintenance mode check (blocks non-super-admin requests when in maintenance)
+app.use('/api', maintenanceMiddleware);
 
 // Swagger documentation
 setupSwagger(app);

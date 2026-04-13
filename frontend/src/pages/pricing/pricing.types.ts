@@ -32,7 +32,7 @@ export interface Plan {
 export interface SimplePlanFeature {
   name: string;
   starter: boolean | string;
-  pro: boolean | string;
+  growth: boolean | string;
   business: boolean | string;
   enterprise: boolean | string;
 }
@@ -47,4 +47,18 @@ export interface TrustBadge {
   label: string;
 }
 
-export type PlanTier = 'starter' | 'pro' | 'business' | 'enterprise';
+export interface AddOn {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  unit: string;
+  popular?: boolean;
+}
+
+export interface FeatureCategory {
+  category: string;
+  features: SimplePlanFeature[];
+}
+
+export type PlanTier = 'starter' | 'growth' | 'business' | 'enterprise';

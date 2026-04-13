@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import os from 'os';
+import { setMaintenanceMode as setGlobalMaintenanceMode, getMaintenanceMode as getGlobalMaintenanceMode } from '../middlewares/maintenance.middleware';
 
 /**
  * PLATFORM SYSTEM ADMINISTRATION SERVICE
@@ -295,22 +296,29 @@ export class PlatformSystemService {
 
   /**
    * Enable/disable maintenance mode
+   * This now uses the global middleware state to actually block requests
    */
-  async setMaintenanceMode(enabled: boolean, message?: string): Promise<void> {
+  async setMaintenanceMode(enabled: boolean, message?: string, startedBy?: string): Promise<void> {
     this.maintenanceMode = enabled;
     this.maintenanceMessage = message || 'System is under maintenance. Please try again later.';
 
+    // Set global maintenance mode (this actually blocks requests via middleware)
+    setGlobalMaintenanceMode(enabled, message, startedBy);
+
     // Log the change
-    console.log(`[System] Maintenance mode ${enabled ? 'enabled' : 'disabled'}: ${message}`);
+    console.log(`[System] Maintenance mode ${enabled ? 'ENABLED' : 'DISABLED'}${message ? `: ${message}` : ''}`);
   }
 
   /**
    * Check if maintenance mode is active
    */
-  isMaintenanceModeActive(): { active: boolean; message: string } {
+  isMaintenanceModeActive(): { active: boolean; message: string; startedAt: Date | null; startedBy: string | null } {
+    const globalState = getGlobalMaintenanceMode();
     return {
-      active: this.maintenanceMode,
-      message: this.maintenanceMessage,
+      active: globalState.active,
+      message: globalState.message,
+      startedAt: globalState.startedAt,
+      startedBy: globalState.startedBy,
     };
   }
 

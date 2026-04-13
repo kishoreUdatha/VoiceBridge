@@ -422,8 +422,8 @@ export class UserService {
     const users = await prisma.user.findMany({
       where: {
         organizationId,
-        // Include admin, manager, and team_lead/team_leader as potential managers
-        role: { slug: { in: ['admin', 'manager', 'team_lead', 'team_leader'] } },
+        // Include admin, org_admin, manager, and team_lead/team_leader as potential managers
+        role: { slug: { in: ['admin', 'org_admin', 'manager', 'team_lead', 'team_leader'] } },
         isActive: true,
       },
       select: {

@@ -353,54 +353,243 @@ interface FollowUpsTabProps {
   onAddClick: () => void;
   onUpdateStatus: (followUpId: string, status: 'UPCOMING' | 'COMPLETED' | 'MISSED' | 'RESCHEDULED') => void;
   onDelete: (followUpId: string) => void;
+  onReschedule?: (followUpId: string, newDate: string) => void;
 }
 
-export function FollowUpsTab({ followUps, loading, onAddClick, onUpdateStatus, onDelete }: FollowUpsTabProps) {
+export function FollowUpsTab({ followUps, loading, onAddClick, onUpdateStatus, onDelete, onReschedule }: FollowUpsTabProps) {
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('10:00');
+
+  const handleReschedule = (followUpId: string) => {
+    if (rescheduleDate && onReschedule) {
+      const dateTime = `${rescheduleDate}T${rescheduleTime}:00`;
+      onReschedule(followUpId, dateTime);
+      setRescheduleId(null);
+      setRescheduleDate('');
+      setRescheduleTime('10:00');
+    }
+  };
+  // Helper to check if follow-up is overdue
+  const isOverdue = (scheduledAt: string, status: string) => {
+    return status === 'UPCOMING' && new Date(scheduledAt) < new Date();
+  };
+
+  // Helper to check if follow-up is today
+  const isToday = (scheduledAt: string) => {
+    const today = new Date();
+    const scheduled = new Date(scheduledAt);
+    return today.toDateString() === scheduled.toDateString();
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-      <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-        <h3 className="font-medium text-slate-900">Follow-ups</h3>
-        <button onClick={onAddClick} className="btn btn-primary btn-sm">
-          <PlusIcon className="h-4 w-4 mr-1" /> Schedule Follow-up
+      <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-50 to-white">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <CalendarIcon className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-900">Follow-ups</h3>
+            <p className="text-xs text-slate-500">{followUps.length} scheduled</p>
+          </div>
+        </div>
+        <button onClick={onAddClick} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg transition-all">
+          <PlusIcon className="h-4 w-4" /> Schedule Follow-up
         </button>
       </div>
-      <div className="p-6">
+      <div className="p-5">
         {loading ? (
           <LoadingSpinner />
         ) : followUps.length === 0 ? (
-          <EmptyState icon={CalendarIcon} message="No follow-ups scheduled" />
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CalendarIcon className="h-8 w-8 text-slate-400" />
+            </div>
+            <p className="text-slate-500 font-medium">No follow-ups scheduled</p>
+            <p className="text-sm text-slate-400 mt-1">Schedule a follow-up to stay connected</p>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {followUps.map((followUp) => (
-              <div key={followUp.id} className="p-4 bg-slate-50 rounded-lg">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${followUpStatusColors[followUp.status]}`}>
-                        {followUp.status}
-                      </span>
-                      <span className="text-sm text-slate-600">{formatDateTime(followUp.scheduledAt)}</span>
+          <div className="space-y-3">
+            {followUps.map((followUp) => {
+              const overdue = isOverdue(followUp.scheduledAt, followUp.status);
+              const today = isToday(followUp.scheduledAt);
+
+              return (
+                <div
+                  key={followUp.id}
+                  className={`p-4 rounded-xl border-l-4 transition-all hover:shadow-md ${
+                    followUp.status === 'COMPLETED'
+                      ? 'bg-green-50 border-l-green-500'
+                      : overdue
+                        ? 'bg-red-50 border-l-red-500'
+                        : today
+                          ? 'bg-orange-50 border-l-orange-500'
+                          : 'bg-blue-50 border-l-blue-500'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex gap-4">
+                      {/* Calendar Icon with Date */}
+                      <div className={`flex-shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center shadow-sm ${
+                        followUp.status === 'COMPLETED'
+                          ? 'bg-green-100 text-green-700'
+                          : overdue
+                            ? 'bg-red-100 text-red-700'
+                            : today
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        <span className="text-[10px] font-semibold uppercase">
+                          {new Date(followUp.scheduledAt).toLocaleDateString('en-US', { month: 'short' })}
+                        </span>
+                        <span className="text-lg font-bold leading-none">
+                          {new Date(followUp.scheduledAt).getDate()}
+                        </span>
+                      </div>
+
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                            followUp.status === 'COMPLETED'
+                              ? 'bg-green-200 text-green-800'
+                              : followUp.status === 'MISSED'
+                                ? 'bg-red-200 text-red-800'
+                                : overdue
+                                  ? 'bg-red-200 text-red-800'
+                                  : today
+                                    ? 'bg-orange-200 text-orange-800'
+                                    : 'bg-blue-200 text-blue-800'
+                          }`}>
+                            {overdue && followUp.status === 'UPCOMING' ? 'OVERDUE' : followUp.status}
+                          </span>
+                          {today && followUp.status === 'UPCOMING' && !overdue && (
+                            <span className="px-2 py-0.5 bg-orange-200 text-orange-800 rounded-full text-xs font-medium">
+                              Today
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 text-slate-700">
+                          <ClockIcon className="h-4 w-4 text-slate-400" />
+                          <span className="font-medium">
+                            {new Date(followUp.scheduledAt).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true
+                            })}
+                          </span>
+                          <span className="text-slate-400">•</span>
+                          <span className="text-sm text-slate-500">
+                            {new Date(followUp.scheduledAt).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </span>
+                        </div>
+
+                        {followUp.message && (
+                          <p className="text-sm text-slate-600 mt-2 bg-white/50 rounded-lg p-2">
+                            {followUp.message}
+                          </p>
+                        )}
+                        {followUp.notes && (
+                          <p className="text-sm text-slate-500 mt-1 italic">
+                            Note: {followUp.notes}
+                          </p>
+                        )}
+
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="w-6 h-6 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-medium">
+                            {followUp.assignee?.firstName?.charAt(0) || 'U'}
+                          </div>
+                          <span className="text-xs text-slate-500">
+                            Assigned to <span className="font-medium text-slate-700">{followUp.assignee?.firstName} {followUp.assignee?.lastName}</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    {followUp.message && <p className="text-sm text-slate-700">{followUp.message}</p>}
-                    {followUp.notes && <p className="text-sm text-slate-500 mt-1">{followUp.notes}</p>}
-                    <p className="text-xs text-slate-400 mt-2">
-                      Assigned to: {followUp.assignee?.firstName} {followUp.assignee?.lastName}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {followUp.status === 'UPCOMING' && (
-                      <button onClick={() => onUpdateStatus(followUp.id, 'COMPLETED')}
-                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg" title="Mark Complete">
-                        <CheckIcon className="h-4 w-4" />
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-1">
+                      {followUp.status === 'UPCOMING' && (
+                        <>
+                          <button
+                            onClick={() => onUpdateStatus(followUp.id, 'COMPLETED')}
+                            className="p-2.5 bg-green-100 text-green-600 hover:bg-green-200 rounded-lg transition-colors"
+                            title="Mark Complete"
+                          >
+                            <CheckIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => setRescheduleId(rescheduleId === followUp.id ? null : followUp.id)}
+                            className="p-2.5 bg-blue-100 text-blue-600 hover:bg-blue-200 rounded-lg transition-colors"
+                            title="Reschedule"
+                          >
+                            <ClockIcon className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => onDelete(followUp.id)}
+                        className="p-2.5 bg-red-100 text-red-500 hover:bg-red-200 rounded-lg transition-colors"
+                        title="Delete"
+                      >
+                        <TrashIcon className="h-4 w-4" />
                       </button>
-                    )}
-                    <button onClick={() => onDelete(followUp.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
+                    </div>
                   </div>
+
+                  {/* Reschedule Form */}
+                  {rescheduleId === followUp.id && (
+                    <div className="mt-4 p-4 bg-white rounded-xl border border-blue-200 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3">
+                        <ClockIcon className="h-5 w-5 text-blue-600" />
+                        <p className="font-medium text-slate-800">Reschedule Follow-up</p>
+                      </div>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Date</label>
+                          <input
+                            type="date"
+                            value={rescheduleDate}
+                            onChange={(e) => setRescheduleDate(e.target.value)}
+                            min={new Date().toISOString().split('T')[0]}
+                            className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Time</label>
+                          <input
+                            type="time"
+                            value={rescheduleTime}
+                            onChange={(e) => setRescheduleTime(e.target.value)}
+                            className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div className="flex gap-2 items-end">
+                          <button
+                            onClick={() => handleReschedule(followUp.id)}
+                            disabled={!rescheduleDate}
+                            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => { setRescheduleId(null); setRescheduleDate(''); }}
+                            className="px-4 py-2 text-sm border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 font-medium"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -1,6 +1,7 @@
 import { TemplateType, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../utils/errors';
+import { DEFAULT_TEMPLATES } from '../config/default-templates.config';
 
 
 // Common template variables
@@ -528,6 +529,88 @@ class TemplateService {
       APPOINTMENT_TIME: 'Appointment time',
     };
     return descriptions[key] || key;
+  }
+
+  /**
+   * Seed default templates for organization
+   */
+  async seedDefaultTemplates(organizationId: string, options: { force?: boolean } = {}) {
+    const { force = false } = options;
+
+    // Check if templates already exist
+    const existingCount = await prisma.messageTemplate.count({
+      where: { organizationId },
+    });
+
+    if (existingCount > 0 && !force) {
+      return {
+        success: true,
+        message: 'Templates already exist',
+        created: 0,
+        skipped: DEFAULT_TEMPLATES.length,
+      };
+    }
+
+    let created = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const template of DEFAULT_TEMPLATES) {
+      try {
+        // Check if template with same name and type exists
+        const existing = await prisma.messageTemplate.findFirst({
+          where: {
+            organizationId,
+            name: template.name,
+            type: template.type as TemplateType,
+          },
+        });
+
+        if (existing) {
+          skipped++;
+          continue;
+        }
+
+        // Extract variables from content
+        const variables = this.extractVariables(template.content);
+
+        await prisma.messageTemplate.create({
+          data: {
+            organizationId,
+            name: template.name,
+            type: template.type as TemplateType,
+            category: template.category,
+            subject: template.subject,
+            content: template.content,
+            variables: variables as any,
+            sampleValues: template.sampleValues as any,
+            isDefault: template.isDefault || false,
+            isActive: true,
+            whatsappStatus: template.type === 'WHATSAPP' ? 'PENDING' : undefined,
+          },
+        });
+
+        created++;
+      } catch (err: any) {
+        errors.push(`Failed to create ${template.name}: ${err.message}`);
+        skipped++;
+      }
+    }
+
+    return {
+      success: true,
+      message: `Seeded ${created} templates`,
+      created,
+      skipped,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  }
+
+  /**
+   * Get default templates (without saving to DB)
+   */
+  getDefaultTemplates() {
+    return DEFAULT_TEMPLATES;
   }
 }
 

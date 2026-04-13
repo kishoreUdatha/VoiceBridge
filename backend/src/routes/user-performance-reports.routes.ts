@@ -96,11 +96,20 @@ const filterValidation = [
 
 function parseFilters(req: TenantRequest) {
   const { startDate, endDate, userId, branchId, roleId } = req.query;
+
+  // Parse dates and ensure end date includes the full day
+  let dateRange;
+  if (startDate && endDate) {
+    const start = new Date(startDate as string);
+    const end = new Date(endDate as string);
+    // Set end date to end of day (23:59:59.999)
+    end.setHours(23, 59, 59, 999);
+    dateRange = { start, end };
+  }
+
   return {
     organizationId: req.organizationId!,
-    dateRange: startDate && endDate
-      ? { start: new Date(startDate as string), end: new Date(endDate as string) }
-      : undefined,
+    dateRange,
     userId: userId as string | undefined,
     branchId: branchId as string | undefined,
     roleId: roleId as string | undefined,
@@ -179,7 +188,8 @@ router.get('/login-report', validate(filterValidation), async (req: TenantReques
 
 // GET /user-performance-reports/comprehensive
 router.get('/comprehensive', (req, res, next) => {
-  console.log('[UserPerformanceReports] /comprehensive - before validation');
+  console.log('[UserPerformanceReports] /comprehensive - request received at', new Date().toISOString());
+  console.log('[UserPerformanceReports] Query params:', req.query);
   next();
 }, validate(filterValidation), async (req: TenantRequest, res: Response) => {
   try {

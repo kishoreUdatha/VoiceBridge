@@ -1,6 +1,5 @@
 /**
- * Landing Page
- * Premium Enterprise marketing homepage for VoiceBridge
+ * Landing Page - Clean Modern Design
  */
 
 import {
@@ -16,7 +15,6 @@ import {
   PricingPreviewSection,
   CTASection,
   Footer,
-  DocumentationSection,
 } from './components';
 import {
   STATS,
@@ -30,7 +28,7 @@ import {
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-white antialiased">
+    <div className="min-h-screen bg-white">
       <Navigation />
       <HeroSection stats={STATS} />
       <FeaturesOverviewSection />
@@ -38,7 +36,6 @@ export default function LandingPage() {
       <IndustriesSection industries={INDUSTRIES} />
       <FeaturesSection features={FEATURES} />
       <HowItWorksSection steps={STEPS} />
-      <DocumentationSection />
       <TestimonialsSection />
       <SecuritySection />
       <PricingPreviewSection tiers={PRICING_TIERS} />

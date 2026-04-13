@@ -36,64 +36,67 @@ import {
   BoltIcon,
   EyeIcon,
   PhoneIcon,
+  CalendarDaysIcon,
 } from '@heroicons/react/24/outline';
 
 const STAGE_COLORS: Record<string, string> = {
-  // Common Pipeline Stages
-  'New': '#3B82F6',           // Blue
-  'NEW': '#3B82F6',
-  'Contacted': '#8B5CF6',     // Purple
-  'CONTACTED': '#8B5CF6',
-  'Qualified': '#F59E0B',     // Amber
-  'QUALIFIED': '#F59E0B',
-  'Negotiation': '#EC4899',   // Pink
-  'NEGOTIATION': '#EC4899',
-  'Proposal': '#6366F1',      // Indigo
-  'PROPOSAL': '#6366F1',
-  'Won': '#22C55E',           // Green
-  'WON': '#22C55E',
-  'Lost': '#EF4444',          // Red
-  'LOST': '#EF4444',
-  'Follow Up': '#F97316',     // Orange
-  'Follow-Up': '#F97316',
-  'FOLLOW_UP': '#F97316',
-  // Education Pipeline Stages
-  'Admitted': '#10B981',      // Emerald
-  'ADMITTED': '#10B981',
-  'Enrolled': '#059669',      // Green
-  'ENROLLED': '#059669',
-  'Application': '#0EA5E9',   // Sky
-  'APPLICATION': '#0EA5E9',
-  'Document Verification': '#14B8A6', // Teal
-  'DOCUMENT_VERIFICATION': '#14B8A6',
-  'Counseling': '#A855F7',    // Violet
-  'COUNSELING': '#A855F7',
-  'Fee Payment': '#F472B6',   // Pink
-  'FEE_PAYMENT': '#F472B6',
-  // Other common stages
-  'Unassigned': '#6B7280',    // Gray
-  'UNASSIGNED': '#6B7280',
-  'Pending': '#FBBF24',       // Yellow
-  'PENDING': '#FBBF24',
-  'In Progress': '#3B82F6',   // Blue
-  'IN_PROGRESS': '#3B82F6',
-  'Closed': '#64748B',        // Slate
-  'CLOSED': '#64748B',
+  // Common Pipeline Stages - Brighter colors
+  'New': '#60A5FA',           // Bright Blue
+  'NEW': '#60A5FA',
+  'Contacted': '#A78BFA',     // Bright Purple
+  'CONTACTED': '#A78BFA',
+  'Qualified': '#FBBF24',     // Bright Amber
+  'QUALIFIED': '#FBBF24',
+  'Negotiation': '#F472B6',   // Bright Pink
+  'NEGOTIATION': '#F472B6',
+  'Proposal': '#818CF8',      // Bright Indigo
+  'PROPOSAL': '#818CF8',
+  'Won': '#4ADE80',           // Bright Green
+  'WON': '#4ADE80',
+  'Lost': '#FB7185',          // Bright Red
+  'LOST': '#FB7185',
+  'Follow Up': '#FB923C',     // Bright Orange
+  'Follow-Up': '#FB923C',
+  'FOLLOW_UP': '#FB923C',
+  // Education Pipeline Stages - Brighter
+  'Admitted': '#34D399',      // Bright Emerald
+  'ADMITTED': '#34D399',
+  'Enrolled': '#10B981',      // Emerald
+  'ENROLLED': '#10B981',
+  'Application': '#38BDF8',   // Bright Sky
+  'APPLICATION': '#38BDF8',
+  'Document Verification': '#2DD4BF', // Bright Teal
+  'DOCUMENT_VERIFICATION': '#2DD4BF',
+  'Counseling': '#C084FC',    // Bright Violet
+  'COUNSELING': '#C084FC',
+  'Fee Payment': '#F9A8D4',   // Bright Pink
+  'FEE_PAYMENT': '#F9A8D4',
+  // Other common stages - Brighter
+  'Unassigned': '#9CA3AF',    // Brighter Gray
+  'UNASSIGNED': '#9CA3AF',
+  'Pending': '#FCD34D',       // Bright Yellow
+  'PENDING': '#FCD34D',
+  'In Progress': '#60A5FA',   // Bright Blue
+  'IN_PROGRESS': '#60A5FA',
+  'Closed': '#94A3B8',        // Brighter Slate
+  'CLOSED': '#94A3B8',
+  'Inquiry': '#F472B6',       // Bright Pink
+  'INQUIRY': '#F472B6',
 };
 
-const PIE_COLORS = ['#6366F1', '#EC4899', '#14B8A6', '#F59E0B', '#8B5CF6', '#EF4444', '#10B981', '#3B82F6'];
+const PIE_COLORS = ['#818CF8', '#F472B6', '#2DD4BF', '#FBBF24', '#A78BFA', '#FB7185', '#34D399', '#60A5FA', '#FB923C', '#4ADE80'];
 const SOURCE_COLORS: Record<string, string> = {
-  'FACEBOOK': '#1877F2',
-  'INSTAGRAM': '#E4405F',
-  'GOOGLE': '#4285F4',
-  'WEBSITE': '#10B981',
-  'REFERRAL': '#8B5CF6',
-  'WALK_IN': '#F59E0B',
-  'PHONE': '#06B6D4',
-  'EMAIL': '#EF4444',
-  'LINKEDIN': '#0A66C2',
-  'TWITTER': '#1DA1F2',
-  'OTHER': '#6B7280',
+  'FACEBOOK': '#4F9DF7',
+  'INSTAGRAM': '#F56C8D',
+  'GOOGLE': '#5C9EF8',
+  'WEBSITE': '#34D399',
+  'REFERRAL': '#A78BFA',
+  'WALK_IN': '#FBBF24',
+  'PHONE': '#22D3EE',
+  'EMAIL': '#FB7185',
+  'LINKEDIN': '#3B99FC',
+  'TWITTER': '#38BDF8',
+  'OTHER': '#9CA3AF',
 };
 
 // Call History Item
@@ -141,6 +144,7 @@ interface DashboardStats {
     winRate: number;
   };
   outcomes: Record<string, number>;
+  callTypes?: { OUTBOUND: number; INBOUND: number };
   recentActivities: Array<{
     id: string;
     type: string;
@@ -362,7 +366,7 @@ function TelecallerDashboard({ user, getGreeting, currentTime, lastRefresh, setL
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-base font-semibold text-gray-900">{getGreeting()}, {user?.firstName}</h1>
+          <h1 className="text-base font-semibold text-gray-900">{getGreeting()}, {user?.firstName ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1).toLowerCase() : ''}</h1>
           <span className="text-gray-500 text-xs hidden sm:inline">
             {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
           </span>
@@ -413,105 +417,147 @@ function TelecallerDashboard({ user, getGreeting, currentTime, lastRefresh, setL
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
-          {/* Daily Performance - Donut Chart with Stats */}
+          {/* Call Outcomes - From Raw List + Leads */}
           <div className="bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 rounded-xl p-4 border border-violet-200 shadow-md">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-1.5 h-5 bg-gradient-to-b from-violet-500 to-fuchsia-500 rounded-full"></div>
-              <h3 className="text-sm font-bold text-violet-800 uppercase tracking-wide">Today's Performance</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-5 bg-gradient-to-b from-violet-500 to-fuchsia-500 rounded-full"></div>
+                <h3 className="text-sm font-bold text-violet-800 uppercase tracking-wide">Today's Calls</h3>
+              </div>
+              <span className="text-[10px] text-violet-500 bg-violet-100 px-2 py-0.5 rounded-full font-medium">Raw List + Leads</span>
             </div>
             <div className="flex items-center gap-6">
-              {/* Donut Chart */}
-              <div className="relative w-40 h-40 flex-shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: 'Interested', value: dashboardStats?.outcomes?.INTERESTED || 0, fill: '#10B981' },
-                        { name: 'Not Interested', value: dashboardStats?.outcomes?.NOT_INTERESTED || 0, fill: '#EF4444' },
-                        { name: 'No Answer', value: dashboardStats?.outcomes?.NO_ANSWER || 0, fill: '#F59E0B' },
-                        { name: 'Callbacks', value: dashboardStats?.outcomes?.CALLBACK || dashboardStats?.outcomes?.CALLBACK_REQUESTED || 0, fill: '#3B82F6' },
-                        { name: 'Converted', value: dashboardStats?.leads?.converted || 0, fill: '#EC4899' },
-                        { name: 'Other', value: Math.max(0, (dashboardStats?.today?.calls || 0) -
-                          ((dashboardStats?.outcomes?.INTERESTED || 0) +
-                           (dashboardStats?.outcomes?.NOT_INTERESTED || 0) +
-                           (dashboardStats?.outcomes?.NO_ANSWER || 0) +
-                           (dashboardStats?.outcomes?.CALLBACK || dashboardStats?.outcomes?.CALLBACK_REQUESTED || 0) +
-                           (dashboardStats?.leads?.converted || 0))), fill: '#94A3B8' },
-                      ].filter(item => item.value > 0)}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={65}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {[
-                        { fill: '#10B981' },
-                        { fill: '#EF4444' },
-                        { fill: '#F59E0B' },
-                        { fill: '#3B82F6' },
-                        { fill: '#EC4899' },
-                        { fill: '#94A3B8' },
-                      ].map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #E5E7EB', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                {/* Center Text */}
+              {/* Donut Chart - Only call outcomes */}
+              <div className="relative w-36 h-36 flex-shrink-0">
+                {(() => {
+                  const chartData = [
+                    { name: 'Interested', value: dashboardStats?.outcomes?.INTERESTED || 0, fill: '#34D399' },
+                    { name: 'Not Interested', value: dashboardStats?.outcomes?.NOT_INTERESTED || 0, fill: '#FB7185' },
+                    { name: 'No Answer', value: dashboardStats?.outcomes?.NO_ANSWER || 0, fill: '#FBBF24' },
+                    { name: 'Callbacks', value: dashboardStats?.outcomes?.CALLBACK || dashboardStats?.outcomes?.CALLBACK_REQUESTED || 0, fill: '#60A5FA' },
+                    { name: 'Other', value: Math.max(0, (dashboardStats?.today?.calls || 0) -
+                      ((dashboardStats?.outcomes?.INTERESTED || 0) +
+                       (dashboardStats?.outcomes?.NOT_INTERESTED || 0) +
+                       (dashboardStats?.outcomes?.NO_ANSWER || 0) +
+                       (dashboardStats?.outcomes?.CALLBACK || dashboardStats?.outcomes?.CALLBACK_REQUESTED || 0))), fill: '#C4B5FD' },
+                  ].filter(item => item.value > 0);
+
+                  const displayData = chartData.length > 0 ? chartData : [{ name: 'No Calls', value: 1, fill: '#E5E7EB' }];
+
+                  return (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={displayData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={40}
+                          outerRadius={58}
+                          paddingAngle={chartData.length > 0 ? 3 : 0}
+                          dataKey="value"
+                          strokeWidth={2}
+                          stroke="#fff"
+                        >
+                          {displayData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        {chartData.length > 0 && (
+                          <Tooltip contentStyle={{ backgroundColor: '#fff', border: 'none', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontSize: '12px' }} />
+                        )}
+                      </PieChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-2xl font-bold text-gray-900">{dashboardStats?.today?.calls || 0}</span>
-                  <span className="text-[10px] text-gray-500 uppercase">Total Calls</span>
+                  <span className="text-2xl font-bold text-violet-700">{dashboardStats?.today?.calls || 0}</span>
+                  <span className="text-[9px] text-violet-500 uppercase font-medium">Total Calls</span>
                 </div>
               </div>
 
-              {/* Stats Grid */}
-              <div className="flex-1 grid grid-cols-3 gap-2">
-                <div className="bg-gradient-to-br from-emerald-100 to-green-100 rounded-lg p-2.5 border border-emerald-200 shadow-sm">
+              {/* Call Outcome Stats - 2x2 Grid */}
+              <div className="flex-1 grid grid-cols-2 gap-2">
+                <div className="bg-gradient-to-br from-emerald-400 to-green-500 rounded-xl p-3 shadow-lg shadow-emerald-200">
                   <div className="flex items-center gap-1.5 mb-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
-                    <span className="text-[10px] text-emerald-700 uppercase font-medium">Interested</span>
+                    <span className="w-2 h-2 rounded-full bg-white/80"></span>
+                    <span className="text-[10px] text-emerald-100 uppercase font-semibold">Interested</span>
                   </div>
-                  <span className="text-xl font-bold text-emerald-700">{dashboardStats?.outcomes?.INTERESTED || 0}</span>
+                  <span className="text-2xl font-bold text-white">{dashboardStats?.outcomes?.INTERESTED || 0}</span>
                 </div>
-                <div className="bg-gradient-to-br from-red-100 to-rose-100 rounded-lg p-2.5 border border-red-200 shadow-sm">
+                <div className="bg-gradient-to-br from-rose-400 to-red-500 rounded-xl p-3 shadow-lg shadow-rose-200">
                   <div className="flex items-center gap-1.5 mb-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm shadow-red-500/50"></span>
-                    <span className="text-[10px] text-red-700 uppercase font-medium">Not Int.</span>
+                    <span className="w-2 h-2 rounded-full bg-white/80"></span>
+                    <span className="text-[10px] text-rose-100 uppercase font-semibold">Not Int.</span>
                   </div>
-                  <span className="text-xl font-bold text-red-700">{dashboardStats?.outcomes?.NOT_INTERESTED || 0}</span>
+                  <span className="text-2xl font-bold text-white">{dashboardStats?.outcomes?.NOT_INTERESTED || 0}</span>
                 </div>
-                <div className="bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg p-2.5 border border-amber-200 shadow-sm">
+                <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl p-3 shadow-lg shadow-amber-200">
                   <div className="flex items-center gap-1.5 mb-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50"></span>
-                    <span className="text-[10px] text-amber-700 uppercase font-medium">No Answer</span>
+                    <span className="w-2 h-2 rounded-full bg-white/80"></span>
+                    <span className="text-[10px] text-amber-100 uppercase font-semibold">No Answer</span>
                   </div>
-                  <span className="text-xl font-bold text-amber-700">{dashboardStats?.outcomes?.NO_ANSWER || 0}</span>
+                  <span className="text-2xl font-bold text-white">{dashboardStats?.outcomes?.NO_ANSWER || 0}</span>
                 </div>
-                <div className="bg-gradient-to-br from-blue-100 to-indigo-100 rounded-lg p-2.5 border border-blue-200 shadow-sm">
+                <div className="bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl p-3 shadow-lg shadow-blue-200">
                   <div className="flex items-center gap-1.5 mb-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50"></span>
-                    <span className="text-[10px] text-blue-700 uppercase font-medium">Callbacks</span>
+                    <span className="w-2 h-2 rounded-full bg-white/80"></span>
+                    <span className="text-[10px] text-blue-100 uppercase font-semibold">Callbacks</span>
                   </div>
-                  <span className="text-xl font-bold text-blue-700">{dashboardStats?.outcomes?.CALLBACK || dashboardStats?.outcomes?.CALLBACK_REQUESTED || 0}</span>
+                  <span className="text-2xl font-bold text-white">{dashboardStats?.outcomes?.CALLBACK || dashboardStats?.outcomes?.CALLBACK_REQUESTED || 0}</span>
                 </div>
-                <div className="bg-gradient-to-br from-cyan-100 to-sky-100 rounded-lg p-2.5 border border-cyan-200 shadow-sm">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 shadow-sm shadow-cyan-500/50"></span>
-                    <span className="text-[10px] text-cyan-700 uppercase font-medium">Follow-ups</span>
+              </div>
+            </div>
+
+            {/* Call Type Breakdown */}
+            <div className="mt-3 pt-3 border-t border-slate-200">
+              <div className="flex items-center gap-2 mb-2">
+                <PhoneIcon className="w-4 h-4 text-slate-500" />
+                <span className="text-xs font-semibold text-slate-600 uppercase">Call Types</span>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1 bg-gradient-to-r from-sky-100 to-blue-100 rounded-lg p-2 border border-sky-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+                      <span className="text-xs font-medium text-sky-700">Outbound</span>
+                    </div>
+                    <span className="text-lg font-bold text-sky-600">{dashboardStats?.callTypes?.OUTBOUND || 0}</span>
                   </div>
-                  <span className="text-xl font-bold text-cyan-700">{dashboardStats?.today?.followUpsCompleted || 0}</span>
                 </div>
-                <div className="bg-gradient-to-br from-pink-100 to-rose-100 rounded-lg p-2.5 border border-pink-200 shadow-sm">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-pink-500 shadow-sm shadow-pink-500/50"></span>
-                    <span className="text-[10px] text-pink-700 uppercase font-medium">Converted</span>
+                <div className="flex-1 bg-gradient-to-r from-teal-100 to-emerald-100 rounded-lg p-2 border border-teal-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                      <span className="text-xs font-medium text-teal-700">Inbound</span>
+                    </div>
+                    <span className="text-lg font-bold text-teal-600">{dashboardStats?.callTypes?.INBOUND || 0}</span>
                   </div>
-                  <span className="text-xl font-bold text-pink-700">{dashboardStats?.leads?.converted || 0}</span>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Lead Performance - Separate section for lead-based metrics */}
+          <div className="bg-gradient-to-br from-pink-50 via-fuchsia-50 to-purple-50 rounded-xl p-4 border border-pink-200 shadow-md">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-5 bg-gradient-to-b from-pink-500 to-fuchsia-500 rounded-full"></div>
+                <h3 className="text-sm font-bold text-pink-800 uppercase tracking-wide">Lead Performance</h3>
+              </div>
+              <span className="text-[10px] text-pink-500 bg-pink-100 px-2 py-0.5 rounded-full font-medium">From Leads Only</span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-gradient-to-br from-cyan-400 to-teal-500 rounded-xl p-3 shadow-lg shadow-cyan-200 text-center">
+                <span className="text-[10px] text-cyan-100 uppercase font-semibold block mb-1">Follow-ups Done</span>
+                <span className="text-2xl font-bold text-white">{dashboardStats?.today?.followUpsCompleted || 0}</span>
+              </div>
+              <div className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl p-3 shadow-lg shadow-violet-200 text-center">
+                <span className="text-[10px] text-violet-100 uppercase font-semibold block mb-1">Pending F/U</span>
+                <span className="text-2xl font-bold text-white">{dashboardStats?.today?.pendingFollowUps || 0}</span>
+              </div>
+              <div className="bg-gradient-to-br from-fuchsia-500 to-pink-600 rounded-xl p-3 shadow-lg shadow-fuchsia-200 text-center">
+                <span className="text-[10px] text-fuchsia-100 uppercase font-semibold block mb-1">Converted</span>
+                <span className="text-2xl font-bold text-white">{dashboardStats?.leads?.converted || 0}</span>
               </div>
             </div>
           </div>
@@ -857,7 +903,7 @@ function TeamLeadDashboard({ user, getGreeting, lastRefresh, setLastRefresh }: a
       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-4 text-white">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold">{getGreeting()}, {user?.firstName}</h1>
+            <h1 className="text-lg font-semibold">{getGreeting()}, {user?.firstName ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1).toLowerCase() : ''}</h1>
             <p className="text-indigo-200 text-sm">Team Lead Dashboard - Your Team's Performance</p>
           </div>
           <div className="flex items-center gap-4">
@@ -1221,83 +1267,83 @@ function ManagerDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stat
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl p-4 text-white">
+      {/* Header - Vibrant gradient */}
+      <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 rounded-xl p-4 text-white shadow-lg shadow-purple-200">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold">{getGreeting()}, {user?.firstName}</h1>
-            <p className="text-blue-200 text-sm">Manager Dashboard - Organization Overview</p>
+            <h1 className="text-xl font-bold">{getGreeting()}, {user?.firstName ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1).toLowerCase() : ''}</h1>
+            <p className="text-purple-200 text-sm">Manager Dashboard - Organization Overview</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden md:flex items-center gap-4">
-              <div className="text-center px-3 py-1 bg-white/10 rounded-lg">
-                <p className="text-lg font-bold">{teamOverview.length}</p>
-                <p className="text-[10px] text-blue-200">Teams</p>
+              <div className="text-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30">
+                <p className="text-2xl font-bold">{teamOverview.length}</p>
+                <p className="text-[10px] text-purple-100 font-medium">Teams</p>
               </div>
-              <div className="text-center px-3 py-1 bg-white/10 rounded-lg">
-                <p className="text-lg font-bold">{overallConversionRate}%</p>
-                <p className="text-[10px] text-blue-200">Conversion</p>
+              <div className="text-center px-4 py-2 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl shadow-lg">
+                <p className="text-2xl font-bold">{overallConversionRate}%</p>
+                <p className="text-[10px] text-emerald-100 font-medium">Conversion</p>
               </div>
             </div>
-            <button onClick={handleRefresh} className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all">
+            <button onClick={handleRefresh} className="p-2.5 bg-white/20 hover:bg-white/30 rounded-xl transition-all backdrop-blur-sm border border-white/20">
               <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Live Team Status */}
+      {/* Live Team Status - Enhanced colors */}
       {liveStatus && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
+        <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl border border-gray-200 p-4 shadow-md">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
+              <span className="relative flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
               </span>
-              <h2 className="text-sm font-semibold text-gray-900">Live Team Status</h2>
+              <h2 className="text-base font-bold text-gray-900">Live Team Status</h2>
             </div>
-            <Link to="/team-monitoring" className="text-xs text-indigo-600">View Details →</Link>
+            <Link to="/team-monitoring" className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">View Details →</Link>
           </div>
           <div className="grid grid-cols-4 gap-4">
-            <div className="text-center p-3 bg-gray-50 rounded-lg">
-              <p className="text-2xl font-bold text-gray-900">{liveStatus.summary.total}</p>
-              <p className="text-xs text-gray-500">Total Team</p>
+            <div className="text-center p-4 bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl shadow-sm">
+              <p className="text-3xl font-bold text-slate-700">{liveStatus.summary.total}</p>
+              <p className="text-xs text-slate-600 font-medium mt-1">Total Team</p>
             </div>
-            <div className="text-center p-3 bg-emerald-50 rounded-lg border border-emerald-100">
+            <div className="text-center p-4 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl shadow-lg shadow-emerald-200">
               <div className="flex items-center justify-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <p className="text-2xl font-bold text-emerald-600">{liveStatus.summary.active}</p>
+                <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
+                <p className="text-3xl font-bold text-white">{liveStatus.summary.active}</p>
               </div>
-              <p className="text-xs text-emerald-700">Active Now</p>
+              <p className="text-xs text-emerald-100 font-medium mt-1">Active Now</p>
             </div>
-            <div className="text-center p-3 bg-amber-50 rounded-lg border border-amber-100">
+            <div className="text-center p-4 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl shadow-lg shadow-amber-200">
               <div className="flex items-center justify-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                <p className="text-2xl font-bold text-amber-600">{liveStatus.summary.onBreak}</p>
+                <span className="w-2.5 h-2.5 rounded-full bg-white"></span>
+                <p className="text-3xl font-bold text-white">{liveStatus.summary.onBreak}</p>
               </div>
-              <p className="text-xs text-amber-700">On Break</p>
+              <p className="text-xs text-amber-100 font-medium mt-1">On Break</p>
             </div>
-            <div className="text-center p-3 bg-gray-100 rounded-lg">
+            <div className="text-center p-4 bg-gradient-to-br from-gray-300 to-slate-400 rounded-xl shadow-sm">
               <div className="flex items-center justify-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                <p className="text-2xl font-bold text-gray-500">{liveStatus.summary.offline}</p>
+                <span className="w-2.5 h-2.5 rounded-full bg-white/70"></span>
+                <p className="text-3xl font-bold text-white">{liveStatus.summary.offline}</p>
               </div>
-              <p className="text-xs text-gray-500">Offline</p>
+              <p className="text-xs text-gray-100 font-medium mt-1">Offline</p>
             </div>
           </div>
           {liveStatus.members.filter(m => m.status === 'active').length > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-2">Currently Active:</p>
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <p className="text-xs text-gray-600 mb-3 font-medium">Currently Active:</p>
               <div className="flex flex-wrap gap-2">
                 {liveStatus.members.filter(m => m.status === 'active').slice(0, 10).map((member) => (
-                  <div key={member.id} className="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 rounded-full border border-emerald-100">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    <span className="text-xs text-emerald-700 font-medium">{member.name.split(' ')[0]}</span>
+                  <div key={member.id} className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-100 to-teal-100 rounded-full border border-emerald-200 shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="text-xs text-emerald-700 font-semibold">{member.name.split(' ')[0]}</span>
                   </div>
                 ))}
                 {liveStatus.members.filter(m => m.status === 'active').length > 10 && (
-                  <span className="text-xs text-gray-400 px-2 py-1">+{liveStatus.members.filter(m => m.status === 'active').length - 10} more</span>
+                  <span className="text-xs text-gray-500 px-3 py-1.5 bg-gray-100 rounded-full">+{liveStatus.members.filter(m => m.status === 'active').length - 10} more</span>
                 )}
               </div>
             </div>
@@ -1305,57 +1351,57 @@ function ManagerDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stat
         </div>
       )}
 
-      {/* KPIs */}
+      {/* KPIs - Colorful gradient cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        <Link to="/leads" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-gray-500 text-xs uppercase tracking-wide">Total Leads</p>
-          <p className="text-2xl font-bold text-gray-900">{stats?.total || 0}</p>
+        <Link to="/leads" className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-4 shadow-lg shadow-indigo-200 hover:shadow-xl hover:scale-[1.02] transition-all">
+          <p className="text-indigo-100 text-xs uppercase tracking-wide font-medium">Total Leads</p>
+          <p className="text-3xl font-bold text-white mt-1">{stats?.total || 0}</p>
         </Link>
-        <Link to="/leads?status=NEW" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-gray-500 text-xs uppercase tracking-wide">New Today</p>
-          <p className="text-2xl font-bold text-green-600">{stats?.todayCount || 0}</p>
+        <Link to="/leads?status=NEW" className="bg-gradient-to-br from-emerald-400 to-green-600 rounded-xl p-4 shadow-lg shadow-emerald-200 hover:shadow-xl hover:scale-[1.02] transition-all">
+          <p className="text-emerald-100 text-xs uppercase tracking-wide font-medium">New Today</p>
+          <p className="text-3xl font-bold text-white mt-1">{stats?.todayCount || 0}</p>
         </Link>
-        <Link to="/raw-imports" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-gray-500 text-xs uppercase tracking-wide">Pending Review</p>
-          <p className="text-2xl font-bold text-amber-600">{rawImportStats?.pendingRecords || 0}</p>
+        <Link to="/raw-imports" className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl p-4 shadow-lg shadow-amber-200 hover:shadow-xl hover:scale-[1.02] transition-all">
+          <p className="text-amber-100 text-xs uppercase tracking-wide font-medium">Pending Review</p>
+          <p className="text-3xl font-bold text-white mt-1">{rawImportStats?.pendingRecords || 0}</p>
         </Link>
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <p className="text-gray-500 text-xs uppercase tracking-wide">Assigned</p>
-          <p className="text-2xl font-bold text-blue-600">{rawImportStats?.assignedRecords || 0}</p>
+        <div className="bg-gradient-to-br from-blue-400 to-cyan-600 rounded-xl p-4 shadow-lg shadow-blue-200">
+          <p className="text-blue-100 text-xs uppercase tracking-wide font-medium">Assigned</p>
+          <p className="text-3xl font-bold text-white mt-1">{rawImportStats?.assignedRecords || 0}</p>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <p className="text-gray-500 text-xs uppercase tracking-wide">Interested</p>
-          <p className="text-2xl font-bold text-emerald-600">{rawImportStats?.interestedRecords || 0}</p>
+        <div className="bg-gradient-to-br from-teal-400 to-emerald-600 rounded-xl p-4 shadow-lg shadow-teal-200">
+          <p className="text-teal-100 text-xs uppercase tracking-wide font-medium">Interested</p>
+          <p className="text-3xl font-bold text-white mt-1">{rawImportStats?.interestedRecords || 0}</p>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <p className="text-gray-500 text-xs uppercase tracking-wide">Converted</p>
-          <p className="text-2xl font-bold text-indigo-600">{rawImportStats?.convertedRecords || 0}</p>
+        <div className="bg-gradient-to-br from-violet-500 to-fuchsia-600 rounded-xl p-4 shadow-lg shadow-violet-200">
+          <p className="text-violet-100 text-xs uppercase tracking-wide font-medium">Converted</p>
+          <p className="text-3xl font-bold text-white mt-1">{rawImportStats?.convertedRecords || 0}</p>
         </div>
       </div>
 
-      {/* Teams Overview + Charts */}
+      {/* Teams Overview + Charts - Enhanced colors */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Teams Overview */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-900">Teams Overview</h2>
-            <Link to="/users" className="text-xs text-indigo-600">Manage →</Link>
+        <div className="bg-gradient-to-br from-white to-indigo-50 rounded-xl border border-indigo-100 p-4 shadow-md">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-bold text-gray-900">Teams Overview</h2>
+            <Link to="/users" className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Manage →</Link>
           </div>
           {teamOverview.length > 0 ? (
             <div className="space-y-2">
               {teamOverview.map((team, idx) => (
-                <div key={idx} className="p-3 bg-gray-50 rounded-lg">
+                <div key={idx} className="p-3 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-xl border border-indigo-200">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                        <UserGroupIcon className="w-4 h-4 text-indigo-600" />
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
+                        <UserGroupIcon className="w-5 h-5 text-white" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{team.name}</p>
-                        <p className="text-xs text-gray-500">{team.memberCount} members</p>
+                        <p className="text-sm font-semibold text-gray-900">{team.name}</p>
+                        <p className="text-xs text-indigo-600">{team.memberCount} members</p>
                       </div>
                     </div>
-                    <span className="text-lg font-bold text-indigo-600">{team.memberCount}</span>
+                    <span className="text-xl font-bold text-indigo-600 bg-white px-3 py-1 rounded-lg shadow-sm">{team.memberCount}</span>
                   </div>
                 </div>
               ))}
@@ -1365,74 +1411,81 @@ function ManagerDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stat
             </div>
           ) : (
             <div className="text-center py-8 text-gray-400">
-              <UserGroupIcon className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-              <p className="text-sm">No teams created yet</p>
-              <Link to="/users" className="text-xs text-indigo-600 mt-1 inline-block">Add Team Leads →</Link>
+              <div className="w-14 h-14 mx-auto bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center mb-3">
+                <UserGroupIcon className="w-7 h-7 text-indigo-400" />
+              </div>
+              <p className="text-sm text-gray-500">No teams created yet</p>
+              <Link to="/users" className="text-xs text-indigo-600 mt-1 inline-block font-medium">Add Team Leads →</Link>
             </div>
           )}
         </div>
 
         {/* Lead Status */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-900">Lead Status</h2>
-            <Link to="/leads" className="text-xs text-indigo-600">View All →</Link>
+        <div className="bg-gradient-to-br from-white to-pink-50 rounded-xl border border-pink-100 p-4 shadow-md">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-bold text-gray-900">Lead Status</h2>
+            <Link to="/leads" className="text-xs text-pink-600 hover:text-pink-800 font-medium">View All →</Link>
           </div>
           {statusPieData.length > 0 ? (
             <div className="h-44">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={statusPieData} cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={2} dataKey="value">
+                  <Pie data={statusPieData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} dataKey="value" strokeWidth={2} stroke="#fff">
                     {statusPieData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           ) : (
             <div className="h-44 flex items-center justify-center text-gray-400">No data</div>
           )}
-          <div className="flex flex-wrap gap-2 mt-2 justify-center">
+          <div className="flex flex-wrap gap-2 mt-3 justify-center">
             {statusPieData.slice(0, 4).map((entry, index) => (
-              <div key={index} className="flex items-center gap-1 text-xs">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                <span className="text-gray-600">{entry.name}: {entry.value}</span>
+              <div key={index} className="flex items-center gap-1.5 text-xs bg-white px-2 py-1 rounded-full shadow-sm border border-gray-100">
+                <span className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: entry.color }} />
+                <span className="text-gray-700 font-medium">{entry.name}: {entry.value}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Telecaller Leaderboard */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-900">Top Telecallers Today</h2>
-            <Link to="/analytics/telecaller-performance" className="text-xs text-indigo-600">View All →</Link>
+        <div className="bg-gradient-to-br from-white to-amber-50 rounded-xl border border-amber-100 p-4 shadow-md">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-bold text-gray-900">Top Telecallers Today</h2>
+            <Link to="/analytics/telecaller-performance" className="text-xs text-amber-600 hover:text-amber-800 font-medium">View All →</Link>
           </div>
           {leaderboard.length > 0 ? (
             <div className="space-y-2">
               {leaderboard.slice(0, 5).map((entry, idx) => (
-                <div key={entry.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                <div key={entry.id} className={`flex items-center justify-between p-3 rounded-xl ${
+                  idx === 0 ? 'bg-gradient-to-r from-amber-100 to-yellow-100 border border-amber-200' :
+                  idx === 1 ? 'bg-gradient-to-r from-gray-100 to-slate-100 border border-gray-200' :
+                  idx === 2 ? 'bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200' :
+                  'bg-white border border-gray-100'
+                }`}>
                   <div className="flex items-center gap-2">
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                      idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                      idx === 1 ? 'bg-gray-200 text-gray-700' :
-                      idx === 2 ? 'bg-orange-100 text-orange-700' :
-                      'bg-gray-100 text-gray-600'
+                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-md ${
+                      idx === 0 ? 'bg-gradient-to-br from-amber-400 to-yellow-500 text-white' :
+                      idx === 1 ? 'bg-gradient-to-br from-gray-400 to-slate-500 text-white' :
+                      idx === 2 ? 'bg-gradient-to-br from-orange-400 to-amber-500 text-white' :
+                      'bg-gray-200 text-gray-600'
                     }`}>
                       {idx + 1}
                     </span>
-                    <span className="text-sm font-medium text-gray-900 truncate max-w-[100px]">{entry.name}</span>
+                    <span className="text-sm font-semibold text-gray-900 truncate max-w-[100px]">{entry.name}</span>
                   </div>
                   <div className="flex items-center gap-3 text-xs">
-                    <div className="text-center">
+                    <div className="text-center bg-blue-50 px-2 py-1 rounded-lg">
                       <p className="font-bold text-blue-600">{entry.calls}</p>
-                      <p className="text-gray-400">calls</p>
+                      <p className="text-blue-400 text-[10px]">calls</p>
                     </div>
-                    <div className="text-center">
+                    <div className="text-center bg-emerald-50 px-2 py-1 rounded-lg">
                       <p className="font-bold text-emerald-600">{entry.conversions}</p>
-                      <p className="text-gray-400">conv</p>
+                      <p className="text-emerald-400 text-[10px]">conv</p>
                     </div>
                   </div>
                 </div>
@@ -1440,105 +1493,107 @@ function ManagerDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stat
             </div>
           ) : (
             <div className="h-44 flex flex-col items-center justify-center text-gray-400">
-              <PhoneIcon className="w-8 h-8 text-gray-300 mb-2" />
-              <p className="text-sm">No call data today</p>
-              <p className="text-xs">Leaderboard updates as calls are made</p>
+              <div className="w-14 h-14 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center mb-3">
+                <PhoneIcon className="w-7 h-7 text-amber-400" />
+              </div>
+              <p className="text-sm text-gray-500">No call data today</p>
+              <p className="text-xs text-gray-400">Leaderboard updates as calls are made</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Import Pipeline */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-900">Import Pipeline Overview</h2>
-          <Link to="/raw-imports" className="text-xs text-indigo-600">Manage →</Link>
+      {/* Import Pipeline - Colorful gradient */}
+      <div className="bg-gradient-to-br from-white via-cyan-50 to-teal-50 rounded-xl border border-cyan-100 p-5 shadow-md">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-bold text-gray-900">Import Pipeline Overview</h2>
+          <Link to="/raw-imports" className="text-xs text-cyan-600 hover:text-cyan-800 font-medium">Manage →</Link>
         </div>
         <div className="grid grid-cols-5 gap-3">
-          <div className="text-center p-3 rounded-lg bg-gray-50 border border-gray-100">
-            <p className="text-xl font-bold text-gray-900">{rawImportStats?.totalRecords || 0}</p>
-            <p className="text-xs text-gray-500">Total Records</p>
+          <div className="text-center p-4 rounded-xl bg-gradient-to-br from-slate-500 to-gray-600 shadow-lg shadow-gray-200">
+            <p className="text-2xl font-bold text-white">{rawImportStats?.totalRecords || 0}</p>
+            <p className="text-xs text-gray-200 font-medium mt-1">Total Records</p>
           </div>
-          <div className="text-center p-3 rounded-lg bg-yellow-50 border border-yellow-100">
-            <p className="text-xl font-bold text-yellow-600">{rawImportStats?.pendingRecords || 0}</p>
-            <p className="text-xs text-gray-500">Pending</p>
+          <div className="text-center p-4 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 shadow-lg shadow-amber-200">
+            <p className="text-2xl font-bold text-white">{rawImportStats?.pendingRecords || 0}</p>
+            <p className="text-xs text-amber-100 font-medium mt-1">Pending</p>
           </div>
-          <div className="text-center p-3 rounded-lg bg-blue-50 border border-blue-100">
-            <p className="text-xl font-bold text-blue-600">{rawImportStats?.assignedRecords || 0}</p>
-            <p className="text-xs text-gray-500">Assigned</p>
+          <div className="text-center p-4 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 shadow-lg shadow-blue-200">
+            <p className="text-2xl font-bold text-white">{rawImportStats?.assignedRecords || 0}</p>
+            <p className="text-xs text-blue-100 font-medium mt-1">Assigned</p>
           </div>
-          <div className="text-center p-3 rounded-lg bg-green-50 border border-green-100">
-            <p className="text-xl font-bold text-green-600">{rawImportStats?.interestedRecords || 0}</p>
-            <p className="text-xs text-gray-500">Interested</p>
+          <div className="text-center p-4 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg shadow-emerald-200">
+            <p className="text-2xl font-bold text-white">{rawImportStats?.interestedRecords || 0}</p>
+            <p className="text-xs text-emerald-100 font-medium mt-1">Interested</p>
           </div>
-          <div className="text-center p-3 rounded-lg bg-purple-50 border border-purple-100">
-            <p className="text-xl font-bold text-purple-600">{rawImportStats?.convertedRecords || 0}</p>
-            <p className="text-xs text-gray-500">Converted</p>
+          <div className="text-center p-4 rounded-xl bg-gradient-to-br from-purple-500 to-fuchsia-600 shadow-lg shadow-purple-200">
+            <p className="text-2xl font-bold text-white">{rawImportStats?.convertedRecords || 0}</p>
+            <p className="text-xs text-purple-100 font-medium mt-1">Converted</p>
           </div>
         </div>
         {(rawImportStats?.totalRecords || 0) > 0 && (
-          <div className="mt-3">
-            <div className="flex h-2 rounded-full overflow-hidden bg-gray-100">
-              <div className="bg-yellow-400 transition-all" style={{ width: `${((rawImportStats?.pendingRecords || 0) / (rawImportStats?.totalRecords || 1)) * 100}%` }} />
-              <div className="bg-blue-500 transition-all" style={{ width: `${((rawImportStats?.assignedRecords || 0) / (rawImportStats?.totalRecords || 1)) * 100}%` }} />
-              <div className="bg-green-500 transition-all" style={{ width: `${((rawImportStats?.interestedRecords || 0) / (rawImportStats?.totalRecords || 1)) * 100}%` }} />
-              <div className="bg-purple-500 transition-all" style={{ width: `${((rawImportStats?.convertedRecords || 0) / (rawImportStats?.totalRecords || 1)) * 100}%` }} />
+          <div className="mt-4">
+            <div className="flex h-3 rounded-full overflow-hidden bg-gray-200 shadow-inner">
+              <div className="bg-gradient-to-r from-amber-400 to-yellow-500 transition-all" style={{ width: `${((rawImportStats?.pendingRecords || 0) / (rawImportStats?.totalRecords || 1)) * 100}%` }} />
+              <div className="bg-gradient-to-r from-blue-400 to-indigo-500 transition-all" style={{ width: `${((rawImportStats?.assignedRecords || 0) / (rawImportStats?.totalRecords || 1)) * 100}%` }} />
+              <div className="bg-gradient-to-r from-emerald-400 to-teal-500 transition-all" style={{ width: `${((rawImportStats?.interestedRecords || 0) / (rawImportStats?.totalRecords || 1)) * 100}%` }} />
+              <div className="bg-gradient-to-r from-purple-500 to-fuchsia-600 transition-all" style={{ width: `${((rawImportStats?.convertedRecords || 0) / (rawImportStats?.totalRecords || 1)) * 100}%` }} />
             </div>
           </div>
         )}
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Colorful gradient cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Link to="/leads/bulk-upload" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-            <DocumentArrowUpIcon className="w-5 h-5 text-indigo-600" />
+        <Link to="/leads/bulk-upload" className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-4 shadow-lg shadow-indigo-200 hover:shadow-xl hover:scale-[1.02] transition-all flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+            <DocumentArrowUpIcon className="w-6 h-6 text-white" />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-900">Import Data</p>
-            <p className="text-xs text-gray-500">CSV/Excel</p>
+            <p className="text-sm font-semibold text-white">Import Data</p>
+            <p className="text-xs text-indigo-200">CSV/Excel</p>
           </div>
         </Link>
-        <Link to="/assignments" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-            <UserGroupIcon className="w-5 h-5 text-purple-600" />
+        <Link to="/assignments" className="bg-gradient-to-br from-fuchsia-500 to-pink-600 rounded-xl p-4 shadow-lg shadow-fuchsia-200 hover:shadow-xl hover:scale-[1.02] transition-all flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+            <UserGroupIcon className="w-6 h-6 text-white" />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-900">Assignments</p>
-            <p className="text-xs text-gray-500">Distribute</p>
+            <p className="text-sm font-semibold text-white">Assignments</p>
+            <p className="text-xs text-fuchsia-200">Distribute</p>
           </div>
         </Link>
-        <Link to="/campaigns" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-            <RocketLaunchIcon className="w-5 h-5 text-green-600" />
+        <Link to="/campaigns" className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl p-4 shadow-lg shadow-emerald-200 hover:shadow-xl hover:scale-[1.02] transition-all flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+            <RocketLaunchIcon className="w-6 h-6 text-white" />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-900">Campaigns</p>
-            <p className="text-xs text-gray-500">Manage</p>
+            <p className="text-sm font-semibold text-white">Campaigns</p>
+            <p className="text-xs text-emerald-200">Manage</p>
           </div>
         </Link>
-        <Link to="/call-monitoring" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-cyan-100 flex items-center justify-center">
-            <EyeIcon className="w-5 h-5 text-cyan-600" />
+        <Link to="/call-monitoring" className="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl p-4 shadow-lg shadow-cyan-200 hover:shadow-xl hover:scale-[1.02] transition-all flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+            <EyeIcon className="w-6 h-6 text-white" />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-900">Monitoring</p>
-            <p className="text-xs text-gray-500">Live calls</p>
+            <p className="text-sm font-semibold text-white">Monitoring</p>
+            <p className="text-xs text-cyan-200">Live calls</p>
           </div>
         </Link>
-        <Link to="/analytics" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-            <ChartBarIcon className="w-5 h-5 text-amber-600" />
+        <Link to="/analytics" className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl p-4 shadow-lg shadow-amber-200 hover:shadow-xl hover:scale-[1.02] transition-all flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+            <ChartBarIcon className="w-6 h-6 text-white" />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-900">Analytics</p>
-            <p className="text-xs text-gray-500">Reports</p>
+            <p className="text-sm font-semibold text-white">Analytics</p>
+            <p className="text-xs text-amber-200">Reports</p>
           </div>
         </Link>
       </div>
 
       {/* Footer */}
-      <div className="text-xs text-gray-500 text-center">
+      <div className="text-xs text-gray-400 text-center py-2">
         Last updated: {lastRefresh.toLocaleTimeString()} | Organization-wide view
       </div>
     </div>
@@ -1548,18 +1603,40 @@ function ManagerDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stat
 // ============================================
 // ADMIN DASHBOARD
 // ============================================
+interface FollowUpStats {
+  total: number;
+  overdue: number;
+  today: number;
+  upcoming: number;
+  completed: number;
+}
+
 function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats, rawImportStats, subscription }: any) {
   const dispatch = useDispatch<AppDispatch>();
   const [loading, setLoading] = useState(false);
   const [orgStats, setOrgStats] = useState<OrgDashboardStats | null>(null);
   const [liveStatus, setLiveStatus] = useState<LiveTeamStatus | null>(null);
+  const [followUpStats, setFollowUpStats] = useState<FollowUpStats>({ total: 0, overdue: 0, today: 0, upcoming: 0, completed: 0 });
+  const [convertedCount, setConvertedCount] = useState(0);
 
   useEffect(() => {
     fetchOrgStats();
     fetchLiveStatus();
+    fetchFollowUpStats();
+    fetchConvertedCount();
     const liveStatusInterval = setInterval(fetchLiveStatus, 30000);
     return () => clearInterval(liveStatusInterval);
   }, []);
+
+  const fetchConvertedCount = async () => {
+    try {
+      // Fetch count of leads with isConverted=true
+      const response = await api.get('/leads?isConverted=true&limit=1');
+      setConvertedCount(response.data?.meta?.total || 0);
+    } catch (error) {
+      console.error('Failed to fetch converted count:', error);
+    }
+  };
 
   const fetchLiveStatus = async () => {
     try {
@@ -1567,6 +1644,40 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
       setLiveStatus(status);
     } catch (error) {
       console.error('Failed to fetch live status:', error);
+    }
+  };
+
+  const fetchFollowUpStats = async () => {
+    try {
+      // Use the followup-reports/summary endpoint for accurate stats
+      const summaryRes = await api.get('/followup-reports/summary').catch(() => ({ data: { data: { summary: null } } }));
+      const summary = summaryRes.data?.data?.summary;
+
+      if (summary) {
+        setFollowUpStats({
+          total: (summary.pending || 0) + (summary.overdue || 0),
+          overdue: summary.overdue || 0,
+          today: summary.pending || 0,
+          upcoming: 0,
+          completed: summary.completed || 0,
+        });
+      }
+
+      // Also get the schedule for more detailed breakdown
+      const scheduleRes = await api.get('/followup-reports/schedule').catch(() => ({ data: { data: { schedule: null } } }));
+      const schedule = scheduleRes.data?.data?.schedule;
+
+      if (schedule) {
+        setFollowUpStats(prev => ({
+          ...prev,
+          today: schedule.today?.length || 0,
+          upcoming: (schedule.tomorrow?.length || 0) + (schedule.thisWeek?.length || 0),
+          overdue: schedule.overdueCount || prev.overdue,
+          total: (schedule.today?.length || 0) + (schedule.tomorrow?.length || 0) + (schedule.thisWeek?.length || 0) + (schedule.overdueCount || 0),
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch follow-up stats:', error);
     }
   };
 
@@ -1599,6 +1710,8 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
     dispatch(fetchStats());
     fetchOrgStats();
     fetchLiveStatus();
+    fetchFollowUpStats();
+    fetchConvertedCount();
     setLastRefresh(new Date());
     setTimeout(() => setLoading(false), 500);
   };
@@ -1623,27 +1736,31 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
       })).sort((a, b) => b.value - a.value).slice(0, 6)
     : [];
 
-  // Pipeline funnel data
+  // Pipeline funnel data - use actual lead counts
+  const totalLeads = stats?.total || 0;
+  const assignedLeads = rawImportStats?.assignedRecords || 0;
+  const interestedLeads = rawImportStats?.interestedRecords || 0;
+
   const funnelData = [
-    { name: 'Total', value: rawImportStats?.totalRecords || 0, fill: '#6366F1', percent: 100 },
-    { name: 'Assigned', value: rawImportStats?.assignedRecords || 0, fill: '#3B82F6', percent: rawImportStats?.totalRecords ? Math.round((rawImportStats.assignedRecords / rawImportStats.totalRecords) * 100) : 0 },
-    { name: 'Interested', value: rawImportStats?.interestedRecords || 0, fill: '#10B981', percent: rawImportStats?.totalRecords ? Math.round((rawImportStats.interestedRecords / rawImportStats.totalRecords) * 100) : 0 },
-    { name: 'Converted', value: rawImportStats?.convertedRecords || 0, fill: '#8B5CF6', percent: rawImportStats?.totalRecords ? Math.round((rawImportStats.convertedRecords / rawImportStats.totalRecords) * 100) : 0 },
+    { name: 'Total', value: totalLeads, fill: '#6366F1', percent: 100 },
+    { name: 'Assigned', value: assignedLeads, fill: '#3B82F6', percent: totalLeads ? Math.round((assignedLeads / totalLeads) * 100) : 0 },
+    { name: 'Interested', value: interestedLeads, fill: '#10B981', percent: totalLeads ? Math.round((interestedLeads / totalLeads) * 100) : 0 },
+    { name: 'Converted', value: convertedCount, fill: '#8B5CF6', percent: totalLeads ? Math.round((convertedCount / totalLeads) * 100) : 0 },
   ];
 
-  const conversionRate = (rawImportStats?.totalRecords || 0) > 0
-    ? ((rawImportStats?.convertedRecords || 0) / (rawImportStats?.totalRecords || 1) * 100).toFixed(1)
+  const conversionRate = totalLeads > 0
+    ? ((convertedCount / totalLeads) * 100).toFixed(1)
     : '0';
 
   return (
-    <div className="p-5 bg-gray-50 min-h-screen">
+    <div className="p-5 bg-gradient-to-br from-slate-50 via-white to-blue-50 min-h-screen">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-xl font-semibold text-gray-800">{getGreeting()}, {user?.firstName}</h1>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">{getGreeting()}, {user?.firstName ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1).toLowerCase() : ''}</h1>
           <p className="text-sm text-gray-500">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
         </div>
-        <button onClick={handleRefresh} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 shadow-sm">
+        <button onClick={handleRefresh} className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg hover:from-indigo-600 hover:to-purple-600 shadow-md hover:shadow-lg transition-all">
           <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
@@ -1651,69 +1768,69 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
 
       {/* Row 1: Compact Key Metrics */}
       <div className="grid grid-cols-6 gap-3 mb-4">
-        <Link to="/leads" className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+        <Link to="/leads" className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-3 shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
-              <UserGroupIcon className="w-4 h-4 text-indigo-600" />
+            <div className="w-9 h-9 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center">
+              <UserGroupIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <p className="text-lg font-bold text-gray-800">{stats?.total || 0}</p>
-              <p className="text-[10px] text-gray-500">Leads</p>
+              <p className="text-xl font-bold text-white">{stats?.total || 0}</p>
+              <p className="text-[10px] text-indigo-100">Leads</p>
             </div>
           </div>
         </Link>
-        <Link to="/users" className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+        <Link to="/users" className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-3 shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-              <UsersIcon className="w-4 h-4 text-blue-600" />
+            <div className="w-9 h-9 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center">
+              <UsersIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <p className="text-lg font-bold text-gray-800">{orgStats?.totalUsers || 0}</p>
-              <p className="text-[10px] text-gray-500">Team</p>
+              <p className="text-xl font-bold text-white">{orgStats?.totalUsers || 0}</p>
+              <p className="text-[10px] text-blue-100">Team</p>
             </div>
           </div>
         </Link>
-        <Link to="/raw-imports" className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+        <Link to="/raw-imports" className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl p-3 shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
-              <DocumentArrowUpIcon className="w-4 h-4 text-amber-600" />
+            <div className="w-9 h-9 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center">
+              <DocumentArrowUpIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <p className="text-lg font-bold text-amber-600">{rawImportStats?.pendingRecords || 0}</p>
-              <p className="text-[10px] text-gray-500">Pending</p>
+              <p className="text-xl font-bold text-white">{rawImportStats?.pendingRecords || 0}</p>
+              <p className="text-[10px] text-amber-100">Pending</p>
             </div>
           </div>
         </Link>
-        <Link to="/leads?converted=true" className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+        <Link to="/leads?converted=true" className="bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl p-3 shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <ChartBarIcon className="w-4 h-4 text-emerald-600" />
+            <div className="w-9 h-9 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center">
+              <ChartBarIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <p className="text-lg font-bold text-emerald-600">{rawImportStats?.convertedRecords || 0}</p>
-              <p className="text-[10px] text-gray-500">Converted</p>
+              <p className="text-xl font-bold text-white">{convertedCount}</p>
+              <p className="text-[10px] text-emerald-100">Converted</p>
             </div>
           </div>
         </Link>
-        <Link to="/reports" className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+        <Link to="/reports" className="bg-gradient-to-br from-violet-500 to-purple-500 rounded-xl p-3 shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-violet-100 rounded-lg flex items-center justify-center">
-              <ArrowUpRightIcon className="w-4 h-4 text-violet-600" />
+            <div className="w-9 h-9 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center">
+              <ArrowUpRightIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <p className="text-lg font-bold text-violet-600">{conversionRate}%</p>
-              <p className="text-[10px] text-gray-500">Conv. Rate</p>
+              <p className="text-xl font-bold text-white">{conversionRate}%</p>
+              <p className="text-[10px] text-violet-100">Conv. Rate</p>
             </div>
           </div>
         </Link>
-        <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-100">
+        <div className="bg-gradient-to-br from-cyan-500 to-blue-500 rounded-xl p-3 shadow-lg">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-cyan-100 rounded-lg flex items-center justify-center">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+            <div className="w-9 h-9 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center">
+              <span className="w-2.5 h-2.5 bg-white rounded-full animate-pulse"></span>
             </div>
             <div>
-              <p className="text-lg font-bold text-emerald-600">{liveStatus?.summary.active || 0}</p>
-              <p className="text-[10px] text-gray-500">Active Now</p>
+              <p className="text-xl font-bold text-white">{liveStatus?.summary.active || 0}</p>
+              <p className="text-[10px] text-cyan-100">Active Now</p>
             </div>
           </div>
         </div>
@@ -1722,10 +1839,10 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
       {/* Row 2: Lead Status (left) + Team & Today's Highlights (right) */}
       <div className="grid grid-cols-12 gap-4 mb-4">
         {/* Pipeline Stages - Donut Chart */}
-        <div className="col-span-5 bg-white rounded-xl p-3 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-semibold text-gray-700">Pipeline Stages</h3>
-            <Link to="/leads" className="text-[10px] text-indigo-600 hover:text-indigo-700">View All →</Link>
+        <div className="col-span-5 bg-white rounded-xl p-4 shadow-lg border border-indigo-100/50 hover:shadow-xl transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-gray-800">Pipeline Stages</h3>
+            <Link to="/leads" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">View All →</Link>
           </div>
           {pipelineStages.length > 0 ? (
             <div className="flex items-center gap-4">
@@ -1746,20 +1863,20 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
                       ))}
                     </Pie>
                     <Tooltip
-                      contentStyle={{ fontSize: 11, borderRadius: 6, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}
+                      contentStyle={{ fontSize: 11, borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}
                       formatter={(value: number, name: string) => [value, name]}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex-1 space-y-1.5">
+              <div className="flex-1 space-y-2">
                 {pipelineStages.slice(0, 6).map((stage, index) => (
-                  <div key={index} className="flex items-center justify-between">
+                  <div key={index} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-gray-50 transition-colors">
                     <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }}></span>
-                      <span className="text-[11px] text-gray-600">{stage.name}</span>
+                      <span className="w-3 h-3 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: stage.color }}></span>
+                      <span className="text-xs font-medium text-gray-700">{stage.name}</span>
                     </div>
-                    <span className="text-xs font-bold text-gray-700">{stage.value}</span>
+                    <span className="text-sm font-bold text-gray-800">{stage.value}</span>
                   </div>
                 ))}
               </div>
@@ -1770,64 +1887,64 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
         </div>
 
         {/* Team Status */}
-        <div className="col-span-3 bg-white rounded-xl p-3 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-semibold text-gray-700">Team Status</h3>
-            <span className="flex items-center gap-1 text-[10px] text-emerald-600">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+        <div className="col-span-3 bg-white rounded-xl p-4 shadow-lg border border-emerald-100/50 hover:shadow-xl transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-gray-800">Team Status</h3>
+            <span className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full font-medium">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
               Live
             </span>
           </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-2 bg-emerald-50 rounded-lg">
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-100">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                <span className="text-xs text-gray-700">Active</span>
+                <span className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse shadow-sm shadow-emerald-300"></span>
+                <span className="text-xs font-medium text-gray-700">Active</span>
               </div>
-              <span className="text-lg font-bold text-emerald-600">{liveStatus?.summary.active || 0}</span>
+              <span className="text-xl font-bold text-emerald-600">{liveStatus?.summary.active || 0}</span>
             </div>
-            <div className="flex items-center justify-between p-2 bg-amber-50 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-100">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 bg-amber-500 rounded-full"></span>
-                <span className="text-xs text-gray-700">On Break</span>
+                <span className="w-3 h-3 bg-amber-500 rounded-full shadow-sm shadow-amber-300"></span>
+                <span className="text-xs font-medium text-gray-700">On Break</span>
               </div>
-              <span className="text-lg font-bold text-amber-600">{liveStatus?.summary.onBreak || 0}</span>
+              <span className="text-xl font-bold text-amber-600">{liveStatus?.summary.onBreak || 0}</span>
             </div>
-            <div className="flex items-center justify-between p-2 bg-gray-100 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-slate-100 rounded-xl border border-gray-200">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 bg-gray-400 rounded-full"></span>
-                <span className="text-xs text-gray-700">Offline</span>
+                <span className="w-3 h-3 bg-gray-400 rounded-full"></span>
+                <span className="text-xs font-medium text-gray-700">Offline</span>
               </div>
-              <span className="text-lg font-bold text-gray-500">{liveStatus?.summary.offline || 0}</span>
+              <span className="text-xl font-bold text-gray-500">{liveStatus?.summary.offline || 0}</span>
             </div>
           </div>
-          <Link to="/team-monitoring" className="block text-center text-[10px] text-indigo-600 mt-3 hover:text-indigo-700">
+          <Link to="/team-monitoring" className="block text-center text-xs text-indigo-600 mt-3 hover:text-indigo-700 font-medium">
             View Details →
           </Link>
         </div>
 
         {/* Today's Highlights */}
-        <div className="col-span-4 bg-white rounded-xl p-3 shadow-sm border border-gray-100">
+        <div className="col-span-4 bg-white rounded-xl p-4 shadow-lg border border-purple-100/50 hover:shadow-xl transition-shadow">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-semibold text-gray-700">Today's Highlights</h3>
-            <span className="text-[10px] text-gray-400">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+            <h3 className="text-sm font-bold text-gray-800">Today's Highlights</h3>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Link to="/leads?status=NEW" className="p-2.5 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-              <p className="text-lg font-bold text-blue-600">{stats?.todayCount || 0}</p>
-              <p className="text-[10px] text-blue-700">New Leads</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Link to="/leads?status=NEW" className="p-3 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl hover:from-blue-100 hover:to-indigo-150 transition-all border border-blue-200/50 hover:shadow-md">
+              <p className="text-2xl font-bold text-blue-600">{stats?.todayCount || 0}</p>
+              <p className="text-xs text-blue-700 font-medium">New Leads</p>
             </Link>
-            <Link to="/leads?pendingFollowUp=true" className="p-2.5 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
-              <p className="text-lg font-bold text-amber-600">{stats?.followUpsDue || 0}</p>
-              <p className="text-[10px] text-amber-700">Follow-ups Due</p>
+            <Link to="/leads?pendingFollowUp=true" className="p-3 bg-gradient-to-br from-amber-50 to-orange-100 rounded-xl hover:from-amber-100 hover:to-orange-150 transition-all border border-amber-200/50 hover:shadow-md">
+              <p className="text-2xl font-bold text-amber-600">{stats?.followUpsDue || 0}</p>
+              <p className="text-xs text-amber-700 font-medium">Follow-ups Due</p>
             </Link>
-            <div className="p-2.5 bg-emerald-50 rounded-lg">
-              <p className="text-lg font-bold text-emerald-600">{conversionRate}%</p>
-              <p className="text-[10px] text-emerald-700">Conversion Rate</p>
+            <div className="p-3 bg-gradient-to-br from-emerald-50 to-teal-100 rounded-xl border border-emerald-200/50">
+              <p className="text-2xl font-bold text-emerald-600">{conversionRate}%</p>
+              <p className="text-xs text-emerald-700 font-medium">Conversion Rate</p>
             </div>
-            <div className="p-2.5 bg-violet-50 rounded-lg">
-              <p className="text-lg font-bold text-violet-600">{rawImportStats?.assignedRecords || 0}</p>
-              <p className="text-[10px] text-violet-700">Assigned</p>
+            <div className="p-3 bg-gradient-to-br from-violet-50 to-purple-100 rounded-xl border border-violet-200/50">
+              <p className="text-2xl font-bold text-violet-600">{rawImportStats?.assignedRecords || 0}</p>
+              <p className="text-xs text-violet-700 font-medium">Assigned</p>
             </div>
           </div>
         </div>
@@ -1835,97 +1952,172 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
 
       {/* Row 3: Charts */}
       <div className="grid grid-cols-2 gap-4 mb-5">
-        {/* Lead Sources Chart */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        {/* Lead Sources Chart - Horizontal Bar Chart */}
+        <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-700">Lead Sources</h3>
-            <Link to="/leads/bulk-upload" className="text-xs text-indigo-600 hover:text-indigo-700">+ Import</Link>
+            <h3 className="text-sm font-bold text-gray-800">Lead Sources</h3>
+            <Link to="/leads/bulk-upload" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium bg-indigo-50 px-3 py-1 rounded-full hover:bg-indigo-100 transition-colors">+ Import</Link>
           </div>
           {sourceBarData.length > 0 ? (
-            <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={sourceBarData} layout="vertical" barSize={18} barGap={4}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} vertical={true} stroke="#F1F5F9" />
-                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94A3B8' }} />
-                  <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#374151', fontWeight: 500 }} width={80} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}
-                    formatter={(value: number) => [value, 'Leads']}
-                  />
-                  <Bar dataKey="value" radius={[0, 6, 6, 0]} background={{ fill: '#F1F5F9', radius: 6 }}>
-                    {sourceBarData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="space-y-3">
+              {sourceBarData.map((source, index) => {
+                const maxValue = Math.max(...sourceBarData.map(s => s.value));
+                const percentage = maxValue > 0 ? (source.value / maxValue) * 100 : 0;
+                const colors = [
+                  { bg: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50' },
+                  { bg: 'from-purple-500 to-purple-600', light: 'bg-purple-50' },
+                  { bg: 'from-amber-500 to-amber-600', light: 'bg-amber-50' },
+                  { bg: 'from-pink-500 to-pink-600', light: 'bg-pink-50' },
+                  { bg: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50' },
+                  { bg: 'from-blue-500 to-blue-600', light: 'bg-blue-50' },
+                ];
+                const color = colors[index % colors.length];
+                return (
+                  <div key={index}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-gray-600">{source.name}</span>
+                      <span className="text-sm font-bold text-gray-800">{source.value}</span>
+                    </div>
+                    <div className={`h-8 ${color.light} rounded-lg overflow-hidden`}>
+                      <div
+                        className={`h-full bg-gradient-to-r ${color.bg} rounded-lg transition-all duration-700 ease-out flex items-center justify-end pr-2`}
+                        style={{ width: `${Math.max(percentage, 8)}%` }}
+                      >
+                        <span className="text-xs font-semibold text-white">{Math.round(percentage)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
-            <div className="h-48 flex flex-col items-center justify-center text-gray-400">
-              <DocumentArrowUpIcon className="w-10 h-10 mb-2 text-gray-300" />
-              <p className="text-sm">No lead sources yet</p>
-              <Link to="/leads/bulk-upload" className="text-xs text-indigo-600 mt-2">Import leads</Link>
+            <div className="h-48 flex flex-col items-center justify-center text-gray-400 bg-gray-50 rounded-xl">
+              <DocumentArrowUpIcon className="w-12 h-12 mb-2 text-gray-300" />
+              <p className="text-sm font-medium">No lead sources yet</p>
+              <Link to="/leads/bulk-upload" className="text-xs text-indigo-600 mt-2 bg-indigo-50 px-3 py-1 rounded-full hover:bg-indigo-100 transition-colors">Import leads</Link>
             </div>
           )}
         </div>
 
-        {/* Conversion Funnel */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        {/* Conversion Funnel - Vertical Bar Chart */}
+        <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-700">Conversion Funnel</h3>
-            <span className="text-sm font-bold text-emerald-600">{conversionRate}%</span>
+            <h3 className="text-sm font-bold text-gray-800">Conversion Funnel</h3>
+            <span className="text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1 rounded-full shadow-sm">{conversionRate}%</span>
           </div>
-          <div className="space-y-4">
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={funnelData} barSize={45}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 11, fill: '#374151', fontWeight: 500 }}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', background: 'white' }}
+                  formatter={(value: number, name: string) => [value, 'Count']}
+                  labelStyle={{ fontWeight: 600, color: '#374151' }}
+                />
+                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                  {funnelData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex justify-center gap-4 mt-2">
             {funnelData.map((item, idx) => (
-              <div key={idx}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.fill }}></span>
-                    <span className="text-xs font-medium text-gray-700">{item.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-gray-800">{item.value.toLocaleString()}</span>
-                    <span className="text-[10px] text-gray-400">({item.percent}%)</span>
-                  </div>
-                </div>
-                <div className="h-5 bg-gray-100 rounded-lg overflow-hidden">
-                  <div
-                    className="h-full rounded-lg transition-all duration-700 ease-out"
-                    style={{ width: `${Math.max(item.percent, 2)}%`, backgroundColor: item.fill }}
-                  />
-                </div>
+              <div key={idx} className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.fill }}></span>
+                <span className="text-[10px] text-gray-500">{item.name}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Row 4: Quick Actions */}
-      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick Actions</h3>
+      {/* Row 4: Follow-ups Overview */}
+      <div className="bg-white rounded-xl p-4 shadow-lg border border-orange-100 mb-5 hover:shadow-xl transition-shadow">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg flex items-center justify-center">
+              <CalendarDaysIcon className="w-4 h-4 text-white" />
+            </div>
+            <h3 className="text-sm font-bold text-gray-800">Follow-ups Overview</h3>
+          </div>
+          <Link to="/leads?pendingFollowUp=true" className="text-xs text-orange-600 hover:text-orange-700 font-medium bg-orange-50 px-3 py-1 rounded-full hover:bg-orange-100 transition-colors">View All →</Link>
+        </div>
+        <div className="grid grid-cols-4 gap-4">
+          <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-red-700">Overdue</span>
+              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+            </div>
+            <p className="text-3xl font-bold text-red-600">{followUpStats.overdue}</p>
+            <p className="text-[10px] text-red-500 mt-1">Need immediate attention</p>
+          </div>
+          <div className="bg-gradient-to-br from-orange-50 to-amber-100 rounded-xl p-4 border border-orange-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-orange-700">Today</span>
+              <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+            </div>
+            <p className="text-3xl font-bold text-orange-600">{followUpStats.today}</p>
+            <p className="text-[10px] text-orange-500 mt-1">Scheduled for today</p>
+          </div>
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-4 border border-blue-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-blue-700">Upcoming</span>
+              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+            </div>
+            <p className="text-3xl font-bold text-blue-600">{followUpStats.upcoming}</p>
+            <p className="text-[10px] text-blue-500 mt-1">Next 7 days</p>
+          </div>
+          <div className="bg-gradient-to-br from-emerald-50 to-teal-100 rounded-xl p-4 border border-emerald-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-emerald-700">Total Pending</span>
+              <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+            </div>
+            <p className="text-3xl font-bold text-emerald-600">{followUpStats.total}</p>
+            <p className="text-[10px] text-emerald-500 mt-1">All pending follow-ups</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 5: Quick Actions */}
+      <div className="bg-gradient-to-r from-white to-indigo-50/30 rounded-xl p-4 shadow-lg border border-indigo-100/50">
+        <h3 className="text-sm font-bold text-gray-800 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-6 gap-3">
           {[
-            { to: '/leads/bulk-upload', icon: DocumentArrowUpIcon, label: 'Import', color: 'bg-gradient-to-r from-indigo-500 to-indigo-600' },
-            { to: '/assignments', icon: UserGroupIcon, label: 'Assign', color: 'bg-gradient-to-r from-violet-500 to-violet-600' },
-            { to: '/reports', icon: ChartBarIcon, label: 'Reports', color: 'bg-gradient-to-r from-emerald-500 to-emerald-600' },
-            { to: '/users', icon: UsersIcon, label: 'Team', color: 'bg-gradient-to-r from-blue-500 to-blue-600' },
-            { to: '/campaigns', icon: RocketLaunchIcon, label: 'Campaigns', color: 'bg-gradient-to-r from-pink-500 to-pink-600' },
-            { to: '/settings', icon: Cog6ToothIcon, label: 'Settings', color: 'bg-gradient-to-r from-gray-500 to-gray-600' },
+            { to: '/leads/bulk-upload', icon: DocumentArrowUpIcon, label: 'Import', color: 'bg-gradient-to-br from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700' },
+            { to: '/assignments', icon: UserGroupIcon, label: 'Assign', color: 'bg-gradient-to-br from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700' },
+            { to: '/reports', icon: ChartBarIcon, label: 'Reports', color: 'bg-gradient-to-br from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700' },
+            { to: '/users', icon: UsersIcon, label: 'Team', color: 'bg-gradient-to-br from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700' },
+            { to: '/campaigns', icon: RocketLaunchIcon, label: 'Campaigns', color: 'bg-gradient-to-br from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700' },
+            { to: '/settings', icon: Cog6ToothIcon, label: 'Settings', color: 'bg-gradient-to-br from-slate-500 to-gray-600 hover:from-slate-600 hover:to-gray-700' },
           ].map((item, idx) => (
             <Link
               key={idx}
               to={item.to}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl text-white ${item.color} hover:shadow-lg transition-all hover:-translate-y-0.5`}
+              className={`flex flex-col items-center gap-2 p-4 rounded-xl text-white ${item.color} shadow-lg hover:shadow-xl transition-all hover:-translate-y-1`}
             >
-              <item.icon className="w-5 h-5" />
-              <span className="text-xs font-medium">{item.label}</span>
+              <item.icon className="w-6 h-6" />
+              <span className="text-xs font-semibold">{item.label}</span>
             </Link>
           ))}
         </div>
       </div>
 
       {/* Footer */}
-      <div className="text-xs text-gray-400 text-center mt-4">
+      <div className="text-xs text-gray-400 text-center mt-4 flex items-center justify-center gap-2">
+        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
         Last updated: {lastRefresh.toLocaleTimeString()}
       </div>
     </div>

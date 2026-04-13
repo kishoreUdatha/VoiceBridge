@@ -80,6 +80,8 @@ import {
 import BranchesPage from './pages/settings/BranchesPage';
 import BranchFormPage from './pages/settings/BranchFormPage';
 import IntegrationSettingsPage from './pages/settings/IntegrationSettingsPage';
+import EmailSettingsPage from './pages/settings/EmailSettingsPage';
+import RazorpaySettingsPage from './pages/settings/RazorpaySettingsPage';
 import IndustrySettingsPage from './pages/settings/IndustrySettingsPage';
 import LeadManagementSettingsPage from './pages/settings/LeadManagementSettingsPage';
 import {
@@ -506,6 +508,8 @@ function App() {
         <Route path="settings/auto-assign" element={<AutoAssignSettingsPage />} />
         <Route path="settings/assignment-schedules" element={<AssignmentSchedulePage />} />
         <Route path="settings/sms" element={<SmsSettingsPage />} />
+        <Route path="settings/email" element={<EmailSettingsPage />} />
+        <Route path="settings/razorpay" element={<RazorpaySettingsPage />} />
         <Route path="settings/institution" element={<InstitutionSettingsPage />} />
         <Route path="settings/industry" element={<IndustrySettingsPage />} />
         <Route path="settings/lead-management" element={<LeadManagementSettingsPage />} />

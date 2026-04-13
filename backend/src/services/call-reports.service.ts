@@ -926,20 +926,24 @@ class CallReportsService {
   }> {
     const { organizationId, dateRange = this.getDefaultDateRange() } = filters;
 
-    // Get all active users
+    console.log('[UserCallReport] Fetching for org:', organizationId, 'dateRange:', dateRange);
+
+    // Get all active users - include all roles that might make calls
     const users = await prisma.user.findMany({
       where: {
         organizationId,
         isActive: true,
-        role: { slug: { in: ['telecaller', 'counselor', 'sales_rep', 'manager', 'admin'] } },
       },
       select: {
         id: true,
         firstName: true,
         lastName: true,
         phone: true,
+        role: { select: { slug: true } },
       },
     });
+
+    console.log('[UserCallReport] Found users:', users.length, 'roles:', [...new Set(users.map(u => u.role?.slug))]);
 
     const result: {
       no: number;
@@ -958,6 +962,15 @@ class CallReportsService {
     let summaryTotalConnected = 0;
     let index = 1;
 
+    // Also get total call count for debugging
+    const totalCallsInRange = await prisma.telecallerCall.count({
+      where: {
+        organizationId,
+        createdAt: { gte: dateRange.start, lte: dateRange.end },
+      },
+    });
+    console.log('[UserCallReport] Total telecaller calls in date range:', totalCallsInRange);
+
     for (const user of users) {
       // Get TelecallerCall stats
       const calls = await prisma.telecallerCall.findMany({
@@ -973,6 +986,8 @@ class CallReportsService {
       });
 
       if (calls.length === 0) continue;
+
+      console.log('[UserCallReport] User', user.firstName, user.lastName, 'has', calls.length, 'calls');
 
       const connected = calls.filter(c => c.status === 'COMPLETED' || c.status === 'IN_PROGRESS').length;
       const totalDuration = calls.reduce((sum, c) => sum + (c.duration || 0), 0);

@@ -1257,110 +1257,166 @@ export const CallMonitoringPage: React.FC = () => {
       </div>
 
       {/* Call Details Slide-over Panel */}
-      {selectedCall && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/20 z-40"
-            onClick={() => setSelectedCall(null)}
-          />
-          {/* Panel */}
-          <div className="fixed right-0 top-0 h-full w-96 bg-white shadow-xl z-50 overflow-y-auto">
-            {/* Header */}
-            <div className="sticky top-0 bg-white border-b px-4 py-3 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Call Details</h3>
-              <button
-                onClick={() => setSelectedCall(null)}
-                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-              >
-                <XMarkIcon className="w-5 h-5" />
-              </button>
-            </div>
+      {selectedCall && (() => {
+        // Handle both AI calls (ActiveCall) and telecaller calls (TelecallerCall)
+        const tcCall = selectedCall as any;
+        const isAICall = selectedCall.type === 'AI';
+        const isTelecallerCall = !isAICall && tcCall.telecaller;
 
-            {/* Content */}
-            <div className="p-4 space-y-4">
-              {/* Status Badge */}
-              <div className="flex items-center justify-between">
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  selectedCall.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
-                  selectedCall.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
-                  selectedCall.status === 'FAILED' || selectedCall.status === 'NO_ANSWER' ? 'bg-red-100 text-red-700' :
-                  'bg-gray-100 text-gray-700'
-                }`}>
-                  {selectedCall.status.replace('_', ' ')}
-                </span>
-                <span className="text-sm text-gray-500">{formatDuration(selectedCall.duration)}</span>
+        // Get agent/telecaller name
+        const agentName = isAICall
+          ? selectedCall.agentName
+          : (tcCall.telecaller ? `${tcCall.telecaller.firstName} ${tcCall.telecaller.lastName || ''}`.trim() : 'Unknown');
+
+        // Get caller/contact name
+        const callerName = isAICall
+          ? selectedCall.callerName
+          : (tcCall.contactName || (tcCall.lead ? `${tcCall.lead.firstName} ${tcCall.lead.lastName || ''}`.trim() : 'Unknown'));
+
+        // Get phone number
+        const phoneNumber = isAICall ? selectedCall.callerNumber : tcCall.phoneNumber;
+
+        // Get call time
+        const callTime = isAICall ? selectedCall.startTime : tcCall.createdAt;
+
+        // Get duration
+        const duration = selectedCall.duration || tcCall.duration || 0;
+
+        // Get outcome for telecaller calls
+        const outcome = tcCall.outcome;
+
+        return (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/20 z-40"
+              onClick={() => setSelectedCall(null)}
+            />
+            {/* Panel */}
+            <div className="fixed right-0 top-0 h-full w-96 bg-white shadow-xl z-50 overflow-y-auto">
+              {/* Header */}
+              <div className="sticky top-0 bg-white border-b px-4 py-3 flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900">Call Details</h3>
+                <button
+                  onClick={() => setSelectedCall(null)}
+                  className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
               </div>
 
-              {/* Agent Info */}
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-xs text-gray-500 uppercase mb-2">Agent</div>
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    selectedCall.type === 'AI' ? 'bg-violet-100 text-violet-700' : 'bg-gray-200 text-gray-600'
+              {/* Content */}
+              <div className="p-4 space-y-4">
+                {/* Status Badge */}
+                <div className="flex items-center justify-between">
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    selectedCall.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
+                    selectedCall.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
+                    selectedCall.status === 'FAILED' || selectedCall.status === 'NO_ANSWER' ? 'bg-red-100 text-red-700' :
+                    'bg-gray-100 text-gray-700'
                   }`}>
-                    {selectedCall.type === 'AI' ? <SparklesIcon className="w-5 h-5" /> : (selectedCall.agentName?.charAt(0) || '?')}
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-900">{selectedCall.agentName || 'Unknown'}</div>
-                    <div className="text-xs text-gray-500">{selectedCall.type === 'AI' ? 'AI Agent' : 'Telecaller'}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Caller Info */}
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-xs text-gray-500 uppercase mb-2">Caller</div>
-                <div className="space-y-1">
-                  <div className="font-medium text-gray-900">{selectedCall.callerName || 'Unknown'}</div>
-                  <div className="text-sm text-gray-600 font-mono">{selectedCall.callerNumber}</div>
-                </div>
-              </div>
-
-              {/* Call Info */}
-              <div className="space-y-3">
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-sm text-gray-500">Queue</span>
-                  <span className="text-sm font-medium text-gray-900">{selectedCall.queueName || '-'}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-sm text-gray-500">Started At</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {new Date(selectedCall.startTime).toLocaleString('en-IN', {
-                      day: '2-digit', month: 'short', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit'
-                    })}
+                    {selectedCall.status.replace('_', ' ')}
                   </span>
+                  <span className="text-sm text-gray-500">{formatDuration(duration)}</span>
                 </div>
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-sm text-gray-500">Duration</span>
-                  <span className="text-sm font-medium text-gray-900">{formatDuration(selectedCall.duration)}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-sm text-gray-500">Type</span>
-                  <span className="text-sm font-medium text-gray-900">{selectedCall.type === 'AI' ? 'AI Call' : 'Human Call'}</span>
-                </div>
-              </div>
 
-              {/* Placeholder for future features */}
-              <div className="border-t pt-4 mt-4">
-                <div className="text-xs text-gray-400 uppercase mb-3">Coming Soon</div>
-                <div className="space-y-2 text-sm text-gray-500">
-                  <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                    <span>🎙️</span> Call Recording
+                {/* Agent/Telecaller Info */}
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-500 uppercase mb-2">{isAICall ? 'Agent' : 'Telecaller'}</div>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      isAICall ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-600'
+                    }`}>
+                      {isAICall ? <SparklesIcon className="w-5 h-5" /> : (agentName?.charAt(0) || 'T')}
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-900">{agentName}</div>
+                      <div className="text-xs text-gray-500">{isAICall ? 'AI Agent' : 'Telecaller'}</div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                    <span>📝</span> Transcript
+                </div>
+
+                {/* Contact Info */}
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-500 uppercase mb-2">Contact</div>
+                  <div className="space-y-1">
+                    <div className="font-medium text-gray-900">{callerName}</div>
+                    <div className="text-sm text-gray-600 font-mono">{phoneNumber}</div>
                   </div>
-                  <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                    <span>📊</span> Sentiment Analysis
+                </div>
+
+                {/* Outcome for Telecaller calls */}
+                {isTelecallerCall && outcome && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500 uppercase mb-2">Outcome</div>
+                    <span className={`px-2 py-1 rounded text-sm font-medium ${
+                      outcome === 'INTERESTED' ? 'bg-green-100 text-green-700' :
+                      outcome === 'CONVERTED' ? 'bg-purple-100 text-purple-700' :
+                      outcome === 'NOT_INTERESTED' ? 'bg-red-100 text-red-700' :
+                      outcome === 'CALLBACK' || outcome === 'CALLBACK_REQUESTED' ? 'bg-yellow-100 text-yellow-700' :
+                      outcome === 'NO_ANSWER' ? 'bg-orange-100 text-orange-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {outcome.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                )}
+
+                {/* Call Info */}
+                <div className="space-y-3">
+                  {!isTelecallerCall && (
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-sm text-gray-500">Queue</span>
+                      <span className="text-sm font-medium text-gray-900">{selectedCall.queueName || '-'}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-sm text-gray-500">Started At</span>
+                    <span className="text-sm font-medium text-gray-900">
+                      {callTime ? new Date(callTime).toLocaleString('en-IN', {
+                        day: '2-digit', month: 'short', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                      }) : '-'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-sm text-gray-500">Duration</span>
+                    <span className="text-sm font-medium text-gray-900">{formatDuration(duration)}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-sm text-gray-500">Type</span>
+                    <span className="text-sm font-medium text-gray-900">{isAICall ? 'AI Call' : 'Human Call'}</span>
+                  </div>
+                </div>
+
+                {/* Summary for Telecaller calls */}
+                {isTelecallerCall && tcCall.summary && (
+                  <div className="border-t pt-4">
+                    <div className="text-xs text-gray-500 uppercase mb-2">Summary</div>
+                    <p className="text-sm text-gray-700">{tcCall.summary}</p>
+                  </div>
+                )}
+
+                {/* Placeholder for future features */}
+                <div className="border-t pt-4 mt-4">
+                  <div className="text-xs text-gray-400 uppercase mb-3">Coming Soon</div>
+                  <div className="space-y-2 text-sm text-gray-500">
+                    <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                      <span>🎙️</span> Call Recording
+                    </div>
+                    <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                      <span>📝</span> Transcript
+                    </div>
+                    <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                      <span>📊</span> Sentiment Analysis
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        );
+      })()}
     </div>
   );
 };

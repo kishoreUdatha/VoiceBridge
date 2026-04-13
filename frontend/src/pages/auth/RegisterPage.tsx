@@ -18,6 +18,7 @@ import {
   UsersIcon,
   ChartBarIcon,
   GlobeAltIcon,
+  CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 
 interface RegisterFormData {
@@ -34,6 +35,7 @@ interface RegisterFormData {
   teamSize: string;
   expectedLeadsPerMonth?: string;
   country: string;
+  currency: string;
   agreeToTerms: boolean;
 }
 
@@ -90,6 +92,20 @@ const countryOptions = [
   { value: 'Mexico', label: 'Mexico' },
   { value: 'South Africa', label: 'South Africa' },
   { value: 'Other', label: 'Other' },
+];
+
+// Currency options
+const currencyOptions = [
+  { value: 'INR', label: 'INR (₹) - Indian Rupee' },
+  { value: 'USD', label: 'USD ($) - US Dollar' },
+  { value: 'EUR', label: 'EUR (€) - Euro' },
+  { value: 'GBP', label: 'GBP (£) - British Pound' },
+  { value: 'AUD', label: 'AUD ($) - Australian Dollar' },
+  { value: 'CAD', label: 'CAD ($) - Canadian Dollar' },
+  { value: 'SGD', label: 'SGD ($) - Singapore Dollar' },
+  { value: 'AED', label: 'AED (د.إ) - UAE Dirham' },
+  { value: 'JPY', label: 'JPY (¥) - Japanese Yen' },
+  { value: 'CNY', label: 'CNY (¥) - Chinese Yuan' },
 ];
 
 const planDetails: Record<string, { name: string; features: string[] }> = {
@@ -150,6 +166,7 @@ export default function RegisterPage() {
       teamSize: '2-5',
       expectedLeadsPerMonth: '100-500',
       country: 'India',
+      currency: 'INR',
       agreeToTerms: false,
     },
   });
@@ -167,6 +184,7 @@ export default function RegisterPage() {
       teamSize: data.teamSize,
       expectedLeadsPerMonth: data.expectedLeadsPerMonth,
       country: data.country,
+      currency: data.currency,
     }));
   };
 
@@ -466,6 +484,33 @@ export default function RegisterPage() {
               <p className="error-text">{errors.country.message}</p>
             )}
           </div>
+        </div>
+
+        {/* Currency */}
+        <div>
+          <label htmlFor="currency" className="label">
+            Currency
+          </label>
+          <div className="relative">
+            <CurrencyDollarIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 z-10" />
+            <select
+              id="currency"
+              {...register('currency', {
+                required: 'Please select your currency',
+              })}
+              className={`input pl-11 appearance-none ${errors.currency ? 'input-error' : ''}`}
+            >
+              {currencyOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="helper-text">This will be used for pricing and invoices</p>
+          {errors.currency && (
+            <p className="error-text">{errors.currency.message}</p>
+          )}
         </div>
 
         {/* Password */}

@@ -657,41 +657,82 @@ class OutboundCallService {
     return { calls, total };
   }
 
-  async getCallAnalytics(organizationId: string, days: number = 30) {
+  async getCallAnalytics(organizationId: string, days: number = 30, source?: 'ai' | 'telecaller' | 'all') {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const calls = await prisma.outboundCall.findMany({
-      where: {
-        agent: { organizationId },
-        createdAt: { gte: startDate },
-      },
-      select: {
-        status: true,
-        outcome: true,
-        duration: true,
-        sentiment: true,
-        leadGenerated: true,
-      },
-    });
+    console.log(`[CallAnalytics] Org: ${organizationId}, StartDate: ${startDate.toISOString()}, Source: ${source || 'all'}`);
 
-    const totalCalls = calls.length;
-    const completedCalls = calls.filter((c: typeof calls[0]) => c.status === 'COMPLETED').length;
-    const answeredCalls = calls.filter((c: typeof calls[0]) => c.duration && c.duration > 0).length;
-    const leadsGenerated = calls.filter((c: typeof calls[0]) => c.leadGenerated).length;
-    const avgDuration = calls.reduce((acc: number, c: typeof calls[0]) => acc + (c.duration || 0), 0) / answeredCalls || 0;
+    let allCalls: Array<{
+      status: string;
+      outcome: string | null;
+      duration: number | null;
+      sentiment: string | null;
+      leadGenerated: boolean;
+      source: 'ai' | 'telecaller';
+    }> = [];
+
+    // Get AI/automated outbound calls (unless source is 'telecaller')
+    if (source !== 'telecaller') {
+      const outboundCalls = await prisma.outboundCall.findMany({
+        where: {
+          agent: { organizationId },
+          createdAt: { gte: startDate },
+        },
+        select: {
+          status: true,
+          outcome: true,
+          duration: true,
+          sentiment: true,
+          leadGenerated: true,
+        },
+      });
+      console.log(`[CallAnalytics] Outbound calls found: ${outboundCalls.length}`);
+      allCalls.push(...outboundCalls.map(c => ({ ...c, source: 'ai' as const })));
+    }
+
+    // Get telecaller manual calls (unless source is 'ai')
+    if (source !== 'ai') {
+      const telecallerCalls = await prisma.telecallerCall.findMany({
+        where: {
+          organizationId,
+          createdAt: { gte: startDate },
+        },
+        select: {
+          status: true,
+          outcome: true,
+          duration: true,
+          sentiment: true,
+          leadId: true,
+        },
+      });
+      console.log(`[CallAnalytics] Telecaller calls found: ${telecallerCalls.length}`);
+      allCalls.push(...telecallerCalls.map(c => ({
+        ...c,
+        leadGenerated: !!c.leadId,
+        source: 'telecaller' as const
+      })));
+    }
+
+    const totalCalls = allCalls.length;
+    const completedCalls = allCalls.filter(c => c.status === 'COMPLETED').length;
+    const answeredCalls = allCalls.filter(c => c.duration && c.duration > 0).length;
+    const leadsGenerated = allCalls.filter(c => c.leadGenerated).length;
+    const avgDuration = answeredCalls > 0
+      ? allCalls.reduce((acc, c) => acc + (c.duration || 0), 0) / answeredCalls
+      : 0;
 
     const outcomeBreakdown: Record<string, number> = {};
-    for (const call of calls) {
+    for (const call of allCalls) {
       if (call.outcome) {
         outcomeBreakdown[call.outcome] = (outcomeBreakdown[call.outcome] || 0) + 1;
       }
     }
 
     const sentimentBreakdown = {
-      positive: calls.filter((c: typeof calls[0]) => c.sentiment === 'positive').length,
-      neutral: calls.filter((c: typeof calls[0]) => c.sentiment === 'neutral').length,
-      negative: calls.filter((c: typeof calls[0]) => c.sentiment === 'negative').length,
+      positive: allCalls.filter(c => c.sentiment === 'positive').length,
+      neutral: allCalls.filter(c => c.sentiment === 'neutral').length,
+      negative: allCalls.filter(c => c.sentiment === 'negative').length,
     };
 
     return {

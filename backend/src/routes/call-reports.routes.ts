@@ -37,11 +37,19 @@ const filterValidation = [
 function parseFilters(req: TenantRequest) {
   const { startDate, endDate, agentId, campaignId } = req.query;
 
+  // Parse dates and ensure end date includes the full day
+  let dateRange;
+  if (startDate && endDate) {
+    const start = new Date(startDate as string);
+    const end = new Date(endDate as string);
+    // Set end date to end of day (23:59:59.999)
+    end.setHours(23, 59, 59, 999);
+    dateRange = { start, end };
+  }
+
   return {
     organizationId: req.organizationId!,
-    dateRange: startDate && endDate
-      ? { start: new Date(startDate as string), end: new Date(endDate as string) }
-      : undefined,
+    dateRange,
     agentId: agentId as string | undefined,
     campaignId: campaignId as string | undefined,
     userRole: req.user?.roleSlug,

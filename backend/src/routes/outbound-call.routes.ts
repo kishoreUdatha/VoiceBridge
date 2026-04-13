@@ -1062,14 +1062,20 @@ router.get('/stats', async (req: TenantRequest, res: Response) => {
 // Get call analytics
 router.get('/analytics', async (req: TenantRequest, res: Response) => {
   try {
-    const { days } = req.query;
+    const { days, source } = req.query;
+    const orgId = req.organization!.id;
+    console.log(`[Analytics] Fetching for org: ${orgId}, days: ${days || 30}, source: ${source || 'all'}`);
+
     const analytics = await outboundCallService.getCallAnalytics(
-      req.organization!.id,
-      days ? parseInt(days as string) : 30
+      orgId,
+      days ? parseInt(days as string) : 30,
+      source as 'ai' | 'telecaller' | 'all' | undefined
     );
 
+    console.log(`[Analytics] Result: totalCalls=${analytics.totalCalls}, completedCalls=${analytics.completedCalls}`);
     ApiResponse.success(res, 'Analytics retrieved', analytics);
   } catch (error) {
+    console.error('[Analytics] Error:', error);
     ApiResponse.error(res, (error as Error).message, 500);
   }
 });

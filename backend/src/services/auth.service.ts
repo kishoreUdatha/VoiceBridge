@@ -19,6 +19,7 @@ interface RegisterInput {
   teamSize?: string;
   expectedLeadsPerMonth?: string;
   country?: string;
+  currency?: string;
 }
 
 // Industry-specific pipeline templates
@@ -159,8 +160,8 @@ const industryPipelineTemplates: Record<string, {
 // Default system roles with comprehensive permissions matching frontend
 const defaultSystemRoles: Array<{ name: string; slug: string; permissions: string[] }> = [
   {
-    name: 'Org Admin',
-    slug: 'org_admin',
+    name: 'Admin',
+    slug: 'admin',
     permissions: [
       // All permissions - full access
       'roles_view', 'roles_create', 'roles_edit', 'roles_delete',
@@ -425,10 +426,12 @@ export class AuthService {
           trialEndsAt: trialEndsAt,
           maxUsers: maxUsers,
           billingCountry: input.country || 'India',
+          currency: input.currency || 'INR',
           settings: {
             teamSize: input.teamSize || '2-5',
             expectedLeadsPerMonth: input.expectedLeadsPerMonth || '100-500',
             country: input.country || 'India',
+            currency: input.currency || 'INR',
             onboardingData: {
               registeredAt: new Date().toISOString(),
               registeredBy: input.email,
@@ -450,7 +453,7 @@ export class AuthService {
           },
         });
         // Keep reference to admin role for user creation
-        if (roleConfig.slug === 'org_admin') {
+        if (roleConfig.slug === 'admin') {
           adminRole = role;
         }
       }
@@ -530,7 +533,7 @@ export class AuthService {
     const tokens = generateTokenPair({
       userId: result.user.id,
       organizationId: result.organization.id,
-      roleSlug: 'org_admin',
+      roleSlug: 'admin',
     });
 
     // Save refresh token
@@ -542,9 +545,9 @@ export class AuthService {
     // Generate tenant URL for subdomain redirect
     const tenantUrl = this.getTenantUrl(result.organization.slug);
 
-    // Get org_admin permissions
-    const orgAdminRole = defaultSystemRoles.find(r => r.slug === 'org_admin');
-    const permissions = orgAdminRole?.permissions || [];
+    // Get admin permissions
+    const adminRoleConfig = defaultSystemRoles.find(r => r.slug === 'admin');
+    const permissions = adminRoleConfig?.permissions || [];
 
     return {
       user: {
@@ -555,7 +558,7 @@ export class AuthService {
         organizationId: result.organization.id,
         organizationName: result.organization.name,
         organizationSlug: result.organization.slug,
-        role: 'org_admin',
+        role: 'admin',
         permissions,
         onboardingCompleted: false, // New organizations haven't completed onboarding
         organizationIndustry: null, // Industry not set yet

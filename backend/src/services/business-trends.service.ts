@@ -32,7 +32,11 @@ class BusinessTrendsService {
 
     const dateFilter: any = {};
     if (startDate) dateFilter.gte = new Date(startDate);
-    if (endDate) dateFilter.lte = new Date(endDate);
+    if (endDate) {
+      const endDateObj = new Date(endDate);
+      endDateObj.setHours(23, 59, 59, 999); // Include full day
+      dateFilter.lte = endDateObj;
+    }
     const hasDateFilter = startDate || endDate;
 
     // Get total SMS sent
@@ -44,7 +48,7 @@ class BusinessTrendsService {
       },
     });
 
-    // Get total calls
+    // Get total calls from callLog
     const callLogs = await prisma.callLog.findMany({
       where: {
         organizationId,
@@ -56,13 +60,28 @@ class BusinessTrendsService {
       },
     });
 
-    const totalCalls = callLogs.length;
-    const callsConnected = callLogs.filter(c =>
-      c.status === 'COMPLETED' || c.status === 'IN_PROGRESS'
-    ).length;
-    const totalCallTime = callLogs.reduce((sum, c) => sum + (c.duration || 0), 0);
+    // Get telecaller calls
+    const telecallerCalls = await prisma.telecallerCall.findMany({
+      where: {
+        organizationId,
+        ...(hasDateFilter && { startedAt: dateFilter }),
+      },
+      select: {
+        status: true,
+        duration: true,
+      },
+    });
 
-    // Get converted leads (WON stages)
+    // Combine call data
+    const totalCalls = callLogs.length + telecallerCalls.length;
+    const callsConnected =
+      callLogs.filter(c => c.status === 'COMPLETED' || c.status === 'IN_PROGRESS').length +
+      telecallerCalls.filter(c => c.status === 'COMPLETED' || c.status === 'CONNECTED').length;
+    const totalCallTime =
+      callLogs.reduce((sum, c) => sum + (c.duration || 0), 0) +
+      telecallerCalls.reduce((sum, c) => sum + (c.duration || 0), 0);
+
+    // Get converted leads (using isConverted flag OR WON stages)
     const wonStages = await prisma.leadStage.findMany({
       where: { organizationId, autoSyncStatus: 'WON' },
       select: { id: true },
@@ -72,8 +91,11 @@ class BusinessTrendsService {
     const convertedLeads = await prisma.lead.count({
       where: {
         organizationId,
-        stageId: { in: wonStageIds },
-        ...(hasDateFilter && { updatedAt: dateFilter }),
+        OR: [
+          { isConverted: true },
+          ...(wonStageIds.length > 0 ? [{ stageId: { in: wonStageIds } }] : []),
+        ],
+        ...(hasDateFilter && { convertedAt: dateFilter }),
       },
     });
 
@@ -144,9 +166,24 @@ class BusinessTrendsService {
 
     // Default to last 30 days
     const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999); // Include full day
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const calls = await prisma.callLog.findMany({
+    // Get callLog data
+    const callLogs = await prisma.callLog.findMany({
+      where: {
+        organizationId,
+        startedAt: { gte: start, lte: end },
+      },
+      select: {
+        startedAt: true,
+        status: true,
+      },
+      orderBy: { startedAt: 'asc' },
+    });
+
+    // Get telecaller calls
+    const telecallerCalls = await prisma.telecallerCall.findMany({
       where: {
         organizationId,
         startedAt: { gte: start, lte: end },
@@ -161,7 +198,8 @@ class BusinessTrendsService {
     // Group by week
     const weeklyData: Record<string, { total: number; connected: number; weekStart: Date }> = {};
 
-    calls.forEach(call => {
+    // Process callLog entries
+    callLogs.forEach(call => {
       if (!call.startedAt) return;
       const weekKey = this.getWeekKey(call.startedAt);
       if (!weeklyData[weekKey]) {
@@ -169,6 +207,19 @@ class BusinessTrendsService {
       }
       weeklyData[weekKey].total++;
       if (call.status === 'COMPLETED' || call.status === 'IN_PROGRESS') {
+        weeklyData[weekKey].connected++;
+      }
+    });
+
+    // Process telecaller calls
+    telecallerCalls.forEach(call => {
+      if (!call.startedAt) return;
+      const weekKey = this.getWeekKey(call.startedAt);
+      if (!weeklyData[weekKey]) {
+        weeklyData[weekKey] = { total: 0, connected: 0, weekStart: this.getWeekStart(call.startedAt) };
+      }
+      weeklyData[weekKey].total++;
+      if (call.status === 'COMPLETED' || call.status === 'CONNECTED') {
         weeklyData[weekKey].connected++;
       }
     });
@@ -204,9 +255,25 @@ class BusinessTrendsService {
     const { organizationId, startDate, endDate } = filters;
 
     const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999); // Include full day
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const calls = await prisma.callLog.findMany({
+    // Get callLog data
+    const callLogs = await prisma.callLog.findMany({
+      where: {
+        organizationId,
+        startedAt: { gte: start, lte: end },
+        duration: { not: null },
+      },
+      select: {
+        startedAt: true,
+        duration: true,
+      },
+      orderBy: { startedAt: 'asc' },
+    });
+
+    // Get telecaller calls
+    const telecallerCalls = await prisma.telecallerCall.findMany({
       where: {
         organizationId,
         startedAt: { gte: start, lte: end },
@@ -222,7 +289,15 @@ class BusinessTrendsService {
     // Group by date
     const dailyData: Record<string, number> = {};
 
-    calls.forEach(call => {
+    // Process callLog entries
+    callLogs.forEach(call => {
+      if (!call.startedAt) return;
+      const date = call.startedAt.toISOString().split('T')[0];
+      dailyData[date] = (dailyData[date] || 0) + (call.duration || 0);
+    });
+
+    // Process telecaller calls
+    telecallerCalls.forEach(call => {
       if (!call.startedAt) return;
       const date = call.startedAt.toISOString().split('T')[0];
       dailyData[date] = (dailyData[date] || 0) + (call.duration || 0);
@@ -250,6 +325,7 @@ class BusinessTrendsService {
     const { organizationId, startDate, endDate } = filters;
 
     const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999); // Include full day
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // Get WON and LOST stage IDs
@@ -264,7 +340,7 @@ class BusinessTrendsService {
     const wonStageIds = wonStages.map(s => s.id);
     const lostStageIds = lostStages.map(s => s.id);
 
-    // Get all leads with their stage and creation date
+    // Get all leads with their stage, conversion status, and creation date
     const leads = await prisma.lead.findMany({
       where: {
         organizationId,
@@ -273,6 +349,7 @@ class BusinessTrendsService {
       select: {
         createdAt: true,
         stageId: true,
+        isConverted: true,
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -286,7 +363,8 @@ class BusinessTrendsService {
         dailyData[date] = { total: 0, converted: 0 };
       }
       dailyData[date].total++;
-      if (lead.stageId && wonStageIds.includes(lead.stageId)) {
+      // Count as converted if isConverted flag is true OR in WON stage
+      if (lead.isConverted || (lead.stageId && wonStageIds.includes(lead.stageId))) {
         dailyData[date].converted++;
       }
     });
@@ -316,6 +394,7 @@ class BusinessTrendsService {
     const { organizationId, startDate, endDate } = filters;
 
     const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999); // Include full day
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     const leads = await prisma.lead.findMany({
@@ -360,7 +439,11 @@ class BusinessTrendsService {
 
     const dateFilter: any = {};
     if (startDate) dateFilter.gte = new Date(startDate);
-    if (endDate) dateFilter.lte = new Date(endDate);
+    if (endDate) {
+      const endDateObj = new Date(endDate);
+      endDateObj.setHours(23, 59, 59, 999); // Include full day
+      dateFilter.lte = endDateObj;
+    }
     const hasDateFilter = startDate || endDate;
 
     const leads = await prisma.lead.groupBy({
@@ -386,6 +469,7 @@ class BusinessTrendsService {
     const { organizationId, startDate, endDate } = filters;
 
     const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999); // Include full day
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // Get LOST stage IDs

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { templateService } from '../services/template.service';
-import { authenticate } from '../middlewares/auth';
+import { authenticate, authorize } from '../middlewares/auth';
 import { tenantMiddleware } from '../middlewares/tenant';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AppError } from '../utils/errors';
@@ -10,6 +10,9 @@ const router = Router();
 // All routes require authentication and tenant context
 router.use(authenticate);
 router.use(tenantMiddleware);
+
+// Role-based access: Only admin, manager, super_admin can manage templates
+const canManageTemplates = authorize('admin', 'manager', 'super_admin');
 
 /**
  * @api {get} /templates List Templates
@@ -75,10 +78,47 @@ router.get(
 );
 
 /**
+ * @api {get} /templates/defaults Get Default Templates (without saving)
+ */
+router.get(
+  '/defaults',
+  asyncHandler(async (req, res) => {
+    const defaults = templateService.getDefaultTemplates();
+
+    res.json({
+      success: true,
+      data: defaults,
+    });
+  })
+);
+
+/**
+ * @api {post} /templates/seed Seed Default Templates
+ * @access Admin, Manager, Super Admin only
+ */
+router.post(
+  '/seed',
+  canManageTemplates,
+  asyncHandler(async (req, res) => {
+    const { organizationId } = req.user!;
+    const { force } = req.body;
+
+    const result = await templateService.seedDefaultTemplates(organizationId, { force });
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  })
+);
+
+/**
  * @api {post} /templates Create Template
+ * @access Admin, Manager, Super Admin only
  */
 router.post(
   '/',
+  canManageTemplates,
   asyncHandler(async (req, res) => {
     const { organizationId, id: userId } = req.user!;
     const {
@@ -161,9 +201,11 @@ router.get(
 
 /**
  * @api {put} /templates/:id Update Template
+ * @access Admin, Manager, Super Admin only
  */
 router.put(
   '/:id',
+  canManageTemplates,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { id } = req.params;
@@ -220,9 +262,11 @@ router.put(
 
 /**
  * @api {delete} /templates/:id Delete Template
+ * @access Admin, Manager, Super Admin only
  */
 router.delete(
   '/:id',
+  canManageTemplates,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { id } = req.params;
@@ -238,9 +282,11 @@ router.delete(
 
 /**
  * @api {post} /templates/:id/duplicate Duplicate Template
+ * @access Admin, Manager, Super Admin only
  */
 router.post(
   '/:id/duplicate',
+  canManageTemplates,
   asyncHandler(async (req, res) => {
     const { organizationId } = req.user!;
     const { id } = req.params;

@@ -60,6 +60,7 @@ export interface UseLeadDetailDataReturn {
   // Follow-up handlers
   addFollowUp: (followUp: { scheduledAt: string; message?: string; notes?: string; assigneeId?: string }) => Promise<void>;
   updateFollowUpStatus: (followUpId: string, status: 'UPCOMING' | 'COMPLETED' | 'MISSED' | 'RESCHEDULED') => Promise<void>;
+  rescheduleFollowUp: (followUpId: string, newScheduledAt: string) => Promise<void>;
   deleteFollowUp: (followUpId: string) => Promise<void>;
 
   // Attachment handlers
@@ -323,6 +324,20 @@ export function useLeadDetailData(leadId: string | undefined): UseLeadDetailData
     }
   }, [leadId]);
 
+  const rescheduleFollowUp = useCallback(async (followUpId: string, newScheduledAt: string) => {
+    if (!leadId) return;
+    try {
+      const updated = await leadDetailsService.updateFollowUp(leadId, followUpId, {
+        scheduledAt: newScheduledAt,
+        status: 'UPCOMING' // Reset status to upcoming when rescheduled
+      });
+      setFollowUps(prev => prev.map(f => f.id === followUpId ? updated : f));
+      toast.success('Follow-up rescheduled');
+    } catch (error) {
+      toast.error('Failed to reschedule follow-up');
+    }
+  }, [leadId]);
+
   const deleteFollowUp = useCallback(async (followUpId: string) => {
     if (!leadId) return;
     try {
@@ -575,6 +590,7 @@ export function useLeadDetailData(leadId: string | undefined): UseLeadDetailData
     deleteTask,
     addFollowUp,
     updateFollowUpStatus,
+    rescheduleFollowUp,
     deleteFollowUp,
     uploadAttachment,
     deleteAttachment,

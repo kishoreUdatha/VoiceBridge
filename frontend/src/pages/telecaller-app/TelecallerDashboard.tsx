@@ -5,10 +5,22 @@ import api from '../../services/api';
 
 interface TelecallerStats {
   totalLeads: number;
+  assignedLeads: number;
   todayCalls: number;
   totalCalls: number;
   conversionRate: number;
   outcomes: Record<string, number>;
+  callsByOutcome: Record<string, number>;
+  totalConnected: number;
+  totalUnconnected: number;
+  totalLost: number;
+  todayPerformance: {
+    calls: number;
+    connected: number;
+    unconnected: number;
+    lost: number;
+    interested: number;
+  };
 }
 
 interface Lead {
@@ -98,42 +110,91 @@ const TelecallerDashboard: React.FC = () => {
       <div className="px-4 -mt-4">
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-            <div className="text-3xl font-bold text-blue-600">{stats?.todayCalls || 0}</div>
-            <div className="text-gray-500 text-sm">Today's Calls</div>
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-            <div className="text-3xl font-bold text-green-600">{stats?.conversionRate || 0}%</div>
-            <div className="text-gray-500 text-sm">Conversion Rate</div>
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-            <div className="text-3xl font-bold text-purple-600">{stats?.totalLeads || 0}</div>
-            <div className="text-gray-500 text-sm">Assigned Leads</div>
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-            <div className="text-3xl font-bold text-orange-600">{stats?.totalCalls || 0}</div>
+            <div className="text-3xl font-bold text-blue-600">{stats?.totalCalls || 0}</div>
             <div className="text-gray-500 text-sm">Total Calls</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <div className="text-3xl font-bold text-green-600">{stats?.totalConnected || 0}</div>
+            <div className="text-gray-500 text-sm">Total Connected</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <div className="text-3xl font-bold text-amber-600">{stats?.totalUnconnected || 0}</div>
+            <div className="text-gray-500 text-sm">Total Unconnected</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <div className="text-3xl font-bold text-red-600">{stats?.totalLost || 0}</div>
+            <div className="text-gray-500 text-sm">Total Lost</div>
           </div>
         </div>
       </div>
 
-      {/* Outcome Stats */}
-      {stats?.outcomes && Object.keys(stats.outcomes).length > 0 && (
+      {/* Today's Performance */}
+      <div className="px-4 mt-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+          <h3 className="font-semibold text-gray-800 mb-3">Today's Performance</h3>
+          <div className="grid grid-cols-5 gap-2 text-center">
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <div className="text-xl font-bold text-blue-600">{stats?.todayPerformance?.calls || 0}</div>
+              <div className="text-xs text-gray-500">Calls</div>
+            </div>
+            <div className="p-2 bg-green-50 rounded-lg">
+              <div className="text-xl font-bold text-green-600">{stats?.todayPerformance?.connected || 0}</div>
+              <div className="text-xs text-gray-500">Connected</div>
+            </div>
+            <div className="p-2 bg-amber-50 rounded-lg">
+              <div className="text-xl font-bold text-amber-600">{stats?.todayPerformance?.unconnected || 0}</div>
+              <div className="text-xs text-gray-500">No Answer</div>
+            </div>
+            <div className="p-2 bg-purple-50 rounded-lg">
+              <div className="text-xl font-bold text-purple-600">{stats?.todayPerformance?.interested || 0}</div>
+              <div className="text-xs text-gray-500">Interested</div>
+            </div>
+            <div className="p-2 bg-red-50 rounded-lg">
+              <div className="text-xl font-bold text-red-600">{stats?.todayPerformance?.lost || 0}</div>
+              <div className="text-xs text-gray-500">Lost</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Overall Stats Row */}
+      <div className="px-4 mt-4">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 text-center">
+            <div className="text-2xl font-bold text-purple-600">{stats?.assignedLeads || stats?.totalLeads || 0}</div>
+            <div className="text-gray-500 text-xs">Assigned Leads</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 text-center">
+            <div className="text-2xl font-bold text-green-600">{stats?.conversionRate || 0}%</div>
+            <div className="text-gray-500 text-xs">Conversion Rate</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 text-center">
+            <div className="text-2xl font-bold text-blue-600">{stats?.todayCalls || 0}</div>
+            <div className="text-gray-500 text-xs">Today's Calls</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Call Outcomes Breakdown */}
+      {stats?.callsByOutcome && Object.keys(stats.callsByOutcome).length > 0 && (
         <div className="px-4 mt-4">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-            <h3 className="font-semibold text-gray-800 mb-3">Call Outcomes</h3>
+            <h3 className="font-semibold text-gray-800 mb-3">Call Outcomes History</h3>
             <div className="flex flex-wrap gap-2">
-              {Object.entries(stats.outcomes).map(([outcome, count]) => (
+              {Object.entries(stats.callsByOutcome).map(([outcome, count]) => (
                 <span
                   key={outcome}
                   className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    outcome === 'INTERESTED' || outcome === 'CONVERTED'
+                    outcome === 'INTERESTED' || outcome === 'CONVERTED' || outcome === 'CONNECTED'
                       ? 'bg-green-100 text-green-700'
                       : outcome === 'NOT_INTERESTED'
                       ? 'bg-red-100 text-red-700'
+                      : outcome === 'NO_ANSWER' || outcome === 'BUSY' || outcome === 'VOICEMAIL'
+                      ? 'bg-amber-100 text-amber-700'
                       : 'bg-gray-100 text-gray-700'
                   }`}
                 >
-                  {outcome.replace('_', ' ')}: {count}
+                  {outcome.replace(/_/g, ' ')}: {count}
                 </span>
               ))}
             </div>

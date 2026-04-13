@@ -30,6 +30,7 @@ interface RawRecord {
   assignedAt: string;
   bulkImport?: { fileName: string };
   assignedBy?: { firstName: string; lastName: string };
+  assignedTo?: { id: string; firstName: string; lastName: string };
   customFields?: {
     aiAnalyzed?: boolean;
     lastCallOutcome?: string;
@@ -42,11 +43,13 @@ interface RawRecord {
 
 interface Stats {
   total: number;
+  new: number;
   assigned: number;
   interested: number;
   notInterested: number;
   noAnswer: number;
   callback: number;
+  converted: number;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -212,18 +215,82 @@ export default function AssignedDataPage() {
         </button>
       </div>
 
-      {/* Stats + Filters */}
+      {/* Stats Tabs + Filters */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 mb-4">
         <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100">
-          {/* Stats */}
+          {/* Clickable Stats Tabs */}
           {stats && (
-            <div className="flex items-center gap-4 text-xs">
-              <span className="text-slate-600">Total: <span className="font-semibold text-slate-800">{stats.total}</span></span>
-              <span className="text-blue-600">To Call: <span className="font-semibold">{stats.assigned}</span></span>
-              <span className="text-green-600">Interested: <span className="font-semibold">{stats.interested}</span></span>
-              <span className="text-red-600">Not Interested: <span className="font-semibold">{stats.notInterested}</span></span>
-              <span className="text-gray-500">No Answer: <span className="font-semibold">{stats.noAnswer}</span></span>
-              <span className="text-amber-600">Callback: <span className="font-semibold">{stats.callback}</span></span>
+            <div className="flex items-center gap-1 text-xs">
+              <button
+                onClick={() => { setStatusFilter('ALL'); setPage(1); }}
+                className={`px-3 py-1.5 rounded-md transition-colors ${
+                  statusFilter === 'ALL'
+                    ? 'bg-slate-700 text-white font-semibold'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                All: <span className="font-semibold">{stats.total}</span>
+              </button>
+              <button
+                onClick={() => { setStatusFilter('NEW'); setPage(1); }}
+                className={`px-3 py-1.5 rounded-md transition-colors ${
+                  statusFilter === 'NEW'
+                    ? 'bg-indigo-600 text-white font-semibold'
+                    : 'text-indigo-600 hover:bg-indigo-50'
+                }`}
+              >
+                New: <span className="font-semibold">{stats.new}</span>
+              </button>
+              <button
+                onClick={() => { setStatusFilter('ASSIGNED'); setPage(1); }}
+                className={`px-3 py-1.5 rounded-md transition-colors ${
+                  statusFilter === 'ASSIGNED'
+                    ? 'bg-blue-600 text-white font-semibold'
+                    : 'text-blue-600 hover:bg-blue-50'
+                }`}
+              >
+                To Call: <span className="font-semibold">{stats.assigned}</span>
+              </button>
+              <button
+                onClick={() => { setStatusFilter('INTERESTED'); setPage(1); }}
+                className={`px-3 py-1.5 rounded-md transition-colors ${
+                  statusFilter === 'INTERESTED'
+                    ? 'bg-green-600 text-white font-semibold'
+                    : 'text-green-600 hover:bg-green-50'
+                }`}
+              >
+                Interested: <span className="font-semibold">{stats.interested}</span>
+              </button>
+              <button
+                onClick={() => { setStatusFilter('NOT_INTERESTED'); setPage(1); }}
+                className={`px-3 py-1.5 rounded-md transition-colors ${
+                  statusFilter === 'NOT_INTERESTED'
+                    ? 'bg-red-600 text-white font-semibold'
+                    : 'text-red-600 hover:bg-red-50'
+                }`}
+              >
+                Not Interested: <span className="font-semibold">{stats.notInterested}</span>
+              </button>
+              <button
+                onClick={() => { setStatusFilter('NO_ANSWER'); setPage(1); }}
+                className={`px-3 py-1.5 rounded-md transition-colors ${
+                  statusFilter === 'NO_ANSWER'
+                    ? 'bg-gray-600 text-white font-semibold'
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+              >
+                No Answer: <span className="font-semibold">{stats.noAnswer}</span>
+              </button>
+              <button
+                onClick={() => { setStatusFilter('CALLBACK_REQUESTED'); setPage(1); }}
+                className={`px-3 py-1.5 rounded-md transition-colors ${
+                  statusFilter === 'CALLBACK_REQUESTED'
+                    ? 'bg-amber-600 text-white font-semibold'
+                    : 'text-amber-600 hover:bg-amber-50'
+                }`}
+              >
+                Callback: <span className="font-semibold">{stats.callback}</span>
+              </button>
             </div>
           )}
         </div>
@@ -249,6 +316,7 @@ export default function AssignedDataPage() {
             className="text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           >
             <option value="ALL">All Status</option>
+            <option value="NEW">New (Not Called)</option>
             <option value="ASSIGNED">To Call</option>
             <option value="NO_ANSWER">No Answer</option>
             <option value="CALLBACK_REQUESTED">Callback</option>
@@ -311,7 +379,8 @@ export default function AssignedDataPage() {
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Contact</th>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Phone</th>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Status</th>
-                <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Assigned</th>
+                <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Assigned To</th>
+                <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Assigned Date</th>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Last Call</th>
                 <th className="text-right text-xs font-medium text-slate-500 uppercase px-4 py-3">Actions</th>
               </tr>
@@ -361,6 +430,13 @@ export default function AssignedDataPage() {
                         </span>
                       )}
                     </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="text-sm text-slate-600">
+                      {record.assignedTo
+                        ? `${record.assignedTo.firstName} ${record.assignedTo.lastName || ''}`.trim()
+                        : '-'}
+                    </p>
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-xs text-slate-500">

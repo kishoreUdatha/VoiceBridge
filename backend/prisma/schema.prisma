@@ -35,6 +35,9 @@ model Organization {
   billingCountry      String? @default("India")
   billingPincode      String?
 
+  // Regional Settings
+  currency String @default("INR")
+
   // Subscription fields
   activePlanId          String?   @default("starter")
   subscriptionStatus    String?   @default("TRIAL") // TRIAL, ACTIVE, CANCELLED, EXPIRED, SUSPENDED
@@ -6419,8 +6422,9 @@ model TelecallerCall {
   contactName String?
 
   // Call Status
-  status  TelecallerCallStatus   @default(INITIATED)
-  outcome TelecallerCallOutcome?
+  status   TelecallerCallStatus   @default(INITIATED)
+  outcome  TelecallerCallOutcome?
+  callType TelecallerCallType     @default(OUTBOUND)
 
   // Timing
   startedAt DateTime?
@@ -6492,6 +6496,11 @@ enum TelecallerCallOutcome {
   NO_ANSWER // Couldn't reach
   WRONG_NUMBER // Invalid number
   BUSY // Line busy
+}
+
+enum TelecallerCallType {
+  OUTBOUND // Telecaller called the customer
+  INBOUND  // Customer called back
 }
 
 // ==================== INBOUND CALL FEATURES ====================

@@ -10,6 +10,8 @@ export {
   TrustBadges,
   ComparisonToggle,
   ComparisonTable,
+  CategoryComparisonTable,
+  AddOnsSection,
   FAQSection,
   CTASection,
   Footer,

@@ -16,7 +16,7 @@ import {
   ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon } from '@heroicons/react/24/solid';
-import { Plan, SimplePlanFeature, FAQItem, TrustBadge, PlanTier } from '../pricing.types';
+import { Plan, SimplePlanFeature, FAQItem, TrustBadge, PlanTier, AddOn, FeatureCategory } from '../pricing.types';
 import { formatPrice, PLAN_TIERS } from '../pricing.constants';
 
 // Navigation Component
@@ -325,18 +325,18 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ features }) =>
               <th className="px-6 py-5 text-left text-sm font-bold sticky left-0 bg-slate-900 min-w-[200px]">Feature</th>
               <th className="px-6 py-5 text-center text-sm font-bold min-w-[130px]">
                 <div>Starter</div>
-                <div className="text-xs font-normal text-slate-300 mt-1">₹1,999/mo</div>
+                <div className="text-xs font-normal text-slate-300 mt-1">₹2,999/mo</div>
               </th>
               <th className="px-6 py-5 text-center text-sm font-bold bg-primary-600 min-w-[130px]">
                 <div className="flex items-center justify-center gap-1">
-                  Pro
+                  Growth
                   <span className="bg-white text-primary-600 text-[10px] px-1.5 py-0.5 rounded font-bold">POPULAR</span>
                 </div>
-                <div className="text-xs font-normal text-primary-100 mt-1">₹6,999/mo</div>
+                <div className="text-xs font-normal text-primary-100 mt-1">₹7,999/mo</div>
               </th>
               <th className="px-6 py-5 text-center text-sm font-bold min-w-[130px]">
                 <div>Business</div>
-                <div className="text-xs font-normal text-slate-300 mt-1">₹14,999/mo</div>
+                <div className="text-xs font-normal text-slate-300 mt-1">₹19,999/mo</div>
               </th>
               <th className="px-6 py-5 text-center text-sm font-bold min-w-[130px]">
                 <div>Enterprise</div>
@@ -353,7 +353,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ features }) =>
                 {PLAN_TIERS.map((plan: PlanTier) => (
                   <td
                     key={plan}
-                    className={`px-6 py-4 text-center ${plan === 'pro' ? 'bg-primary-50' : ''}`}
+                    className={`px-6 py-4 text-center ${plan === 'growth' ? 'bg-primary-50' : ''}`}
                   >
                     {typeof feature[plan] === 'boolean' ? (
                       feature[plan] ? (
@@ -430,7 +430,7 @@ export const CTASection: React.FC<CTASectionProps> = ({ onSelectPlan }) => (
       </p>
       <div className="flex flex-col sm:flex-row gap-4 justify-center">
         <button
-          onClick={() => onSelectPlan('pro')}
+          onClick={() => onSelectPlan('growth')}
           className="px-8 py-4 bg-white text-primary-600 font-semibold rounded-xl hover:bg-primary-50 transition-all shadow-xl"
         >
           Start 14-Day Free Trial
@@ -443,6 +443,136 @@ export const CTASection: React.FC<CTASectionProps> = ({ onSelectPlan }) => (
         </button>
       </div>
       <p className="text-primary-200 text-sm mt-6">No credit card required</p>
+    </div>
+  </div>
+);
+
+// Add-Ons Section Component
+interface AddOnsSectionProps {
+  addOns: AddOn[];
+}
+
+export const AddOnsSection: React.FC<AddOnsSectionProps> = ({ addOns }) => (
+  <div className="bg-white py-16">
+    <div className="max-w-6xl mx-auto px-4">
+      <div className="text-center mb-12">
+        <h2 className="text-3xl font-bold text-slate-900 mb-4">
+          Add-Ons & Extras
+        </h2>
+        <p className="text-slate-600 max-w-2xl mx-auto">
+          Expand your plan with additional capacity and features as your business grows
+        </p>
+      </div>
+
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {addOns.map((addon) => (
+          <div
+            key={addon.id}
+            className={`relative bg-white rounded-xl border ${
+              addon.popular ? 'border-primary-300 ring-1 ring-primary-200' : 'border-slate-200'
+            } p-5 hover:shadow-lg transition-all`}
+          >
+            {addon.popular && (
+              <span className="absolute -top-2.5 left-4 bg-primary-500 text-white text-xs px-2 py-0.5 rounded-full font-semibold">
+                Popular
+              </span>
+            )}
+            <h3 className="font-bold text-slate-900 mb-1">{addon.name}</h3>
+            <p className="text-sm text-slate-500 mb-3">{addon.description}</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-2xl font-extrabold text-slate-900">
+                {formatPrice(addon.price)}
+              </span>
+              <span className="text-sm text-slate-500">{addon.unit}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+// Category-based Comparison Table Component
+interface CategoryComparisonTableProps {
+  categories: FeatureCategory[];
+}
+
+export const CategoryComparisonTable: React.FC<CategoryComparisonTableProps> = ({ categories }) => (
+  <div className="max-w-6xl mx-auto px-4 pb-16">
+    <h3 className="text-2xl font-bold text-slate-900 text-center mb-8">Compare All Features</h3>
+    <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-slate-900 text-white">
+              <th className="px-6 py-5 text-left text-sm font-bold sticky left-0 bg-slate-900 min-w-[240px]">Feature</th>
+              <th className="px-6 py-5 text-center text-sm font-bold min-w-[120px]">
+                <div>Starter</div>
+                <div className="text-xs font-normal text-slate-300 mt-1">₹2,999/mo</div>
+              </th>
+              <th className="px-6 py-5 text-center text-sm font-bold bg-primary-600 min-w-[120px]">
+                <div className="flex items-center justify-center gap-1">
+                  Growth
+                  <span className="bg-white text-primary-600 text-[10px] px-1.5 py-0.5 rounded font-bold">POPULAR</span>
+                </div>
+                <div className="text-xs font-normal text-primary-100 mt-1">₹7,999/mo</div>
+              </th>
+              <th className="px-6 py-5 text-center text-sm font-bold min-w-[120px]">
+                <div>Business</div>
+                <div className="text-xs font-normal text-slate-300 mt-1">₹19,999/mo</div>
+              </th>
+              <th className="px-6 py-5 text-center text-sm font-bold min-w-[120px]">
+                <div>Enterprise</div>
+                <div className="text-xs font-normal text-slate-300 mt-1">Custom</div>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {categories.map((category, catIdx) => (
+              <React.Fragment key={catIdx}>
+                {/* Category Header */}
+                <tr className="bg-slate-800">
+                  <td colSpan={5} className="px-6 py-3 text-sm font-bold text-white">
+                    {category.category}
+                  </td>
+                </tr>
+                {/* Category Features */}
+                {category.features.map((feature, idx) => (
+                  <tr key={`${catIdx}-${idx}`} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-blue-50 transition-colors`}>
+                    <td className={`px-6 py-3 text-sm text-slate-700 sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-blue-50`}>
+                      {feature.name}
+                    </td>
+                    {PLAN_TIERS.map((plan: PlanTier) => (
+                      <td
+                        key={plan}
+                        className={`px-6 py-3 text-center ${plan === 'growth' ? 'bg-primary-50/50' : ''}`}
+                      >
+                        {typeof feature[plan] === 'boolean' ? (
+                          feature[plan] ? (
+                            <div className="flex justify-center">
+                              <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center">
+                                <CheckIcon className="w-3 h-3 text-green-600" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex justify-center">
+                              <div className="w-5 h-5 bg-slate-100 rounded-full flex items-center justify-center">
+                                <XMarkIcon className="w-3 h-3 text-slate-400" />
+                              </div>
+                            </div>
+                          )
+                        ) : (
+                          <span className="text-slate-800 font-semibold text-sm">{feature[plan]}</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 );

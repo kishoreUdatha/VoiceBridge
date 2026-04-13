@@ -4,11 +4,12 @@ import { ApiResponse } from '../utils/apiResponse';
 import { AuthenticatedRequest } from '../middlewares/auth';
 import { setAuthCookies, clearAuthCookies, getRefreshToken } from '../utils/cookies';
 import { SubdomainRequest } from '../middlewares/subdomain';
+import { getMaintenanceMode } from '../middlewares/maintenance.middleware';
 
 export class AuthController {
   async register(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { organizationName, organizationSlug, email, password, firstName, lastName, phone, planId } =
+      const { organizationName, organizationSlug, email, password, firstName, lastName, phone, planId, industry, teamSize, expectedLeadsPerMonth, country, currency } =
         req.body;
 
       const result = await authService.register({
@@ -20,6 +21,11 @@ export class AuthController {
         lastName,
         phone,
         planId,
+        industry,
+        teamSize,
+        expectedLeadsPerMonth,
+        country,
+        currency,
       });
 
       // Set httpOnly cookies for tokens
@@ -47,6 +53,21 @@ export class AuthController {
         password,
         tenantSlug: req.tenantSlug
       });
+
+      // Check maintenance mode - only allow super_admin logins
+      const maintenance = getMaintenanceMode();
+      if (maintenance.active) {
+        const userRole = result.user?.role?.slug?.toLowerCase() || result.user?.roleSlug?.toLowerCase() || '';
+        if (userRole !== 'super_admin' && userRole !== 'superadmin') {
+          ApiResponse.error(
+            res,
+            maintenance.message || 'System is under maintenance. Please try again later.',
+            503,
+            'MAINTENANCE_MODE'
+          );
+          return;
+        }
+      }
 
       // Set httpOnly cookies for tokens (for web clients)
       setAuthCookies(res, {
