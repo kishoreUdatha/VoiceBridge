@@ -5,7 +5,7 @@ import { config } from '../config';
 import integrationService from './integration.service';
 import { emailService } from '../integrations/email.service';
 
-// Environment variables for Google OAuth (use same as integration service)
+// Environment variables for Google OAuth (fallback if org-level not configured)
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 // GOOGLE_CALENDAR_REDIRECT_URI must be set in production - uses config.baseUrl
@@ -27,6 +27,12 @@ interface TimeSlot {
   end: Date;
 }
 
+interface OrgCalendarConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri?: string;
+}
+
 class CalendarService {
   private oauth2Client: any;
 
@@ -41,23 +47,96 @@ class CalendarService {
   }
 
   /**
-   * Check if Google Calendar is configured
+   * Get organization-level calendar configuration
+   */
+  async getOrgConfig(organizationId: string): Promise<OrgCalendarConfig | null> {
+    try {
+      const org = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { settings: true },
+      });
+
+      const settings = (org?.settings as any) || {};
+      const calendarConfig = settings.calendar;
+
+      if (calendarConfig?.clientId && calendarConfig?.clientSecret) {
+        // Decrypt the client secret
+        let clientSecret = calendarConfig.clientSecret;
+        try {
+          clientSecret = integrationService.decrypt(calendarConfig.clientSecret);
+        } catch (e) {
+          // May not be encrypted (legacy)
+          console.log('[Calendar] Using client secret as-is');
+        }
+
+        return {
+          clientId: calendarConfig.clientId,
+          clientSecret,
+          redirectUri: calendarConfig.redirectUri || GOOGLE_REDIRECT_URI,
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.error('[Calendar] Error getting org config:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get OAuth2 client for organization (uses org-level config or falls back to env)
+   */
+  async getOAuth2ClientForOrg(organizationId: string): Promise<any> {
+    // First try org-level config
+    const orgConfig = await this.getOrgConfig(organizationId);
+
+    if (orgConfig) {
+      console.log('[Calendar] Using organization-level credentials');
+      return new google.auth.OAuth2(
+        orgConfig.clientId,
+        orgConfig.clientSecret,
+        orgConfig.redirectUri || GOOGLE_REDIRECT_URI
+      );
+    }
+
+    // Fall back to env variables
+    if (this.oauth2Client) {
+      console.log('[Calendar] Using environment-level credentials');
+      return this.oauth2Client;
+    }
+
+    throw new Error('Google Calendar not configured. Please set up credentials in Settings > Calendar.');
+  }
+
+  /**
+   * Check if Google Calendar is configured (env-level)
    */
   isConfigured(): boolean {
     return !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET);
   }
 
   /**
+   * Check if Google Calendar is configured for a specific organization
+   */
+  async isConfiguredForOrg(organizationId: string): Promise<boolean> {
+    // Check org-level config first
+    const orgConfig = await this.getOrgConfig(organizationId);
+    if (orgConfig) return true;
+
+    // Fall back to env-level config
+    return this.isConfigured();
+  }
+
+  /**
    * Generate OAuth URL for connecting Google Calendar
    */
-  getAuthUrl(organizationId: string, userId?: string): string {
-    if (!this.oauth2Client) {
-      throw new Error('Google Calendar not configured. Set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET.');
-    }
+  async getAuthUrl(organizationId: string, userId?: string): Promise<string> {
+    // Get OAuth client for this organization
+    const oauth2Client = await this.getOAuth2ClientForOrg(organizationId);
 
     const state = Buffer.from(JSON.stringify({ organizationId, userId })).toString('base64');
 
-    return this.oauth2Client.generateAuthUrl({
+    return oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: [
         'https://www.googleapis.com/auth/calendar',
@@ -72,17 +151,16 @@ class CalendarService {
    * Handle OAuth callback and store tokens
    */
   async handleOAuthCallback(code: string, state: string) {
-    if (!this.oauth2Client) {
-      throw new Error('Google Calendar not configured');
-    }
-
     const { organizationId, userId } = JSON.parse(Buffer.from(state, 'base64').toString());
 
-    const { tokens } = await this.oauth2Client.getToken(code);
+    // Get OAuth client for this organization
+    const oauth2Client = await this.getOAuth2ClientForOrg(organizationId);
+
+    const { tokens } = await oauth2Client.getToken(code);
 
     // Get primary calendar ID
-    this.oauth2Client.setCredentials(tokens);
-    const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
+    oauth2Client.setCredentials(tokens);
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
     const calendars = await calendar.calendarList.list();
     const primaryCalendar = calendars.data.items?.find(c => c.primary) || calendars.data.items?.[0];
 

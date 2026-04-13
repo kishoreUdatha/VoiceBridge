@@ -3,12 +3,132 @@ import { authenticate, AuthenticatedRequest } from '../middlewares/auth';
 import { tenantMiddleware } from '../middlewares/tenant';
 import { calendarService } from '../services/calendar.service';
 import { prisma } from '../config/database';
+import integrationService from '../services/integration.service';
 
 const router = Router();
 
 // All routes require authentication and tenant context
 router.use(authenticate);
 router.use(tenantMiddleware);
+
+// Get calendar configuration (admin only)
+router.get('/config', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const organizationId = req.user!.organizationId;
+    const userRole = req.user!.role?.toLowerCase();
+
+    // Only admins can view config
+    if (!['super_admin', 'admin', 'org_admin'].includes(userRole || '')) {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true },
+    });
+
+    const settings = (org?.settings as any) || {};
+    const calendarConfig = settings.calendar || {};
+
+    // Don't expose the full secret, just indicate if it's set
+    res.json({
+      success: true,
+      data: {
+        clientId: calendarConfig.clientId || '',
+        clientSecretSet: !!calendarConfig.clientSecret,
+        redirectUri: calendarConfig.redirectUri || '',
+        isConfigured: !!(calendarConfig.clientId && calendarConfig.clientSecret),
+      },
+    });
+  } catch (error: any) {
+    console.error('[Calendar] Error fetching config:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save calendar configuration (admin only)
+router.post('/config', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const organizationId = req.user!.organizationId;
+    const userRole = req.user!.role?.toLowerCase();
+
+    // Only admins can update config
+    if (!['super_admin', 'admin', 'org_admin'].includes(userRole || '')) {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+
+    const { clientId, clientSecret, redirectUri } = req.body;
+
+    if (!clientId) {
+      return res.status(400).json({ success: false, message: 'Client ID is required' });
+    }
+
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true },
+    });
+
+    const settings = (org?.settings as any) || {};
+
+    // Encrypt the client secret before storing
+    const encryptedSecret = clientSecret ? integrationService.encrypt(clientSecret) : settings.calendar?.clientSecret;
+
+    const updatedSettings = {
+      ...settings,
+      calendar: {
+        ...settings.calendar,
+        clientId,
+        clientSecret: encryptedSecret,
+        redirectUri: redirectUri || settings.calendar?.redirectUri,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: { settings: updatedSettings },
+    });
+
+    res.json({
+      success: true,
+      message: 'Calendar configuration saved successfully',
+      data: {
+        clientId,
+        clientSecretSet: !!encryptedSecret,
+        redirectUri: updatedSettings.calendar.redirectUri,
+        isConfigured: !!(clientId && encryptedSecret),
+      },
+    });
+  } catch (error: any) {
+    console.error('[Calendar] Error saving config:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Test calendar configuration
+router.post('/config/test', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const organizationId = req.user!.organizationId;
+
+    // Check if org-level config exists
+    const isConfigured = await calendarService.isConfiguredForOrg(organizationId);
+
+    if (isConfigured) {
+      res.json({
+        success: true,
+        message: 'Google Calendar configuration is valid',
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'Google Calendar is not configured. Please enter your Client ID and Client Secret.',
+      });
+    }
+  } catch (error: any) {
+    console.error('[Calendar] Error testing config:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 // Get calendar integration status
 router.get('/integration', async (req: AuthenticatedRequest, res: Response) => {
@@ -46,10 +166,12 @@ router.get('/auth-url', async (req: AuthenticatedRequest, res: Response) => {
     const provider = (req.query.provider as string) || 'GOOGLE';
     const organizationId = req.user!.organizationId;
 
-    if (!calendarService.isConfigured()) {
+    // Check if org-level or env-level config exists
+    const isConfigured = await calendarService.isConfiguredForOrg(organizationId);
+    if (!isConfigured) {
       return res.status(400).json({
         success: false,
-        message: 'Calendar integration is not configured. Please set up Google Calendar credentials.',
+        message: 'Calendar integration is not configured. Please set up Google Calendar credentials in the Configuration tab.',
       });
     }
 
@@ -60,7 +182,7 @@ router.get('/auth-url', async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    const authUrl = calendarService.getAuthUrl(organizationId, req.user!.id);
+    const authUrl = await calendarService.getAuthUrl(organizationId, req.user!.id);
     res.json({ success: true, authUrl });
   } catch (error: any) {
     console.error('[Calendar] Error generating auth URL:', error);

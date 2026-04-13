@@ -262,8 +262,12 @@ const getTeamNavigation = (industry: string): NavItem[] => [
 const integrationsNavigation: NavItem[] = [
   { name: 'Facebook/Google Ads', href: '/ad-integrations', icon: MegaphoneIcon, roles: ['super_admin', 'admin', 'manager'], permission: 'integrations_view' },
   { name: 'Lead Sources', href: '/integrations/indian-sources', icon: ArrowDownTrayIcon, roles: ['super_admin', 'admin', 'manager'], permission: 'integrations_view' },
-  { name: 'WhatsApp API', href: '/settings/whatsapp', icon: WhatsAppIcon, roles: ['super_admin', 'admin'], permission: 'integrations_view' },
-  { name: 'Webhooks', href: '/settings/webhooks', icon: ArrowsRightLeftIcon, roles: ['super_admin', 'admin'], permission: 'integrations_view' },
+  { name: 'Email', href: '/settings/email', icon: AtSymbolIcon, roles: ['super_admin', 'admin'], permission: 'integrations_view' },
+  { name: 'SMS', href: '/settings/sms', icon: ChatBubbleLeftRightIcon, roles: ['super_admin', 'admin'], permission: 'integrations_view' },
+  { name: 'WhatsApp', href: '/settings/whatsapp', icon: WhatsAppIcon, roles: ['super_admin', 'admin'], permission: 'integrations_view' },
+  { name: 'Google Calendar', href: '/settings/calendar', icon: CalendarIcon, roles: ['super_admin', 'admin'], permission: 'integrations_view' },
+  { name: 'Razorpay', href: '/settings/razorpay', icon: CreditCardIcon, roles: ['super_admin', 'admin'], permission: 'integrations_view' },
+  { name: 'Webhooks', href: '/api-keys/webhooks', icon: ArrowsRightLeftIcon, roles: ['super_admin', 'admin'], permission: 'integrations_view' },
 ];
 
 // Settings - Configuration
