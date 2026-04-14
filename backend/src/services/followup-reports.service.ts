@@ -78,8 +78,9 @@ interface NoResponseLead {
 class FollowUpReportsService {
   /**
    * Build tenant-scoped where clause
+   * @param skipDateRange - Skip date range filter for queries that have their own date logic (schedule, overdue)
    */
-  private async buildWhereClause(filters: ReportFilters): Promise<Prisma.FollowUpWhereInput> {
+  private async buildWhereClause(filters: ReportFilters, skipDateRange = false): Promise<Prisma.FollowUpWhereInput> {
     const { organizationId, dateRange, assigneeId, userRole, userId } = filters;
 
     // Base filter - tenant isolation through lead relation
@@ -87,8 +88,8 @@ class FollowUpReportsService {
       lead: { organizationId },
     };
 
-    // Date range filter
-    if (dateRange) {
+    // Date range filter - only apply if not skipped (for queries without their own date logic)
+    if (dateRange && !skipDateRange) {
       where.scheduledAt = { gte: dateRange.start, lte: dateRange.end };
     }
 
@@ -221,7 +222,8 @@ class FollowUpReportsService {
    * 3. OVERDUE FOLLOW-UPS
    */
   async getOverdueFollowUps(filters: ReportFilters, limit = 50): Promise<ScheduledFollowUp[]> {
-    const where = await this.buildWhereClause(filters);
+    // Skip date range filter - overdue has its own date logic (scheduledAt < now)
+    const where = await this.buildWhereClause(filters, true);
     const now = new Date();
 
     const followUps = await prisma.followUp.findMany({
@@ -410,7 +412,8 @@ class FollowUpReportsService {
     thisWeek: ScheduledFollowUp[];
     overdueCount: number;
   }> {
-    const where = await this.buildWhereClause(filters);
+    // Skip date range filter - schedule has its own date logic (today, tomorrow, week)
+    const where = await this.buildWhereClause(filters, true);
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
@@ -581,7 +584,7 @@ class FollowUpReportsService {
       this.getSummary(filters),
       this.getFollowUpsByEmployee(filters),
       this.getNextFollowUpSchedule(filters),
-      this.getOverdueFollowUps(filters, 20),
+      this.getOverdueFollowUps(filters, 100),
       this.getNoResponseLeads(filters),
     ]);
 

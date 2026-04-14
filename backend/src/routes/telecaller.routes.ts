@@ -437,15 +437,20 @@ router.put('/assigned-data/:id/status', async (req: TenantRequest, res: Response
       orderBy: { createdAt: 'desc' },
     });
 
+    // Validate and cap duration (max 1 hour = 3600 seconds)
+    const MAX_CALL_DURATION = 3600;
+    const cappedDuration = duration && duration > MAX_CALL_DURATION ? MAX_CALL_DURATION : duration;
+
     if (existingCall && status !== 'CALLING') {
       // Update existing call with outcome
+      const calculatedDuration = cappedDuration || Math.floor((Date.now() - existingCall.startedAt.getTime()) / 1000);
       await prisma.telecallerCall.update({
         where: { id: existingCall.id },
         data: {
           outcome: outcomeMap[status] || status,
           status: 'COMPLETED',
           endedAt: new Date(),
-          duration: duration || Math.floor((Date.now() - existingCall.startedAt.getTime()) / 1000),
+          duration: Math.min(calculatedDuration, MAX_CALL_DURATION),
           summary: callSummary || notes,
         },
       });
@@ -462,7 +467,7 @@ router.put('/assigned-data/:id/status', async (req: TenantRequest, res: Response
           callType: 'OUTBOUND',
           startedAt: new Date(),
           endedAt: new Date(),
-          duration: duration || 0,
+          duration: cappedDuration || 0,
           summary: callSummary || notes,
           notes: `Raw Import Record: ${id}`,
         },
@@ -495,9 +500,9 @@ router.post('/assigned-data/:id/call', async (req: TenantRequest, res: Response)
       return ApiResponse.notFound(res, 'Record not found or already converted');
     }
 
-    // If record is stuck in CALLING status for more than 30 minutes, allow re-initiating
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-    if (record.status === 'CALLING' && record.lastCallAt && record.lastCallAt > thirtyMinutesAgo) {
+    // If record is stuck in CALLING status for more than 5 minutes, allow re-initiating
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    if (record.status === 'CALLING' && record.lastCallAt && record.lastCallAt > fiveMinutesAgo) {
       return ApiResponse.error(res, 'A call is already in progress for this record. Please wait or finish the current call.', 400);
     }
 
@@ -540,8 +545,10 @@ router.post('/assigned-data/:id/recording', upload.single('recording'), async (r
     const { callId, duration } = req.body;
     const userId = req.user!.id;
 
-    // Parse duration to number
-    const callDuration = duration ? parseInt(duration, 10) : 0;
+    // Parse duration to number and cap to max 1 hour
+    const MAX_CALL_DURATION = 3600;
+    const parsedDuration = duration ? parseInt(duration, 10) : 0;
+    const callDuration = Math.min(parsedDuration, MAX_CALL_DURATION);
 
     if (!req.file) {
       return ApiResponse.error(res, 'Recording file is required', 400);
@@ -1259,13 +1266,21 @@ router.put('/calls/:id', async (req: TenantRequest, res: Response) => {
       return ApiResponse.error(res, 'Call not found', 404);
     }
 
+    // Validate and cap duration to prevent unrealistic values (max 1 hour = 3600 seconds)
+    const MAX_CALL_DURATION = 3600;
+    let validatedDuration = duration;
+    if (duration && duration > MAX_CALL_DURATION) {
+      console.warn(`[Telecaller] Duration ${duration}s exceeds max, capping to ${MAX_CALL_DURATION}s for call ${id}`);
+      validatedDuration = MAX_CALL_DURATION;
+    }
+
     const call = await prisma.telecallerCall.update({
       where: { id },
       data: {
         ...(status && { status }),
         ...(outcome && { outcome }),
         ...(notes && { notes }),
-        ...(duration && { duration }),
+        ...(validatedDuration && { duration: validatedDuration }),
         endedAt: endedAt ? new Date(endedAt) : new Date(),
       },
     });
@@ -1321,9 +1336,11 @@ router.post('/calls/:id/recording', upload.single('recording'), async (req: Tena
       return ApiResponse.error(res, 'Call not found', 404);
     }
 
-    // Update call with recording URL and duration
+    // Update call with recording URL and duration (capped to max 1 hour)
     const recordingUrl = `/uploads/recordings/${req.file.filename}`;
-    const callDuration = duration ? parseInt(duration, 10) : null;
+    const MAX_CALL_DURATION = 3600;
+    const parsedDuration = duration ? parseInt(duration, 10) : null;
+    const callDuration = parsedDuration ? Math.min(parsedDuration, MAX_CALL_DURATION) : null;
 
     console.log(`[Telecaller] Updating call ${id} with recording and duration: ${callDuration}s`);
 
@@ -1439,6 +1456,48 @@ router.get('/calls/:id/analysis', async (req: TenantRequest, res: Response) => {
     }
 
     ApiResponse.success(res, 'Call analysis retrieved', analysis);
+  } catch (error) {
+    ApiResponse.error(res, (error as Error).message, 500);
+  }
+});
+
+// Re-process call transcript (admin endpoint to improve transcription quality)
+router.post('/calls/:id/reprocess', async (req: TenantRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const call = await prisma.telecallerCall.findFirst({
+      where: { id, organizationId: req.organization!.id },
+    });
+
+    if (!call) {
+      return ApiResponse.error(res, 'Call not found', 404);
+    }
+
+    if (!call.recordingUrl) {
+      return ApiResponse.error(res, 'No recording available for this call', 400);
+    }
+
+    // Get full file path
+    const filePath = path.join(process.cwd(), call.recordingUrl);
+    if (!fs.existsSync(filePath)) {
+      return ApiResponse.error(res, 'Recording file not found on server', 404);
+    }
+
+    // Trigger re-processing
+    console.log(`[Telecaller] Re-processing call ${id} transcript...`);
+
+    // Import and use the finalization service
+    const { telecallerCallFinalizationService } = await import('../services/telecaller-call-finalization.service');
+
+    // Process asynchronously
+    telecallerCallFinalizationService.processRecording(id, filePath).then(() => {
+      console.log(`[Telecaller] Re-processing complete for call ${id}`);
+    }).catch((err) => {
+      console.error(`[Telecaller] Re-processing failed for call ${id}:`, err);
+    });
+
+    ApiResponse.success(res, 'Transcript re-processing started. Check back in a few seconds.', { callId: id });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }
@@ -1563,6 +1622,12 @@ router.get('/dashboard-stats', async (req: TenantRequest, res: Response) => {
     today.setHours(0, 0, 0, 0);
     const todayEnd = new Date(today);
     todayEnd.setHours(23, 59, 59, 999);
+
+    // Yesterday's date range
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayEnd = new Date(yesterday);
+    yesterdayEnd.setHours(23, 59, 59, 999);
 
     // Get start of current week (Monday)
     const startOfWeek = new Date(today);
@@ -1796,18 +1861,18 @@ router.get('/dashboard-stats', async (req: TenantRequest, res: Response) => {
       take: 10,
     });
 
-    // 4. Get call outcomes distribution from telecallerCall table
+    // 4. Get call outcomes distribution from telecallerCall table (TODAY only)
     // All calls (including raw import calls) are now logged to this table
     const [callOutcomes, callTypeStats] = await Promise.all([
       prisma.telecallerCall.groupBy({
         by: ['outcome'],
-        where: { telecallerId: { in: targetUserIds }, outcome: { not: null } },
+        where: { telecallerId: { in: targetUserIds }, outcome: { not: null }, createdAt: { gte: today, lte: todayEnd } },
         _count: { outcome: true },
       }),
-      // Get call type breakdown (OUTBOUND vs INBOUND)
+      // Get call type breakdown (OUTBOUND vs INBOUND) - TODAY only
       prisma.telecallerCall.groupBy({
         by: ['callType'],
-        where: { telecallerId: { in: targetUserIds } },
+        where: { telecallerId: { in: targetUserIds }, createdAt: { gte: today, lte: todayEnd } },
         _count: { callType: true },
       }),
     ]);
@@ -1831,6 +1896,38 @@ router.get('/dashboard-stats', async (req: TenantRequest, res: Response) => {
         callTypes[ct.callType] = ct._count.callType;
       }
     });
+
+    // 4b. Get YESTERDAY's stats for comparison
+    const [yesterdayCalls, yesterdayOutcomes, yesterdayAvgDuration] = await Promise.all([
+      prisma.telecallerCall.count({
+        where: { telecallerId: { in: targetUserIds }, createdAt: { gte: yesterday, lte: yesterdayEnd } },
+      }),
+      prisma.telecallerCall.groupBy({
+        by: ['outcome'],
+        where: { telecallerId: { in: targetUserIds }, outcome: { not: null }, createdAt: { gte: yesterday, lte: yesterdayEnd } },
+        _count: { outcome: true },
+      }),
+      prisma.telecallerCall.aggregate({
+        where: { telecallerId: { in: targetUserIds }, createdAt: { gte: yesterday, lte: yesterdayEnd }, duration: { gt: 0 } },
+        _avg: { duration: true },
+      }),
+    ]);
+
+    // Build yesterday outcomes object
+    const yesterdayOutcomesObj: Record<string, number> = {};
+    yesterdayOutcomes.forEach(o => {
+      if (o.outcome) {
+        yesterdayOutcomesObj[o.outcome] = o._count.outcome;
+      }
+    });
+
+    // Calculate yesterday's interest rate
+    const yesterdayInterested = yesterdayOutcomesObj['INTERESTED'] || 0;
+    const yesterdayNotInterested = yesterdayOutcomesObj['NOT_INTERESTED'] || 0;
+    const yesterdayNoAnswer = yesterdayOutcomesObj['NO_ANSWER'] || 0;
+    const yesterdayCallback = yesterdayOutcomesObj['CALLBACK'] || 0;
+    const yesterdayTotal = yesterdayInterested + yesterdayNotInterested + yesterdayNoAnswer + yesterdayCallback;
+    const yesterdayInterestRate = yesterdayTotal > 0 ? Math.round((yesterdayInterested / yesterdayTotal) * 100) : 0;
 
     // 5. Get conversion stats
     // Won = leads in completed/success stages (Admitted, Enrolled, Won)
@@ -1895,6 +1992,14 @@ router.get('/dashboard-stats', async (req: TenantRequest, res: Response) => {
           calls: dailyCallTarget || 1, // From assigned leads + raw records + queue
           followUps: dailyFollowUpTarget || 0, // From today's scheduled follow-ups
         },
+      },
+      // Yesterday's metrics for comparison
+      yesterday: {
+        calls: yesterdayCalls,
+        outcomes: yesterdayOutcomesObj,
+        interested: yesterdayInterested,
+        interestRate: yesterdayInterestRate,
+        avgDuration: Math.round(yesterdayAvgDuration._avg.duration || 0),
       },
       // Pending follow-up details for display
       pendingFollowUpsList: [

@@ -81,6 +81,7 @@ export function OverviewTab({ lead, onEdit }: OverviewTabProps) {
   );
 
   const customFieldLabels: Record<string, string> = {
+    // Basic fields
     budget: 'Budget',
     company: 'Company / Institution',
     timeline: 'Timeline',
@@ -101,6 +102,58 @@ export function OverviewTab({ lead, onEdit }: OverviewTabProps) {
     referralSource: 'Referral Source',
     preferredLanguage: 'Preferred Language',
     notes: 'Notes',
+    // Education-specific fields (AI extracted)
+    'Full Name': 'Full Name',
+    'First Name': 'First Name',
+    'Last Name': 'Last Name',
+    'Phone': 'Phone',
+    'Email': 'Email',
+    'Current Class': 'Current Class',
+    'Board': 'Board',
+    'Course Interested': 'Course Interested',
+    'Specialization': 'Specialization',
+    'Colleges Interested': 'Colleges Interested',
+    'Other Colleges Considered': 'Other Colleges Considered',
+    'Preferred Location': 'Preferred Location',
+    'Budget / Fee Range': 'Budget / Fee Range',
+    'Fee Structure': 'Fee Structure',
+    'Interest Level': 'Interest Level',
+    'Timeline': 'Timeline',
+    'Entrance Exam Score': 'Entrance Exam Score',
+    'Hostel Required': 'Hostel Required',
+    'Parent/Guardian Name': 'Parent/Guardian Name',
+    'Parent/Guardian Phone': 'Parent/Guardian Phone',
+    'Parent/Guardian Involvement': 'Parent/Guardian Involvement',
+    'Current Qualification / Background': 'Current Qualification',
+    'Reason for Interest': 'Reason for Interest',
+    'Concerns / Objections': 'Concerns / Objections',
+    // Camel case versions
+    fullName: 'Full Name',
+    firstName: 'First Name',
+    lastName: 'Last Name',
+    phone: 'Phone',
+    email: 'Email',
+    currentClass: 'Current Class',
+    board: 'Board',
+    otherCollegesConsidered: 'Other Colleges Considered',
+    preferredLocation: 'Preferred Location',
+    budgetFeeRange: 'Budget / Fee Range',
+    entranceExamScore: 'Entrance Exam Score',
+    hostelRequired: 'Hostel Required',
+    parentGuardianName: 'Parent/Guardian Name',
+    parentGuardianPhone: 'Parent/Guardian Phone',
+    parentGuardianInvolvement: 'Parent/Guardian Involvement',
+    currentQualificationBackground: 'Current Qualification',
+    reasonForInterest: 'Reason for Interest',
+    concernsObjections: 'Concerns / Objections',
+    // Call summary fields
+    callSummary: 'Call Summary',
+    callSentiment: 'Call Sentiment',
+    callOutcome: 'Call Outcome',
+    nextSteps: 'Next Steps',
+    followUpDate: 'Follow-up Date',
+    callbackRequested: 'Callback Requested',
+    callbackTime: 'Preferred Callback Time',
   };
 
   const excludedCustomKeys = new Set([
@@ -337,68 +390,145 @@ export function NotesTab({ notes, loading, onAdd, onUpdate, onDelete, onTogglePi
     }
   };
 
+  const pinnedNotes = notes.filter(n => n.isPinned);
+  const unpinnedNotes = notes.filter(n => !n.isPinned);
+  const sortedNotes = [...pinnedNotes, ...unpinnedNotes];
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-      <div className="p-6 border-b border-slate-100">
+      {/* Header */}
+      <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-50 to-white">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+            <ChatBubbleOvalLeftIcon className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-900">Notes</h3>
+            <p className="text-xs text-slate-500">{notes.length} notes • {pinnedNotes.length} pinned</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Add Note Form */}
+      <div className="p-5 border-b border-slate-100 bg-slate-50/50">
         <div className="flex gap-3">
           <textarea
             value={newNote}
             onChange={(e) => setNewNote(e.target.value)}
-            placeholder="Add a note..."
-            className="flex-1 p-3 border border-slate-200 rounded-lg resize-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            placeholder="Write a note..."
+            className="flex-1 p-3 border border-slate-200 rounded-xl resize-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white shadow-sm text-sm"
             rows={3}
           />
-          <button onClick={handleAdd} disabled={!newNote.trim()} className="btn btn-primary self-end disabled:opacity-50">
+          <button
+            onClick={handleAdd}
+            disabled={!newNote.trim()}
+            className="self-end px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium rounded-lg hover:from-amber-600 hover:to-orange-600 shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <PlusIcon className="h-4 w-4" />
             Add Note
           </button>
         </div>
       </div>
-      <div className="p-6">
+
+      {/* Notes List */}
+      <div className="p-5">
         {loading ? (
           <LoadingSpinner />
         ) : notes.length === 0 ? (
-          <EmptyState icon={ChatBubbleOvalLeftIcon} message="No notes yet" />
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <ChatBubbleOvalLeftIcon className="h-8 w-8 text-slate-400" />
+            </div>
+            <p className="text-slate-500 font-medium">No notes yet</p>
+            <p className="text-sm text-slate-400 mt-1">Add a note to keep track of important information</p>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {notes.sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0)).map((note) => (
-              <div key={note.id} className={`p-4 rounded-lg ${note.isPinned ? 'bg-yellow-50 border border-yellow-200' : 'bg-slate-50'}`}>
+          <div className="space-y-3">
+            {sortedNotes.map((note) => (
+              <div
+                key={note.id}
+                className={`rounded-xl border transition-all ${
+                  note.isPinned
+                    ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200 shadow-sm'
+                    : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'
+                }`}
+              >
                 {editingNote === note.id ? (
-                  <div className="flex gap-2">
+                  <div className="p-4">
                     <textarea
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}
-                      className="flex-1 p-2 border border-slate-200 rounded-lg resize-none"
-                      rows={2}
+                      className="w-full p-3 border border-slate-200 rounded-lg resize-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                      rows={3}
+                      autoFocus
                     />
-                    <div className="flex flex-col gap-1">
-                      <button onClick={() => handleUpdate(note.id)} className="p-2 text-green-600 hover:bg-green-50 rounded">
-                        <CheckIcon className="h-4 w-4" />
+                    <div className="flex justify-end gap-2 mt-3">
+                      <button
+                        onClick={() => setEditingNote(null)}
+                        className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                      >
+                        Cancel
                       </button>
-                      <button onClick={() => setEditingNote(null)} className="p-2 text-slate-500 hover:bg-slate-100 rounded">
-                        <XMarkIcon className="h-4 w-4" />
+                      <button
+                        onClick={() => handleUpdate(note.id)}
+                        className="px-3 py-1.5 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-1"
+                      >
+                        <CheckIcon className="h-4 w-4" />
+                        Save
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <>
-                    <p className="text-sm text-slate-700">{note.content}</p>
-                    <div className="flex items-center justify-between mt-3">
-                      <div className="text-xs text-slate-400">
-                        {note.user?.firstName} {note.user?.lastName} • {formatDateTime(note.createdAt)}
+                  <div className="p-4">
+                    {note.isPinned && (
+                      <div className="flex items-center gap-1 text-amber-600 text-xs font-medium mb-2">
+                        <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.5 2a.5.5 0 0 1 .5.5v2.293l3.146-3.147a.5.5 0 1 1 .708.708L10.707 5.5H13a2.5 2.5 0 0 1 2.5 2.5v3.293l1.646-1.647a.5.5 0 0 1 .708.708l-2.5 2.5a.5.5 0 0 1-.708 0l-2.5-2.5a.5.5 0 0 1 .708-.708L14.5 11.293V8A1.5 1.5 0 0 0 13 6.5h-2.293l3.147 3.146a.5.5 0 0 1-.708.708L10 7.207V15.5a.5.5 0 0 1-1 0V7.207L5.854 10.354a.5.5 0 1 1-.708-.708L8.293 6.5H6A1.5 1.5 0 0 0 4.5 8v3.293l1.646-1.647a.5.5 0 1 1 .708.708l-2.5 2.5a.5.5 0 0 1-.708 0l-2.5-2.5a.5.5 0 0 1 .708-.708L3.5 11.293V8A2.5 2.5 0 0 1 6 5.5h2.293L5.146 2.354a.5.5 0 0 1 .708-.708L9 4.793V2.5a.5.5 0 0 1 .5-.5z"/>
+                        </svg>
+                        Pinned
+                      </div>
+                    )}
+                    <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{note.content}</p>
+                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 bg-gradient-to-br from-slate-400 to-slate-500 rounded-full flex items-center justify-center text-white text-xs font-medium">
+                          {note.user?.firstName?.[0] || 'U'}
+                        </div>
+                        <span className="text-xs text-slate-500">
+                          {note.user?.firstName} {note.user?.lastName} • {formatDateTime(note.createdAt)}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <button onClick={() => onTogglePin(note)} className={`p-1.5 rounded ${note.isPinned ? 'text-yellow-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                          📌
+                        <button
+                          onClick={() => onTogglePin(note)}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            note.isPinned
+                              ? 'text-amber-600 bg-amber-100 hover:bg-amber-200'
+                              : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                          }`}
+                          title={note.isPinned ? 'Unpin note' : 'Pin note'}
+                        >
+                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.5 2a.5.5 0 0 1 .5.5v2.293l3.146-3.147a.5.5 0 1 1 .708.708L10.707 5.5H13a2.5 2.5 0 0 1 2.5 2.5v3.293l1.646-1.647a.5.5 0 0 1 .708.708l-2.5 2.5a.5.5 0 0 1-.708 0l-2.5-2.5a.5.5 0 0 1 .708-.708L14.5 11.293V8A1.5 1.5 0 0 0 13 6.5h-2.293l3.147 3.146a.5.5 0 0 1-.708.708L10 7.207V15.5a.5.5 0 0 1-1 0V7.207L5.854 10.354a.5.5 0 1 1-.708-.708L8.293 6.5H6A1.5 1.5 0 0 0 4.5 8v3.293l1.646-1.647a.5.5 0 1 1 .708.708l-2.5 2.5a.5.5 0 0 1-.708 0l-2.5-2.5a.5.5 0 0 1 .708-.708L3.5 11.293V8A2.5 2.5 0 0 1 6 5.5h2.293L5.146 2.354a.5.5 0 0 1 .708-.708L9 4.793V2.5a.5.5 0 0 1 .5-.5z"/>
+                          </svg>
                         </button>
-                        <button onClick={() => { setEditingNote(note.id); setEditContent(note.content); }} className="p-1.5 text-slate-400 hover:text-slate-600 rounded">
+                        <button
+                          onClick={() => { setEditingNote(note.id); setEditContent(note.content); }}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit note"
+                        >
                           <PencilIcon className="h-4 w-4" />
                         </button>
-                        <button onClick={() => onDelete(note.id)} className="p-1.5 text-red-400 hover:text-red-600 rounded">
+                        <button
+                          onClick={() => onDelete(note.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete note"
+                        >
                           <TrashIcon className="h-4 w-4" />
                         </button>
                       </div>
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             ))}
@@ -731,75 +861,185 @@ interface CallsTabProps {
   onLogCallClick: () => void;
 }
 
+// Parse transcript into chat messages
+const parseTranscript = (transcript: string): Array<{ speaker: 'agent' | 'customer'; text: string }> => {
+  const messages: Array<{ speaker: 'agent' | 'customer'; text: string }> = [];
+  const lines = transcript.split('\n').filter(line => line.trim());
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (trimmedLine.toLowerCase().startsWith('agent:')) {
+      messages.push({ speaker: 'agent', text: trimmedLine.substring(6).trim() });
+    } else if (trimmedLine.toLowerCase().startsWith('customer:')) {
+      messages.push({ speaker: 'customer', text: trimmedLine.substring(9).trim() });
+    } else if (trimmedLine.toLowerCase().startsWith('caller:')) {
+      messages.push({ speaker: 'customer', text: trimmedLine.substring(7).trim() });
+    } else if (messages.length > 0) {
+      // Append to last message if no speaker prefix
+      messages[messages.length - 1].text += ' ' + trimmedLine;
+    }
+  }
+  return messages;
+};
+
+// Chat-style transcript display
+const TranscriptChat = ({ transcript, title }: { transcript: string; title: string }) => {
+  const messages = parseTranscript(transcript);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const displayMessages = isExpanded ? messages : messages.slice(0, 4);
+
+  if (messages.length === 0) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-lg p-3">
+        <p className="text-xs font-semibold text-slate-700 mb-1">{title}</p>
+        <p className="text-sm text-slate-700 whitespace-pre-wrap">{transcript}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gradient-to-b from-slate-50 to-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="px-4 py-2 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
+        <p className="text-xs font-semibold text-slate-700">{title}</p>
+        <span className="text-[10px] text-slate-500">{messages.length} messages</span>
+      </div>
+      <div className="p-4 space-y-3 max-h-80 overflow-y-auto">
+        {displayMessages.map((msg, idx) => (
+          <div key={idx} className={`flex ${msg.speaker === 'agent' ? 'justify-start' : 'justify-end'}`}>
+            <div className={`flex items-start gap-2 max-w-[85%] ${msg.speaker === 'agent' ? 'flex-row' : 'flex-row-reverse'}`}>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-semibold ${
+                msg.speaker === 'agent'
+                  ? 'bg-gradient-to-br from-green-400 to-emerald-500 text-white'
+                  : 'bg-gradient-to-br from-blue-400 to-indigo-500 text-white'
+              }`}>
+                {msg.speaker === 'agent' ? 'A' : 'C'}
+              </div>
+              <div className={`rounded-2xl px-3 py-2 ${
+                msg.speaker === 'agent'
+                  ? 'bg-white border border-slate-200 rounded-tl-sm'
+                  : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-tr-sm'
+              }`}>
+                <p className={`text-sm leading-relaxed ${msg.speaker === 'agent' ? 'text-slate-700' : 'text-white'}`}>
+                  {msg.text}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {messages.length > 4 && (
+        <div className="px-4 py-2 border-t border-slate-100 bg-slate-50">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+          >
+            {isExpanded ? 'Show less' : `Show ${messages.length - 4} more messages`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export function CallsTab({ callLogs, loading, phone, onLogCallClick }: CallsTabProps) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-      <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-        <h3 className="font-medium text-slate-900">Call History</h3>
+      <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-50 to-white">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-500/20">
+            <PhoneIcon className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-900">Call History</h3>
+            <p className="text-xs text-slate-500">{callLogs.length} calls recorded</p>
+          </div>
+        </div>
         <div className="flex gap-2">
-          <a href={`tel:${phone}`} className="btn btn-primary btn-sm">
-            <PhoneIcon className="h-4 w-4 mr-1" /> Make Call
+          <a href={`tel:${phone}`} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-sm font-medium rounded-lg hover:from-green-700 hover:to-emerald-700 shadow-md hover:shadow-lg transition-all">
+            <PhoneIcon className="h-4 w-4" /> Make Call
           </a>
-          <button onClick={onLogCallClick} className="btn btn-secondary btn-sm">
-            <PlusIcon className="h-4 w-4 mr-1" /> Log Call
+          <button onClick={onLogCallClick} className="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-all">
+            <PlusIcon className="h-4 w-4" /> Log Call
           </button>
         </div>
       </div>
-      <div className="p-6">
+      <div className="p-5">
         {loading ? (
           <LoadingSpinner />
         ) : callLogs.length === 0 ? (
-          <EmptyState icon={PhoneIcon} message="No calls recorded yet" />
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <PhoneIcon className="h-8 w-8 text-slate-400" />
+            </div>
+            <p className="text-slate-500 font-medium">No calls recorded yet</p>
+            <p className="text-sm text-slate-400 mt-1">Make a call to see history here</p>
+          </div>
         ) : (
           <div className="space-y-4">
             {callLogs.map((call) => {
               const anyCall = call as any;
               const englishTranscript = anyCall.qualification?.englishTranscript;
+              const statusColors = {
+                COMPLETED: { bg: 'bg-gradient-to-br from-green-500 to-emerald-600', ring: 'ring-green-100' },
+                MISSED: { bg: 'bg-gradient-to-br from-red-500 to-rose-600', ring: 'ring-red-100' },
+                NO_ANSWER: { bg: 'bg-gradient-to-br from-orange-500 to-amber-600', ring: 'ring-orange-100' },
+              };
+              const colors = statusColors[call.status as keyof typeof statusColors] || { bg: 'bg-gradient-to-br from-slate-500 to-gray-600', ring: 'ring-slate-100' };
+
               return (
-                <div key={call.id} className="flex flex-col gap-3 p-4 bg-slate-50 rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      call.status === 'COMPLETED' ? 'bg-green-100' :
-                      call.status === 'MISSED' || call.status === 'NO_ANSWER' ? 'bg-red-100' : 'bg-yellow-100'
-                    }`}>
-                      <PhoneIcon className={`h-5 w-5 ${
-                        call.status === 'COMPLETED' ? 'text-green-600' :
-                        call.status === 'MISSED' || call.status === 'NO_ANSWER' ? 'text-red-600' : 'text-yellow-600'
-                      }`} />
+                <div key={call.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+                  {/* Call Header */}
+                  <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+                    <div className={`w-12 h-12 rounded-xl ${colors.bg} flex items-center justify-center ring-4 ${colors.ring} shadow-lg`}>
+                      <PhoneIcon className="h-6 w-6 text-white" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-slate-900">
-                        {call.direction} Call - {call.status}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-slate-900">Call - {call.status}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          call.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                          call.status === 'MISSED' || call.status === 'NO_ANSWER' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {call.direction}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {formatDateTime(call.createdAt)} • Duration: <span className="font-medium text-slate-700">{call.duration || 0}s</span>
                       </p>
-                      <p className="text-xs text-slate-500">
-                        {formatDateTime(call.createdAt)} • Duration: {call.duration || 0}s
-                      </p>
-                      {call.notes && <p className="text-sm text-slate-600 mt-1">{call.notes}</p>}
                     </div>
                     {call.recordingUrl && (
-                      <button className="p-2 hover:bg-slate-200 rounded-lg">
-                        <PlayIcon className="h-5 w-5 text-slate-600" />
+                      <button className="p-3 hover:bg-slate-100 rounded-xl transition-colors group">
+                        <PlayIcon className="h-5 w-5 text-slate-500 group-hover:text-green-600 transition-colors" />
                       </button>
                     )}
                   </div>
-                  {anyCall.summary && (
-                    <div className="bg-white border border-slate-200 rounded-md p-3">
-                      <p className="text-xs font-semibold text-slate-700 mb-1">Summary</p>
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{anyCall.summary}</p>
-                    </div>
-                  )}
-                  {call.transcript && (
-                    <div className="bg-white border border-slate-200 rounded-md p-3">
-                      <p className="text-xs font-semibold text-slate-700 mb-1">Transcript</p>
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{call.transcript}</p>
-                    </div>
-                  )}
-                  {englishTranscript && (
-                    <div className="bg-white border border-slate-200 rounded-md p-3">
-                      <p className="text-xs font-semibold text-slate-700 mb-1">English Translation</p>
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{englishTranscript}</p>
-                    </div>
-                  )}
+
+                  {/* Call Content */}
+                  <div className="p-4 space-y-3">
+                    {call.notes && (
+                      <p className="text-sm text-slate-600 bg-slate-50 rounded-lg p-3 border-l-4 border-slate-300">{call.notes}</p>
+                    )}
+
+                    {anyCall.summary && (
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-5 h-5 bg-blue-500 rounded flex items-center justify-center">
+                            <DocumentTextIcon className="h-3 w-3 text-white" />
+                          </div>
+                          <p className="text-xs font-semibold text-blue-800">Summary</p>
+                        </div>
+                        <p className="text-sm text-slate-700 leading-relaxed">{anyCall.summary}</p>
+                      </div>
+                    )}
+
+                    {call.transcript && (
+                      <TranscriptChat transcript={call.transcript} title="Transcript" />
+                    )}
+
+                    {englishTranscript && (
+                      <TranscriptChat transcript={englishTranscript} title="English Translation" />
+                    )}
+                  </div>
                 </div>
               );
             })}
