@@ -238,6 +238,7 @@ const voiceAINavigation: NavItem[] = [
 
 // Data - Import & Management
 const dataNavigation: NavItem[] = [
+  { name: 'Web Scraping', href: '/apify-dashboard', icon: MagnifyingGlassCircleIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'], permission: 'leads_import' },
   { name: 'Import Data', href: '/raw-imports', icon: DocumentArrowUpIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'], permission: 'leads_import' },
   { name: 'Distribution', href: '/assignments', icon: ShareIcon, roles: ['super_admin', 'admin', 'manager', 'team_lead'], permission: 'leads_assign' },
   { name: 'Export Data', href: '/export', icon: ArrowDownTrayIcon, roles: ['super_admin', 'admin', 'manager'], permission: 'leads_export' },

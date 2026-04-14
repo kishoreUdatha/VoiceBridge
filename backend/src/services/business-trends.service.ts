@@ -99,20 +99,40 @@ class BusinessTrendsService {
       },
     });
 
-    // Get lost leads
-    const lostStages = await prisma.leadStage.findMany({
+    // Get lost leads from both LeadStage (legacy) and PipelineStage (new) systems
+    const lostLeadStages = await prisma.leadStage.findMany({
       where: { organizationId, autoSyncStatus: 'LOST' },
       select: { id: true },
     });
-    const lostStageIds = lostStages.map(s => s.id);
+    const lostLeadStageIds = lostLeadStages.map(s => s.id);
 
-    const lostLeads = await prisma.lead.count({
+    const lostPipelineStages = await prisma.pipelineStage.findMany({
       where: {
-        organizationId,
-        stageId: { in: lostStageIds },
-        ...(hasDateFilter && { updatedAt: dateFilter }),
+        stageType: 'lost',
+        pipeline: { organizationId },
       },
+      select: { id: true },
     });
+    const lostPipelineStageIds = lostPipelineStages.map(s => s.id);
+
+    // Build OR conditions for lost leads
+    const lostOrConditions: any[] = [];
+    if (lostLeadStageIds.length > 0) {
+      lostOrConditions.push({ stageId: { in: lostLeadStageIds } });
+    }
+    if (lostPipelineStageIds.length > 0) {
+      lostOrConditions.push({ pipelineStageId: { in: lostPipelineStageIds } });
+    }
+
+    const lostLeads = lostOrConditions.length > 0
+      ? await prisma.lead.count({
+          where: {
+            organizationId,
+            OR: lostOrConditions,
+            ...(hasDateFilter && { updatedAt: dateFilter }),
+          },
+        })
+      : 0;
 
     // Format call time as HH:MM:SS
     const hours = Math.floor(totalCallTime / 3600);
@@ -472,17 +492,51 @@ class BusinessTrendsService {
     end.setHours(23, 59, 59, 999); // Include full day
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Get LOST stage IDs
-    const lostStages = await prisma.leadStage.findMany({
+    // Get LOST stage IDs from LeadStage (legacy system)
+    const lostLeadStages = await prisma.leadStage.findMany({
       where: { organizationId, autoSyncStatus: 'LOST' },
       select: { id: true },
     });
-    const lostStageIds = lostStages.map(s => s.id);
+    const lostLeadStageIds = lostLeadStages.map(s => s.id);
+
+    // Get LOST stage IDs from PipelineStage (new pipeline system)
+    const lostPipelineStages = await prisma.pipelineStage.findMany({
+      where: {
+        stageType: 'lost',
+        pipeline: { organizationId },
+      },
+      select: { id: true },
+    });
+    const lostPipelineStageIds = lostPipelineStages.map(s => s.id);
+
+    // Build OR conditions for leads in lost stages
+    const orConditions: any[] = [];
+    if (lostLeadStageIds.length > 0) {
+      orConditions.push({ stageId: { in: lostLeadStageIds } });
+    }
+    if (lostPipelineStageIds.length > 0) {
+      orConditions.push({ pipelineStageId: { in: lostPipelineStageIds } });
+    }
+
+    // If no lost stages found, return empty data for the date range
+    if (orConditions.length === 0) {
+      const result: { date: string; count: number }[] = [];
+      const currentDate = new Date(start);
+      while (currentDate <= end) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        result.push({
+          date: dateStr,
+          count: 0,
+        });
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      return result;
+    }
 
     const leads = await prisma.lead.findMany({
       where: {
         organizationId,
-        stageId: { in: lostStageIds },
+        OR: orConditions,
         updatedAt: { gte: start, lte: end },
       },
       select: {

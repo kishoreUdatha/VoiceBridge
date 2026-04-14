@@ -215,6 +215,8 @@ model Organization {
   studentVisits    StudentVisit[]
   admissions       Admission[]
   businessExpenses BusinessExpense[]
+  scholarships     Scholarship[]
+  courses          Course[]
 
   // Lead Management Features
   leadTags               LeadTag[]
@@ -1035,6 +1037,9 @@ model Lead {
   // Sales Pipeline
   deals Deal[]
 
+  // Scholarships
+  scholarshipRecipients ScholarshipRecipient[]
+
   @@index([organizationId, phone])
   @@index([organizationId, email])
   @@index([organizationId, stageId])
@@ -1750,6 +1755,89 @@ model AcademicDocument {
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
 
   @@map("academic_documents")
+}
+
+// Course Management
+model Course {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  code           String
+  department     String
+  duration       String?  // e.g., "4 Years"
+  fee            Decimal  @db.Decimal(12, 2)
+  seats          Int      @default(0)
+  enrolledCount  Int      @default(0)
+  description    String?  @db.Text
+  eligibility    String?  @db.Text
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, code])
+  @@map("courses")
+}
+
+// Scholarship Management
+model Scholarship {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  type           ScholarshipType
+  amount         Decimal? @db.Decimal(12, 2) // Fixed amount
+  percentage     Int?     // Percentage of fee waiver
+  eligibility    String   @db.Text
+  description    String?  @db.Text
+  maxRecipients  Int?     // Maximum number of recipients
+  academicYear   String?  // e.g., "2024-25"
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recipients   ScholarshipRecipient[]
+
+  @@map("scholarships")
+}
+
+model ScholarshipRecipient {
+  id            String   @id @default(uuid())
+  scholarshipId String
+  leadId        String?  // Student lead
+  studentName   String
+  studentId     String   // Student ID/Roll number
+  course        String
+  amount        Decimal  @db.Decimal(12, 2)
+  awardedDate   DateTime @default(now())
+  disbursedDate DateTime?
+  status        ScholarshipStatus @default(PENDING)
+  remarks       String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  scholarship Scholarship @relation(fields: [scholarshipId], references: [id], onDelete: Cascade)
+  lead        Lead?       @relation(fields: [leadId], references: [id])
+
+  @@map("scholarship_recipients")
+}
+
+enum ScholarshipType {
+  MERIT
+  NEED_BASED
+  SPORTS
+  MINORITY
+  SPECIAL
+  GOVERNMENT
+}
+
+enum ScholarshipStatus {
+  PENDING
+  APPROVED
+  DISBURSED
+  REJECTED
+  CANCELLED
 }
 
 // Sales Pipeline Deal Tracking

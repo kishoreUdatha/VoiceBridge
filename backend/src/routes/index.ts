@@ -124,6 +124,8 @@ import followUpConfigRoutes from './follow-up-config.routes';
 import universityRoutes from './university.routes';
 import studentVisitRoutes from './student-visit.routes';
 import admissionRoutes from './admission.routes';
+import scholarshipRoutes from './scholarship.routes';
+import courseRoutes from './course.routes';
 import businessExpenseRoutes from './business-expense.routes';
 import profitRoutes from './profit.routes';
 import teamMessagingRoutes from './team-messaging.routes';
@@ -386,6 +388,8 @@ router.use('/approvals', approvalWorkflowRoutes);
 router.use('/universities', universityRoutes);
 router.use('/student-visits', studentVisitRoutes);
 router.use('/admissions', admissionRoutes);
+router.use('/scholarships', scholarshipRoutes);
+router.use('/courses', courseRoutes);
 router.use('/expenses', businessExpenseRoutes);
 router.use('/profit', profitRoutes);
 

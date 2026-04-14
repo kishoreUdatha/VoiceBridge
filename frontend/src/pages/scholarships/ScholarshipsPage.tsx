@@ -1,50 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  Box,
-  Typography,
-  Paper,
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Chip,
-  IconButton,
-  TextField,
-  InputAdornment,
-  Card,
-  CardContent,
-  Grid,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  MenuItem,
-  Avatar,
-} from '@mui/material';
-import {
-  Add as AddIcon,
-  Search as SearchIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  EmojiEvents as TrophyIcon,
-  School as SchoolIcon,
-  People as PeopleIcon,
-  AttachMoney as MoneyIcon,
-} from '@mui/icons-material';
+  AcademicCapIcon,
+  UserGroupIcon,
+  CurrencyRupeeIcon,
+  ClockIcon,
+  PlusIcon,
+  MagnifyingGlassIcon,
+  PencilIcon,
+  TrashIcon,
+  TrophyIcon,
+  XMarkIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+} from '@heroicons/react/24/outline';
+import api from '../../services/api';
+import toast from 'react-hot-toast';
 
 interface Scholarship {
   id: string;
   name: string;
-  type: 'merit' | 'need-based' | 'sports' | 'minority' | 'special';
+  type: string;
   amount: number;
   percentage?: number;
   eligibility: string;
   beneficiaries: number;
   totalDisbursed: number;
-  status: 'active' | 'inactive';
+  isActive: boolean;
 }
 
 interface ScholarshipRecipient {
@@ -52,40 +33,107 @@ interface ScholarshipRecipient {
   studentName: string;
   studentId: string;
   course: string;
-  scholarshipName: string;
+  scholarship: { name: string; type: string };
   amount: number;
   awardedDate: string;
-  status: 'approved' | 'pending' | 'disbursed';
+  status: string;
 }
 
-const mockScholarships: Scholarship[] = [
-  { id: '1', name: 'Merit Scholarship', type: 'merit', amount: 50000, eligibility: 'Above 90% in previous exam', beneficiaries: 45, totalDisbursed: 2250000, status: 'active' },
-  { id: '2', name: 'Need-Based Aid', type: 'need-based', percentage: 50, amount: 0, eligibility: 'Family income < 3 LPA', beneficiaries: 120, totalDisbursed: 4500000, status: 'active' },
-  { id: '3', name: 'Sports Excellence', type: 'sports', amount: 75000, eligibility: 'State/National level athletes', beneficiaries: 15, totalDisbursed: 1125000, status: 'active' },
-  { id: '4', name: 'Minority Scholarship', type: 'minority', percentage: 25, amount: 0, eligibility: 'Minority community students', beneficiaries: 80, totalDisbursed: 1600000, status: 'active' },
-  { id: '5', name: "Director's Special Award", type: 'special', amount: 100000, eligibility: 'Exceptional achievements', beneficiaries: 5, totalDisbursed: 500000, status: 'active' },
-];
+interface Stats {
+  totalScholarships: number;
+  totalBeneficiaries: number;
+  totalDisbursed: number;
+  pendingApplications: number;
+}
 
-const mockRecipients: ScholarshipRecipient[] = [
-  { id: '1', studentName: 'Ananya Krishnan', studentId: 'STU101', course: 'B.Tech CSE', scholarshipName: 'Merit Scholarship', amount: 50000, awardedDate: '2024-07-15', status: 'disbursed' },
-  { id: '2', studentName: 'Mohammed Faisal', studentId: 'STU102', course: 'MBA', scholarshipName: 'Need-Based Aid', amount: 100000, awardedDate: '2024-07-20', status: 'disbursed' },
-  { id: '3', studentName: 'Priya Sharma', studentId: 'STU103', course: 'B.Tech ECE', scholarshipName: 'Sports Excellence', amount: 75000, awardedDate: '2024-08-01', status: 'approved' },
-  { id: '4', studentName: 'Raj Patel', studentId: 'STU104', course: 'B.Com', scholarshipName: 'Merit Scholarship', amount: 50000, awardedDate: '2024-08-10', status: 'pending' },
-];
+const TYPE_STYLES: Record<string, { bg: string; text: string }> = {
+  MERIT: { bg: 'bg-blue-100', text: 'text-blue-700' },
+  NEED_BASED: { bg: 'bg-green-100', text: 'text-green-700' },
+  SPORTS: { bg: 'bg-orange-100', text: 'text-orange-700' },
+  MINORITY: { bg: 'bg-purple-100', text: 'text-purple-700' },
+  SPECIAL: { bg: 'bg-pink-100', text: 'text-pink-700' },
+  GOVERNMENT: { bg: 'bg-red-100', text: 'text-red-700' },
+};
 
-const stats = {
-  totalScholarships: 12,
-  totalBeneficiaries: 265,
-  totalDisbursed: 9975000,
-  pendingApplications: 34,
+const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
+  PENDING: { bg: 'bg-yellow-100', text: 'text-yellow-700' },
+  APPROVED: { bg: 'bg-blue-100', text: 'text-blue-700' },
+  DISBURSED: { bg: 'bg-green-100', text: 'text-green-700' },
+  REJECTED: { bg: 'bg-red-100', text: 'text-red-700' },
 };
 
 export default function ScholarshipsPage() {
   const [search, setSearch] = useState('');
-  const [scholarships] = useState<Scholarship[]>(mockScholarships);
-  const [recipients] = useState<ScholarshipRecipient[]>(mockRecipients);
+  const [scholarships, setScholarships] = useState<Scholarship[]>([]);
+  const [recipients, setRecipients] = useState<ScholarshipRecipient[]>([]);
+  const [stats, setStats] = useState<Stats>({ totalScholarships: 0, totalBeneficiaries: 0, totalDisbursed: 0, pendingApplications: 0 });
   const [openDialog, setOpenDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<'scholarships' | 'recipients'>('scholarships');
+  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'MERIT',
+    amount: '',
+    percentage: '',
+    eligibility: '',
+    maxRecipients: ''
+  });
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [scholarshipsRes, recipientsRes, statsRes] = await Promise.all([
+        api.get('/scholarships'),
+        api.get('/scholarships/recipients'),
+        api.get('/scholarships/stats')
+      ]);
+      setScholarships(scholarshipsRes.data.data || []);
+      setRecipients(recipientsRes.data.data || []);
+      setStats(statsRes.data.data || { totalScholarships: 0, totalBeneficiaries: 0, totalDisbursed: 0, pendingApplications: 0 });
+    } catch (error) {
+      console.error('Failed to load scholarships:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateScholarship = async () => {
+    if (!formData.name || !formData.eligibility) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    try {
+      await api.post('/scholarships', {
+        name: formData.name,
+        type: formData.type,
+        amount: formData.amount ? parseFloat(formData.amount) : undefined,
+        percentage: formData.percentage ? parseInt(formData.percentage) : undefined,
+        eligibility: formData.eligibility,
+        maxRecipients: formData.maxRecipients ? parseInt(formData.maxRecipients) : undefined
+      });
+      toast.success('Scholarship created successfully');
+      setOpenDialog(false);
+      setFormData({ name: '', type: 'MERIT', amount: '', percentage: '', eligibility: '', maxRecipients: '' });
+      loadData();
+    } catch (error) {
+      toast.error('Failed to create scholarship');
+    }
+  };
+
+  const handleDeleteScholarship = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this scholarship?')) return;
+    try {
+      await api.delete(`/scholarships/${id}`);
+      toast.success('Scholarship deleted');
+      loadData();
+    } catch (error) {
+      toast.error('Failed to delete scholarship');
+    }
+  };
 
   const filteredScholarships = scholarships.filter(s =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -95,267 +143,400 @@ export default function ScholarshipsPage() {
   const filteredRecipients = recipients.filter(r =>
     r.studentName.toLowerCase().includes(search.toLowerCase()) ||
     r.studentId.toLowerCase().includes(search.toLowerCase()) ||
-    r.scholarshipName.toLowerCase().includes(search.toLowerCase())
+    r.scholarship?.name?.toLowerCase().includes(search.toLowerCase())
   );
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'merit': return 'primary';
-      case 'need-based': return 'success';
-      case 'sports': return 'warning';
-      case 'minority': return 'info';
-      case 'special': return 'secondary';
-      default: return 'default';
-    }
+  const getTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      MERIT: 'Merit',
+      NEED_BASED: 'Need Based',
+      SPORTS: 'Sports',
+      MINORITY: 'Minority',
+      SPECIAL: 'Special',
+      GOVERNMENT: 'Government',
+    };
+    return labels[type.toUpperCase()] || type;
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'disbursed': return 'success';
-      case 'approved': return 'info';
-      case 'pending': return 'warning';
-      default: return 'default';
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <div className="space-y-4">
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <TrophyIcon sx={{ fontSize: 32, color: 'warning.main' }} />
-          <Box>
-            <Typography variant="h5" fontWeight={600}>Scholarships</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Manage scholarship programs and track recipients
-            </Typography>
-          </Box>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenDialog(true)}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-amber-100 rounded-lg">
+            <TrophyIcon className="h-6 w-6 text-amber-600" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">Scholarships</h1>
+            <p className="text-xs text-gray-500">Manage scholarship programs and track recipients</p>
+          </div>
+        </div>
+        <button
+          onClick={() => setOpenDialog(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+        >
+          <PlusIcon className="h-4 w-4" />
           Add Scholarship
-        </Button>
-      </Box>
+        </button>
+      </div>
 
       {/* Stats Cards */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <SchoolIcon color="primary" />
-                <Typography variant="body2" color="text.secondary">Total Scholarships</Typography>
-              </Box>
-              <Typography variant="h5" fontWeight={600}>{stats.totalScholarships}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <PeopleIcon color="success" />
-                <Typography variant="body2" color="text.secondary">Total Beneficiaries</Typography>
-              </Box>
-              <Typography variant="h5" fontWeight={600}>{stats.totalBeneficiaries}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <MoneyIcon color="warning" />
-                <Typography variant="body2" color="text.secondary">Total Disbursed</Typography>
-              </Box>
-              <Typography variant="h5" fontWeight={600}>{formatCurrency(stats.totalDisbursed)}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <TrophyIcon color="info" />
-                <Typography variant="body2" color="text.secondary">Pending Applications</Typography>
-              </Box>
-              <Typography variant="h5" fontWeight={600}>{stats.pendingApplications}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <AcademicCapIcon className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Total Scholarships</p>
+              <p className="text-xl font-semibold text-gray-900">{stats.totalScholarships}</p>
+            </div>
+          </div>
+        </div>
 
-      {/* Tabs */}
-      <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-        <Button
-          variant={activeTab === 'scholarships' ? 'contained' : 'outlined'}
-          onClick={() => setActiveTab('scholarships')}
-        >
-          Scholarship Programs
-        </Button>
-        <Button
-          variant={activeTab === 'recipients' ? 'contained' : 'outlined'}
-          onClick={() => setActiveTab('recipients')}
-        >
-          Recipients
-        </Button>
-      </Box>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-50 rounded-lg">
+              <UserGroupIcon className="h-5 w-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Total Beneficiaries</p>
+              <p className="text-xl font-semibold text-gray-900">{stats.totalBeneficiaries}</p>
+            </div>
+          </div>
+        </div>
 
-      {/* Search */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <TextField
-          fullWidth
-          size="small"
-          placeholder={activeTab === 'scholarships' ? "Search scholarships..." : "Search recipients..."}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon color="action" />
-              </InputAdornment>
-            ),
-          }}
-        />
-      </Paper>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-50 rounded-lg">
+              <CurrencyRupeeIcon className="h-5 w-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Total Disbursed</p>
+              <p className="text-xl font-semibold text-gray-900">{formatCurrency(stats.totalDisbursed)}</p>
+            </div>
+          </div>
+        </div>
 
-      {/* Scholarships Table */}
-      {activeTab === 'scholarships' && (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow sx={{ bgcolor: 'grey.50' }}>
-                <TableCell><strong>Scholarship Name</strong></TableCell>
-                <TableCell><strong>Type</strong></TableCell>
-                <TableCell align="right"><strong>Amount/Percentage</strong></TableCell>
-                <TableCell><strong>Eligibility</strong></TableCell>
-                <TableCell align="center"><strong>Beneficiaries</strong></TableCell>
-                <TableCell align="right"><strong>Total Disbursed</strong></TableCell>
-                <TableCell align="center"><strong>Status</strong></TableCell>
-                <TableCell align="center"><strong>Actions</strong></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredScholarships.map((scholarship) => (
-                <TableRow key={scholarship.id} hover>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Avatar sx={{ bgcolor: 'warning.light', width: 32, height: 32 }}>
-                        <TrophyIcon sx={{ fontSize: 18, color: 'warning.dark' }} />
-                      </Avatar>
-                      <Typography fontWeight={500}>{scholarship.name}</Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={scholarship.type.replace('-', ' ')}
-                      size="small"
-                      color={getTypeColor(scholarship.type) as any}
-                    />
-                  </TableCell>
-                  <TableCell align="right">
-                    {scholarship.percentage
-                      ? `${scholarship.percentage}% of fee`
-                      : formatCurrency(scholarship.amount)}
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ maxWidth: 200 }} noWrap title={scholarship.eligibility}>
-                      {scholarship.eligibility}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="center">{scholarship.beneficiaries}</TableCell>
-                  <TableCell align="right">{formatCurrency(scholarship.totalDisbursed)}</TableCell>
-                  <TableCell align="center">
-                    <Chip
-                      label={scholarship.status}
-                      size="small"
-                      color={scholarship.status === 'active' ? 'success' : 'default'}
-                    />
-                  </TableCell>
-                  <TableCell align="center">
-                    <IconButton size="small" color="primary">
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" color="error">
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-50 rounded-lg">
+              <ClockIcon className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Pending Applications</p>
+              <p className="text-xl font-semibold text-gray-900">{stats.pendingApplications}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs & Search */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+            <button
+              onClick={() => setActiveTab('scholarships')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'scholarships'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Scholarship Programs
+            </button>
+            <button
+              onClick={() => setActiveTab('recipients')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'recipients'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Recipients
+            </button>
+          </div>
+
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder={activeTab === 'scholarships' ? 'Search scholarships...' : 'Search recipients...'}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-64"
+            />
+          </div>
+        </div>
+
+        {/* Scholarships Table */}
+        {activeTab === 'scholarships' && (
+          <div className="overflow-x-auto">
+            {filteredScholarships.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <AcademicCapIcon className="h-12 w-12 text-gray-300 mb-3" />
+                <p className="text-sm font-medium text-gray-900">No scholarships found</p>
+                <p className="text-xs text-gray-500 mt-1">Create your first scholarship to get started</p>
+                <button
+                  onClick={() => setOpenDialog(true)}
+                  className="mt-4 flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700"
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  Add Scholarship
+                </button>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Scholarship</th>
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Type</th>
+                    <th className="text-right text-xs font-medium text-gray-500 uppercase px-4 py-3">Amount</th>
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Eligibility</th>
+                    <th className="text-center text-xs font-medium text-gray-500 uppercase px-4 py-3">Beneficiaries</th>
+                    <th className="text-right text-xs font-medium text-gray-500 uppercase px-4 py-3">Disbursed</th>
+                    <th className="text-center text-xs font-medium text-gray-500 uppercase px-4 py-3">Status</th>
+                    <th className="text-center text-xs font-medium text-gray-500 uppercase px-4 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredScholarships.map((scholarship) => {
+                    const typeStyle = TYPE_STYLES[scholarship.type.toUpperCase()] || { bg: 'bg-gray-100', text: 'text-gray-700' };
+                    return (
+                      <tr key={scholarship.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-amber-100 rounded-lg">
+                              <TrophyIcon className="h-4 w-4 text-amber-600" />
+                            </div>
+                            <span className="text-sm font-medium text-gray-900">{scholarship.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${typeStyle.bg} ${typeStyle.text}`}>
+                            {getTypeLabel(scholarship.type)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm text-gray-900">
+                          {scholarship.percentage
+                            ? `${scholarship.percentage}% of fee`
+                            : formatCurrency(Number(scholarship.amount) || 0)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-sm text-gray-600 truncate max-w-[200px]" title={scholarship.eligibility}>
+                            {scholarship.eligibility}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="text-sm font-medium text-gray-900">{scholarship.beneficiaries || 0}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm font-medium text-gray-900">
+                          {formatCurrency(scholarship.totalDisbursed || 0)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            scholarship.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {scholarship.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <button className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
+                              <PencilIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteScholarship(scholarship.id)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* Recipients Table */}
+        {activeTab === 'recipients' && (
+          <div className="overflow-x-auto">
+            {filteredRecipients.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <UserGroupIcon className="h-12 w-12 text-gray-300 mb-3" />
+                <p className="text-sm font-medium text-gray-900">No recipients found</p>
+                <p className="text-xs text-gray-500 mt-1">Add recipients to scholarships to track them here</p>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Student</th>
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Student ID</th>
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Course</th>
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Scholarship</th>
+                    <th className="text-right text-xs font-medium text-gray-500 uppercase px-4 py-3">Amount</th>
+                    <th className="text-center text-xs font-medium text-gray-500 uppercase px-4 py-3">Awarded Date</th>
+                    <th className="text-center text-xs font-medium text-gray-500 uppercase px-4 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredRecipients.map((recipient) => {
+                    const statusStyle = STATUS_STYLES[recipient.status.toUpperCase()] || { bg: 'bg-gray-100', text: 'text-gray-700' };
+                    return (
+                      <tr key={recipient.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <span className="text-sm font-medium text-gray-900">{recipient.studentName}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                            {recipient.studentId}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{recipient.course}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{recipient.scholarship?.name || '-'}</td>
+                        <td className="px-4 py-3 text-right text-sm font-medium text-gray-900">
+                          {formatCurrency(Number(recipient.amount) || 0)}
+                        </td>
+                        <td className="px-4 py-3 text-center text-sm text-gray-600">
+                          {recipient.awardedDate ? new Date(recipient.awardedDate).toLocaleDateString('en-IN') : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle.bg} ${statusStyle.text}`}>
+                            {recipient.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Add Scholarship Modal */}
+      {openDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Add New Scholarship</h2>
+              <button
+                onClick={() => setOpenDialog(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Scholarship Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="e.g., Merit Scholarship"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
+                <select
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="MERIT">Merit Based</option>
+                  <option value="NEED_BASED">Need Based</option>
+                  <option value="SPORTS">Sports</option>
+                  <option value="MINORITY">Minority</option>
+                  <option value="SPECIAL">Special</option>
+                  <option value="GOVERNMENT">Government</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹)</label>
+                  <input
+                    type="number"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="50000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Or Percentage (%)</label>
+                  <input
+                    type="number"
+                    value={formData.percentage}
+                    onChange={(e) => setFormData({ ...formData, percentage: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Eligibility Criteria *</label>
+                <textarea
+                  value={formData.eligibility}
+                  onChange={(e) => setFormData({ ...formData, eligibility: e.target.value })}
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="e.g., Above 90% in previous exam"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Maximum Recipients</label>
+                <input
+                  type="number"
+                  value={formData.maxRecipients}
+                  onChange={(e) => setFormData({ ...formData, maxRecipients: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="100"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+              <button
+                onClick={() => setOpenDialog(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateScholarship}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
+              >
+                Add Scholarship
+              </button>
+            </div>
+          </div>
+        </div>
       )}
-
-      {/* Recipients Table */}
-      {activeTab === 'recipients' && (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow sx={{ bgcolor: 'grey.50' }}>
-                <TableCell><strong>Student Name</strong></TableCell>
-                <TableCell><strong>Student ID</strong></TableCell>
-                <TableCell><strong>Course</strong></TableCell>
-                <TableCell><strong>Scholarship</strong></TableCell>
-                <TableCell align="right"><strong>Amount</strong></TableCell>
-                <TableCell align="center"><strong>Awarded Date</strong></TableCell>
-                <TableCell align="center"><strong>Status</strong></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredRecipients.map((recipient) => (
-                <TableRow key={recipient.id} hover>
-                  <TableCell>
-                    <Typography fontWeight={500}>{recipient.studentName}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={recipient.studentId} size="small" variant="outlined" />
-                  </TableCell>
-                  <TableCell>{recipient.course}</TableCell>
-                  <TableCell>{recipient.scholarshipName}</TableCell>
-                  <TableCell align="right">{formatCurrency(recipient.amount)}</TableCell>
-                  <TableCell align="center">{recipient.awardedDate}</TableCell>
-                  <TableCell align="center">
-                    <Chip
-                      label={recipient.status.charAt(0).toUpperCase() + recipient.status.slice(1)}
-                      size="small"
-                      color={getStatusColor(recipient.status) as any}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
-
-      {/* Add Scholarship Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add New Scholarship</DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField label="Scholarship Name" fullWidth required />
-            <TextField label="Type" fullWidth select required>
-              <MenuItem value="merit">Merit Based</MenuItem>
-              <MenuItem value="need-based">Need Based</MenuItem>
-              <MenuItem value="sports">Sports</MenuItem>
-              <MenuItem value="minority">Minority</MenuItem>
-              <MenuItem value="special">Special</MenuItem>
-            </TextField>
-            <TextField label="Amount (INR)" fullWidth type="number" />
-            <TextField label="Or Percentage (%)" fullWidth type="number" />
-            <TextField label="Eligibility Criteria" fullWidth multiline rows={2} required />
-            <TextField label="Maximum Recipients" fullWidth type="number" />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => setOpenDialog(false)}>Add Scholarship</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+    </div>
   );
 }

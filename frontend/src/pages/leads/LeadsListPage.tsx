@@ -1009,8 +1009,8 @@ export default function LeadsListPage() {
 
           {/* Panel */}
           <div className="absolute inset-y-0 right-0 flex max-w-full pl-10">
-            <div className="w-screen max-w-lg">
-              <div className="flex h-full flex-col bg-white shadow-xl">
+            <div className="w-screen max-w-lg h-full">
+              <div className="flex h-full flex-col bg-white shadow-xl overflow-hidden">
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-slate-200">
                   <div className="flex items-center justify-between">
@@ -1489,8 +1489,8 @@ export default function LeadsListPage() {
                   </div>
                 </div>
 
-                {/* Footer */}
-                <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between bg-slate-50">
+                {/* Footer - Always visible at bottom */}
+                <div className="shrink-0 px-4 py-3 border-t border-slate-200 flex items-center justify-between bg-slate-50">
                   <button
                     onClick={handleResetFilters}
                     className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50"

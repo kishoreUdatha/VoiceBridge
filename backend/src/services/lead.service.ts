@@ -905,17 +905,26 @@ export class LeadService {
 
     const [
       total,
-      byStage,
+      byPipelineStage,
+      byLegacyStage,
       bySource,
       todayCount,
       thisWeekCount,
       thisMonthCount,
-      stages,
+      pipelineStages,
+      legacyStages,
     ] = await Promise.all([
       prisma.lead.count({ where: baseWhere }),
+      // New pipeline system - pipelineStageId
+      prisma.lead.groupBy({
+        by: ['pipelineStageId'],
+        where: { ...baseWhere, pipelineStageId: { not: null } },
+        _count: true,
+      }),
+      // Legacy system - stageId (for backwards compatibility)
       prisma.lead.groupBy({
         by: ['stageId'],
-        where: baseWhere,
+        where: { ...baseWhere, pipelineStageId: null, stageId: { not: null } },
         _count: true,
       }),
       prisma.lead.groupBy({
@@ -941,25 +950,61 @@ export class LeadService {
           createdAt: { gte: monthStart },
         },
       }),
+      // Get pipeline stages for the organization
+      prisma.pipelineStage.findMany({
+        where: {
+          pipeline: { organizationId },
+        },
+        select: { id: true, name: true },
+      }),
+      // Get legacy stages
       prisma.leadStage.findMany({
         where: { organizationId },
         select: { id: true, name: true },
       }),
     ]);
 
-    // Map stage IDs to names
-    const stageMap = stages.reduce((acc, stage) => {
+    // Map pipeline stage IDs to names
+    const pipelineStageMap = pipelineStages.reduce((acc, stage) => {
       acc[stage.id] = stage.name;
       return acc;
     }, {} as Record<string, string>);
 
+    // Map legacy stage IDs to names
+    const legacyStageMap = legacyStages.reduce((acc, stage) => {
+      acc[stage.id] = stage.name;
+      return acc;
+    }, {} as Record<string, string>);
+
+    // Combine both pipeline and legacy stage counts
+    const byStatus: Record<string, number> = {};
+
+    // Add pipeline stage counts
+    byPipelineStage.forEach((item) => {
+      if (item.pipelineStageId) {
+        const stageName = pipelineStageMap[item.pipelineStageId] || 'Unknown';
+        byStatus[stageName] = (byStatus[stageName] || 0) + item._count;
+      }
+    });
+
+    // Add legacy stage counts
+    byLegacyStage.forEach((item) => {
+      if (item.stageId) {
+        const stageName = legacyStageMap[item.stageId] || 'Unknown';
+        byStatus[stageName] = (byStatus[stageName] || 0) + item._count;
+      }
+    });
+
+    // Count leads without any stage
+    const leadsWithStage = Object.values(byStatus).reduce((sum, count) => sum + count, 0);
+    const unassignedCount = total - leadsWithStage;
+    if (unassignedCount > 0) {
+      byStatus['Unassigned'] = unassignedCount;
+    }
+
     return {
       total,
-      byStatus: byStage.reduce((acc, item) => {
-        const stageName = item.stageId ? stageMap[item.stageId] || 'Unknown' : 'Unassigned';
-        acc[stageName] = item._count;
-        return acc;
-      }, {} as Record<string, number>),
+      byStatus,
       bySource: bySource.reduce((acc, item) => {
         acc[item.source] = item._count;
         return acc;

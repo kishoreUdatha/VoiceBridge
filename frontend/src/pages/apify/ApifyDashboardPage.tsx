@@ -218,7 +218,7 @@ export default function ApifyDashboardPage() {
             Smart Scrape
           </button>
           <button
-            onClick={() => navigate('/apify-setup')}
+            onClick={() => navigate('/apify-new-scraper')}
             className="btn btn-primary btn-sm flex items-center gap-1 text-xs"
           >
             <PlusIcon className="h-4 w-4" />
@@ -293,7 +293,7 @@ export default function ApifyDashboardPage() {
             <p className="text-sm font-medium text-gray-900 mb-1">No Scrapers Configured</p>
             <p className="text-xs text-gray-500 mb-3">Create your first scraper to start generating leads.</p>
             <button
-              onClick={() => navigate('/apify-setup')}
+              onClick={() => navigate('/apify-new-scraper')}
               className="btn btn-primary btn-sm text-xs"
             >
               <PlusIcon className="h-4 w-4 mr-1" />

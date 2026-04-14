@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import {
   SparklesIcon,
   ArrowPathIcon,
+  ArrowLeftIcon,
   CheckCircleIcon,
   MagnifyingGlassIcon,
   KeyIcon,
@@ -143,6 +144,12 @@ export default function ApifySmartScrapePage() {
   };
 
   const handleSmartScrape = async () => {
+    if (!isConfigured) {
+      toast.error('Please connect your Apify account first. Click the settings icon to configure.');
+      setShowSettings(true);
+      return;
+    }
+
     if (!prompt.trim()) {
       toast.error('Please describe what you want to scrape');
       return;
@@ -182,76 +189,23 @@ export default function ApifySmartScrapePage() {
     );
   }
 
-  // Not configured - show simple setup
-  if (!isConfigured && !showSettings) {
-    return (
-      <div className="max-w-md mx-auto mt-12">
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-100 rounded-full mb-3">
-            <SparklesIcon className="h-6 w-6 text-purple-600" />
-          </div>
-          <h1 className="text-lg font-semibold text-gray-900">Smart Scrape</h1>
-          <p className="text-xs text-gray-500 mt-1">
-            Scrape leads from Google Maps, LinkedIn, and more with AI
-          </p>
-        </div>
-
-        <div className="bg-white rounded-lg border p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <KeyIcon className="h-4 w-4 text-gray-400" />
-            <span className="text-xs font-medium text-gray-700">Connect Apify Account</span>
-          </div>
-
-          <p className="text-[10px] text-gray-500 mb-3">
-            Get your API token from{' '}
-            <a
-              href="https://console.apify.com/account/integrations"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-purple-600 hover:underline"
-            >
-              Apify Console → Settings → API
-            </a>
-          </p>
-
-          <input
-            type="password"
-            value={apiToken}
-            onChange={(e) => setApiToken(e.target.value)}
-            placeholder="apify_api_..."
-            className="w-full px-3 py-2 text-xs border rounded-lg mb-3"
-          />
-
-          <button
-            onClick={handleSaveToken}
-            disabled={isTestingToken || !apiToken.trim()}
-            className="w-full py-2 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {isTestingToken ? (
-              <>
-                <ArrowPathIcon className="h-3 w-3 animate-spin" />
-                Connecting...
-              </>
-            ) : (
-              'Connect & Start Scraping'
-            )}
-          </button>
-        </div>
-
-        <p className="text-[10px] text-center text-gray-400 mt-4">
-          Free tier available • No credit card required
-        </p>
-      </div>
-    );
-  }
 
   // Main scraping interface
   return (
     <div>
+      {/* Back Button */}
+      <button
+        onClick={() => navigate('/ad-integrations')}
+        className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 mb-4 px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+      >
+        <ArrowLeftIcon className="h-4 w-4" />
+        Back to Integrations
+      </button>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <SparklesIcon className="h-5 w-5 text-purple-600" />
+          <SparklesIcon className="h-5 w-5 text-primary-600" />
           <h1 className="text-sm font-semibold text-gray-900">Smart Scrape</h1>
           <span className="text-[10px] text-gray-400">AI-powered lead scraping</span>
         </div>
@@ -263,23 +217,77 @@ export default function ApifySmartScrapePage() {
         </button>
       </div>
 
-      {/* Settings panel */}
+      {/* Settings panel / Connection panel */}
       {showSettings && (
-        <div className="bg-gray-50 rounded-lg p-3 mb-3 text-xs inline-flex items-center gap-3">
-          <span className="text-green-600 text-[10px]">● Connected</span>
-          <input
-            type="password"
-            value={apiToken}
-            onChange={(e) => setApiToken(e.target.value)}
-            placeholder="New token..."
-            className="px-2 py-1 text-xs border rounded w-48"
-          />
+        <div className="bg-gray-50 rounded-lg p-3 mb-3">
+          {isConfigured ? (
+            <div className="text-xs inline-flex items-center gap-3">
+              <span className="text-green-600 text-[10px]">● Connected</span>
+              <input
+                type="password"
+                value={apiToken}
+                onChange={(e) => setApiToken(e.target.value)}
+                placeholder="New token..."
+                className="px-2 py-1 text-xs border rounded w-48"
+              />
+              <button
+                onClick={handleSaveToken}
+                disabled={isTestingToken || !apiToken.trim()}
+                className="px-2 py-1 text-[10px] bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+              >
+                {isTestingToken ? 'Updating...' : 'Update'}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-amber-600 text-[10px]">● Not Connected</span>
+                <span className="text-xs text-gray-600">Connect your Apify account to start scraping</span>
+              </div>
+              <p className="text-[10px] text-gray-500">
+                Get your API token from{' '}
+                <a
+                  href="https://console.apify.com/account/integrations"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary-600 hover:underline"
+                >
+                  Apify Console → Settings → API
+                </a>
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="password"
+                  value={apiToken}
+                  onChange={(e) => setApiToken(e.target.value)}
+                  placeholder="apify_api_..."
+                  className="px-2 py-1 text-xs border rounded flex-1"
+                />
+                <button
+                  onClick={handleSaveToken}
+                  disabled={isTestingToken || !apiToken.trim()}
+                  className="px-3 py-1 text-xs font-medium text-white bg-primary-600 rounded hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {isTestingToken ? 'Connecting...' : 'Connect'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Not configured banner */}
+      {!isConfigured && !showSettings && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <KeyIcon className="h-4 w-4 text-amber-600" />
+            <span className="text-xs text-amber-800">Connect your Apify account to start scraping leads</span>
+          </div>
           <button
-            onClick={handleSaveToken}
-            disabled={isTestingToken || !apiToken.trim()}
-            className="px-2 py-1 text-[10px] bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+            onClick={() => setShowSettings(true)}
+            className="px-3 py-1 text-xs font-medium text-amber-700 bg-amber-100 rounded hover:bg-amber-200"
           >
-            {isTestingToken ? 'Updating...' : 'Update'}
+            Connect Now
           </button>
         </div>
       )}
@@ -300,11 +308,11 @@ export default function ApifySmartScrapePage() {
                     onClick={() => setSelectedSource(source.id)}
                     className={`flex items-center gap-2 p-2 rounded-lg border transition-colors ${
                       isSelected
-                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700'
                         : 'border-gray-200 hover:bg-gray-50 text-gray-600'
                     }`}
                   >
-                    <Icon className={`h-4 w-4 ${isSelected ? 'text-indigo-600' : source.color}`} />
+                    <Icon className={`h-4 w-4 ${isSelected ? 'text-primary-600' : source.color}`} />
                     <div className="text-left">
                       <div className="text-xs font-medium">{source.name}</div>
                       <div className="text-[10px] text-gray-400">{source.description}</div>
@@ -344,7 +352,7 @@ export default function ApifySmartScrapePage() {
                   type="checkbox"
                   checked={alsoFindEmails}
                   onChange={(e) => setAlsoFindEmails(e.target.checked)}
-                  className="h-3 w-3 text-purple-600 rounded border-gray-300"
+                  className="h-3 w-3 text-primary-600 rounded border-gray-300"
                 />
                 <EnvelopeIcon className="h-3 w-3 text-gray-400" />
                 <span className="text-[10px] text-gray-600">Find emails</span>
@@ -352,7 +360,7 @@ export default function ApifySmartScrapePage() {
               <button
                 onClick={handleSmartScrape}
                 disabled={isProcessing || !prompt.trim()}
-                className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5"
+                className="px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded hover:bg-primary-700 disabled:opacity-50 flex items-center gap-1.5"
               >
                 {isProcessing ? (
                   <><ArrowPathIcon className="h-3 w-3 animate-spin" /> Scraping...</>
@@ -369,7 +377,7 @@ export default function ApifySmartScrapePage() {
               <button
                 key={index}
                 onClick={() => setPrompt(example.text)}
-                className="px-2 py-1 text-[10px] bg-white border text-gray-600 rounded-full hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 transition-colors flex items-center gap-1"
+                className="px-2 py-1 text-[10px] bg-white border text-gray-600 rounded-full hover:bg-primary-50 hover:text-primary-700 hover:border-primary-200 transition-colors flex items-center gap-1"
               >
                 <span>{example.icon}</span>
                 <span>{example.text}</span>
@@ -430,7 +438,7 @@ export default function ApifySmartScrapePage() {
             <div className="bg-white rounded-lg border p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-medium text-gray-500 uppercase">Recent Scrapes</span>
-                <button onClick={() => navigate('/apify-jobs')} className="text-[10px] text-purple-600 hover:underline">
+                <button onClick={() => navigate('/apify-jobs')} className="text-[10px] text-primary-600 hover:underline">
                   View all
                 </button>
               </div>

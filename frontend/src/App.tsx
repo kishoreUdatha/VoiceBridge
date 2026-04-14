@@ -119,7 +119,7 @@ import {
 } from './pages/reports';
 import { RolesListPage } from './pages/roles';
 import { SocialMediaAdsPage, InstagramLeadSetupPage, AdIntegrationsPage, FacebookSetupPage, LinkedInSetupPage, GoogleAdsSetupPage, YouTubeSetupPage, TwitterSetupPage, TikTokSetupPage, WebhookUrlsPage } from './pages/ads';
-import { ApifyDashboardPage, ApifyJobsPage, ApifySmartScrapePage, ApifyRecordsPage } from './pages/apify';
+import { ApifyDashboardPage, ApifyJobsPage, ApifySmartScrapePage, ApifyRecordsPage, ApifySetupPage } from './pages/apify';
 import { PricingPage } from './pages/pricing';
 import { CheckoutPage, SubscriptionManagementPage, SuccessPage } from './pages/subscription';
 import { RealtimeVoiceDemo } from './components/RealtimeVoiceWidget';
@@ -594,7 +594,8 @@ function App() {
         <Route path="twitter-setup" element={<TwitterSetupPage />} />
         <Route path="tiktok-setup" element={<TikTokSetupPage />} />
         <Route path="apify" element={<ApifySmartScrapePage />} />
-        <Route path="apify-setup" element={<ApifySmartScrapePage />} />
+        <Route path="apify-setup" element={<ApifySetupPage />} />
+        <Route path="apify-new-scraper" element={<ApifySetupPage />} />
         <Route path="apify-dashboard" element={<ApifyDashboardPage />} />
         <Route path="apify-jobs" element={<ApifyJobsPage />} />
         <Route path="apify-smart" element={<ApifySmartScrapePage />} />

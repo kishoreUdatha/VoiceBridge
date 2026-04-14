@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ChartBarIcon,
   PhoneIcon,
@@ -231,6 +232,7 @@ function ChartCardHeader({
 }
 
 export default function BusinessTrendsPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
   // Summary data
@@ -427,36 +429,42 @@ export default function BusinessTrendsPage() {
       value: summary.totalSms.toLocaleString(),
       icon: ChatBubbleLeftRightIcon,
       color: 'bg-blue-500',
+      link: '/sms-logs',
     },
     {
       title: 'Total Calls',
       value: summary.totalCalls.toLocaleString(),
       icon: PhoneIcon,
       color: 'bg-green-500',
+      link: '/telecaller-calls',
     },
     {
       title: 'Converted Leads',
       value: summary.convertedLeads.toLocaleString(),
       icon: CheckCircleIcon,
       color: 'bg-emerald-500',
+      link: '/leads?status=converted',
     },
     {
       title: 'Total Call Time',
       value: summary.totalCallTime,
       icon: ClockIcon,
       color: 'bg-purple-500',
+      link: '/telecaller-calls',
     },
     {
       title: 'Calls Connected',
       value: summary.callsConnected.toLocaleString(),
       icon: PhoneIcon,
       color: 'bg-cyan-500',
+      link: '/telecaller-calls?status=connected',
     },
     {
       title: 'Lost Leads',
       value: summary.lostLeads.toLocaleString(),
       icon: XCircleIcon,
       color: 'bg-red-500',
+      link: '/leads?status=lost',
     },
   ];
 
@@ -482,7 +490,8 @@ export default function BusinessTrendsPage() {
         {summaryCards.map((card, index) => (
           <div
             key={index}
-            className="bg-white rounded-xl shadow-sm border border-gray-100 p-4"
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md hover:border-gray-200 cursor-pointer transition-all"
+            onClick={() => navigate(card.link)}
           >
             <div className="flex items-center gap-3">
               <div className={`${card.color} rounded-lg p-2`}>
@@ -525,15 +534,50 @@ export default function BusinessTrendsPage() {
                     interval={0}
                   />
                   <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
+                  <Tooltip content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white p-2 border rounded shadow-lg">
+                          <p className="text-sm text-gray-600">{data.weekRange}</p>
+                          <p className="text-sm font-semibold text-indigo-600">{data.totalCalls} Total Calls</p>
+                          <p className="text-sm font-semibold text-lime-600">{data.connectedCalls} Connected</p>
+                          <p className="text-xs text-blue-600 mt-1">Click to view details</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }} />
                   <Legend
                     wrapperStyle={{ paddingTop: 10 }}
                     formatter={(value) => (
                       <span className="text-sm text-gray-700">{value}</span>
                     )}
                   />
-                  <Bar dataKey="totalCalls" name="Total Calls" fill="#4338CA" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="connectedCalls" name="Total Calls Connected" fill="#84CC16" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="totalCalls"
+                    name="Total Calls"
+                    fill="#4338CA"
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
+                    onClick={(data: any) => {
+                      if (data && data.weekRange) {
+                        navigate(`/telecaller-calls?week=${encodeURIComponent(data.weekRange)}`);
+                      }
+                    }}
+                  />
+                  <Bar
+                    dataKey="connectedCalls"
+                    name="Total Calls Connected"
+                    fill="#84CC16"
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
+                    onClick={(data: any) => {
+                      if (data && data.weekRange) {
+                        navigate(`/telecaller-calls?week=${encodeURIComponent(data.weekRange)}`);
+                      }
+                    }}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -550,7 +594,11 @@ export default function BusinessTrendsPage() {
                 </thead>
                 <tbody>
                   {callsData.map((row, i) => (
-                    <tr key={i} className="border-b border-gray-100">
+                    <tr
+                      key={i}
+                      className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => navigate(`/telecaller-calls?week=${encodeURIComponent(row.weekRange)}`)}
+                    >
                       <td className="p-2 text-gray-900">{row.weekRange}</td>
                       <td className="p-2 text-right text-gray-900">{row.totalCalls}</td>
                       <td className="p-2 text-right text-gray-900">{row.connectedCalls}</td>
@@ -591,8 +639,30 @@ export default function BusinessTrendsPage() {
                     interval="preserveStartEnd"
                   />
                   <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(value: number) => [`${value} min`, 'Duration']} />
-                  <Bar dataKey="duration" name="Duration (min)" fill="#4338CA" radius={[4, 4, 0, 0]} />
+                  <Tooltip content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="bg-white p-2 border rounded shadow-lg">
+                          <p className="text-sm text-gray-600">{payload[0].payload.date}</p>
+                          <p className="text-sm font-semibold text-indigo-600">{payload[0].value} minutes</p>
+                          <p className="text-xs text-blue-600 mt-1">Click to view details</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }} />
+                  <Bar
+                    dataKey="duration"
+                    name="Duration (min)"
+                    fill="#4338CA"
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
+                    onClick={(data: any) => {
+                      if (data && data.date) {
+                        navigate(`/telecaller-calls?date=${data.date}`);
+                      }
+                    }}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -607,7 +677,11 @@ export default function BusinessTrendsPage() {
                 </thead>
                 <tbody>
                   {durationData.map((row, i) => (
-                    <tr key={i} className="border-b border-gray-100">
+                    <tr
+                      key={i}
+                      className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => navigate(`/telecaller-calls?date=${row.date}`)}
+                    >
                       <td className="p-2 text-gray-900">{row.date}</td>
                       <td className="p-2 text-right text-gray-900">{row.duration}</td>
                     </tr>
@@ -647,7 +721,19 @@ export default function BusinessTrendsPage() {
                     interval="preserveStartEnd"
                   />
                   <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} />
-                  <Tooltip formatter={(value: number) => [`${value}%`, 'Conversion Rate']} />
+                  <Tooltip content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="bg-white p-2 border rounded shadow-lg">
+                          <p className="text-sm text-gray-600">{payload[0].payload.date}</p>
+                          <p className="text-sm font-semibold text-emerald-600">{payload[0].value}% Conversion</p>
+                          <p className="text-xs text-gray-500">{payload[0].payload.converted}/{payload[0].payload.total} leads</p>
+                          <p className="text-xs text-blue-600 mt-1">Click to view details</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }} />
                   <Legend wrapperStyle={{ paddingTop: 10 }} />
                   <Line
                     type="monotone"
@@ -655,7 +741,17 @@ export default function BusinessTrendsPage() {
                     name="Conversion %"
                     stroke="#10B981"
                     strokeWidth={2}
-                    dot={{ fill: '#10B981', r: 3 }}
+                    dot={{ fill: '#10B981', r: 5, cursor: 'pointer' }}
+                    activeDot={{
+                      r: 8,
+                      fill: '#059669',
+                      cursor: 'pointer',
+                      onClick: (e: any, payload: any) => {
+                        if (payload && payload.payload) {
+                          navigate(`/leads?status=converted&date=${payload.payload.date}`);
+                        }
+                      }
+                    }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -673,7 +769,11 @@ export default function BusinessTrendsPage() {
                 </thead>
                 <tbody>
                   {conversionData.map((row, i) => (
-                    <tr key={i} className="border-b border-gray-100">
+                    <tr
+                      key={i}
+                      className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => navigate(`/leads?status=converted&date=${row.date}`)}
+                    >
                       <td className="p-2 text-gray-900">{row.date}</td>
                       <td className="p-2 text-right text-gray-900">{row.total}</td>
                       <td className="p-2 text-right text-gray-900">{row.converted}</td>
@@ -712,8 +812,30 @@ export default function BusinessTrendsPage() {
                     interval="preserveStartEnd"
                   />
                   <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="count" name="Leads" fill="#4338CA" radius={[4, 4, 0, 0]} />
+                  <Tooltip content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="bg-white p-2 border rounded shadow-lg">
+                          <p className="text-sm text-gray-600">{payload[0].payload.date}</p>
+                          <p className="text-sm font-semibold text-indigo-600">{payload[0].value} Leads</p>
+                          <p className="text-xs text-blue-600 mt-1">Click to view details</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }} />
+                  <Bar
+                    dataKey="count"
+                    name="Leads"
+                    fill="#4338CA"
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
+                    onClick={(data: any) => {
+                      if (data && data.date) {
+                        navigate(`/leads?createdDate=${data.date}`);
+                      }
+                    }}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -728,7 +850,11 @@ export default function BusinessTrendsPage() {
                 </thead>
                 <tbody>
                   {leadsAddedData.map((row, i) => (
-                    <tr key={i} className="border-b border-gray-100">
+                    <tr
+                      key={i}
+                      className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => navigate(`/leads?createdDate=${row.date}`)}
+                    >
                       <td className="p-2 text-gray-900">{row.date}</td>
                       <td className="p-2 text-right text-gray-900">{row.count}</td>
                     </tr>
@@ -767,18 +893,39 @@ export default function BusinessTrendsPage() {
                       cy="50%"
                       outerRadius={80}
                       label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                      onClick={(data: any) => {
+                        if (data && data.source) {
+                          navigate(`/leads?source=${encodeURIComponent(data.source)}`);
+                        }
+                      }}
+                      cursor="pointer"
                     >
                       {leadSourcesData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="bg-white p-2 border rounded shadow-lg">
+                            <p className="text-sm font-semibold text-gray-900">{payload[0].name}</p>
+                            <p className="text-sm text-gray-600">{payload[0].value} leads</p>
+                            <p className="text-xs text-blue-600 mt-1">Click to view details</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
               <div className="w-1/2 flex flex-col justify-center space-y-2 pl-4">
                 {leadSourcesData.slice(0, 6).map((source, index) => (
-                  <div key={source.source} className="flex items-center justify-between text-sm">
+                  <div
+                    key={source.source}
+                    className="flex items-center justify-between text-sm hover:bg-gray-50 p-1 rounded cursor-pointer"
+                    onClick={() => navigate(`/leads?source=${encodeURIComponent(source.source)}`)}
+                  >
                     <div className="flex items-center gap-2">
                       <div
                         className="w-3 h-3 rounded-full"
@@ -805,7 +952,11 @@ export default function BusinessTrendsPage() {
                   {(() => {
                     const total = leadSourcesData.reduce((sum, s) => sum + s.count, 0);
                     return leadSourcesData.map((row, i) => (
-                      <tr key={i} className="border-b border-gray-100">
+                      <tr
+                        key={i}
+                        className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => navigate(`/leads?source=${encodeURIComponent(row.source)}`)}
+                      >
                         <td className="p-2 text-gray-900">
                           <div className="flex items-center gap-2">
                             <div
@@ -854,14 +1005,35 @@ export default function BusinessTrendsPage() {
                     interval="preserveStartEnd"
                   />
                   <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
+                  <Tooltip content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="bg-white p-2 border rounded shadow-lg">
+                          <p className="text-sm text-gray-600">{payload[0].payload.date}</p>
+                          <p className="text-sm font-semibold text-red-600">{payload[0].value} Lost Leads</p>
+                          <p className="text-xs text-blue-600 mt-1">Click to view details</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }} />
                   <Line
                     type="monotone"
                     dataKey="count"
                     name="Lost Leads"
                     stroke="#EF4444"
                     strokeWidth={2}
-                    dot={{ fill: '#EF4444', r: 3 }}
+                    dot={{ fill: '#EF4444', r: 5, cursor: 'pointer' }}
+                    activeDot={{
+                      r: 8,
+                      fill: '#DC2626',
+                      cursor: 'pointer',
+                      onClick: (e: any, payload: any) => {
+                        if (payload && payload.payload) {
+                          navigate(`/leads?status=lost&date=${payload.payload.date}`);
+                        }
+                      }
+                    }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -877,7 +1049,11 @@ export default function BusinessTrendsPage() {
                 </thead>
                 <tbody>
                   {lostLeadsData.map((row, i) => (
-                    <tr key={i} className="border-b border-gray-100">
+                    <tr
+                      key={i}
+                      className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => navigate(`/leads?status=lost&date=${row.date}`)}
+                    >
                       <td className="p-2 text-gray-900">{row.date}</td>
                       <td className="p-2 text-right text-gray-900">{row.count}</td>
                     </tr>
