@@ -179,10 +179,14 @@ resource "aws_instance" "app" {
     systemctl enable docker
     usermod -aG docker ec2-user
 
-    # Install Docker Compose
-    curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-    chmod +x /usr/local/bin/docker-compose
-    ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+    # Install Docker Compose v2
+    mkdir -p /usr/local/lib/docker/cli-plugins
+    curl -SL "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-linux-x86_64" -o /usr/local/lib/docker/cli-plugins/docker-compose
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+    # Install Docker Buildx
+    curl -SL "https://github.com/docker/buildx/releases/download/v0.12.1/buildx-v0.12.1.linux-amd64" -o /usr/local/lib/docker/cli-plugins/docker-buildx
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
 
     # Clone repo
     git clone ${var.github_repo} /opt/voicebridge
@@ -195,7 +199,7 @@ resource "aws_instance" "app" {
 
     # Start application
     cd /opt/voicebridge
-    docker-compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+    docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 
     echo "Setup complete!"
   EOF
