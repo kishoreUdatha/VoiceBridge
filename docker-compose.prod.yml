@@ -1,34 +1,47 @@
 version: '3.8'
 
-# Production Docker Compose Configuration
+# Production Docker Compose Configuration for DigitalOcean Droplet
 # Usage: docker-compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: crm-postgres-prod
+    container_name: voicebridge-postgres
     restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_USER: ${POSTGRES_USER:-voicebridge}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      POSTGRES_DB: ${POSTGRES_DB:-crm_lead_generation}
+      POSTGRES_DB: ${POSTGRES_DB:-voicebridge}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-voicebridge}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    # In production, don't expose database port externally
-    # Use internal Docker network only
     networks:
-      - crm-network
+      - voicebridge-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: voicebridge-redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - voicebridge-network
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile.prod
-    container_name: crm-backend-prod
+    container_name: voicebridge-backend-prod
     restart: always
     environment:
       # Database
@@ -79,15 +92,23 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_BUCKET_NAME: ${AWS_BUCKET_NAME:-}
       AWS_REGION: ${AWS_REGION:-ap-south-1}
+      # Redis
+      REDIS_URL: redis://redis:6379
+      # Deepgram
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      # Sarvam AI
+      SARVAM_API_KEY: ${SARVAM_API_KEY:-}
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - uploads_data:/app/uploads
     networks:
-      - crm-network
+      - voicebridge-network
 
   frontend:
     build:
@@ -95,20 +116,20 @@ services:
       dockerfile: Dockerfile.prod
       args:
         VITE_API_URL: ${VITE_API_URL:?VITE_API_URL is required}
-    container_name: crm-frontend-prod
+    container_name: voicebridge-frontend-prod
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"
     depends_on:
       - backend
     networks:
-      - crm-network
+      - voicebridge-network
 
 volumes:
   postgres_data:
+  redis_data:
   uploads_data:
 
 networks:
-  crm-network:
+  voicebridge-network:
     driver: bridge
