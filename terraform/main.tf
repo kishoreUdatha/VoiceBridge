@@ -14,14 +14,14 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Data source for latest Ubuntu 24.04 AMI
-data "aws_ami" "ubuntu" {
+# Data source for Amazon Linux 2023 AMI (Docker-ready, more stable)
+data "aws_ami" "amazon_linux" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical
+  owners      = ["amazon"]
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
+    values = ["al2023-ami-2023.*-x86_64"]
   }
 
   filter {
@@ -155,7 +155,7 @@ resource "aws_key_pair" "deployer" {
 
 # EC2 Instance
 resource "aws_instance" "app" {
-  ami                    = data.aws_ami.ubuntu.id
+  ami                    = data.aws_ami.amazon_linux.id
   instance_type          = var.instance_type
   key_name               = aws_key_pair.deployer.key_name
   vpc_security_group_ids = [aws_security_group.app.id]
@@ -167,9 +167,38 @@ resource "aws_instance" "app" {
     encrypted   = true
   }
 
-  user_data = base64encode(templatefile("${path.module}/user-data.sh", {
-    github_repo = var.github_repo
-  }))
+  user_data = <<-EOF
+    #!/bin/bash
+    exec > /var/log/user-data.log 2>&1
+    set -x
+
+    # Install Docker
+    yum update -y
+    yum install -y docker git
+    systemctl start docker
+    systemctl enable docker
+    usermod -aG docker ec2-user
+
+    # Install Docker Compose
+    curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+    ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+
+    # Clone repo
+    git clone ${var.github_repo} /opt/voicebridge
+    chown -R ec2-user:ec2-user /opt/voicebridge
+
+    # Copy env file
+    cd /opt/voicebridge
+    cp deploy/aws/env.aws.template .env.production
+    chown ec2-user:ec2-user .env.production
+
+    # Start application
+    cd /opt/voicebridge
+    docker-compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+
+    echo "Setup complete!"
+  EOF
 
   tags = {
     Name = "${var.project_name}-server"
