@@ -42,7 +42,7 @@ jobs:
   build-test:
     name: Build & Test
     runs-on: ubuntu-latest
-    if: ${{ !inputs.skip_tests }}
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_tests }}
 
     steps:
       - name: Checkout code
