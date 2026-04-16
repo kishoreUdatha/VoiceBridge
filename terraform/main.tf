@@ -192,9 +192,70 @@ resource "aws_instance" "app" {
     git clone ${var.github_repo} /opt/voicebridge
     chown -R ec2-user:ec2-user /opt/voicebridge
 
-    # Copy env file
+    # Get instance public IP
+    TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+    PUBLIC_IP=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)
+
+    # Create env file with correct IP
     cd /opt/voicebridge
-    cp deploy/aws/env.aws.template .env.production
+    cat > .env.production << ENVFILE
+# Database
+POSTGRES_USER=voicebridge
+POSTGRES_PASSWORD=VB_Prod_2024_Secure!
+POSTGRES_DB=voicebridge
+
+# JWT
+JWT_SECRET=xK9mPqR3vY7nBcD2fH5jL8wZ1aE4gT6uI0oS
+JWT_REFRESH_SECRET=mN3bV7cX1zL5kJ9hG2fD6sA0pO4iU8yT
+
+# Server
+PORT=3000
+FRONTEND_URL=http://$PUBLIC_IP
+BASE_URL=http://$PUBLIC_IP
+VITE_API_URL=http://$PUBLIC_IP/api
+CORS_ORIGINS=http://$PUBLIC_IP
+
+# AI
+OPENAI_API_KEY=
+DEEPGRAM_API_KEY=
+SARVAM_API_KEY=
+
+# Telephony
+PLIVO_AUTH_ID=
+PLIVO_AUTH_TOKEN=
+PLIVO_PHONE_NUMBER=
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_PHONE_NUMBER=
+TWILIO_WHATSAPP_NUMBER=
+SMS_PROVIDER=plivo
+VOICE_PROVIDER=plivo
+
+# AWS S3
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_BUCKET_NAME=voicebridge-uploads
+AWS_REGION=ap-south-1
+
+# Payments
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+
+# Email
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
+
+# Social
+FACEBOOK_APP_ID=
+FACEBOOK_APP_SECRET=
+FACEBOOK_VERIFY_TOKEN=
+LINKEDIN_CLIENT_ID=
+LINKEDIN_CLIENT_SECRET=
+ENVFILE
+
     chown ec2-user:ec2-user .env.production
 
     # Start application
