@@ -165,6 +165,10 @@ const CallSummaryScreen: React.FC = () => {
 
   const recordingFullUrl = useCallback(() => {
     if (!a?.recordingUrl) return null;
+    // If already absolute URL (S3), use as-is; otherwise prepend base URL
+    if (a.recordingUrl.startsWith('http://') || a.recordingUrl.startsWith('https://')) {
+      return a.recordingUrl;
+    }
     const base = API_URL.replace(/\/api$/, '');
     return `${base}${a.recordingUrl}`;
   }, [a?.recordingUrl]);

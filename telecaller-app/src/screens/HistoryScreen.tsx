@@ -87,6 +87,10 @@ const ExpandedCallContent: React.FC<{ item: Call }> = ({ item }) => {
 
   const getRecordingUrl = () => {
     if (!item.recordingUrl) return null;
+    // If already absolute URL (S3), use as-is
+    if (item.recordingUrl.startsWith('http://') || item.recordingUrl.startsWith('https://')) {
+      return item.recordingUrl;
+    }
     const baseUrl = API_URL.replace(/\/api$/, '');
     return `${baseUrl}${item.recordingUrl}`;
   };

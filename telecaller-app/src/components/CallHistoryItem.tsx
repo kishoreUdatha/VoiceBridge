@@ -13,6 +13,10 @@ const AudioPlayer = {
   isPlaying: false,
 
   getFullUrl(recordingUrl: string): string {
+    // If already absolute URL (S3), use as-is
+    if (recordingUrl.startsWith('http://') || recordingUrl.startsWith('https://')) {
+      return recordingUrl;
+    }
     const baseUrl = API_URL.replace(/\/api$/, '');
     return `${baseUrl}${recordingUrl}`;
   },
