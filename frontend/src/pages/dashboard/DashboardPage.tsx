@@ -1837,15 +1837,23 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
     setTimeout(() => setLoading(false), 500);
   };
 
-  // Pipeline stages data for chart
-  const pipelineStages = stats?.byStatus
+  // Pipeline stages data for chart - use lead stats if available, otherwise raw import stats
+  const pipelineStages = stats?.byStatus && Object.keys(stats.byStatus).length > 0
     ? Object.entries(stats.byStatus)
         .map(([stage, count], index) => ({
           name: stage.replace(/_/g, ' '),
           value: count as number,
           color: STAGE_COLORS[stage] || PIE_COLORS[index % PIE_COLORS.length],
         }))
-        .sort((a, b) => b.value - a.value) // Sort by count descending
+        .sort((a, b) => b.value - a.value)
+    : rawImportStats?.byStatus && Object.keys(rawImportStats.byStatus).length > 0
+    ? Object.entries(rawImportStats.byStatus)
+        .map(([stage, count], index) => ({
+          name: stage.replace(/_/g, ' '),
+          value: count as number,
+          color: STAGE_COLORS[stage] || PIE_COLORS[index % PIE_COLORS.length],
+        }))
+        .sort((a, b) => b.value - a.value)
     : [];
 
   // Source data for bar chart - capitalize properly
@@ -2073,8 +2081,8 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
               <p className="text-xs text-emerald-700 font-medium">Conversion Rate</p>
             </div>
             <Link to="/assigned-data" className="p-3 bg-gradient-to-br from-violet-50 to-purple-100 rounded-xl hover:from-violet-100 hover:to-purple-150 transition-all border border-violet-200/50 hover:shadow-md cursor-pointer">
-              <p className="text-2xl font-bold text-violet-600">{rawImportStats?.assignedRecords || 0}</p>
-              <p className="text-xs text-violet-700 font-medium">Assigned</p>
+              <p className="text-2xl font-bold text-violet-600">{rawImportStats?.todayAssigned ?? rawImportStats?.assignedRecords ?? 0}</p>
+              <p className="text-xs text-violet-700 font-medium">Assigned Today</p>
             </Link>
           </div>
         </div>

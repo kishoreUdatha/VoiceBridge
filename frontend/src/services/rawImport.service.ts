@@ -89,6 +89,8 @@ export interface RawImportStats {
   interestedRecords: number;
   convertedRecords: number;
   notInterestedRecords: number;
+  byStatus?: Record<string, number>;
+  todayAssigned?: number;
 }
 
 export interface TelecallerAssignmentStat {

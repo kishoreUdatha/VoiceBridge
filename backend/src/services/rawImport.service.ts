@@ -23,6 +23,8 @@ interface BulkImportStats {
   interestedRecords: number;
   convertedRecords: number;
   notInterestedRecords: number;
+  byStatus?: Record<string, number>;
+  todayAssigned?: number;
 }
 
 export class RawImportService {
@@ -704,10 +706,15 @@ export class RawImportService {
   // ==================== STATS ====================
 
   async getStats(organizationId: string): Promise<BulkImportStats> {
+    // Get today's start for counting today's assignments
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
     const [
       totalImports,
       totalRecords,
       statusCounts,
+      todayAssignedCount,
     ] = await Promise.all([
       prisma.bulkImport.count({ where: { organizationId } }),
       prisma.rawImportRecord.count({ where: { organizationId } }),
@@ -715,6 +722,14 @@ export class RawImportService {
         by: ['status'],
         where: { organizationId },
         _count: { status: true },
+      }),
+      // Count records assigned today
+      prisma.rawImportRecord.count({
+        where: {
+          organizationId,
+          assignedToId: { not: null },
+          assignedAt: { gte: todayStart },
+        },
       }),
     ]);
 
@@ -731,6 +746,10 @@ export class RawImportService {
       interestedRecords: countByStatus['INTERESTED'] || 0,
       convertedRecords: countByStatus['CONVERTED'] || 0,
       notInterestedRecords: countByStatus['NOT_INTERESTED'] || 0,
+      // Add byStatus for pipeline chart compatibility
+      byStatus: countByStatus,
+      // Add today's assigned count
+      todayAssigned: todayAssignedCount,
     };
   }
 
