@@ -3,9 +3,8 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 
 // Get API URL from app config (can be overridden via environment variables)
-// For physical device testing, use PC's local IP
-// Hardcoding IP for physical device testing (phone must be on same WiFi)
-const API_BASE_URL = 'http://localhost:3001/api';
+// Production API endpoint
+const API_BASE_URL = 'https://13.206.154.118/api';
 
 console.log('[API] Base URL:', API_BASE_URL);
 
