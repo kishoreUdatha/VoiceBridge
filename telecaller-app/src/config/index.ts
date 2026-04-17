@@ -26,9 +26,11 @@ try {
 // CONFIGURATION - Adjust these settings as needed
 // ============================================================
 
-// Set to true when using ADB reverse (recommended for physical device)
-// Run: adb reverse tcp:3000 tcp:3000
-const USE_ADB_REVERSE = true;
+// Production API URL - HARDCODED for production builds
+const PRODUCTION_API_URL = 'http://13.206.154.118/api';
+
+// Set to false for production, true only for local development
+const USE_ADB_REVERSE = false;
 
 // Set to true when testing on physical device WITHOUT adb reverse
 const USE_PHYSICAL_DEVICE = false;
@@ -39,9 +41,6 @@ const PHYSICAL_DEVICE_IP = Config.PHYSICAL_DEVICE_IP || '192.168.0.106';
 
 // API Port (configurable)
 const API_PORT = Config.API_PORT || '3001';
-
-// Production API URL (used when env variable is set)
-const PRODUCTION_API_URL = Config.PRODUCTION_API_URL || Config.API_URL || '';
 
 // ============================================================
 
