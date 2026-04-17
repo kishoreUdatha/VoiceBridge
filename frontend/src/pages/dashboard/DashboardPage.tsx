@@ -1892,12 +1892,15 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
     : [];
 
   // Source data for bar chart - capitalize properly
-  const sourceBarData = stats?.bySource
+  // Source data for bar chart - use lead sources or fallback to "Bulk Upload" for raw imports
+  const sourceBarData = stats?.bySource && Object.keys(stats.bySource).length > 0
     ? Object.entries(stats.bySource).map(([source, count], index) => ({
         name: source.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' '),
         value: count as number,
         fill: SOURCE_COLORS[source] || PIE_COLORS[index % PIE_COLORS.length],
       })).sort((a, b) => b.value - a.value).slice(0, 6)
+    : rawImportStats?.totalRecords && rawImportStats.totalRecords > 0
+    ? [{ name: 'Bulk Upload', value: rawImportStats.totalRecords, fill: '#6366F1' }]
     : [];
 
   // Pipeline funnel data - use actual lead counts
