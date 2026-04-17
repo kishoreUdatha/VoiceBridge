@@ -7,6 +7,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -153,6 +157,7 @@ resource "aws_instance" "app" {
   key_name               = aws_key_pair.deployer.key_name
   vpc_security_group_ids = [aws_security_group.app.id]
   subnet_id              = aws_subnet.public.id
+  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
 
   root_block_device {
     volume_size = 30
@@ -311,4 +316,111 @@ resource "aws_eip" "app" {
   tags = {
     Name = "${var.project_name}-eip"
   }
+}
+
+# S3 Bucket for Recordings
+resource "aws_s3_bucket" "recordings" {
+  bucket = "${var.project_name}-recordings-${random_string.bucket_suffix.result}"
+
+  tags = {
+    Name = "${var.project_name}-recordings"
+  }
+}
+
+# Random suffix for unique bucket name
+resource "random_string" "bucket_suffix" {
+  length  = 8
+  special = false
+  upper   = false
+}
+
+# S3 Bucket Public Access Block - Allow public access for recordings
+resource "aws_s3_bucket_public_access_block" "recordings" {
+  bucket = aws_s3_bucket.recordings.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+# S3 Bucket Policy - Allow public read for recordings
+resource "aws_s3_bucket_policy" "recordings" {
+  bucket = aws_s3_bucket.recordings.id
+  depends_on = [aws_s3_bucket_public_access_block.recordings]
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "PublicReadGetObject"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.recordings.arn}/*"
+      }
+    ]
+  })
+}
+
+# S3 Bucket CORS Configuration
+resource "aws_s3_bucket_cors_configuration" "recordings" {
+  bucket = aws_s3_bucket.recordings.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "PUT", "POST"]
+    allowed_origins = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
+}
+
+# IAM Role for EC2 to access S3
+resource "aws_iam_role" "ec2_s3_role" {
+  name = "${var.project_name}-ec2-s3-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# IAM Policy for S3 access
+resource "aws_iam_role_policy" "s3_access" {
+  name = "${var.project_name}-s3-access"
+  role = aws_iam_role.ec2_s3_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.recordings.arn,
+          "${aws_s3_bucket.recordings.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+# IAM Instance Profile
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "${var.project_name}-ec2-profile"
+  role = aws_iam_role.ec2_s3_role.name
 }

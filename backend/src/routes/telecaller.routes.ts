@@ -6,26 +6,35 @@ import { ApiResponse } from '../utils/apiResponse';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
+import { v4 as uuidv4 } from 'uuid';
 import { telecallerCallFinalizationService } from '../services/telecaller-call-finalization.service';
 import { calendarService } from '../services/calendar.service';
 import { workSessionService } from '../services/work-session.service';
+import { uploadRecordingToS3 } from '../services/s3.service';
+
+// Helper to save buffer to temp file for AI processing
+function saveTempFile(buffer: Buffer, ext: string): string {
+  const tempPath = path.join(os.tmpdir(), `telecall-${uuidv4()}${ext}`);
+  fs.writeFileSync(tempPath, buffer);
+  return tempPath;
+}
+
+// Helper to cleanup temp file
+function cleanupTempFile(filePath: string): void {
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch (e) {
+    console.error('[Telecaller] Failed to cleanup temp file:', filePath, e);
+  }
+}
 
 const router = Router();
 
-// Configure multer for audio file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(process.cwd(), 'uploads', 'recordings');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, `telecall-${uniqueSuffix}${path.extname(file.originalname)}`);
-  },
-});
+// Configure multer for audio file uploads - use memory storage for S3 upload
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
@@ -564,9 +573,17 @@ router.post('/assigned-data/:id/recording', upload.single('recording'), async (r
     });
 
     if (!record) {
-      try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore cleanup errors */ }
       return ApiResponse.notFound(res, 'Record not found');
     }
+
+    // Save buffer to temp file for AI processing
+    const ext = path.extname(req.file.originalname).toLowerCase() || '.m4a';
+    const tempFilePath = saveTempFile(req.file.buffer, ext);
+
+    // Generate unique filename and upload to S3
+    const fileName = `telecall-${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
+    const recordingUrl = await uploadRecordingToS3(req.file.buffer, fileName, req.file.mimetype || 'audio/m4a');
+    console.log(`[Telecaller] Recording uploaded to S3: ${recordingUrl}`);
 
     // Find or create call record
     let call;
@@ -594,8 +611,7 @@ router.post('/assigned-data/:id/recording', upload.single('recording'), async (r
       });
     }
 
-    // Update call with recording URL and duration
-    const recordingUrl = `/uploads/recordings/${req.file.filename}`;
+    // Update call with S3 recording URL and duration
     await prisma.telecallerCall.update({
       where: { id: call.id },
       data: {
@@ -606,33 +622,39 @@ router.post('/assigned-data/:id/recording', upload.single('recording'), async (r
       },
     });
 
-    // Process with AI analysis - this will update status based on outcome
-    telecallerCallFinalizationService.processRecordingForRawImport(call.id, req.file.path, id).catch(async (error) => {
-      console.error('[Telecaller] AI processing failed for call:', call.id, error);
-      // Update call with error status so UI knows processing failed
-      try {
-        await prisma.telecallerCall.update({
-          where: { id: call.id },
-          data: {
-            aiAnalyzed: false,
-            notes: `AI analysis failed: ${(error as Error).message}. Please retry or manually update outcome.`,
-          },
-        });
-        // Reset raw import record status so telecaller can retry
-        await prisma.rawImportRecord.update({
-          where: { id },
-          data: {
-            status: 'ASSIGNED', // Reset to allow retry
-          },
-        });
-      } catch (updateError) {
-        console.error('[Telecaller] Failed to update error status:', updateError);
-      }
-    });
+    // Process with AI analysis using temp file - this will update status based on outcome
+    telecallerCallFinalizationService.processRecordingForRawImport(call.id, tempFilePath, id)
+      .catch(async (error) => {
+        console.error('[Telecaller] AI processing failed for call:', call.id, error);
+        // Update call with error status so UI knows processing failed
+        try {
+          await prisma.telecallerCall.update({
+            where: { id: call.id },
+            data: {
+              aiAnalyzed: false,
+              notes: `AI analysis failed: ${(error as Error).message}. Please retry or manually update outcome.`,
+            },
+          });
+          // Reset raw import record status so telecaller can retry
+          await prisma.rawImportRecord.update({
+            where: { id },
+            data: {
+              status: 'ASSIGNED', // Reset to allow retry
+            },
+          });
+        } catch (updateError) {
+          console.error('[Telecaller] Failed to update error status:', updateError);
+        }
+      })
+      .finally(() => {
+        // Cleanup temp file after AI processing completes
+        cleanupTempFile(tempFilePath);
+      });
 
-    ApiResponse.success(res, 'Recording uploaded. AI analysis will determine call outcome.', {
+    ApiResponse.success(res, 'Recording uploaded to S3. AI analysis will determine call outcome.', {
       callId: call.id,
       rawRecordId: id,
+      recordingUrl,
     });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
@@ -1342,13 +1364,19 @@ router.post('/calls/:id/recording', upload.single('recording'), async (req: Tena
     });
 
     if (!existing) {
-      // Delete uploaded file safely
-      try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore cleanup errors */ }
       return ApiResponse.error(res, 'Call not found', 404);
     }
 
-    // Update call with recording URL and duration (capped to max 1 hour)
-    const recordingUrl = `/uploads/recordings/${req.file.filename}`;
+    // Save buffer to temp file for AI processing
+    const ext = path.extname(req.file.originalname).toLowerCase() || '.m4a';
+    const tempFilePath = saveTempFile(req.file.buffer, ext);
+
+    // Generate unique filename and upload to S3
+    const fileName = `telecall-${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
+    const recordingUrl = await uploadRecordingToS3(req.file.buffer, fileName, req.file.mimetype || 'audio/m4a');
+    console.log(`[Telecaller] Recording uploaded to S3: ${recordingUrl}`);
+
+    // Update call with S3 recording URL and duration (capped to max 1 hour)
     const MAX_CALL_DURATION = 3600;
     const parsedDuration = duration ? parseInt(duration, 10) : null;
     const callDuration = parsedDuration ? Math.min(parsedDuration, MAX_CALL_DURATION) : null;
@@ -1365,24 +1393,29 @@ router.post('/calls/:id/recording', upload.single('recording'), async (req: Tena
       },
     });
 
-    // Process with full AI analysis asynchronously (transcription, sentiment, outcome, scoring, etc.)
-    telecallerCallFinalizationService.processRecording(id, req.file.path).catch(async (error) => {
-      console.error('[Telecaller] AI processing failed for call:', id, error);
-      // Update call with error status so UI knows processing failed
-      try {
-        await prisma.telecallerCall.update({
-          where: { id },
-          data: {
-            aiAnalyzed: false,
-            notes: `AI analysis failed: ${(error as Error).message}. Use reanalyze endpoint to retry.`,
-          },
-        });
-      } catch (updateError) {
-        console.error('[Telecaller] Failed to update error status:', updateError);
-      }
-    });
+    // Process with full AI analysis asynchronously using temp file (transcription, sentiment, outcome, scoring, etc.)
+    telecallerCallFinalizationService.processRecording(id, tempFilePath)
+      .catch(async (error) => {
+        console.error('[Telecaller] AI processing failed for call:', id, error);
+        // Update call with error status so UI knows processing failed
+        try {
+          await prisma.telecallerCall.update({
+            where: { id },
+            data: {
+              aiAnalyzed: false,
+              notes: `AI analysis failed: ${(error as Error).message}. Use reanalyze endpoint to retry.`,
+            },
+          });
+        } catch (updateError) {
+          console.error('[Telecaller] Failed to update error status:', updateError);
+        }
+      })
+      .finally(() => {
+        // Cleanup temp file after AI processing completes
+        cleanupTempFile(tempFilePath);
+      });
 
-    ApiResponse.success(res, 'Recording uploaded. AI analysis in progress...', call);
+    ApiResponse.success(res, 'Recording uploaded to S3. AI analysis in progress...', call);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }

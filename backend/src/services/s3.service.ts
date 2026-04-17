@@ -14,6 +14,7 @@ const s3Client = new S3Client({
 });
 
 const BUCKET_NAME = process.env.AWS_S3_BUCKET || 'crm-lead-generation-files';
+const RECORDINGS_BUCKET = process.env.AWS_RECORDINGS_BUCKET || 'voicebridge-recordings-3e6c1oe0';
 const USE_LOCAL_STORAGE = !process.env.AWS_ACCESS_KEY_ID;
 
 // For local development without S3
@@ -118,4 +119,72 @@ if (USE_LOCAL_STORAGE) {
   console.log('S3 client initialized successfully');
 }
 
-export { s3Client, BUCKET_NAME };
+/**
+ * Upload recording to S3 recordings bucket
+ * Returns the public URL of the uploaded recording
+ */
+export async function uploadRecordingToS3(
+  buffer: Buffer,
+  fileName: string,
+  mimeType: string = 'audio/m4a'
+): Promise<string> {
+  const key = `recordings/${fileName}`;
+
+  // Use local storage if S3 is not configured
+  if (USE_LOCAL_STORAGE) {
+    const localKey = `local://${key}`;
+    localFileStore.set(localKey, { buffer, mimeType });
+    console.log(`[Local Storage] Recording stored: ${localKey}`);
+    return localKey;
+  }
+
+  const command = new PutObjectCommand({
+    Bucket: RECORDINGS_BUCKET,
+    Key: key,
+    Body: buffer,
+    ContentType: mimeType,
+  });
+
+  await s3Client.send(command);
+
+  // Return the public S3 URL
+  const url = `https://${RECORDINGS_BUCKET}.s3.${process.env.AWS_REGION || 'ap-south-1'}.amazonaws.com/${key}`;
+  console.log(`[S3] Recording uploaded: ${url}`);
+  return url;
+}
+
+/**
+ * Delete recording from S3 recordings bucket
+ */
+export async function deleteRecordingFromS3(recordingUrl: string): Promise<void> {
+  // Handle local storage
+  if (recordingUrl.startsWith('local://')) {
+    localFileStore.delete(recordingUrl);
+    console.log(`[Local Storage] Recording deleted: ${recordingUrl}`);
+    return;
+  }
+
+  // Extract key from S3 URL
+  if (!recordingUrl.includes(RECORDINGS_BUCKET)) {
+    console.log(`[S3] Not a recordings bucket URL, skipping delete: ${recordingUrl}`);
+    return;
+  }
+
+  const urlParts = recordingUrl.split('.amazonaws.com/');
+  if (urlParts.length !== 2) {
+    console.log(`[S3] Invalid recording URL format: ${recordingUrl}`);
+    return;
+  }
+
+  const key = urlParts[1];
+
+  const command = new DeleteObjectCommand({
+    Bucket: RECORDINGS_BUCKET,
+    Key: key,
+  });
+
+  await s3Client.send(command);
+  console.log(`[S3] Recording deleted: ${recordingUrl}`);
+}
+
+export { s3Client, BUCKET_NAME, RECORDINGS_BUCKET };
