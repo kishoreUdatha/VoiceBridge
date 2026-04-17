@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 
 // Get API URL from app config (can be overridden via environment variables)
 // Production API endpoint
-const API_BASE_URL = 'https://13.206.154.118/api';
+const API_BASE_URL = 'http://13.206.154.118/api';
 
 console.log('[API] Base URL:', API_BASE_URL);
 
