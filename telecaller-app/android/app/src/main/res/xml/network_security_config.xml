@@ -1,13 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Allow self-signed certificate for production server -->
-    <domain-config cleartextTrafficPermitted="false">
+    <!-- Production server - allow HTTP for testing -->
+    <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">13.206.154.118</domain>
-        <trust-anchors>
-            <!-- Trust user-added CAs and system CAs -->
-            <certificates src="user" />
-            <certificates src="system" />
-        </trust-anchors>
     </domain-config>
 
     <!-- Development: Allow cleartext for localhost -->
