@@ -244,7 +244,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
+          username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           timeout: 60s
@@ -255,7 +255,7 @@ jobs:
             echo "  MyLeadX Production Deployment"
             echo "=========================================="
 
-            cd ~/myleadx
+            cd /opt/myleadx
 
             echo ""
             echo "Step 1: Pulling latest code..."

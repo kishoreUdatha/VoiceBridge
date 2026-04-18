@@ -44,5 +44,5 @@ variable "ssl_email" {
 variable "ssh_private_key_path" {
   description = "Path to SSH private key for provisioning"
   type        = string
-  default     = "./voicebridge-key"
+  default     = "./myleadx-key.pem"
 }
