@@ -50,9 +50,14 @@ jobs:
             backend/package-lock.json
             frontend/package-lock.json
 
+      - name: Install System Dependencies
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg || true
+
       - name: Install Backend Dependencies
         working-directory: ./backend
-        run: npm ci
+        env:
+          FFMPEG_BIN: /usr/bin/ffmpeg
+        run: npm ci --prefer-offline || npm ci
 
       - name: Lint Backend
         working-directory: ./backend
@@ -88,7 +93,19 @@ jobs:
 
       - name: Install Dependencies
         working-directory: ./backend
-        run: npm ci
+        env:
+          # Skip ffmpeg binary download in CI (not needed for build)
+          FFMPEG_BIN: /usr/bin/ffmpeg
+        run: |
+          # Install ffmpeg system package as fallback
+          sudo apt-get update && sudo apt-get install -y ffmpeg || true
+          # Retry npm ci up to 3 times
+          for i in 1 2 3; do
+            npm ci && break || {
+              echo "npm ci attempt $i failed, retrying..."
+              sleep 5
+            }
+          done
 
       - name: Generate Prisma Client
         working-directory: ./backend
