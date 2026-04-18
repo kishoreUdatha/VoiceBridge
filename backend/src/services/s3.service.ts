@@ -14,7 +14,7 @@ const s3Client = new S3Client({
 });
 
 const BUCKET_NAME = process.env.AWS_S3_BUCKET || 'crm-lead-generation-files';
-const RECORDINGS_BUCKET = process.env.AWS_RECORDINGS_BUCKET || 'voicebridge-recordings-3e6c1oe0';
+const RECORDINGS_BUCKET = process.env.AWS_RECORDINGS_BUCKET || 'myleadx-recordings-3e6c1oe0';
 // Use local storage only if no bucket is configured AND no explicit credentials
 // On EC2 with IAM role, AWS_RECORDINGS_BUCKET should be set to enable S3
 const USE_LOCAL_STORAGE = !process.env.AWS_ACCESS_KEY_ID && !process.env.AWS_RECORDINGS_BUCKET;

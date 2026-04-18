@@ -16,7 +16,9 @@ import {
   Copy,
   Search,
   Filter,
+  ArrowLeft,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface PaymentCategory {
   id: string;
@@ -259,8 +261,16 @@ export default function PaymentCategoriesPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Payment Categories</h1>
-        <p className="text-slate-600 mt-1">
+        <div className="flex items-center gap-4 mb-2">
+          <Link
+            to="/settings"
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
+          </Link>
+          <h1 className="text-2xl font-bold text-slate-900">Payment Categories</h1>
+        </div>
+        <p className="text-slate-600 mt-1 ml-12">
           Configure fee types, taxes, discounts, and payment rules
         </p>
       </div>

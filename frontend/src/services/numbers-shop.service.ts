@@ -4,7 +4,7 @@
  *
  * Supports two options:
  * 1. Connect Your Exotel (BYOC) - Use your own Exotel account
- * 2. Buy from VoiceBridge (PLATFORM) - Purchase numbers from our pool
+ * 2. Buy from MyLeadX (PLATFORM) - Purchase numbers from our pool
  */
 
 import api from './api';
@@ -202,7 +202,7 @@ class NumbersShopService {
   }
 
   /**
-   * List platform numbers (from VoiceBridge pool)
+   * List platform numbers (from MyLeadX pool)
    */
   async listPlatformNumbers(params?: {
     country?: string;

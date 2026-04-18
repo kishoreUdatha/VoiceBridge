@@ -1,4 +1,4 @@
-# VoiceBridge Backend - Production Dockerfile
+# MyLeadX Backend - Production Dockerfile
 FROM node:20-alpine AS builder
 
 # Install build dependencies

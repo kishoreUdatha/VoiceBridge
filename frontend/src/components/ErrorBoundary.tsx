@@ -151,7 +151,7 @@ class ErrorBoundary extends Component<Props, State> {
             <p className="mt-6 text-sm text-gray-500">
               If the problem persists, please{' '}
               <a
-                href="mailto:support@voicebridge.com"
+                href="mailto:support@myleadx.com"
                 className="text-indigo-600 hover:text-indigo-500"
               >
                 contact support

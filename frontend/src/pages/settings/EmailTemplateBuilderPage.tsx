@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Mail,
   Plus,
@@ -32,6 +33,7 @@ import {
   Send,
   ToggleLeft,
   ToggleRight,
+  ArrowLeft,
 } from 'lucide-react';
 import {
   templateService,
@@ -69,10 +71,26 @@ export default function EmailTemplateBuilderPage() {
   const [saving, setSaving] = useState(false);
 
   const editorRef = useRef<HTMLDivElement>(null);
+  const isEditorInitialized = useRef(false);
 
   useEffect(() => {
     fetchTemplates();
   }, []);
+
+  // Initialize editor content when opening editor or switching templates
+  useEffect(() => {
+    if (showEditor && editorRef.current && !isEditorInitialized.current) {
+      editorRef.current.innerHTML = formData.htmlContent || formData.content || '';
+      isEditorInitialized.current = true;
+    }
+  }, [showEditor, formData.htmlContent, formData.content]);
+
+  // Reset initialization flag when editor closes
+  useEffect(() => {
+    if (!showEditor) {
+      isEditorInitialized.current = false;
+    }
+  }, [showEditor]);
 
   useEffect(() => {
     if (toast) {
@@ -255,11 +273,16 @@ export default function EmailTemplateBuilderPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                <Mail className="w-7 h-7 text-primary-600" />
-                Email Templates
-              </h1>
-              <p className="text-slate-500 mt-1">
+              <div className="flex items-center gap-3">
+                <RouterLink to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                  <ArrowLeft className="w-5 h-5 text-slate-600" />
+                </RouterLink>
+                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                  <Mail className="w-7 h-7 text-primary-600" />
+                  Email Templates
+                </h1>
+              </div>
+              <p className="text-slate-500 mt-1 ml-12">
                 Create and manage email templates with dynamic variables
               </p>
             </div>
@@ -562,10 +585,11 @@ export default function EmailTemplateBuilderPage() {
                     <div
                       ref={editorRef}
                       contentEditable
+                      suppressContentEditableWarning
+                      dir="ltr"
                       onInput={handleEditorInput}
-                      dangerouslySetInnerHTML={{ __html: formData.htmlContent || formData.content }}
-                      className="min-h-[300px] p-4 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 prose prose-sm max-w-none"
-                      style={{ minHeight: '300px' }}
+                      className="min-h-[300px] p-4 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 prose prose-sm max-w-none text-left"
+                      style={{ minHeight: '300px', direction: 'ltr', textAlign: 'left' }}
                     />
                   </div>
                 </div>

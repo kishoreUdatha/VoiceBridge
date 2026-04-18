@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ShieldCheckIcon,
   EyeIcon,
@@ -11,6 +12,7 @@ import {
   ArrowPathIcon,
   DocumentDuplicateIcon,
   ExclamationTriangleIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import {
@@ -162,8 +164,13 @@ export default function FieldPermissionsPage() {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Field Permissions</h1>
-        <p className="text-slate-500 mt-1">Control which fields each role can view and edit</p>
+        <div className="flex items-center gap-3">
+          <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+            <ArrowLeftIcon className="w-5 h-5 text-slate-600" />
+          </Link>
+          <h1 className="text-2xl font-bold text-slate-900">Field Permissions</h1>
+        </div>
+        <p className="text-slate-500 mt-1 ml-12">Control which fields each role can view and edit</p>
       </div>
 
       {/* Filters */}

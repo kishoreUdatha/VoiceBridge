@@ -154,7 +154,7 @@ class ErrorTracker {
    */
   private storeErrorLocally(errorId: string, error: Error | unknown, context: ErrorContext): void {
     try {
-      const errors = JSON.parse(localStorage.getItem('voicebridge_errors') || '[]');
+      const errors = JSON.parse(localStorage.getItem('myleadx_errors') || '[]');
       errors.push({
         id: errorId,
         timestamp: new Date().toISOString(),
@@ -169,7 +169,7 @@ class ErrorTracker {
         errors.splice(0, errors.length - 20);
       }
 
-      localStorage.setItem('voicebridge_errors', JSON.stringify(errors));
+      localStorage.setItem('myleadx_errors', JSON.stringify(errors));
     } catch (e) {
       // localStorage might be full or unavailable
     }
@@ -180,7 +180,7 @@ class ErrorTracker {
    */
   getStoredErrors(): any[] {
     try {
-      return JSON.parse(localStorage.getItem('voicebridge_errors') || '[]');
+      return JSON.parse(localStorage.getItem('myleadx_errors') || '[]');
     } catch {
       return [];
     }
@@ -190,7 +190,7 @@ class ErrorTracker {
    * Clear stored errors
    */
   clearStoredErrors(): void {
-    localStorage.removeItem('voicebridge_errors');
+    localStorage.removeItem('myleadx_errors');
   }
 }
 

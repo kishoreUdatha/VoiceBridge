@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import {
   PlusIcon,
@@ -7,12 +8,13 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   ArrowPathIcon,
+  ArrowLeftIcon,
   InformationCircleIcon,
   CheckIcon,
 } from '@heroicons/react/24/outline';
 import { roleService, Role as APIRole } from '../../services/role.service';
 
-// Permission categories with their sub-permissions - Based on VoiceBridge CRM Features
+// Permission categories with their sub-permissions - Based on MyLeadX CRM Features
 const permissionCategories = [
   {
     id: 'roles',
@@ -346,7 +348,7 @@ const permissionCategories = [
   },
 ];
 
-// Default roles with their permissions - Based on VoiceBridge CRM hierarchy
+// Default roles with their permissions - Based on MyLeadX CRM hierarchy
 const defaultRoles = [
   {
     id: '1',
@@ -814,6 +816,9 @@ export default function RolesListPage() {
       {/* Header - Compact */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
+          <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+            <ArrowLeftIcon className="w-5 h-5 text-slate-600" />
+          </Link>
           <h1 className="text-xl font-bold text-slate-900">Roles and Permissions</h1>
           <span className="text-xs text-slate-500">
             {permissionCategories.length} categories • {permissionCategories.flatMap(c => c.permissions).length} permissions • {roles.length} roles

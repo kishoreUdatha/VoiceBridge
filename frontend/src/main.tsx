@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import App from './App';
 import { store } from './store';
 import ErrorBoundary from './components/ErrorBoundary';
+import { BrandingProvider } from './contexts/BrandingContext';
 import './index.css';
 
 // Initialize i18n
@@ -52,29 +53,31 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <Suspense fallback={<LoadingSpinner />}>
         <Provider store={store}>
           <BrowserRouter>
-            <App />
-            <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: '#363636',
-                color: '#fff',
-              },
-              success: {
-                iconTheme: {
-                  primary: '#10B981',
-                  secondary: '#fff',
-                },
-              },
-              error: {
-                iconTheme: {
-                  primary: '#EF4444',
-                  secondary: '#fff',
-                },
-              },
-            }}
-          />
+            <BrandingProvider>
+              <App />
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  duration: 4000,
+                  style: {
+                    background: '#363636',
+                    color: '#fff',
+                  },
+                  success: {
+                    iconTheme: {
+                      primary: '#10B981',
+                      secondary: '#fff',
+                    },
+                  },
+                  error: {
+                    iconTheme: {
+                      primary: '#EF4444',
+                      secondary: '#fff',
+                    },
+                  },
+                }}
+              />
+            </BrandingProvider>
           </BrowserRouter>
         </Provider>
       </Suspense>

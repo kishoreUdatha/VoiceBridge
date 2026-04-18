@@ -90,7 +90,7 @@ async function sendPostCallMessages(params: {
 
         await emailService.sendEmail({
           to: email,
-          subject: postCallSettings.email.subject || `Thank you for your call - ${settings.institution?.name || 'VoiceBridge'}`,
+          subject: postCallSettings.email.subject || `Thank you for your call - ${settings.institution?.name || 'MyLeadX'}`,
           body: emailTemplate.replace(/\{firstName\}/g, firstName).replace(/\{lastName\}/g, lastName || '').replace(/\{summary\}/g, callSummary),
           leadId,
           userId: 'system',

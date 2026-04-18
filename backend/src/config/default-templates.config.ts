@@ -20,7 +20,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
     type: 'SMS',
     category: 'welcome',
     content: `Hi {{firstName}}! Welcome to {{orgName}}. We're excited to have you with us. Reply HELP for assistance or visit {{orgWebsite}} to learn more.`,
-    sampleValues: { firstName: 'John', orgName: 'VoiceBridge', orgWebsite: 'voicebridge.io' },
+    sampleValues: { firstName: 'John', orgName: 'MyLeadX', orgWebsite: 'myleadx.io' },
     isDefault: true,
   },
   {
@@ -56,7 +56,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
     type: 'SMS',
     category: 'follow-up',
     content: `Hi {{firstName}}, just following up on our conversation. Do you have any questions about {{custom1}}? Reply or call {{orgPhone}}. - {{orgName}}`,
-    sampleValues: { firstName: 'John', custom1: 'our services', orgPhone: '+1234567890', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', custom1: 'our services', orgPhone: '+1234567890', orgName: 'MyLeadX' },
   },
   {
     name: 'Promotional Offer',
@@ -70,21 +70,21 @@ export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
     type: 'SMS',
     category: 'follow-up',
     content: `Hi {{firstName}}, thank you for choosing {{orgName}}! We'd love your feedback. Rate us: {{link}} (takes 30 seconds)`,
-    sampleValues: { firstName: 'John', orgName: 'VoiceBridge', link: 'feedback.example.com' },
+    sampleValues: { firstName: 'John', orgName: 'MyLeadX', link: 'feedback.example.com' },
   },
   {
     name: 'Event Reminder',
     type: 'SMS',
     category: 'reminder',
     content: `Hi {{firstName}}! Reminder: {{custom1}} is tomorrow at {{appointmentTime}}. Location: {{custom2}}. See you there! - {{orgName}}`,
-    sampleValues: { firstName: 'John', custom1: 'Annual Conference', appointmentTime: '10:00 AM', custom2: 'Grand Hall', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', custom1: 'Annual Conference', appointmentTime: '10:00 AM', custom2: 'Grand Hall', orgName: 'MyLeadX' },
   },
   {
     name: 'OTP Verification',
     type: 'SMS',
     category: 'transactional',
     content: `Your {{orgName}} verification code is: {{custom1}}. Valid for 10 minutes. Do not share this code with anyone.`,
-    sampleValues: { orgName: 'VoiceBridge', custom1: '123456' },
+    sampleValues: { orgName: 'MyLeadX', custom1: '123456' },
   },
 
   // ==================== EMAIL TEMPLATES ====================
@@ -109,7 +109,7 @@ We're here to help you succeed!
 Best regards,
 The {{orgName}} Team
 {{orgWebsite}}`,
-    sampleValues: { firstName: 'John', orgName: 'VoiceBridge', orgEmail: 'support@voicebridge.io', orgPhone: '+1234567890', orgWebsite: 'voicebridge.io' },
+    sampleValues: { firstName: 'John', orgName: 'MyLeadX', orgEmail: 'support@myleadx.io', orgPhone: '+1234567890', orgWebsite: 'myleadx.io' },
     isDefault: true,
   },
   {
@@ -135,7 +135,7 @@ Looking forward to seeing you there!
 
 Best regards,
 {{orgName}}`,
-    sampleValues: { firstName: 'John', custom1: 'Product Demo', appointmentDate: 'March 15, 2024', appointmentTime: '2:00 PM IST', custom2: '30 minutes', link: 'meet.example.com/abc123', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', custom1: 'Product Demo', appointmentDate: 'March 15, 2024', appointmentTime: '2:00 PM IST', custom2: '30 minutes', link: 'meet.example.com/abc123', orgName: 'MyLeadX' },
   },
   {
     name: 'Invoice Email',
@@ -163,7 +163,7 @@ Thank you for your business!
 
 Best regards,
 {{orgName}} Billing Team`,
-    sampleValues: { firstName: 'John', custom1: 'INV-2024-001', amount: '₹9,999', custom2: 'March 20, 2024', link: 'pay.example.com', orgEmail: 'billing@voicebridge.io', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', custom1: 'INV-2024-001', amount: '₹9,999', custom2: 'March 20, 2024', link: 'pay.example.com', orgEmail: 'billing@myleadx.io', orgName: 'MyLeadX' },
   },
   {
     name: 'Course Enrollment Confirmation',
@@ -191,7 +191,7 @@ Happy Learning!
 
 Best regards,
 {{orgName}} Team`,
-    sampleValues: { firstName: 'John', course: 'Advanced Sales Mastery', appointmentDate: 'March 1, 2024', custom1: '8 weeks', link: 'learn.example.com', orgEmail: 'support@voicebridge.io', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', course: 'Advanced Sales Mastery', appointmentDate: 'March 1, 2024', custom1: '8 weeks', link: 'learn.example.com', orgEmail: 'support@myleadx.io', orgName: 'MyLeadX' },
   },
   {
     name: 'Newsletter',
@@ -218,7 +218,7 @@ The {{orgName}} Team
 
 ---
 Unsubscribe | Update Preferences`,
-    sampleValues: { firstName: 'John', custom1: 'March Edition', custom2: 'We launched exciting new features!', custom3: 'Get 25% off on annual plans', link: 'events.example.com', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', custom1: 'March Edition', custom2: 'We launched exciting new features!', custom3: 'Get 25% off on annual plans', link: 'events.example.com', orgName: 'MyLeadX' },
   },
   {
     name: 'Password Reset',
@@ -237,7 +237,7 @@ If you didn't request this password reset, please ignore this email or contact s
 
 Best regards,
 {{orgName}} Security Team`,
-    sampleValues: { firstName: 'John', link: 'reset.example.com/token123', orgEmail: 'security@voicebridge.io', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', link: 'reset.example.com/token123', orgEmail: 'security@myleadx.io', orgName: 'MyLeadX' },
   },
   {
     name: 'Follow-up After Demo',
@@ -262,7 +262,7 @@ Looking forward to hearing from you!
 Best regards,
 {{orgName}}
 {{orgPhone}}`,
-    sampleValues: { firstName: 'John', custom1: 'Review the proposal', custom2: 'Discuss with your team', custom3: 'Schedule implementation call', link: 'calendly.com/demo', orgName: 'VoiceBridge', orgPhone: '+1234567890' },
+    sampleValues: { firstName: 'John', custom1: 'Review the proposal', custom2: 'Discuss with your team', custom3: 'Schedule implementation call', link: 'calendly.com/demo', orgName: 'MyLeadX', orgPhone: '+1234567890' },
   },
   {
     name: 'Subscription Renewal Reminder',
@@ -289,7 +289,7 @@ Thank you for being a valued customer!
 
 Best regards,
 {{orgName}} Team`,
-    sampleValues: { firstName: 'John', custom1: 'March 31, 2024', custom2: 'Professional Plan', amount: '₹4,999/month', link: 'renew.example.com', orgEmail: 'billing@voicebridge.io', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', custom1: 'March 31, 2024', custom2: 'Professional Plan', amount: '₹4,999/month', link: 'renew.example.com', orgEmail: 'billing@myleadx.io', orgName: 'MyLeadX' },
   },
   {
     name: 'Referral Request',
@@ -315,7 +315,7 @@ Start referring today!
 
 Best regards,
 {{orgName}} Team`,
-    sampleValues: { firstName: 'John', custom1: '20%', custom2: '₹500', link: 'refer.example.com/john123', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', custom1: '20%', custom2: '₹500', link: 'refer.example.com/john123', orgName: 'MyLeadX' },
   },
   {
     name: 'Support Ticket Confirmation',
@@ -341,7 +341,7 @@ Thank you for your patience!
 Best regards,
 {{orgName}} Support Team
 {{orgEmail}}`,
-    sampleValues: { firstName: 'John', custom1: 'TKT-2024-001', custom2: 'Account Access Issue', custom3: 'High', link: 'support.example.com/tickets', orgEmail: 'support@voicebridge.io', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', custom1: 'TKT-2024-001', custom2: 'Account Access Issue', custom3: 'High', link: 'support.example.com/tickets', orgEmail: 'support@myleadx.io', orgName: 'MyLeadX' },
   },
 
   // ==================== WHATSAPP TEMPLATES ====================
@@ -363,7 +363,7 @@ Reply with:
 1️⃣ - Learn more about our services
 2️⃣ - Speak to an agent
 3️⃣ - Get pricing info`,
-    sampleValues: { firstName: 'John', orgName: 'VoiceBridge', orgPhone: '+1234567890', orgEmail: 'hello@voicebridge.io', orgWebsite: 'voicebridge.io' },
+    sampleValues: { firstName: 'John', orgName: 'MyLeadX', orgPhone: '+1234567890', orgEmail: 'hello@myleadx.io', orgWebsite: 'myleadx.io' },
     isDefault: true,
   },
   {
@@ -385,7 +385,7 @@ Reply:
 
 See you soon!
 {{orgName}}`,
-    sampleValues: { firstName: 'John', appointmentDate: 'March 15, 2024', appointmentTime: '2:00 PM', custom1: 'Main Office', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', appointmentDate: 'March 15, 2024', appointmentTime: '2:00 PM', custom1: 'Main Office', orgName: 'MyLeadX' },
   },
   {
     name: 'WhatsApp Order Update',
@@ -405,7 +405,7 @@ Track your order: {{link}}
 Need help? Just reply to this message!
 
 Thank you for shopping with {{orgName}}! 🙏`,
-    sampleValues: { firstName: 'John', custom1: 'ORD-12345', custom2: 'Out for Delivery', custom3: 'Expected delivery by 5 PM today', link: 'track.example.com', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', custom1: 'ORD-12345', custom2: 'Out for Delivery', custom3: 'Expected delivery by 5 PM today', link: 'track.example.com', orgName: 'MyLeadX' },
   },
   {
     name: 'WhatsApp Payment Confirmation',
@@ -425,7 +425,7 @@ For any queries, contact us at {{orgPhone}}.
 
 Best regards,
 {{orgName}}`,
-    sampleValues: { firstName: 'John', amount: '₹4,999', custom1: 'TXN123456789', date: 'March 10, 2024', orgPhone: '+1234567890', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', amount: '₹4,999', custom1: 'TXN123456789', date: 'March 10, 2024', orgPhone: '+1234567890', orgName: 'MyLeadX' },
   },
   {
     name: 'WhatsApp Follow-up',
@@ -447,7 +447,7 @@ Reply:
 Looking forward to hearing from you!
 
 {{orgName}}`,
-    sampleValues: { firstName: 'John', custom1: 'your interest in our Premium Plan', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', custom1: 'your interest in our Premium Plan', orgName: 'MyLeadX' },
   },
   {
     name: 'WhatsApp Promotional',
@@ -468,7 +468,7 @@ Shop now: {{link}}
 Don't miss out! Limited time offer.
 
 {{orgName}}`,
-    sampleValues: { firstName: 'John', custom1: 'Flat 30% OFF on all plans!', custom2: '₹3,000', custom3: 'March 31', link: 'offer.example.com', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', custom1: 'Flat 30% OFF on all plans!', custom2: '₹3,000', custom3: 'March 31', link: 'offer.example.com', orgName: 'MyLeadX' },
   },
   {
     name: 'WhatsApp Feedback Request',
@@ -490,7 +490,7 @@ Rate us:
 Just reply with a number (1-5)
 
 Your feedback helps us improve! 🙏`,
-    sampleValues: { firstName: 'John', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', orgName: 'MyLeadX' },
   },
   {
     name: 'WhatsApp Support',
@@ -510,7 +510,7 @@ Our team will respond within {{custom3}}.
 For urgent matters, call: {{orgPhone}}
 
 We're here to help! 💪`,
-    sampleValues: { firstName: 'John', custom1: 'TKT-001', custom2: 'In Progress', custom3: '2 hours', orgPhone: '+1234567890', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', custom1: 'TKT-001', custom2: 'In Progress', custom3: '2 hours', orgPhone: '+1234567890', orgName: 'MyLeadX' },
   },
   {
     name: 'WhatsApp Event Invitation',
@@ -535,7 +535,7 @@ Reply:
 See you there! 🎉
 
 {{orgName}}`,
-    sampleValues: { firstName: 'John', custom1: 'Annual Customer Summit 2024', appointmentDate: 'April 15, 2024', appointmentTime: '10:00 AM', custom2: 'Grand Ballroom, Hotel Royal', link: 'register.example.com', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', custom1: 'Annual Customer Summit 2024', appointmentDate: 'April 15, 2024', appointmentTime: '10:00 AM', custom2: 'Grand Ballroom, Hotel Royal', link: 'register.example.com', orgName: 'MyLeadX' },
   },
   {
     name: 'WhatsApp Course Reminder',
@@ -556,7 +556,7 @@ Need help? Reply to this message.
 
 Happy Learning! 🎓
 {{orgName}}`,
-    sampleValues: { firstName: 'John', course: 'Digital Marketing Masterclass', appointmentDate: 'Today', appointmentTime: '3:00 PM', link: 'class.example.com', orgName: 'VoiceBridge' },
+    sampleValues: { firstName: 'John', course: 'Digital Marketing Masterclass', appointmentDate: 'Today', appointmentTime: '3:00 PM', link: 'class.example.com', orgName: 'MyLeadX' },
   },
 ];
 

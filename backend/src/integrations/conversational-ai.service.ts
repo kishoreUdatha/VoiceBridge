@@ -483,16 +483,16 @@ class ConversationalAIService {
   }
 
   /**
-   * Sync a VoiceBridge agent to Conversational AI platform
+   * Sync a MyLeadX agent to Conversational AI platform
    */
   async syncAgentToConversationalAI(voiceBridgeAgentId: string): Promise<string> {
-    // Get VoiceBridge agent from database
+    // Get MyLeadX agent from database
     const agent = await prisma.voiceAgent.findUnique({
       where: { id: voiceBridgeAgentId },
     });
 
     if (!agent) {
-      throw new Error('VoiceBridge agent not found');
+      throw new Error('MyLeadX agent not found');
     }
 
     // Check if agent already has a Conversational AI ID
@@ -521,7 +521,7 @@ class ConversationalAIService {
         knowledgeBase: agent.knowledgeBase || undefined,
       });
 
-      // Save agent ID to VoiceBridge agent
+      // Save agent ID to MyLeadX agent
       await prisma.voiceAgent.update({
         where: { id: voiceBridgeAgentId },
         data: {
@@ -538,7 +538,7 @@ class ConversationalAIService {
   }
 
   /**
-   * Get WebSocket URL for a VoiceBridge agent
+   * Get WebSocket URL for a MyLeadX agent
    */
   async getAgentWebSocketUrl(voiceBridgeAgentId: string): Promise<string> {
     const agent = await prisma.voiceAgent.findUnique({

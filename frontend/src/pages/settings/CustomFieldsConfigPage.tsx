@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -60,6 +61,7 @@ import {
   Close as CloseIcon,
   CheckCircle as CheckIcon,
   Warning as WarningIcon,
+  ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
 import {
   customFieldsService,
@@ -322,6 +324,11 @@ export default function CustomFieldsConfigPage() {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Link to="/settings" style={{ textDecoration: 'none' }}>
+            <IconButton sx={{ '&:hover': { bgcolor: 'grey.100' } }}>
+              <ArrowBackIcon sx={{ color: 'grey.600' }} />
+            </IconButton>
+          </Link>
           <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48 }}>
             <SettingsIcon />
           </Avatar>

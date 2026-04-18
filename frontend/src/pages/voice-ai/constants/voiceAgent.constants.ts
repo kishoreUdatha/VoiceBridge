@@ -206,7 +206,7 @@ export const availableVariables: Variable[] = [
   { key: 'phone', label: 'Phone', example: '+1234567890' },
   { key: 'email', label: 'Email', example: 'john@example.com' },
   { key: 'company', label: 'Company', example: 'Acme Inc' },
-  { key: 'INSTITUTION_NAME', label: 'Institution Name', example: 'VoiceBridge' },
+  { key: 'INSTITUTION_NAME', label: 'Institution Name', example: 'MyLeadX' },
   { key: 'INSTITUTION_PHONE', label: 'Institution Phone', example: '+1800123456' },
 ];
 

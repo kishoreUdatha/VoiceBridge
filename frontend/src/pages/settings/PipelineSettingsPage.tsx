@@ -25,7 +25,9 @@ import {
   ExclamationTriangleIcon,
   EyeIcon,
   HandRaisedIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
+import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import pipelineSettingsService, {
   Pipeline,
@@ -492,8 +494,16 @@ export default function PipelineSettingsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Pipeline Settings</h1>
-        <p className="text-slate-500 mt-1">
+        <div className="flex items-center gap-4 mb-2">
+          <Link
+            to="/settings"
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            <ArrowLeftIcon className="w-5 h-5 text-slate-600" />
+          </Link>
+          <h1 className="text-2xl font-bold text-slate-900">Pipeline Settings</h1>
+        </div>
+        <p className="text-slate-500 ml-12">
           All the leads uploaded go through different stages until it is finally closed. Tags further provide easy identification of leads.
         </p>
       </div>

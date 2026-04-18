@@ -3,6 +3,7 @@
  */
 
 import React from 'react';
+import { Link } from 'react-router-dom';
 import {
   CircleStackIcon,
   CheckCircleIcon,
@@ -16,6 +17,7 @@ import {
   LinkIcon,
   KeyIcon,
   ShieldCheckIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import { CRMConfig, CRMType, CRMFormData } from '../crm-integration.types';
 import { CRM_LOGOS, CRM_DESCRIPTIONS, WEBHOOK_PLACEHOLDERS, formatCRMName } from '../crm-integration.constants';
@@ -30,13 +32,16 @@ export const CRMLoadingState: React.FC = () => (
 // Page Header
 export const CRMPageHeader: React.FC = () => (
   <div className="mb-8">
-    <div className="flex items-center gap-3 mb-2">
+    <div className="flex items-center gap-4 mb-2">
+      <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+        <ArrowLeftIcon className="w-5 h-5 text-slate-600" />
+      </Link>
       <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg">
         <CircleStackIcon className="w-6 h-6 text-white" />
       </div>
       <h1 className="text-2xl font-bold text-gray-900">CRM Integrations</h1>
     </div>
-    <p className="text-gray-600 ml-14">
+    <p className="text-gray-600 ml-[88px]">
       Connect external CRMs to automatically sync leads from voice conversations
     </p>
   </div>

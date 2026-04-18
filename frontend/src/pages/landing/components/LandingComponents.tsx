@@ -50,7 +50,7 @@ export const Navigation: React.FC = () => {
               <Phone className="w-5 h-5 text-white" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xl font-bold text-slate-900">VoiceBridge</span>
+              <span className="text-xl font-bold text-slate-900">MyLeadX</span>
               <span className="text-[10px] font-semibold text-violet-600 uppercase tracking-widest">Enterprise Platform</span>
             </div>
           </div>
@@ -234,7 +234,7 @@ export const DifferentiatorsSection: React.FC<DifferentiatorsSectionProps> = ({ 
       <div className="text-center max-w-3xl mx-auto mb-16">
         <div className="inline-flex items-center gap-2 bg-violet-100 text-violet-700 px-4 py-2 rounded-full text-sm font-semibold mb-6">
           <Zap className="w-4 h-4" />
-          Why VoiceBridge
+          Why MyLeadX
         </div>
         <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-6">
           Everything you need, <br />
@@ -445,14 +445,14 @@ export const HowItWorksSection: React.FC<HowItWorksSectionProps> = ({ steps }) =
 export const TestimonialsSection: React.FC = () => {
   const testimonials = [
     {
-      quote: "VoiceBridge helped us achieve 3x higher conversion rates. The AI agents are incredibly natural.",
+      quote: "MyLeadX helped us achieve 3x higher conversion rates. The AI agents are incredibly natural.",
       author: "Rahul Mehta",
       role: "VP Sales, TechEd Solutions",
       avatar: "RM",
       gradient: "from-violet-500 to-purple-600"
     },
     {
-      quote: "We replaced 5 different tools with VoiceBridge. The ROI was visible in the first month.",
+      quote: "We replaced 5 different tools with MyLeadX. The ROI was visible in the first month.",
       author: "Priya Sharma",
       role: "COO, PropMax Realty",
       avatar: "PS",
@@ -674,7 +674,7 @@ export const CTASection: React.FC = () => (
             Ready to grow your sales?
           </h2>
           <p className="text-xl text-violet-200 mb-10 max-w-2xl mx-auto">
-            Join 500+ enterprises transforming their lead conversion with VoiceBridge.
+            Join 500+ enterprises transforming their lead conversion with MyLeadX.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
@@ -685,7 +685,7 @@ export const CTASection: React.FC = () => (
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
             <a
-              href="mailto:enterprise@voicebridge.in"
+              href="mailto:enterprise@myleadx.in"
               className="w-full sm:w-auto border-2 border-white/30 text-white px-8 py-4 rounded-full font-semibold hover:bg-white/10 transition-all"
             >
               Talk to Sales
@@ -715,7 +715,7 @@ export const Footer: React.FC<FooterProps> = ({ sections }) => (
             <div className="w-11 h-11 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl flex items-center justify-center">
               <Phone className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-white">VoiceBridge</span>
+            <span className="text-xl font-bold text-white">MyLeadX</span>
           </div>
           <p className="text-sm leading-relaxed mb-6 max-w-xs">
             The AI-powered platform for enterprise lead conversion. Transform your sales today.
@@ -754,7 +754,7 @@ export const Footer: React.FC<FooterProps> = ({ sections }) => (
 
       {/* Bottom */}
       <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4">
-        <p className="text-sm">&copy; {new Date().getFullYear()} VoiceBridge. All rights reserved.</p>
+        <p className="text-sm">&copy; {new Date().getFullYear()} MyLeadX. All rights reserved.</p>
         <div className="flex items-center gap-6 text-sm">
           <a href="#" className="hover:text-violet-400 transition-colors">Privacy</a>
           <a href="#" className="hover:text-violet-400 transition-colors">Terms</a>

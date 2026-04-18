@@ -26,6 +26,7 @@ import {
   PhoneIcon,
   EnvelopeIcon,
   CubeIcon,
+  PaintBrushIcon,
 } from '@heroicons/react/24/outline';
 
 interface SettingItem {
@@ -89,7 +90,7 @@ const settingsCategories: SettingCategory[] = [
     items: [
       { id: 'reports', name: 'Auto Reports', description: 'Scheduled reports', icon: ChartBarIcon, path: '/settings/automatic-reports' },
       { id: 'retry', name: 'Retry Settings', description: 'Call/message retries', icon: ArrowPathIcon, path: '/settings/retry-settings' },
-      { id: 'workflow', name: 'Workflows', description: 'Automation rules', icon: CubeIcon, path: '/settings/workflow' },
+      { id: 'workflow', name: 'Workflows', description: 'Automation rules', icon: CubeIcon, path: '/settings/workflows' },
       { id: 'followup', name: 'Follow-up Rules', description: 'Reminder settings', icon: CalendarIcon, path: '/settings/follow-up-config' },
     ],
   },
@@ -111,6 +112,7 @@ const settingsCategories: SettingCategory[] = [
     icon: BuildingOfficeIcon,
     color: 'text-indigo-600 bg-indigo-50',
     items: [
+      { id: 'branding', name: 'Branding', description: 'Logo, colors, name', icon: PaintBrushIcon, path: '/settings/branding' },
       { id: 'branches', name: 'Branches', description: 'Branch locations', icon: BuildingOfficeIcon, path: '/settings/branches' },
       { id: 'roles', name: 'Roles & Permissions', description: 'Access control', icon: ShieldCheckIcon, path: '/roles' },
       { id: 'labels', name: 'Custom Labels', description: 'Field naming', icon: TagIcon, path: '/settings/tenant-labels' },

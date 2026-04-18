@@ -4,6 +4,7 @@
  */
 
 import { PrismaClient, PipelineViewType } from '@prisma/client';
+import { stageAutomationService } from './stage-automation.service';
 
 const prisma = new PrismaClient();
 
@@ -386,9 +387,56 @@ export const pipelineKanbanService = {
   },
 
   // Execute auto actions when card enters column
-  async executeAutoActions(leadId: string, actions: Record<string, any>) {
-    // In production, integrate with workflow service
-    console.log('Executing auto actions for lead:', leadId, actions);
+  async executeAutoActions(
+    leadId: string,
+    actions: Record<string, any>,
+    context?: {
+      organizationId?: string;
+      stageName?: string;
+      stageId?: string;
+      previousStage?: string;
+      triggeredBy?: string;
+    }
+  ) {
+    if (!actions || Object.keys(actions).length === 0) {
+      return;
+    }
+
+    try {
+      // Get lead info if context not provided
+      let organizationId = context?.organizationId;
+      if (!organizationId) {
+        const lead = await prisma.lead.findUnique({
+          where: { id: leadId },
+          select: { organizationId: true },
+        });
+        organizationId = lead?.organizationId;
+      }
+
+      if (!organizationId) {
+        console.error('[PipelineKanban] Cannot execute automations: organizationId not found');
+        return;
+      }
+
+      const automationContext = {
+        leadId,
+        organizationId,
+        stageName: context?.stageName || 'Unknown',
+        stageId: context?.stageId || '',
+        previousStage: context?.previousStage,
+        triggeredBy: context?.triggeredBy,
+      };
+
+      // Execute entry automations
+      const results = await stageAutomationService.executeEntryAutomations(
+        automationContext,
+        actions
+      );
+
+      console.log(`[PipelineKanban] Automation results for lead ${leadId}:`, results);
+    } catch (error) {
+      console.error('[PipelineKanban] Failed to execute auto actions:', error);
+    }
   },
 
   // Get pipeline statistics

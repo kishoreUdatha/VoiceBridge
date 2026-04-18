@@ -1,0 +1,52 @@
+# ================================================================
+# MyLeadX - Database Backup
+# ================================================================
+# Runs daily to backup PostgreSQL database to S3
+# ================================================================
+
+name: Database Backup
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC (7:30 AM IST)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: Backup Database
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Backup PostgreSQL to S3
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Variables
+            BACKUP_DIR="/home/ubuntu/backups"
+            DATE=$(date +%Y%m%d_%H%M%S)
+            BACKUP_FILE="myleadx_backup_${DATE}.sql.gz"
+
+            # Create backup directory
+            mkdir -p $BACKUP_DIR
+
+            # Create backup
+            docker exec myleadx-postgres pg_dump -U myleadx myleadx | gzip > $BACKUP_DIR/$BACKUP_FILE
+
+            # Upload to S3 (if AWS CLI is configured)
+            if command -v aws &> /dev/null; then
+              aws s3 cp $BACKUP_DIR/$BACKUP_FILE s3://myleadx-backups/database/$BACKUP_FILE
+              echo "Backup uploaded to S3: $BACKUP_FILE"
+            fi
+
+            # Keep only last 7 local backups
+            cd $BACKUP_DIR && ls -t *.sql.gz | tail -n +8 | xargs -r rm --
+
+            echo "Backup completed: $BACKUP_FILE"
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "Database backup failed!"

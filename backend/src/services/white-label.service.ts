@@ -76,11 +76,11 @@ const DEFAULT_BRANDING: BrandingConfig = {
 };
 
 const DEFAULT_EMAIL_TEMPLATES: EmailTemplateConfig = {
-  fromName: 'VoiceBridge',
-  fromEmail: 'noreply@voicebridge.ai',
-  replyTo: 'support@voicebridge.ai',
+  fromName: 'MyLeadX',
+  fromEmail: 'noreply@myleadx.ai',
+  replyTo: 'support@myleadx.ai',
   headerLogo: null,
-  footerText: '© 2024 VoiceBridge. All rights reserved.',
+  footerText: '© 2024 MyLeadX. All rights reserved.',
   primaryColor: '#3B82F6',
   templates: {
     welcome: true,
@@ -262,7 +262,7 @@ export class WhiteLabelService {
     // In production, would do actual DNS lookup
     // For now, return expected records
     const expectedRecords = [
-      { type: 'CNAME', name: config.customDomain.domain, value: 'app.voicebridge.ai' },
+      { type: 'CNAME', name: config.customDomain.domain, value: 'app.myleadx.ai' },
       { type: 'TXT', name: `_verify.${config.customDomain.domain}`, value: `vb-verify=${organizationId}` },
     ];
 
@@ -515,7 +515,7 @@ export class WhiteLabelService {
   async generatePreviewUrl(organizationId: string): Promise<string> {
     // In production, would generate a temporary preview URL
     const previewToken = Buffer.from(`${organizationId}:${Date.now()}`).toString('base64');
-    return `https://app.voicebridge.ai/preview/${previewToken}`;
+    return `https://app.myleadx.ai/preview/${previewToken}`;
   }
 
   /**

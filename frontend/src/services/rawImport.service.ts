@@ -125,6 +125,8 @@ export interface RecordFilter {
   search?: string;
   page?: number;
   limit?: number;
+  assignedDateFrom?: string;
+  assignedDateTo?: string;
 }
 
 export const rawImportService = {
@@ -150,8 +152,17 @@ export const rawImportService = {
   },
 
   // Telecaller Assignment Stats (for admin/manager dashboard)
-  async getTelecallerAssignmentStats(): Promise<TelecallerAssignmentStats> {
-    const response = await api.get('/raw-imports/stats/telecaller-assignments');
+  async getTelecallerAssignmentStats(filter?: { assignedDateFrom?: string; assignedDateTo?: string }): Promise<TelecallerAssignmentStats> {
+    const params = new URLSearchParams();
+    if (filter?.assignedDateFrom) {
+      params.append('assignedDateFrom', filter.assignedDateFrom);
+    }
+    if (filter?.assignedDateTo) {
+      params.append('assignedDateTo', filter.assignedDateTo);
+    }
+    const queryString = params.toString();
+    const url = `/raw-imports/stats/telecaller-assignments${queryString ? `?${queryString}` : ''}`;
+    const response = await api.get(url);
     return response.data.data;
   },
 

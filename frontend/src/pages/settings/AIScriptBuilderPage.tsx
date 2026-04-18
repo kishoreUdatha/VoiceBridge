@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Bot,
   Plus,
@@ -28,6 +29,7 @@ import {
   HelpCircle,
   Calendar,
   UserPlus,
+  ArrowLeft,
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -379,11 +381,16 @@ export default function AIScriptBuilderPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                <Bot className="w-7 h-7 text-purple-600" />
-                AI Call Scripts
-              </h1>
-              <p className="text-slate-500 mt-1">
+              <div className="flex items-center gap-4">
+                <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                  <ArrowLeft className="w-5 h-5 text-slate-600" />
+                </Link>
+                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                  <Bot className="w-7 h-7 text-purple-600" />
+                  AI Call Scripts
+                </h1>
+              </div>
+              <p className="text-slate-500 mt-1 ml-14">
                 Create voice AI scripts with conversation flows and testing
               </p>
             </div>

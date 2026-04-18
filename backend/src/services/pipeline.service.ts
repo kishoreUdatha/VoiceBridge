@@ -44,6 +44,47 @@ export const getPipelineById = async (pipelineId: string) => {
 };
 
 /**
+ * Generate a unique slug for a pipeline
+ */
+const generateUniqueSlug = async (organizationId: string, baseName: string): Promise<string> => {
+  const baseSlug = baseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  // Check if base slug exists
+  const existing = await prisma.pipeline.findFirst({
+    where: { organizationId, slug: baseSlug },
+  });
+
+  if (!existing) {
+    return baseSlug;
+  }
+
+  // Find a unique slug by appending a number
+  let counter = 1;
+  let uniqueSlug = `${baseSlug}-${counter}`;
+
+  while (true) {
+    const exists = await prisma.pipeline.findFirst({
+      where: { organizationId, slug: uniqueSlug },
+    });
+
+    if (!exists) {
+      return uniqueSlug;
+    }
+
+    counter++;
+    uniqueSlug = `${baseSlug}-${counter}`;
+
+    // Safety limit
+    if (counter > 100) {
+      uniqueSlug = `${baseSlug}-${Date.now()}`;
+      break;
+    }
+  }
+
+  return uniqueSlug;
+};
+
+/**
  * Create a new pipeline
  */
 export const createPipeline = async (
@@ -58,7 +99,10 @@ export const createPipeline = async (
     isDefault?: boolean;
   }
 ) => {
-  const slug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-');
+  // Generate unique slug
+  const slug = data.slug
+    ? await generateUniqueSlug(organizationId, data.slug)
+    : await generateUniqueSlug(organizationId, data.name);
 
   // If this is set as default, unset other defaults for same entity type
   if (data.isDefault) {

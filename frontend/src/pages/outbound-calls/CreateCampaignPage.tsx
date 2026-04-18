@@ -17,26 +17,34 @@ export const CreateCampaignPage: React.FC = () => {
   const {
     agents,
     leads,
+    rawImportRecords,
     contacts,
     formData,
     contactSource,
     selectedLeadIds,
+    selectedRawImportIds,
     selectAll,
+    selectAllRawImports,
     leadFilter,
+    rawImportFilter,
     step,
     loading,
     loadingLeads,
+    loadingRawImports,
     submitting,
     error,
     setFormData,
     setContactSource,
     setLeadFilter,
+    setRawImportFilter,
     setStep,
     addContact,
     removeContact,
     updateContact,
     toggleLeadSelection,
+    toggleRawImportSelection,
     handleSelectAll,
+    handleSelectAllRawImports,
     handleFileUpload,
     validateStep1,
     validateStep2,
@@ -100,16 +108,24 @@ export const CreateCampaignPage: React.FC = () => {
           <Step2AddContacts
             contactSource={contactSource}
             leads={leads}
+            rawImportRecords={rawImportRecords}
             contacts={contacts}
             selectedLeadIds={selectedLeadIds}
+            selectedRawImportIds={selectedRawImportIds}
             selectAll={selectAll}
+            selectAllRawImports={selectAllRawImports}
             leadFilter={leadFilter}
+            rawImportFilter={rawImportFilter}
             loadingLeads={loadingLeads}
+            loadingRawImports={loadingRawImports}
             error={error}
             onContactSourceChange={setContactSource}
             onLeadFilterChange={setLeadFilter}
+            onRawImportFilterChange={setRawImportFilter}
             onToggleLeadSelection={toggleLeadSelection}
+            onToggleRawImportSelection={toggleRawImportSelection}
             onSelectAll={handleSelectAll}
+            onSelectAllRawImports={handleSelectAllRawImports}
             onAddContact={addContact}
             onRemoveContact={removeContact}
             onUpdateContact={updateContact}
@@ -126,6 +142,7 @@ export const CreateCampaignPage: React.FC = () => {
             agents={agents}
             contactSource={contactSource}
             selectedLeadIds={selectedLeadIds}
+            selectedRawImportIds={selectedRawImportIds}
             contacts={contacts}
             submitting={submitting}
             onFormChange={setFormData}

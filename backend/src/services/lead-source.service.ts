@@ -103,19 +103,54 @@ export const leadSourceService = {
   },
 
   /**
+   * Generate a unique slug for a lead source
+   */
+  async generateUniqueSlug(organizationId: string, baseName: string): Promise<string> {
+    const baseSlug = baseName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+
+    // Check if base slug exists
+    const existing = await prisma.customLeadSource.findFirst({
+      where: { organizationId, slug: baseSlug },
+    });
+
+    if (!existing) {
+      return baseSlug;
+    }
+
+    // Find a unique slug by appending a number
+    let counter = 1;
+    let uniqueSlug = `${baseSlug}_${counter}`;
+
+    while (true) {
+      const exists = await prisma.customLeadSource.findFirst({
+        where: { organizationId, slug: uniqueSlug },
+      });
+
+      if (!exists) {
+        return uniqueSlug;
+      }
+
+      counter++;
+      uniqueSlug = `${baseSlug}_${counter}`;
+
+      // Safety limit
+      if (counter > 100) {
+        uniqueSlug = `${baseSlug}_${Date.now()}`;
+        break;
+      }
+    }
+
+    return uniqueSlug;
+  },
+
+  /**
    * Create a custom lead source
    */
   async create(organizationId: string, input: CreateLeadSourceInput) {
-    const slug = input.slug || input.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-
-    // Check for duplicate slug
-    const existing = await prisma.customLeadSource.findFirst({
-      where: { organizationId, slug },
-    });
-
-    if (existing) {
-      throw new Error(`A lead source with slug "${slug}" already exists`);
-    }
+    // Generate unique slug
+    const slug = input.slug
+      ? await this.generateUniqueSlug(organizationId, input.slug)
+      : await this.generateUniqueSlug(organizationId, input.name);
 
     // Get max order
     const maxOrder = await prisma.customLeadSource.aggregate({

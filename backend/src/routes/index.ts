@@ -180,11 +180,15 @@ import leadPrioritySettingsRoutes from './lead-priority-settings.routes';
 import autoReportsRoutes from './auto-reports.routes';
 import notificationPreferencesRoutes from './notification-preferences.routes';
 import workSessionRoutes from './work-session.routes';
+import brandingRoutes from './branding.routes';
 
 const router = Router();
 
 // Health check endpoints (comprehensive)
 router.use('/health', healthRoutes);
+
+// Public branding endpoint (no auth required)
+router.use('/branding', brandingRoutes);
 
 // API routes
 router.use('/auth', authRoutes);

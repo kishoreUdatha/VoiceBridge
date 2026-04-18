@@ -40,10 +40,10 @@ const RESERVED_SUBDOMAINS = [
 /**
  * Extract subdomain from hostname
  * Examples:
- *   abc-college.voicebridge.com → abc-college
- *   xyz-hospital.crm.voicebridge.com → xyz-hospital
+ *   abc-college.myleadx.com → abc-college
+ *   xyz-hospital.crm.myleadx.com → xyz-hospital
  *   localhost:5000 → null
- *   voicebridge.com → null
+ *   myleadx.com → null
  */
 function extractSubdomain(hostname: string): string | null {
   // Remove port if present
@@ -86,7 +86,7 @@ export async function subdomainTenant(
 
     if (!subdomain) {
       // No subdomain, continue without tenant context
-      // This allows access to main app (voicebridge.com)
+      // This allows access to main app (myleadx.com)
       next();
       return;
     }

@@ -282,6 +282,63 @@ router.get('/download-url/:key', validate([
   }
 });
 
+// Upload branding assets (logo, favicon, etc.)
+router.post('/branding', upload.single('file'), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    const type = req.body.type || 'logo'; // logo, favicon, loginBg
+    const folder = 'branding';
+
+    if (s3Service.isEnabled()) {
+      // Upload to S3
+      const result = await s3Service.uploadFile(
+        req.file.buffer,
+        req.file.originalname,
+        {
+          folder,
+          contentType: req.file.mimetype,
+          isPublic: true, // Branding assets should be public
+        }
+      );
+
+      return res.json({
+        success: true,
+        data: {
+          type,
+          key: result.key,
+          url: result.url,
+          originalName: req.file.originalname,
+          size: req.file.size,
+          mimeType: req.file.mimetype,
+          storage: 's3',
+        },
+      });
+    } else {
+      // Local storage
+      const fileUrl = `${config.baseUrl}/uploads/${req.file.filename}`;
+
+      return res.json({
+        success: true,
+        data: {
+          type,
+          key: req.file.filename,
+          url: fileUrl,
+          originalName: req.file.originalname,
+          size: req.file.size,
+          mimeType: req.file.mimetype,
+          storage: 'local',
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Branding upload error:', error);
+    return res.status(500).json({ success: false, message: (error as Error).message });
+  }
+});
+
 // Delete file
 router.delete('/:key', async (req: Request, res: Response) => {
   try {

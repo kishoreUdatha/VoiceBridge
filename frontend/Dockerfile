@@ -1,4 +1,4 @@
-# VoiceBridge Frontend - Production Dockerfile
+# MyLeadX Frontend - Production Dockerfile
 FROM node:20-alpine AS builder
 
 WORKDIR /app

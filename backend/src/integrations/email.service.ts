@@ -322,7 +322,7 @@ export class EmailService {
     const lines = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
-      'PRODID:-//VoiceBridge//Calendar//EN',
+      'PRODID:-//MyLeadX//Calendar//EN',
       'CALSCALE:GREGORIAN',
       'METHOD:REQUEST',
       'BEGIN:VEVENT',
@@ -341,7 +341,7 @@ export class EmailService {
       lines.push(`LOCATION:${escapeIcsText(event.location)}`);
     }
 
-    lines.push(`ORGANIZER;CN=${event.organizerName || 'VoiceBridge'}:mailto:${event.organizerEmail}`);
+    lines.push(`ORGANIZER;CN=${event.organizerName || 'MyLeadX'}:mailto:${event.organizerEmail}`);
     lines.push(`ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=${event.attendeeName || event.attendeeEmail}:mailto:${event.attendeeEmail}`);
 
     lines.push('STATUS:CONFIRMED');
@@ -375,8 +375,8 @@ export class EmailService {
     location?: string;
     eventId?: string;
   }) {
-    const organizerEmail = config.smtp.from || 'noreply@voicebridge.ai';
-    const uid = input.eventId || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}@voicebridge`;
+    const organizerEmail = config.smtp.from || 'noreply@myleadx.ai';
+    const uid = input.eventId || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}@myleadx`;
 
     // Generate ICS content
     const icsContent = this.generateIcsContent({
@@ -387,7 +387,7 @@ export class EmailService {
       endTime: input.endTime,
       location: input.location,
       organizerEmail,
-      organizerName: 'VoiceBridge',
+      organizerName: 'MyLeadX',
       attendeeEmail: input.to,
       attendeeName: input.toName,
     });
@@ -421,7 +421,7 @@ ${input.eventDescription ? `\nDetails:\n${input.eventDescription}` : ''}
 Please find the calendar invitation attached. You can add this event to your calendar by opening the attached .ics file.
 
 Best regards,
-VoiceBridge
+MyLeadX
     `.trim();
 
     const html = `
@@ -458,7 +458,7 @@ VoiceBridge
 
         <hr style="margin: 24px 0; border: none; border-top: 1px solid #e5e7eb;">
         <p style="color: #9ca3af; font-size: 14px;">
-          This invitation was sent by VoiceBridge Voice AI System.
+          This invitation was sent by MyLeadX Voice AI System.
         </p>
       </div>
     `;

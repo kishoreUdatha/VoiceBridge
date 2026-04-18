@@ -43,4 +43,23 @@ export interface LeadFilter {
   search: string;
 }
 
-export type ContactSource = 'manual' | 'csv' | 'leads';
+export interface RawImportRecord {
+  id: string;
+  firstName: string;
+  lastName?: string;
+  phone: string;
+  email?: string;
+  status: string;
+  bulkImport?: {
+    id: string;
+    fileName: string;
+  };
+  createdAt: string;
+}
+
+export interface RawImportFilter {
+  status: string;
+  search: string;
+}
+
+export type ContactSource = 'manual' | 'csv' | 'leads' | 'rawImports';

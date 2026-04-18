@@ -7,7 +7,7 @@ import crypto from 'crypto';
  * Documentation: https://developer.exotel.com/api/
  *
  * Supports both:
- * - Platform-wide credentials (env vars) for VoiceBridge-provided numbers
+ * - Platform-wide credentials (env vars) for MyLeadX-provided numbers
  * - Organization-specific credentials (BYOC - Bring Your Own Carrier)
  */
 

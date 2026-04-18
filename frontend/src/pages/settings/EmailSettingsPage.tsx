@@ -71,7 +71,7 @@ export default function EmailSettingsPage() {
   const [settings, setSettings] = useState<EmailSettings>(initialSettings);
   const [showPassword, setShowPassword] = useState(false);
   const [testEmail, setTestEmail] = useState('');
-  const [testSubject, setTestSubject] = useState('Test Email from VoiceBridge');
+  const [testSubject, setTestSubject] = useState('Test Email from MyLeadX');
   const [testMessage, setTestMessage] = useState('This is a test email to verify your email configuration is working correctly.');
   const [testResult, setTestResult] = useState<any>(null);
   const [testing, setTesting] = useState(false);

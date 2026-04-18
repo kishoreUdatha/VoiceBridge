@@ -26,7 +26,7 @@ import {
 } from '../integration-settings.types';
 import {
   CRM_PROVIDERS,
-  VOICEBRIDGE_FIELDS,
+  MYLEADX_FIELDS,
   TRIGGER_OPTIONS,
   copyToClipboard,
 } from '../integration-settings.constants';
@@ -407,7 +407,7 @@ export const FieldMappingSection: React.FC<FieldMappingSectionProps> = ({
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-medium text-gray-900">Field Mapping</h3>
-          <p className="text-sm text-gray-500">Map VoiceBridge fields to your CRM fields</p>
+          <p className="text-sm text-gray-500">Map MyLeadX fields to your CRM fields</p>
         </div>
         <button
           onClick={onSave}
@@ -421,7 +421,7 @@ export const FieldMappingSection: React.FC<FieldMappingSectionProps> = ({
 
       <div className="space-y-3">
         <div className="grid grid-cols-5 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wider pb-2 border-b">
-          <div className="col-span-2">VoiceBridge Field</div>
+          <div className="col-span-2">MyLeadX Field</div>
           <div className="text-center">\u2192</div>
           <div className="col-span-2">Your CRM Field</div>
         </div>
@@ -438,7 +438,7 @@ export const FieldMappingSection: React.FC<FieldMappingSectionProps> = ({
                 }}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
               >
-                {VOICEBRIDGE_FIELDS.map((field) => (
+                {MYLEADX_FIELDS.map((field) => (
                   <option key={field.id} value={field.id}>
                     {field.label}
                   </option>

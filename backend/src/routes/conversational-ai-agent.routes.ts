@@ -154,7 +154,7 @@ router.post(
     const finalSystemPrompt = systemPrompt || generateSystemPrompt(industry, useCase, mainGoal);
     const finalFirstMessage = firstMessage || generateFirstMessage(name);
 
-    // Create in VoiceBridge database first
+    // Create in MyLeadX database first
     const voiceBridgeAgent = await prisma.voiceAgent.create({
       data: {
         organizationId: req.organizationId!,
@@ -192,7 +192,7 @@ router.post(
 
         conversationalAIAgentId = result.agentId;
 
-        // Update VoiceBridge agent with Conversational AI ID
+        // Update MyLeadX agent with Conversational AI ID
         await prisma.voiceAgent.update({
           where: { id: voiceBridgeAgent.id },
           data: {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import {
   KeyIcon,
@@ -14,6 +15,7 @@ import {
   SpeakerWaveIcon,
   MegaphoneIcon,
   ShieldCheckIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -225,8 +227,13 @@ export default function IntegrationCredentialsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Integration Credentials</h1>
-          <p className="text-gray-600 mt-1">
+          <div className="flex items-center gap-3">
+            <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+              <ArrowLeftIcon className="w-5 h-5 text-slate-600" />
+            </Link>
+            <h1 className="text-2xl font-bold text-gray-900">Integration Credentials</h1>
+          </div>
+          <p className="text-gray-600 mt-1 ml-12">
             Configure your API keys and credentials for all integrations
           </p>
         </div>

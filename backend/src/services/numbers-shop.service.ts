@@ -4,7 +4,7 @@
  *
  * Supports two modes:
  * - BYOC (Bring Your Own Carrier): Customer connects their own Exotel account
- * - PLATFORM: Customer buys numbers from VoiceBridge's master Exotel account
+ * - PLATFORM: Customer buys numbers from MyLeadX's master Exotel account
  */
 
 import { prisma } from '../config/database';
@@ -464,7 +464,7 @@ class NumbersShopService {
   }
 
   /**
-   * List platform numbers (from VoiceBridge's master Exotel account)
+   * List platform numbers (from MyLeadX's master Exotel account)
    */
   async listPlatformNumbers(params: {
     country?: string;
@@ -495,7 +495,7 @@ class NumbersShopService {
   // ==================== PURCHASE ====================
 
   /**
-   * Purchase a phone number from platform (VoiceBridge's Exotel)
+   * Purchase a phone number from platform (MyLeadX's Exotel)
    */
   async purchaseFromPlatform(
     organizationId: string,
@@ -552,7 +552,7 @@ class NumbersShopService {
     // Purchase from platform Exotel (uses env vars)
     const purchaseResult = await exotelService.purchaseNumber({
       phoneNumber,
-      friendlyName: options.friendlyName || `VoiceBridge - ${phoneNumber}`,
+      friendlyName: options.friendlyName || `MyLeadX - ${phoneNumber}`,
     });
 
     if (!purchaseResult.success) {

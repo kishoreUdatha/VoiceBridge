@@ -253,21 +253,21 @@ class PushNotificationService {
   private getChannelId(type: NotificationType): string {
     switch (type) {
       case 'NEW_ASSIGNMENT':
-        return 'voicebridge-assignments';
+        return 'myleadx-assignments';
       case 'FOLLOW_UP_REMINDER':
       case 'CALLBACK_REMINDER':
-        return 'voicebridge-reminders';
+        return 'myleadx-reminders';
       case 'AI_ANALYSIS_COMPLETE':
-        return 'voicebridge-ai';
+        return 'myleadx-ai';
       case 'ADMISSION_CREATED':
       case 'ADMISSION_PAYMENT':
       case 'ADMISSION_PAYMENT_COMPLETE':
       case 'ADMISSION_COMMISSION':
       case 'ADMISSION_CANCELLED':
       case 'ADMISSION_PAYMENT_REMINDER':
-        return 'voicebridge-admissions';
+        return 'myleadx-admissions';
       default:
-        return 'voicebridge-main';
+        return 'myleadx-main';
     }
   }
 

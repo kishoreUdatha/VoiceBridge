@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Clock,
   Users,
@@ -10,6 +10,7 @@ import {
   X,
   RefreshCw,
   ShoppingCart,
+  ArrowLeft,
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -118,9 +119,14 @@ export const VoiceMinutesPage: React.FC = () => {
     <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Voice Minutes Management</h1>
-          <p className="text-gray-600">Monitor and manage AI voice calling minutes for your team</p>
+        <div className="flex items-center gap-3">
+          <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Voice Minutes Management</h1>
+            <p className="text-gray-600">Monitor and manage AI voice calling minutes for your team</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button

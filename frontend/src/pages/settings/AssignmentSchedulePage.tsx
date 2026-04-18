@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import {
   fetchSchedules,
@@ -24,6 +25,7 @@ import {
   ChartBarIcon,
   ArrowPathIcon,
   BoltIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import {
@@ -204,8 +206,13 @@ export default function AssignmentSchedulePage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Assignment Schedules</h1>
-          <p className="text-slate-500 mt-1">
+          <div className="flex items-center gap-4">
+            <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+              <ArrowLeftIcon className="w-5 h-5 text-slate-600" />
+            </Link>
+            <h1 className="text-2xl font-bold text-slate-900">Assignment Schedules</h1>
+          </div>
+          <p className="text-slate-500 mt-1 ml-14">
             Automate raw import record assignment to telecallers and AI agents
           </p>
         </div>

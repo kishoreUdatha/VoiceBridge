@@ -1,7 +1,7 @@
 {
-  "name": "VoiceBridge CRM",
-  "short_name": "VoiceBridge",
-  "description": "AI-Powered CRM for Indian Lead Management with Voice Calling",
+  "name": "MyLeadX CRM",
+  "short_name": "MyLeadX",
+  "description": "AI-Powered CRM for Lead Management with Voice Calling",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

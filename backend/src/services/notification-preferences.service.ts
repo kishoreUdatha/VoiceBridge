@@ -1,4 +1,4 @@
-import prisma from '../config/database';
+import { prisma } from '../config/database';
 
 // Default notification preferences
 const DEFAULT_PREFERENCES = {
@@ -8,7 +8,7 @@ const DEFAULT_PREFERENCES = {
   smsEnabled: false,
   inAppEnabled: true,
 
-  // Category preferences (JSON object)
+  // Category preferences (JSON object) - stored as 'preferences' in DB
   categoryPreferences: {
     newLead: { email: true, push: true, inApp: true, sms: false },
     leadAssigned: { email: true, push: true, inApp: true, sms: false },
@@ -32,7 +32,7 @@ const DEFAULT_PREFERENCES = {
   digestFrequency: 'daily', // daily, weekly
   digestTime: '09:00',
 
-  // Additional settings
+  // Additional settings (not stored in DB, returned for frontend)
   soundEnabled: true,
   vibrationEnabled: true,
   showPreview: true,
@@ -56,17 +56,33 @@ const NOTIFICATION_CATEGORIES = [
 
 // Get notification preferences for user
 export const getNotificationPreferences = async (userId: string) => {
-  let preferences = await prisma.notificationPreference.findUnique({
+  const dbPreferences = await prisma.notificationPreference.findUnique({
     where: { userId },
   });
 
-  if (!preferences) {
+  if (!dbPreferences) {
     return { ...DEFAULT_PREFERENCES, userId };
   }
 
+  // Map DB 'preferences' field to 'categoryPreferences' for frontend
   return {
-    ...preferences,
-    categoryPreferences: preferences.categoryPreferences as Record<string, any>,
+    userId: dbPreferences.userId,
+    emailEnabled: dbPreferences.emailEnabled,
+    pushEnabled: dbPreferences.pushEnabled,
+    smsEnabled: dbPreferences.smsEnabled,
+    inAppEnabled: dbPreferences.inAppEnabled,
+    categoryPreferences: (dbPreferences.preferences as Record<string, any>) || DEFAULT_PREFERENCES.categoryPreferences,
+    quietHoursEnabled: dbPreferences.quietHoursEnabled,
+    quietHoursStart: dbPreferences.quietHoursStart || DEFAULT_PREFERENCES.quietHoursStart,
+    quietHoursEnd: dbPreferences.quietHoursEnd || DEFAULT_PREFERENCES.quietHoursEnd,
+    digestEnabled: dbPreferences.digestEnabled,
+    digestFrequency: dbPreferences.digestFrequency || DEFAULT_PREFERENCES.digestFrequency,
+    digestTime: dbPreferences.digestTime || DEFAULT_PREFERENCES.digestTime,
+    timezone: dbPreferences.timezone || 'Asia/Kolkata',
+    // These are not in DB but returned for frontend
+    soundEnabled: DEFAULT_PREFERENCES.soundEnabled,
+    vibrationEnabled: DEFAULT_PREFERENCES.vibrationEnabled,
+    showPreview: DEFAULT_PREFERENCES.showPreview,
   };
 };
 
@@ -89,17 +105,72 @@ export const updateNotificationPreferences = async (
     vibrationEnabled: boolean;
     showPreview: boolean;
     timezone: string;
-  }>
+  }>,
+  organizationId?: string
 ) => {
-  return prisma.notificationPreference.upsert({
+  // Get organizationId from user if not provided
+  let orgId = organizationId;
+  if (!orgId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { organizationId: true },
+    });
+    orgId = user?.organizationId;
+  }
+
+  if (!orgId) {
+    throw new Error('Organization ID is required');
+  }
+
+  // Map frontend 'categoryPreferences' to DB 'preferences' field
+  // Also remove fields that don't exist in the DB
+  const { categoryPreferences, soundEnabled, vibrationEnabled, showPreview, ...dbFields } = data;
+
+  const dbData: Record<string, any> = { ...dbFields };
+  if (categoryPreferences !== undefined) {
+    dbData.preferences = categoryPreferences;
+  }
+
+  const result = await prisma.notificationPreference.upsert({
     where: { userId },
     create: {
       userId,
-      ...DEFAULT_PREFERENCES,
-      ...data,
+      organizationId: orgId,
+      emailEnabled: DEFAULT_PREFERENCES.emailEnabled,
+      pushEnabled: DEFAULT_PREFERENCES.pushEnabled,
+      smsEnabled: DEFAULT_PREFERENCES.smsEnabled,
+      inAppEnabled: DEFAULT_PREFERENCES.inAppEnabled,
+      preferences: DEFAULT_PREFERENCES.categoryPreferences,
+      quietHoursEnabled: DEFAULT_PREFERENCES.quietHoursEnabled,
+      quietHoursStart: DEFAULT_PREFERENCES.quietHoursStart,
+      quietHoursEnd: DEFAULT_PREFERENCES.quietHoursEnd,
+      digestEnabled: DEFAULT_PREFERENCES.digestEnabled,
+      digestFrequency: DEFAULT_PREFERENCES.digestFrequency,
+      digestTime: DEFAULT_PREFERENCES.digestTime,
+      ...dbData,
     },
-    update: data,
+    update: dbData,
   });
+
+  // Return in frontend format
+  return {
+    userId: result.userId,
+    emailEnabled: result.emailEnabled,
+    pushEnabled: result.pushEnabled,
+    smsEnabled: result.smsEnabled,
+    inAppEnabled: result.inAppEnabled,
+    categoryPreferences: (result.preferences as Record<string, any>) || DEFAULT_PREFERENCES.categoryPreferences,
+    quietHoursEnabled: result.quietHoursEnabled,
+    quietHoursStart: result.quietHoursStart || DEFAULT_PREFERENCES.quietHoursStart,
+    quietHoursEnd: result.quietHoursEnd || DEFAULT_PREFERENCES.quietHoursEnd,
+    digestEnabled: result.digestEnabled,
+    digestFrequency: result.digestFrequency || DEFAULT_PREFERENCES.digestFrequency,
+    digestTime: result.digestTime || DEFAULT_PREFERENCES.digestTime,
+    timezone: result.timezone || 'Asia/Kolkata',
+    soundEnabled: DEFAULT_PREFERENCES.soundEnabled,
+    vibrationEnabled: DEFAULT_PREFERENCES.vibrationEnabled,
+    showPreview: DEFAULT_PREFERENCES.showPreview,
+  };
 };
 
 // ==================== CHANNEL PREFERENCES ====================
@@ -289,15 +360,72 @@ export const shouldDeliverNotification = async (
 };
 
 // Reset notification preferences to defaults
-export const resetNotificationPreferences = async (userId: string) => {
-  return prisma.notificationPreference.upsert({
+export const resetNotificationPreferences = async (userId: string, organizationId?: string) => {
+  // Get organizationId from user if not provided
+  let orgId = organizationId;
+  if (!orgId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { organizationId: true },
+    });
+    orgId = user?.organizationId;
+  }
+
+  if (!orgId) {
+    throw new Error('Organization ID is required');
+  }
+
+  const result = await prisma.notificationPreference.upsert({
     where: { userId },
     create: {
       userId,
-      ...DEFAULT_PREFERENCES,
+      organizationId: orgId,
+      emailEnabled: DEFAULT_PREFERENCES.emailEnabled,
+      pushEnabled: DEFAULT_PREFERENCES.pushEnabled,
+      smsEnabled: DEFAULT_PREFERENCES.smsEnabled,
+      inAppEnabled: DEFAULT_PREFERENCES.inAppEnabled,
+      preferences: DEFAULT_PREFERENCES.categoryPreferences,
+      quietHoursEnabled: DEFAULT_PREFERENCES.quietHoursEnabled,
+      quietHoursStart: DEFAULT_PREFERENCES.quietHoursStart,
+      quietHoursEnd: DEFAULT_PREFERENCES.quietHoursEnd,
+      digestEnabled: DEFAULT_PREFERENCES.digestEnabled,
+      digestFrequency: DEFAULT_PREFERENCES.digestFrequency,
+      digestTime: DEFAULT_PREFERENCES.digestTime,
     },
-    update: DEFAULT_PREFERENCES,
+    update: {
+      emailEnabled: DEFAULT_PREFERENCES.emailEnabled,
+      pushEnabled: DEFAULT_PREFERENCES.pushEnabled,
+      smsEnabled: DEFAULT_PREFERENCES.smsEnabled,
+      inAppEnabled: DEFAULT_PREFERENCES.inAppEnabled,
+      preferences: DEFAULT_PREFERENCES.categoryPreferences,
+      quietHoursEnabled: DEFAULT_PREFERENCES.quietHoursEnabled,
+      quietHoursStart: DEFAULT_PREFERENCES.quietHoursStart,
+      quietHoursEnd: DEFAULT_PREFERENCES.quietHoursEnd,
+      digestEnabled: DEFAULT_PREFERENCES.digestEnabled,
+      digestFrequency: DEFAULT_PREFERENCES.digestFrequency,
+      digestTime: DEFAULT_PREFERENCES.digestTime,
+    },
   });
+
+  // Return in frontend format
+  return {
+    userId: result.userId,
+    emailEnabled: result.emailEnabled,
+    pushEnabled: result.pushEnabled,
+    smsEnabled: result.smsEnabled,
+    inAppEnabled: result.inAppEnabled,
+    categoryPreferences: (result.preferences as Record<string, any>) || DEFAULT_PREFERENCES.categoryPreferences,
+    quietHoursEnabled: result.quietHoursEnabled,
+    quietHoursStart: result.quietHoursStart || DEFAULT_PREFERENCES.quietHoursStart,
+    quietHoursEnd: result.quietHoursEnd || DEFAULT_PREFERENCES.quietHoursEnd,
+    digestEnabled: result.digestEnabled,
+    digestFrequency: result.digestFrequency || DEFAULT_PREFERENCES.digestFrequency,
+    digestTime: result.digestTime || DEFAULT_PREFERENCES.digestTime,
+    timezone: result.timezone || 'Asia/Kolkata',
+    soundEnabled: DEFAULT_PREFERENCES.soundEnabled,
+    vibrationEnabled: DEFAULT_PREFERENCES.vibrationEnabled,
+    showPreview: DEFAULT_PREFERENCES.showPreview,
+  };
 };
 
 // Get available notification categories

@@ -3,6 +3,7 @@
  */
 
 import React from 'react';
+import { Link } from 'react-router-dom';
 import {
   Mail,
   Plus,
@@ -15,6 +16,7 @@ import {
   Clock,
   AlertCircle,
   CheckCircle,
+  ArrowLeft,
 } from 'lucide-react';
 import {
   EmailSequence,
@@ -64,11 +66,16 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onCreateClick }) => (
   <div className="flex items-center justify-between mb-6">
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-        <Mail className="text-teal-600" />
-        Email Sequences
-      </h1>
-      <p className="text-gray-600 mt-1">
+      <div className="flex items-center gap-4">
+        <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+          <ArrowLeft className="w-5 h-5 text-slate-600" />
+        </Link>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Mail className="text-teal-600" />
+          Email Sequences
+        </h1>
+      </div>
+      <p className="text-gray-600 mt-1 ml-14">
         Create automated email drip campaigns for lead nurturing
       </p>
     </div>

@@ -1,4 +1,4 @@
-import prisma from '../config/database';
+import { prisma } from '../config/database';
 
 // Default retry settings
 const DEFAULT_RETRY_SETTINGS = {
@@ -84,19 +84,34 @@ export const updateRetrySettings = async (
     maxTotalAttempts: number;
   }>
 ) => {
-  return prisma.retrySettings.upsert({
+  // Filter out organizationId if it exists in data
+  const { organizationId: _, ...cleanData } = data as any;
+
+  // Check if settings exist
+  const existing = await prisma.retrySettings.findUnique({
     where: { organizationId },
-    create: {
-      organizationId,
-      ...DEFAULT_RETRY_SETTINGS,
-      ...data,
-      callRetryDays: data.callRetryDays || DEFAULT_RETRY_SETTINGS.callRetryDays,
-    },
-    update: {
-      ...data,
-      ...(data.callRetryDays && { callRetryDays: data.callRetryDays }),
-    },
   });
+
+  if (existing) {
+    // Update existing record
+    return prisma.retrySettings.update({
+      where: { organizationId },
+      data: {
+        ...cleanData,
+        ...(cleanData.callRetryDays && { callRetryDays: cleanData.callRetryDays }),
+      },
+    });
+  } else {
+    // Create new record - must use relation connect
+    return (prisma.retrySettings.create as any)({
+      data: {
+        organization: { connect: { id: organizationId } },
+        ...DEFAULT_RETRY_SETTINGS,
+        ...cleanData,
+        callRetryDays: cleanData.callRetryDays || DEFAULT_RETRY_SETTINGS.callRetryDays,
+      },
+    });
+  }
 };
 
 // Update channel-specific retry settings
@@ -171,14 +186,24 @@ export const getChannelRetrySettings = async (
 
 // Reset retry settings to defaults
 export const resetRetrySettings = async (organizationId: string) => {
-  return prisma.retrySettings.upsert({
+  // Check if settings exist
+  const existing = await prisma.retrySettings.findUnique({
     where: { organizationId },
-    create: {
-      organizationId,
-      ...DEFAULT_RETRY_SETTINGS,
-    },
-    update: DEFAULT_RETRY_SETTINGS,
   });
+
+  if (existing) {
+    return prisma.retrySettings.update({
+      where: { organizationId },
+      data: DEFAULT_RETRY_SETTINGS,
+    });
+  } else {
+    return (prisma.retrySettings.create as any)({
+      data: {
+        organization: { connect: { id: organizationId } },
+        ...DEFAULT_RETRY_SETTINGS,
+      },
+    });
+  }
 };
 
 // Check if retry is allowed based on settings

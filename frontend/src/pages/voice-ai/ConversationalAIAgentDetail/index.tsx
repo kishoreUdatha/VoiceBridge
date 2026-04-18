@@ -868,7 +868,7 @@ export function ConversationalAIAgentDetail() {
   const handleCopyWidgetCode = () => {
     let code = '';
     if (embedCodeType === 'Script') {
-      code = `<!-- VoiceBridge Widget -->
+      code = `<!-- MyLeadX Widget -->
 <script
   src="${window.location.origin}/widget.js"
   data-agent-id="${agent?.id || 'your-agent-id'}"
@@ -877,16 +877,16 @@ export function ConversationalAIAgentDetail() {
   data-size="${widgetSize}"
 ></script>`;
     } else if (embedCodeType === 'React') {
-      code = `import { VoiceBridgeWidget } from '@voicebridge/react';
+      code = `import { MyLeadXWidget } from '@myleadx/react';
 
-<VoiceBridgeWidget
+<MyLeadXWidget
   agentId="${agent?.id || 'your-agent-id'}"
   position="${widgetPosition}"
   color="${widgetColor}"
   size="${widgetSize}"
 />`;
     } else {
-      code = `<!-- VoiceBridge Widget iFrame -->
+      code = `<!-- MyLeadX Widget iFrame -->
 <iframe
   src="${window.location.origin}/widget/${agent?.id || 'your-agent-id'}?position=${widgetPosition}&color=${encodeURIComponent(widgetColor)}&size=${widgetSize}"
   style="position: fixed; ${widgetPosition.includes('bottom') ? 'bottom: 20px' : 'top: 20px'}; ${widgetPosition.includes('right') ? 'right: 20px' : 'left: 20px'}; border: none; width: 400px; height: 600px; z-index: 9999;"
@@ -2056,21 +2056,21 @@ export function ConversationalAIAgentDetail() {
                       <div className="relative">
                         <div className="p-4 bg-gray-900 rounded-xl overflow-x-auto">
                           <pre className="text-xs text-green-400 whitespace-pre-wrap break-all">
-{embedCodeType === 'Script' ? `<!-- VoiceBridge Widget -->
+{embedCodeType === 'Script' ? `<!-- MyLeadX Widget -->
 <script
   src="${window.location.origin}/widget.js"
   data-agent-id="${agent?.id || 'your-agent-id'}"
   data-position="${widgetPosition}"
   data-color="${widgetColor}"
   data-size="${widgetSize}"
-></script>` : embedCodeType === 'React' ? `import { VoiceBridgeWidget } from '@voicebridge/react';
+></script>` : embedCodeType === 'React' ? `import { MyLeadXWidget } from '@myleadx/react';
 
-<VoiceBridgeWidget
+<MyLeadXWidget
   agentId="${agent?.id || 'your-agent-id'}"
   position="${widgetPosition}"
   color="${widgetColor}"
   size="${widgetSize}"
-/>` : `<!-- VoiceBridge Widget iFrame -->
+/>` : `<!-- MyLeadX Widget iFrame -->
 <iframe
   src="${window.location.origin}/widget/${agent?.id || 'your-agent-id'}?position=${widgetPosition}&color=${encodeURIComponent(widgetColor)}&size=${widgetSize}"
   style="position: fixed; ${widgetPosition.includes('bottom') ? 'bottom: 20px' : 'top: 20px'}; ${widgetPosition.includes('right') ? 'right: 20px' : 'left: 20px'}; border: none; width: 400px; height: 600px; z-index: 9999;"
@@ -4164,14 +4164,14 @@ export function ConversationalAIAgentDetail() {
                       Install the npm package and use the component:
                     </p>
                     <pre className="bg-gray-900 text-gray-100 rounded-xl p-4 text-xs overflow-x-auto mb-3">
-{`npm install @voicebridge/react`}
+{`npm install @myleadx/react`}
                     </pre>
                     <pre className="bg-gray-900 text-gray-100 rounded-xl p-4 text-xs overflow-x-auto">
-{`import { VoiceBridgeWidget } from '@voicebridge/react';
+{`import { MyLeadXWidget } from '@myleadx/react';
 
 function App() {
   return (
-    <VoiceBridgeWidget
+    <MyLeadXWidget
       agentId="${agent?.id || 'your-agent-id'}"
       position="${widgetPosition}"
       color="${widgetColor}"

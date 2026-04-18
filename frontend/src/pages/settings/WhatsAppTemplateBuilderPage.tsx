@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   MessageCircle,
   Plus,
@@ -25,6 +26,7 @@ import {
   ExternalLink,
   MessageSquare,
   Globe,
+  ArrowLeft,
 } from 'lucide-react';
 import {
   templateService,
@@ -283,14 +285,19 @@ export default function WhatsAppTemplateBuilderPage() {
         <>
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                <MessageCircle className="w-7 h-7 text-green-600" />
-                WhatsApp Templates
-              </h1>
-              <p className="text-slate-500 mt-1">
-                Create WhatsApp Business API templates with media and buttons
-              </p>
+            <div className="flex items-center gap-3">
+              <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                <ArrowLeft className="w-5 h-5 text-slate-600" />
+              </Link>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                  <MessageCircle className="w-7 h-7 text-green-600" />
+                  WhatsApp Templates
+                </h1>
+                <p className="text-slate-500 mt-1">
+                  Create WhatsApp Business API templates with media and buttons
+                </p>
+              </div>
             </div>
             <button
               onClick={openCreateEditor}

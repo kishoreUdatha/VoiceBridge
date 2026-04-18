@@ -33,7 +33,7 @@ async function populateCallSummary(callId: string) {
   }
   // Sample transcript with timestamps and sentiment
   const enhancedTranscript = [
-    { role: 'assistant', content: 'Hello! Thank you for taking my call. This is Sarah from VoiceBridge. How are you doing today?', startTimeSeconds: 0, sentiment: 'positive' },
+    { role: 'assistant', content: 'Hello! Thank you for taking my call. This is Sarah from MyLeadX. How are you doing today?', startTimeSeconds: 0, sentiment: 'positive' },
     { role: 'user', content: 'Hi Sarah, I\'m doing well, thanks for asking. What is this call about?', startTimeSeconds: 8, sentiment: 'neutral' },
     { role: 'assistant', content: 'I\'m calling to discuss our new CRM solution that can help streamline your sales process. Do you currently use any CRM software?', startTimeSeconds: 15, sentiment: 'positive' },
     { role: 'user', content: 'Yes, we use Salesforce but we\'re having some issues with it. It\'s quite expensive and complicated.', startTimeSeconds: 28, sentiment: 'negative' },
@@ -121,7 +121,7 @@ async function populateCallSummary(callId: string) {
         recordingDuration: 150,
 
         // Summary
-        summary: 'Successful sales call with a prospect currently using Salesforce. Customer expressed frustration with their current CRM being expensive and complicated. Discussed VoiceBridge features including AI-powered lead scoring and automated follow-ups. Customer showed strong interest and scheduled a demo for Thursday at 10 AM. Key focus areas for demo: reporting dashboard and automation features.',
+        summary: 'Successful sales call with a prospect currently using Salesforce. Customer expressed frustration with their current CRM being expensive and complicated. Discussed MyLeadX features including AI-powered lead scoring and automated follow-ups. Customer showed strong interest and scheduled a demo for Thursday at 10 AM. Key focus areas for demo: reporting dashboard and automation features.',
         sentiment: 'positive',
         sentimentIntensity: 'high',
 

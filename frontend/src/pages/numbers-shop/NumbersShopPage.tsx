@@ -368,7 +368,7 @@ export default function NumbersShopPage() {
                     <li>Create an account at <a href="https://exotel.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">exotel.com</a></li>
                     <li>Purchase phone numbers from your Exotel dashboard</li>
                     <li>Connect your Exotel account here using API credentials</li>
-                    <li>Import your numbers to use with VoiceBridge AI agents</li>
+                    <li>Import your numbers to use with MyLeadX AI agents</li>
                   </ol>
                   <a
                     href="https://my.exotel.com"
@@ -552,7 +552,7 @@ export default function NumbersShopPage() {
                     <CloudArrowDownIcon className="w-6 h-6 text-blue-600 flex-shrink-0" />
                     <div>
                       <p className="text-sm text-slate-700">
-                        This will sync all phone numbers from your connected Exotel account to VoiceBridge.
+                        This will sync all phone numbers from your connected Exotel account to MyLeadX.
                       </p>
                     </div>
                   </div>

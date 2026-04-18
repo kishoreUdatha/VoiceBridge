@@ -24,7 +24,7 @@ router.get('/auth/test', authenticateToken, async (req: Request, res: Response) 
       message: 'Authentication successful',
       organization: {
         id: req.user?.organizationId,
-        name: 'VoiceBridge Organization',
+        name: 'MyLeadX Organization',
       },
     });
   } catch (error) {

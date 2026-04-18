@@ -15,6 +15,7 @@ import {
   ExclamationTriangleIcon,
   XMarkIcon,
   CheckIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import { AppDispatch, RootState } from '../../store';
 import { fetchBranches, deleteBranch } from '../../store/slices/branchSlice';
@@ -112,7 +113,15 @@ export default function BranchesPage() {
     <div className="p-6">
       {/* Header Row */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-slate-900">Branches</h1>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/settings"
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            <ArrowLeftIcon className="w-5 h-5 text-slate-600" />
+          </Link>
+          <h1 className="text-lg font-semibold text-slate-900">Branches</h1>
+        </div>
         <div className="flex items-center gap-3">
           {/* Inline Stats */}
           <div className="hidden sm:flex items-center gap-4 text-sm text-slate-500 mr-4">

@@ -79,6 +79,7 @@ import {
 } from './pages/settings';
 import BranchesPage from './pages/settings/BranchesPage';
 import BranchFormPage from './pages/settings/BranchFormPage';
+import BrandingSettingsPage from './pages/settings/BrandingSettingsPage';
 import IntegrationSettingsPage from './pages/settings/IntegrationSettingsPage';
 import EmailSettingsPage from './pages/settings/EmailSettingsPage';
 import RazorpaySettingsPage from './pages/settings/RazorpaySettingsPage';
@@ -542,6 +543,7 @@ function App() {
         <Route path="settings/crm-integration" element={<CRMIntegrationPage />} />
         <Route path="settings/integrations-advanced" element={<IntegrationSettingsPage />} />
         <Route path="settings/post-call-messaging" element={<PostCallMessagingPage />} />
+        <Route path="settings/branding" element={<BrandingSettingsPage />} />
         <Route path="settings/branches" element={<BranchesPage />} />
         <Route path="settings/branches/new" element={<BranchFormPage />} />
         <Route path="settings/branches/:id/edit" element={<BranchFormPage />} />

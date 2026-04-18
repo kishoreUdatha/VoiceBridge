@@ -4,7 +4,7 @@
  *
  * Supports two options:
  * 1. Connect Your Exotel (BYOC) - Use your own Exotel account
- * 2. Buy from VoiceBridge (PLATFORM) - Purchase numbers from our pool
+ * 2. Buy from MyLeadX (PLATFORM) - Purchase numbers from our pool
  */
 
 import { Router, Response, NextFunction } from 'express';

@@ -5,6 +5,11 @@
 
 import { prisma } from '../config/database';
 import { LeadWorkflow, LeadWorkflowEnrollment, Lead, Prisma } from '@prisma/client';
+import { emailService } from '../integrations/email.service';
+import { exotelService } from '../integrations/exotel.service';
+import { CommunicationService } from './communication.service';
+
+const communicationService = new CommunicationService();
 
 // Trigger types
 export type TriggerType =

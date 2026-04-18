@@ -97,7 +97,7 @@ export default function WhiteLabelPage() {
             <div>
               <p className="text-sm text-slate-500">Custom Email</p>
               <p className="text-2xl font-bold text-slate-900">
-                {configs.filter(c => c.emailTemplates?.fromEmail !== 'noreply@voicebridge.ai').length}
+                {configs.filter(c => c.emailTemplates?.fromEmail !== 'noreply@myleadx.ai').length}
               </p>
             </div>
           </div>

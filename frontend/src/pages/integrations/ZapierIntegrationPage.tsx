@@ -117,7 +117,7 @@ export default function ZapierIntegrationPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Zapier Integration</h1>
-            <p className="text-sm text-gray-500">Connect VoiceBridge with 5,000+ apps via Zapier</p>
+            <p className="text-sm text-gray-500">Connect MyLeadX with 5,000+ apps via Zapier</p>
           </div>
         </div>
         <a
@@ -149,7 +149,7 @@ export default function ZapierIntegrationPage() {
             </div>
             <div>
               <p className="font-medium text-gray-900">Create a Zap</p>
-              <p className="text-sm text-gray-600">Search for VoiceBridge in Zapier and create a new Zap</p>
+              <p className="text-sm text-gray-600">Search for MyLeadX in Zapier and create a new Zap</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
@@ -232,7 +232,7 @@ export default function ZapierIntegrationPage() {
       <div className="card">
         <div className="card-header">
           <h2 className="text-lg font-medium">Available Actions</h2>
-          <p className="text-sm text-gray-500">Actions Zapier can perform in VoiceBridge</p>
+          <p className="text-sm text-gray-500">Actions Zapier can perform in MyLeadX</p>
         </div>
         <div className="card-body">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -365,32 +365,32 @@ export default function ZapierIntegrationPage() {
               {
                 title: 'Lead to Google Sheets',
                 description: 'Automatically add new leads to a Google Sheet for reporting',
-                apps: ['VoiceBridge', 'Google Sheets'],
+                apps: ['MyLeadX', 'Google Sheets'],
               },
               {
                 title: 'Lead to Slack',
                 description: 'Get instant Slack notifications when new leads come in',
-                apps: ['VoiceBridge', 'Slack'],
+                apps: ['MyLeadX', 'Slack'],
               },
               {
                 title: 'Form to Lead',
                 description: 'Create leads from Google Forms, Typeform, or JotForm submissions',
-                apps: ['Google Forms', 'VoiceBridge'],
+                apps: ['Google Forms', 'MyLeadX'],
               },
               {
                 title: 'Calendar Integration',
                 description: 'Sync appointments with Google Calendar or Calendly',
-                apps: ['VoiceBridge', 'Google Calendar'],
+                apps: ['MyLeadX', 'Google Calendar'],
               },
               {
                 title: 'Email Follow-up',
                 description: 'Send automated emails via Mailchimp when leads reach stages',
-                apps: ['VoiceBridge', 'Mailchimp'],
+                apps: ['MyLeadX', 'Mailchimp'],
               },
               {
                 title: 'CRM Sync',
                 description: 'Two-way sync leads with Salesforce or HubSpot',
-                apps: ['VoiceBridge', 'Salesforce'],
+                apps: ['MyLeadX', 'Salesforce'],
               },
             ].map((useCase, index) => (
               <div key={index} className="p-4 border rounded-lg bg-gray-50">

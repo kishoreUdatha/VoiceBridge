@@ -78,7 +78,7 @@ const BOT_RESPONSES: Record<string, string[]> = {
     'We\'re open Mon-Fri, 9 AM - 6 PM IST. Outside these hours, leave a message and we\'ll get back to you!',
   ],
   contact: [
-    'You can reach us at support@voicebridge.com or call +91 98765 43210.',
+    'You can reach us at support@myleadx.com or call +91 98765 43210.',
   ],
   thanks: [
     'You\'re welcome! Is there anything else I can help with?',
@@ -170,17 +170,17 @@ class LiveChatService {
    * Generate embed code for widget
    */
   generateEmbedCode(organizationId: string, widgetId: string): string {
-    const baseUrl = process.env.APP_URL || 'https://app.voicebridge.com';
-    return `<!-- VoiceBridge Chat Widget -->
+    const baseUrl = process.env.APP_URL || 'https://app.myleadx.com';
+    return `<!-- MyLeadX Chat Widget -->
 <script>
   (function(w,d,s,o,f,js,fjs){
-    w['VoiceBridgeChat']=o;w[o]=w[o]||function(){(w[o].q=w[o].q||[]).push(arguments)};
+    w['MyLeadXChat']=o;w[o]=w[o]||function(){(w[o].q=w[o].q||[]).push(arguments)};
     js=d.createElement(s);fjs=d.getElementsByTagName(s)[0];
     js.id=o;js.src=f;js.async=1;fjs.parentNode.insertBefore(js,fjs);
   }(window,document,'script','vbc','${baseUrl}/widget.js'));
   vbc('init', '${widgetId}');
 </script>
-<!-- End VoiceBridge Chat Widget -->`;
+<!-- End MyLeadX Chat Widget -->`;
   }
 
   /**

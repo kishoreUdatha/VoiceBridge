@@ -1,6 +1,6 @@
 /**
  * Pricing Page Constants
- * VoiceBridge - AI Voice CRM Platform
+ * MyLeadX - AI Voice CRM Platform
  */
 
 import {

@@ -115,7 +115,7 @@ export async function getPendingPayments(leadId: string): Promise<PendingPayment
 export async function generatePaymentLink(context: AgentContext, amount: number, type: string): Promise<string> {
   // This should integrate with Razorpay/Stripe
   // For now, return a mock link
-  const baseUrl = process.env.FRONTEND_URL || 'https://app.voicebridge.com';
+  const baseUrl = process.env.FRONTEND_URL || 'https://app.myleadx.com';
   return `${baseUrl}/pay/${context.leadId}?amount=${amount}&type=${type}`;
 }
 

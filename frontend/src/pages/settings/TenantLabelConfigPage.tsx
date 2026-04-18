@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ArrowPathIcon,
   CheckIcon,
@@ -6,6 +7,7 @@ import {
   PencilSquareIcon,
   ArrowUturnLeftIcon,
   InformationCircleIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import {
@@ -166,11 +168,16 @@ export default function TenantLabelConfigPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">CRM Customization</h1>
-          <p className="text-slate-500 text-sm">
-            Customize terminology, enable/disable modules, and configure branding
-          </p>
+        <div className="flex items-center gap-3">
+          <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+            <ArrowLeftIcon className="w-5 h-5 text-slate-600" />
+          </Link>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">CRM Customization</h1>
+            <p className="text-slate-500 text-sm">
+              Customize terminology, enable/disable modules, and configure branding
+            </p>
+          </div>
         </div>
         {config?.industry && config.industry !== 'CUSTOM' && (
           <div className="flex items-center gap-2 px-3 py-2 bg-primary-50 border border-primary-200 rounded-lg">

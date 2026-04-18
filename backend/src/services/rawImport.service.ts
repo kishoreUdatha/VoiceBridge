@@ -13,6 +13,9 @@ interface RawImportFilter {
   // Role-based filtering
   userRole?: string;
   userId?: string;
+  // Date filtering
+  assignedDateFrom?: string;
+  assignedDateTo?: string;
 }
 
 interface BulkImportStats {
@@ -232,6 +235,20 @@ export class RawImportService {
     }
     if (filter.assignedAgentId) {
       where.assignedAgentId = filter.assignedAgentId;
+    }
+
+    // Date filtering for assignedAt
+    if (filter.assignedDateFrom || filter.assignedDateTo) {
+      where.assignedAt = {};
+      if (filter.assignedDateFrom) {
+        where.assignedAt.gte = new Date(filter.assignedDateFrom);
+      }
+      if (filter.assignedDateTo) {
+        // Set to end of day
+        const endDate = new Date(filter.assignedDateTo);
+        endDate.setHours(23, 59, 59, 999);
+        where.assignedAt.lte = endDate;
+      }
     }
 
     // Build search condition separately
@@ -754,12 +771,32 @@ export class RawImportService {
   }
 
   // Get assignment stats by telecaller (for admin/manager/team_lead view)
-  async getTelecallerAssignmentStats(organizationId: string, userRole?: string, userId?: string) {
+  async getTelecallerAssignmentStats(
+    organizationId: string,
+    userRole?: string,
+    userId?: string,
+    assignedDateFrom?: string,
+    assignedDateTo?: string
+  ) {
     // Build where clause based on role
     const whereClause: any = {
       organizationId,
       assignedToId: { not: null },
     };
+
+    // Date filtering for assignedAt
+    if (assignedDateFrom || assignedDateTo) {
+      whereClause.assignedAt = {};
+      if (assignedDateFrom) {
+        whereClause.assignedAt.gte = new Date(assignedDateFrom);
+      }
+      if (assignedDateTo) {
+        // Set to end of day
+        const endDate = new Date(assignedDateTo);
+        endDate.setHours(23, 59, 59, 999);
+        whereClause.assignedAt.lte = endDate;
+      }
+    }
 
     // Team Lead: only see stats for their team members
     const normalizedRole = userRole?.toLowerCase().replace('_', '');

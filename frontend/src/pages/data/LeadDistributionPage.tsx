@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';
 import { fetchTelecallers, fetchUsers } from '../../store/slices/userSlice';
@@ -32,7 +32,19 @@ const STATUS_OPTIONS = [
 
 export default function LeadDistributionPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const dispatch = useDispatch<AppDispatch>();
+
+  // Get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  // Check if URL has date=today param
+  const dateParam = searchParams.get('date');
+  const initialDateFrom = dateParam === 'today' ? getTodayDate() : '';
+  const initialDateTo = dateParam === 'today' ? getTodayDate() : '';
 
   // Selected telecaller for detail view
   const [selectedTelecaller, setSelectedTelecaller] = useState<TelecallerAssignmentStat | null>(null);
@@ -45,6 +57,8 @@ export default function LeadDistributionPage() {
   // Filter state for main list
   const [filterBranch, setFilterBranch] = useState('');
   const [filterReportingTo, setFilterReportingTo] = useState('');
+  const [mainDateFrom, setMainDateFrom] = useState(initialDateFrom);
+  const [mainDateTo, setMainDateTo] = useState(initialDateTo);
 
   // Records state (for detail view)
   const [records, setRecords] = useState<RawImportRecord[]>([]);
@@ -53,8 +67,8 @@ export default function LeadDistributionPage() {
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [recordDateFrom, setRecordDateFrom] = useState('');
-  const [recordDateTo, setRecordDateTo] = useState('');
+  const [recordDateFrom, setRecordDateFrom] = useState(initialDateFrom);
+  const [recordDateTo, setRecordDateTo] = useState(initialDateTo);
 
   const { telecallers, users } = useSelector((state: RootState) => state.users);
   const { branches } = useSelector((state: RootState) => state.branches);
@@ -69,8 +83,12 @@ export default function LeadDistributionPage() {
     dispatch(fetchTelecallers());
     dispatch(fetchBranches());
     dispatch(fetchUsers({ page: 1, limit: 100 }));
-    loadStats();
   }, [dispatch]);
+
+  // Reload stats when date filters change
+  useEffect(() => {
+    loadStats();
+  }, [mainDateFrom, mainDateTo]);
 
   useEffect(() => {
     if (selectedTelecaller) {
@@ -81,7 +99,10 @@ export default function LeadDistributionPage() {
   const loadStats = async () => {
     setStatsLoading(true);
     try {
-      const data = await rawImportService.getTelecallerAssignmentStats();
+      const data = await rawImportService.getTelecallerAssignmentStats({
+        assignedDateFrom: mainDateFrom || undefined,
+        assignedDateTo: mainDateTo || undefined,
+      });
       setStats(data);
     } catch (error) {
       console.error('Failed to load stats:', error);
@@ -100,6 +121,8 @@ export default function LeadDistributionPage() {
         assignedToId: selectedTelecaller.telecallerId,
         status: filterStatus as any || undefined,
         search: searchQuery || undefined,
+        assignedDateFrom: recordDateFrom || undefined,
+        assignedDateTo: recordDateTo || undefined,
       });
       setRecords(data.records);
       setRecordsTotal(data.total);
@@ -155,9 +178,11 @@ export default function LeadDistributionPage() {
     setSearchTelecaller('');
     setFilterBranch('');
     setFilterReportingTo('');
+    setMainDateFrom('');
+    setMainDateTo('');
   };
 
-  const hasActiveFilters = searchTelecaller || filterBranch || filterReportingTo;
+  const hasActiveFilters = searchTelecaller || filterBranch || filterReportingTo || mainDateFrom || mainDateTo;
 
   const totalAssigned = stats?.telecallers.reduce((sum, tc) => sum + tc.totalAssigned, 0) || 0;
   const totalPending = stats?.telecallers.reduce((sum, tc) => sum + tc.statusBreakdown.assigned, 0) || 0;
@@ -384,14 +409,24 @@ export default function LeadDistributionPage() {
     );
   }
 
+  // Check if filtering by today
+  const isFilteringToday = mainDateFrom === getTodayDate() && mainDateTo === getTodayDate();
+
   // Main View - Telecaller List
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-lg font-semibold text-gray-900">Shared Data</h1>
-          <p className="text-xs text-gray-500">View shared lead data by telecaller</p>
+        <div className="flex items-center gap-2">
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">Shared Data</h1>
+            <p className="text-xs text-gray-500">View shared lead data by telecaller</p>
+          </div>
+          {isFilteringToday && (
+            <span className="px-2 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
+              Today
+            </span>
+          )}
         </div>
         <button
           onClick={loadStats}
@@ -526,6 +561,23 @@ export default function LeadDistributionPage() {
               </option>
             ))}
           </select>
+
+          {/* Date Filter */}
+          <input
+            type="date"
+            value={mainDateFrom}
+            onChange={(e) => setMainDateFrom(e.target.value)}
+            className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500 bg-white"
+            title="Assigned From"
+          />
+          <span className="text-gray-400 text-xs">to</span>
+          <input
+            type="date"
+            value={mainDateTo}
+            onChange={(e) => setMainDateTo(e.target.value)}
+            className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500 bg-white"
+            title="Assigned To"
+          />
 
           {/* Clear Filters */}
           {hasActiveFilters && (

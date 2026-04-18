@@ -74,6 +74,19 @@ model Organization {
   // Industry Configuration
   industry OrganizationIndustry? @default(GENERAL)
 
+  // White-Label / Branding Settings
+  subdomain       String?  @unique // "abc-institute" for abc-institute.voicebridge.com
+  customDomain    String?  @unique // "crm.customerdomain.com"
+  brandName       String?           // Custom app name (e.g., "ABC CRM")
+  primaryColor    String?  @default("#6366f1")
+  secondaryColor  String?  @default("#4f46e5")
+  accentColor     String?  @default("#10b981")
+  favicon         String?           // URL to custom favicon
+  loginBgImage    String?           // Custom login page background
+  emailFromName   String?           // Custom email sender name
+  footerText      String?           // Custom footer text
+  hidePoweredBy   Boolean  @default(false) // Hide "Powered by VoiceBridge"
+
   users                  User[]
   roles                  Role[]
   leads                  Lead[]

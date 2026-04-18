@@ -29,6 +29,8 @@ import {
   CampaignFormData,
   ContactSource,
   LeadFilter,
+  RawImportRecord,
+  RawImportFilter,
 } from '../create-campaign.types';
 import { industryLabels } from '../create-campaign.constants';
 
@@ -166,16 +168,24 @@ export const Step1SelectAgent: React.FC<Step1Props> = ({
 interface Step2Props {
   contactSource: ContactSource;
   leads: Lead[];
+  rawImportRecords: RawImportRecord[];
   contacts: Contact[];
   selectedLeadIds: string[];
+  selectedRawImportIds: string[];
   selectAll: boolean;
+  selectAllRawImports: boolean;
   leadFilter: LeadFilter;
+  rawImportFilter: RawImportFilter;
   loadingLeads: boolean;
+  loadingRawImports: boolean;
   error: string | null;
   onContactSourceChange: (source: ContactSource) => void;
   onLeadFilterChange: (filter: Partial<LeadFilter>) => void;
+  onRawImportFilterChange: (filter: Partial<RawImportFilter>) => void;
   onToggleLeadSelection: (leadId: string) => void;
+  onToggleRawImportSelection: (recordId: string) => void;
   onSelectAll: () => void;
+  onSelectAllRawImports: () => void;
   onAddContact: () => void;
   onRemoveContact: (index: number) => void;
   onUpdateContact: (index: number, field: keyof Contact, value: string) => void;
@@ -187,16 +197,24 @@ interface Step2Props {
 export const Step2AddContacts: React.FC<Step2Props> = ({
   contactSource,
   leads,
+  rawImportRecords,
   contacts,
   selectedLeadIds,
+  selectedRawImportIds,
   selectAll,
+  selectAllRawImports,
   leadFilter,
+  rawImportFilter,
   loadingLeads,
+  loadingRawImports,
   error,
   onContactSourceChange,
   onLeadFilterChange,
+  onRawImportFilterChange,
   onToggleLeadSelection,
+  onToggleRawImportSelection,
   onSelectAll,
+  onSelectAllRawImports,
   onAddContact,
   onRemoveContact,
   onUpdateContact,
@@ -210,6 +228,17 @@ export const Step2AddContacts: React.FC<Step2Props> = ({
     {/* Contact Source Tabs */}
     <div className="flex border-b border-gray-200 mb-6">
       <button
+        onClick={() => onContactSourceChange('rawImports')}
+        className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition ${
+          contactSource === 'rawImports'
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700'
+        }`}
+      >
+        <Database size={18} />
+        Import Data
+      </button>
+      <button
         onClick={() => onContactSourceChange('leads')}
         className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition ${
           contactSource === 'leads'
@@ -217,8 +246,8 @@ export const Step2AddContacts: React.FC<Step2Props> = ({
             : 'border-transparent text-gray-500 hover:text-gray-700'
         }`}
       >
-        <Database size={18} />
-        Select from Leads
+        <Users size={18} />
+        Leads
       </button>
       <button
         onClick={() => onContactSourceChange('csv')}
@@ -243,6 +272,20 @@ export const Step2AddContacts: React.FC<Step2Props> = ({
         Manual Entry
       </button>
     </div>
+
+    {/* Raw Imports Selection */}
+    {contactSource === 'rawImports' && (
+      <RawImportsSelection
+        records={rawImportRecords}
+        selectedIds={selectedRawImportIds}
+        selectAll={selectAllRawImports}
+        filter={rawImportFilter}
+        loading={loadingRawImports}
+        onFilterChange={onRawImportFilterChange}
+        onToggleSelection={onToggleRawImportSelection}
+        onSelectAll={onSelectAllRawImports}
+      />
+    )}
 
     {/* Leads Selection */}
     {contactSource === 'leads' && (
@@ -393,6 +436,114 @@ const LeadsSelection: React.FC<LeadsSelectionProps> = ({
   </div>
 );
 
+// Raw Imports Selection Sub-component
+interface RawImportsSelectionProps {
+  records: RawImportRecord[];
+  selectedIds: string[];
+  selectAll: boolean;
+  filter: RawImportFilter;
+  loading: boolean;
+  onFilterChange: (filter: Partial<RawImportFilter>) => void;
+  onToggleSelection: (recordId: string) => void;
+  onSelectAll: () => void;
+}
+
+const RawImportsSelection: React.FC<RawImportsSelectionProps> = ({
+  records,
+  selectedIds,
+  selectAll,
+  filter,
+  loading,
+  onFilterChange,
+  onToggleSelection,
+  onSelectAll,
+}) => (
+  <div>
+    <div className="flex gap-4 mb-4">
+      <select
+        value={filter.status}
+        onChange={(e) => onFilterChange({ status: e.target.value })}
+        className="px-3 py-2 border border-gray-300 rounded-lg"
+      >
+        <option value="">All Statuses</option>
+        <option value="PENDING">Pending</option>
+        <option value="ASSIGNED">Assigned</option>
+        <option value="INTERESTED">Interested</option>
+        <option value="NOT_INTERESTED">Not Interested</option>
+        <option value="NO_ANSWER">No Answer</option>
+        <option value="CALLBACK_REQUESTED">Callback Requested</option>
+      </select>
+      <input
+        type="text"
+        placeholder="Search by name or phone..."
+        value={filter.search}
+        onChange={(e) => onFilterChange({ search: e.target.value })}
+        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+      />
+    </div>
+
+    <div className="flex items-center justify-between mb-3 p-3 bg-gray-50 rounded-lg">
+      <label className="flex items-center gap-2 cursor-pointer">
+        <button onClick={onSelectAll} className="text-gray-600">
+          {selectAll ? <CheckSquare size={20} className="text-blue-600" /> : <Square size={20} />}
+        </button>
+        <span className="font-medium">Select All ({records.length} records)</span>
+      </label>
+      <span className="text-blue-600 font-medium">{selectedIds.length} selected</span>
+    </div>
+
+    {loading ? (
+      <div className="text-center py-8">
+        <Loader2 className="animate-spin mx-auto text-blue-600" size={32} />
+        <p className="text-gray-500 mt-2">Loading records...</p>
+      </div>
+    ) : records.length === 0 ? (
+      <div className="text-center py-8 text-gray-500">
+        <Database className="mx-auto mb-2 text-gray-300" size={48} />
+        <p>No records found with phone numbers</p>
+        <a href="/import-data" className="text-blue-600 hover:underline mt-2 inline-block">
+          Import data first
+        </a>
+      </div>
+    ) : (
+      <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
+        {records.map((record) => (
+          <label
+            key={record.id}
+            className={`flex items-center gap-3 p-3 border-b last:border-b-0 cursor-pointer hover:bg-gray-50 ${
+              selectedIds.includes(record.id) ? 'bg-blue-50' : ''
+            }`}
+          >
+            <button
+              onClick={(e) => { e.preventDefault(); onToggleSelection(record.id); }}
+              className="text-gray-600"
+            >
+              {selectedIds.includes(record.id) ? (
+                <CheckSquare size={20} className="text-blue-600" />
+              ) : (
+                <Square size={20} />
+              )}
+            </button>
+            <div className="flex-1">
+              <p className="font-medium text-gray-900">{record.firstName} {record.lastName || ''}</p>
+              <p className="text-sm text-gray-500">{record.phone}</p>
+            </div>
+            <span className={`text-xs px-2 py-1 rounded ${
+              record.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
+              record.status === 'ASSIGNED' ? 'bg-blue-100 text-blue-700' :
+              record.status === 'INTERESTED' ? 'bg-green-100 text-green-700' :
+              record.status === 'NOT_INTERESTED' ? 'bg-red-100 text-red-700' :
+              'bg-gray-100 text-gray-600'
+            }`}>
+              {record.status}
+            </span>
+          </label>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
 // CSV Upload Sub-component
 interface CSVUploadProps {
   contacts: Contact[];
@@ -509,6 +660,7 @@ interface Step3Props {
   agents: VoiceAgent[];
   contactSource: ContactSource;
   selectedLeadIds: string[];
+  selectedRawImportIds: string[];
   contacts: Contact[];
   submitting: boolean;
   onFormChange: (data: Partial<CampaignFormData>) => void;
@@ -521,6 +673,7 @@ export const Step3Settings: React.FC<Step3Props> = ({
   agents,
   contactSource,
   selectedLeadIds,
+  selectedRawImportIds,
   contacts,
   submitting,
   onFormChange,
@@ -529,6 +682,8 @@ export const Step3Settings: React.FC<Step3Props> = ({
 }) => {
   const contactCount = contactSource === 'leads'
     ? selectedLeadIds.length
+    : contactSource === 'rawImports'
+    ? selectedRawImportIds.length
     : contacts.filter((c) => c.phone.trim()).length;
 
   return (

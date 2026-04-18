@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Mail,
   MessageSquare,
@@ -8,6 +9,7 @@ import {
   AlertCircle,
   Info,
   MessageCircle,
+  ArrowLeft,
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -132,10 +134,17 @@ const PostCallMessagingPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Post-Call Messaging</h1>
-        <p className="text-gray-600 mt-1">
-          Automatically send follow-up messages after AI voice calls complete
-        </p>
+        <div className="flex items-center gap-3">
+          <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Post-Call Messaging</h1>
+            <p className="text-gray-600 mt-1">
+              Automatically send follow-up messages after AI voice calls complete
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Info Banner */}

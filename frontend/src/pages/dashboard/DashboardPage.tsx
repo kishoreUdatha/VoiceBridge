@@ -1990,17 +1990,17 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
             </div>
           </div>
         </Link>
-        <div className="bg-gradient-to-br from-cyan-500 to-blue-500 rounded-xl p-3 shadow-lg">
+        <Link to="/assignments" className="bg-gradient-to-br from-cyan-500 to-blue-500 rounded-xl p-3 shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all cursor-pointer">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center">
-              <span className="w-2.5 h-2.5 bg-white rounded-full animate-pulse"></span>
+              <UserGroupIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <p className="text-xl font-bold text-white">{liveStatus?.summary.active || 0}</p>
-              <p className="text-[10px] text-cyan-100">Active Now</p>
+              <p className="text-xl font-bold text-white">{rawImportStats?.assignedRecords || 0}</p>
+              <p className="text-[10px] text-cyan-100">Assigned</p>
             </div>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Row 2: Lead Status (left) + Team & Today's Highlights (right) */}
@@ -2014,27 +2014,34 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
           {pipelineStages.length > 0 ? (
             <div className="flex items-center gap-4">
               <div className="w-36 h-36 flex-shrink-0 relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pipelineStages.slice(0, 6)}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={60}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {pipelineStages.slice(0, 6).map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ fontSize: 11, borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}
-                      formatter={(value: number, name: string) => [value, name]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                {pipelineStages.reduce((sum, stage) => sum + stage.value, 0) === 0 ? (
+                  // Show placeholder circle when all values are 0
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="w-[120px] h-[120px] rounded-full border-[20px] border-gray-200"></div>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pipelineStages.slice(0, 6)}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={60}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {pipelineStages.slice(0, 6).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ fontSize: 11, borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}
+                        formatter={(value: number, name: string) => [value, name]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
                 {/* Total number in center of donut */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                   <div className="text-center bg-white rounded-full w-16 h-16 flex flex-col items-center justify-center shadow-sm">
@@ -2047,13 +2054,17 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
               </div>
               <div className="flex-1 space-y-2">
                 {pipelineStages.slice(0, 6).map((stage, index) => (
-                  <div key={index} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-gray-50 transition-colors">
+                  <Link
+                    key={index}
+                    to={`/leads?stage=${encodeURIComponent(stage.name)}`}
+                    className="flex items-center justify-between p-1.5 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
                     <div className="flex items-center gap-2">
                       <span className="w-3 h-3 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: stage.color }}></span>
                       <span className="text-xs font-medium text-gray-700">{stage.name}</span>
                     </div>
                     <span className="text-sm font-bold text-gray-800">{stage.value}</span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -2118,7 +2129,7 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
               <p className="text-2xl font-bold text-emerald-600">{conversionRate}%</p>
               <p className="text-xs text-emerald-700 font-medium">Conversion Rate</p>
             </div>
-            <Link to="/assigned-data" className="p-3 bg-gradient-to-br from-violet-50 to-purple-100 rounded-xl hover:from-violet-100 hover:to-purple-150 transition-all border border-violet-200/50 hover:shadow-md cursor-pointer">
+            <Link to="/assignments?date=today" className="p-3 bg-gradient-to-br from-violet-50 to-purple-100 rounded-xl hover:from-violet-100 hover:to-purple-150 transition-all border border-violet-200/50 hover:shadow-md cursor-pointer">
               <p className="text-2xl font-bold text-violet-600">{rawImportStats?.todayAssigned ?? rawImportStats?.assignedRecords ?? 0}</p>
               <p className="text-xs text-violet-700 font-medium">Assigned Today</p>
             </Link>
@@ -2148,8 +2159,14 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
                   { bg: 'from-blue-500 to-blue-600', light: 'bg-blue-50' },
                 ];
                 const color = colors[index % colors.length];
+                // Convert display name back to source value for filter
+                const sourceValue = source.name.toUpperCase().replace(/\s+/g, '_');
                 return (
-                  <div key={index}>
+                  <Link
+                    key={index}
+                    to={`/leads?source=${encodeURIComponent(sourceValue)}`}
+                    className="block hover:opacity-90 transition-opacity cursor-pointer"
+                  >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-medium text-gray-600">{source.name}</span>
                       <span className="text-sm font-bold text-gray-800">{source.value}</span>
@@ -2162,7 +2179,7 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
                         <span className="text-xs font-semibold text-white">{Math.round(percentage)}%</span>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>

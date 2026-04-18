@@ -1,4 +1,4 @@
-import prisma from '../config/database';
+import { prisma } from '../config/database';
 
 // Report types available for scheduling
 const REPORT_TYPES = [

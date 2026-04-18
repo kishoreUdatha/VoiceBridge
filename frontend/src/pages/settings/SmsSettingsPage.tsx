@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import {
   ChatBubbleLeftRightIcon,
@@ -9,6 +10,7 @@ import {
   ExclamationTriangleIcon,
   PhoneIcon,
   DocumentTextIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -77,8 +79,13 @@ export default function SmsSettingsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">SMS Settings</h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <div className="flex items-center gap-3">
+            <Link to="/settings" className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+              <ArrowLeftIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            </Link>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">SMS Settings</h1>
+          </div>
+          <p className="text-gray-600 dark:text-gray-400 ml-12">
             Configure Exotel SMS with DLT compliance for India
           </p>
         </div>

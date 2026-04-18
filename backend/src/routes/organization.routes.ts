@@ -795,6 +795,169 @@ router.put('/language', validate([
   }
 });
 
+// ==================== BRANDING ====================
+
+/**
+ * @swagger
+ * /api/organizations/branding:
+ *   get:
+ *     summary: Get organization branding settings
+ *     tags: [Organization]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Branding settings retrieved successfully
+ */
+router.get('/branding', async (req: TenantRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId;
+
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        id: true,
+        name: true,
+        brandName: true,
+        logo: true,
+        primaryColor: true,
+        secondaryColor: true,
+        accentColor: true,
+        favicon: true,
+        loginBgImage: true,
+        footerText: true,
+        hidePoweredBy: true,
+      },
+    });
+
+    if (!organization) {
+      return ApiResponse.error(res, 'Organization not found', 404);
+    }
+
+    return ApiResponse.success(res, 'Branding settings retrieved', {
+      brandName: organization.brandName || organization.name,
+      logo: organization.logo,
+      primaryColor: organization.primaryColor || '#6366f1',
+      secondaryColor: organization.secondaryColor || '#4f46e5',
+      accentColor: organization.accentColor || '#10b981',
+      favicon: organization.favicon,
+      loginBgImage: organization.loginBgImage,
+      footerText: organization.footerText,
+      hidePoweredBy: organization.hidePoweredBy || false,
+    });
+  } catch (error) {
+    console.error('Error fetching branding settings:', error);
+    return ApiResponse.error(res, 'Failed to fetch branding settings', 500);
+  }
+});
+
+/**
+ * @swagger
+ * /api/organizations/branding:
+ *   put:
+ *     summary: Update organization branding settings
+ *     tags: [Organization]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               brandName:
+ *                 type: string
+ *               logo:
+ *                 type: string
+ *               primaryColor:
+ *                 type: string
+ *               secondaryColor:
+ *                 type: string
+ *               accentColor:
+ *                 type: string
+ *               favicon:
+ *                 type: string
+ *               loginBgImage:
+ *                 type: string
+ *               footerText:
+ *                 type: string
+ *               hidePoweredBy:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Branding settings updated successfully
+ */
+router.put('/branding', async (req: TenantRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId;
+    const {
+      brandName,
+      logo,
+      primaryColor,
+      secondaryColor,
+      accentColor,
+      favicon,
+      loginBgImage,
+      footerText,
+      hidePoweredBy,
+    } = req.body;
+
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      return ApiResponse.error(res, 'Organization not found', 404);
+    }
+
+    const updated = await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        brandName: brandName !== undefined ? brandName : organization.brandName,
+        logo: logo !== undefined ? logo : organization.logo,
+        primaryColor: primaryColor !== undefined ? primaryColor : organization.primaryColor,
+        secondaryColor: secondaryColor !== undefined ? secondaryColor : organization.secondaryColor,
+        accentColor: accentColor !== undefined ? accentColor : organization.accentColor,
+        favicon: favicon !== undefined ? favicon : organization.favicon,
+        loginBgImage: loginBgImage !== undefined ? loginBgImage : organization.loginBgImage,
+        footerText: footerText !== undefined ? footerText : organization.footerText,
+        hidePoweredBy: hidePoweredBy !== undefined ? hidePoweredBy : organization.hidePoweredBy,
+      },
+      select: {
+        id: true,
+        name: true,
+        brandName: true,
+        logo: true,
+        primaryColor: true,
+        secondaryColor: true,
+        accentColor: true,
+        favicon: true,
+        loginBgImage: true,
+        footerText: true,
+        hidePoweredBy: true,
+      },
+    });
+
+    console.log(`[Organization] Updated branding for ${updated.name}`);
+
+    return ApiResponse.success(res, 'Branding settings updated successfully', {
+      brandName: updated.brandName || updated.name,
+      logo: updated.logo,
+      primaryColor: updated.primaryColor || '#6366f1',
+      secondaryColor: updated.secondaryColor || '#4f46e5',
+      accentColor: updated.accentColor || '#10b981',
+      favicon: updated.favicon,
+      loginBgImage: updated.loginBgImage,
+      footerText: updated.footerText,
+      hidePoweredBy: updated.hidePoweredBy || false,
+    });
+  } catch (error) {
+    console.error('Error updating branding settings:', error);
+    return ApiResponse.error(res, 'Failed to update branding settings', 500);
+  }
+});
+
 // ==================== ONBOARDING ====================
 
 const VALID_INDUSTRIES = [

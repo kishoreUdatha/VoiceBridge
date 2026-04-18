@@ -348,7 +348,7 @@ export default function DocsPage() {
               <div className="w-10 h-10 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl flex items-center justify-center">
                 <Phone className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-slate-900">VoiceBridge</span>
+              <span className="text-xl font-bold text-slate-900">MyLeadX</span>
             </Link>
 
             <div className="hidden md:flex items-center gap-6">
@@ -398,7 +398,7 @@ export default function DocsPage() {
             Documentation
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
-            Learn How to Use VoiceBridge
+            Learn How to Use MyLeadX
           </h1>
           <p className="text-xl text-slate-600 max-w-2xl mx-auto">
             Step-by-step guides to help you get started and master all features
@@ -471,7 +471,7 @@ export default function DocsPage() {
       {/* Footer */}
       <footer className="bg-slate-900 text-slate-400 py-8">
         <div className="max-w-7xl mx-auto px-6 text-center">
-          <p>&copy; {new Date().getFullYear()} VoiceBridge. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} MyLeadX. All rights reserved.</p>
         </div>
       </footer>
     </div>

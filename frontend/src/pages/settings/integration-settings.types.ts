@@ -47,7 +47,7 @@ export interface CRMProvider {
   authType: 'oauth' | 'api_key' | 'webhook';
 }
 
-export interface VoiceBridgeField {
+export interface MyLeadXField {
   id: string;
   label: string;
 }

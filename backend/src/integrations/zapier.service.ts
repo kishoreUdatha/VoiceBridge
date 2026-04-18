@@ -1,6 +1,6 @@
 /**
  * Zapier Integration Service
- * Provides webhooks for Zapier to connect with VoiceBridge
+ * Provides webhooks for Zapier to connect with MyLeadX
  *
  * Supported Triggers:
  * - New Lead Created
@@ -126,8 +126,8 @@ class ZapierService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-VoiceBridge-Event': event,
-            'X-VoiceBridge-Timestamp': payload.timestamp,
+            'X-MyLeadX-Event': event,
+            'X-MyLeadX-Timestamp': payload.timestamp,
           },
           body: JSON.stringify(payload),
         });
@@ -380,7 +380,7 @@ class ZapierService {
       {
         key: 'lead.created',
         label: 'New Lead Created',
-        description: 'Triggers when a new lead is created in VoiceBridge',
+        description: 'Triggers when a new lead is created in MyLeadX',
       },
       {
         key: 'lead.stage_changed',
@@ -408,7 +408,7 @@ class ZapierService {
       {
         key: 'create_lead',
         label: 'Create Lead',
-        description: 'Create a new lead in VoiceBridge',
+        description: 'Create a new lead in MyLeadX',
         fields: [
           { key: 'firstName', label: 'First Name', required: true },
           { key: 'lastName', label: 'Last Name', required: false },
@@ -421,7 +421,7 @@ class ZapierService {
       {
         key: 'update_lead',
         label: 'Update Lead',
-        description: 'Update an existing lead in VoiceBridge',
+        description: 'Update an existing lead in MyLeadX',
         fields: [
           { key: 'leadId', label: 'Lead ID', required: true },
           { key: 'firstName', label: 'First Name', required: false },

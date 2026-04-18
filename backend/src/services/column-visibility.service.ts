@@ -1,4 +1,4 @@
-import prisma from '../config/database';
+import { prisma } from '../config/database';
 
 // Default column configurations for each table
 const DEFAULT_COLUMNS: Record<string, Array<{ key: string; label: string; visible: boolean; order: number; width?: number }>> = {

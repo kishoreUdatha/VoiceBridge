@@ -38,7 +38,7 @@ class ErrorTrackingService {
 
   constructor() {
     this.isProduction = process.env.NODE_ENV === 'production';
-    this.serviceName = process.env.SERVICE_NAME || 'voicebridge-backend';
+    this.serviceName = process.env.SERVICE_NAME || 'myleadx-backend';
     this.dsn = process.env.SENTRY_DSN || process.env.ERROR_TRACKING_DSN;
 
     // Initialize external service if configured

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AcademicCapIcon,
   BuildingOfficeIcon,
@@ -12,6 +13,7 @@ import {
   UserGroupIcon,
   CurrencyRupeeIcon,
   ChartBarIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import { CheckIcon } from '@heroicons/react/24/solid';
 import toast from 'react-hot-toast';
@@ -106,8 +108,13 @@ export default function IndustryTemplatesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Industry Templates</h1>
-          <p className="text-slate-500 text-sm">
+          <div className="flex items-center gap-3">
+            <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+              <ArrowLeftIcon className="w-5 h-5 text-slate-600" />
+            </Link>
+            <h1 className="text-xl font-bold text-slate-900">Industry Templates</h1>
+          </div>
+          <p className="text-slate-500 text-sm ml-12">
             Choose an industry template to configure your CRM with pre-built pipelines, fields, and roles
           </p>
         </div>

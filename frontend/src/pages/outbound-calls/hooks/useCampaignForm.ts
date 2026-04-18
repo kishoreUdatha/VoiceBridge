@@ -13,6 +13,8 @@ import {
   CampaignFormData,
   ContactSource,
   LeadFilter,
+  RawImportRecord,
+  RawImportFilter,
 } from '../create-campaign.types';
 import { initialFormData, validatePhoneNumber, cleanPhoneNumber } from '../create-campaign.constants';
 
@@ -20,15 +22,20 @@ interface UseCampaignFormReturn {
   // State
   agents: VoiceAgent[];
   leads: Lead[];
+  rawImportRecords: RawImportRecord[];
   contacts: Contact[];
   formData: CampaignFormData;
   contactSource: ContactSource;
   selectedLeadIds: string[];
+  selectedRawImportIds: string[];
   selectAll: boolean;
+  selectAllRawImports: boolean;
   leadFilter: LeadFilter;
+  rawImportFilter: RawImportFilter;
   step: number;
   loading: boolean;
   loadingLeads: boolean;
+  loadingRawImports: boolean;
   submitting: boolean;
   error: string | null;
 
@@ -36,14 +43,18 @@ interface UseCampaignFormReturn {
   setFormData: (data: Partial<CampaignFormData>) => void;
   setContactSource: (source: ContactSource) => void;
   setSelectedLeadIds: React.Dispatch<React.SetStateAction<string[]>>;
+  setSelectedRawImportIds: React.Dispatch<React.SetStateAction<string[]>>;
   setLeadFilter: (filter: Partial<LeadFilter>) => void;
+  setRawImportFilter: (filter: Partial<RawImportFilter>) => void;
   setStep: (step: number) => void;
   setError: (error: string | null) => void;
   addContact: () => void;
   removeContact: (index: number) => void;
   updateContact: (index: number, field: keyof Contact, value: string) => void;
   toggleLeadSelection: (leadId: string) => void;
+  toggleRawImportSelection: (recordId: string) => void;
   handleSelectAll: () => void;
+  handleSelectAllRawImports: () => void;
   handleFileUpload: (file: File) => void;
   validateStep1: () => boolean;
   validateStep2: () => boolean;
@@ -54,18 +65,26 @@ interface UseCampaignFormReturn {
 export function useCampaignForm(initialSource?: string): UseCampaignFormReturn {
   const [agents, setAgents] = useState<VoiceAgent[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [rawImportRecords, setRawImportRecords] = useState<RawImportRecord[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([{ phone: '', name: '', email: '' }]);
   const [formData, setFormDataState] = useState<CampaignFormData>(initialFormData);
-  const [contactSource, setContactSource] = useState<ContactSource>('leads');
+  const [contactSource, setContactSource] = useState<ContactSource>('rawImports');
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [selectedRawImportIds, setSelectedRawImportIds] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
+  const [selectAllRawImports, setSelectAllRawImports] = useState(false);
   const [leadFilter, setLeadFilterState] = useState<LeadFilter>({
     source: initialSource || '',
+    search: '',
+  });
+  const [rawImportFilter, setRawImportFilterState] = useState<RawImportFilter>({
+    status: '',
     search: '',
   });
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(true);
   const [loadingLeads, setLoadingLeads] = useState(false);
+  const [loadingRawImports, setLoadingRawImports] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,7 +111,7 @@ export function useCampaignForm(initialSource?: string): UseCampaignFormReturn {
     try {
       setLoadingLeads(true);
       const params = new URLSearchParams();
-      params.append('limit', '500');
+      params.append('limit', '100');
       if (leadFilter.source) params.append('source', leadFilter.source);
       if (leadFilter.search) params.append('search', leadFilter.search);
 
@@ -112,6 +131,31 @@ export function useCampaignForm(initialSource?: string): UseCampaignFormReturn {
     fetchLeads();
   }, [fetchLeads]);
 
+  // Fetch raw import records
+  const fetchRawImports = useCallback(async () => {
+    try {
+      setLoadingRawImports(true);
+      const params = new URLSearchParams();
+      params.append('limit', '100');
+      if (rawImportFilter.status) params.append('status', rawImportFilter.status);
+      if (rawImportFilter.search) params.append('search', rawImportFilter.search);
+
+      const response = await api.get(`/raw-imports/records?${params.toString()}`);
+      if (response.data.success) {
+        const recordsWithPhone = (response.data.data || []).filter((record: RawImportRecord) => record.phone);
+        setRawImportRecords(recordsWithPhone);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch raw import records:', err);
+    } finally {
+      setLoadingRawImports(false);
+    }
+  }, [rawImportFilter.status, rawImportFilter.search]);
+
+  useEffect(() => {
+    fetchRawImports();
+  }, [fetchRawImports]);
+
   // Form data setter
   const setFormData = (data: Partial<CampaignFormData>) => {
     setFormDataState(prev => ({ ...prev, ...data }));
@@ -120,6 +164,11 @@ export function useCampaignForm(initialSource?: string): UseCampaignFormReturn {
   // Lead filter setter
   const setLeadFilter = (filter: Partial<LeadFilter>) => {
     setLeadFilterState(prev => ({ ...prev, ...filter }));
+  };
+
+  // Raw import filter setter
+  const setRawImportFilter = (filter: Partial<RawImportFilter>) => {
+    setRawImportFilterState(prev => ({ ...prev, ...filter }));
   };
 
   // Contact management
@@ -155,6 +204,24 @@ export function useCampaignForm(initialSource?: string): UseCampaignFormReturn {
       setSelectedLeadIds(leads.map(l => l.id));
     }
     setSelectAll(!selectAll);
+  };
+
+  // Raw import selection
+  const toggleRawImportSelection = (recordId: string) => {
+    setSelectedRawImportIds(prev =>
+      prev.includes(recordId)
+        ? prev.filter(id => id !== recordId)
+        : [...prev, recordId]
+    );
+  };
+
+  const handleSelectAllRawImports = () => {
+    if (selectAllRawImports) {
+      setSelectedRawImportIds([]);
+    } else {
+      setSelectedRawImportIds(rawImportRecords.map(r => r.id));
+    }
+    setSelectAllRawImports(!selectAllRawImports);
   };
 
   const getContactsFromLeads = (): Contact[] => {
@@ -302,6 +369,15 @@ export function useCampaignForm(initialSource?: string): UseCampaignFormReturn {
       return true;
     }
 
+    if (contactSource === 'rawImports') {
+      if (selectedRawImportIds.length === 0) {
+        setError('Please select at least one record');
+        return false;
+      }
+      setError(null);
+      return true;
+    }
+
     const validContacts = contacts.filter((c) => c.phone.trim());
     if (validContacts.length === 0) {
       setError('Please add at least one contact with a phone number');
@@ -323,7 +399,7 @@ export function useCampaignForm(initialSource?: string): UseCampaignFormReturn {
   const handleSubmit = async (): Promise<boolean> => {
     if (!validateStep2()) return false;
 
-    let validContacts: { phone: string; name?: string; email?: string; leadId?: string }[];
+    let validContacts: { phone: string; name?: string; email?: string; leadId?: string; rawImportRecordId?: string }[];
 
     if (contactSource === 'leads') {
       validContacts = leads
@@ -333,6 +409,15 @@ export function useCampaignForm(initialSource?: string): UseCampaignFormReturn {
           name: `${lead.firstName} ${lead.lastName || ''}`.trim() || undefined,
           email: lead.email || undefined,
           leadId: lead.id,
+        }));
+    } else if (contactSource === 'rawImports') {
+      validContacts = rawImportRecords
+        .filter(record => selectedRawImportIds.includes(record.id))
+        .map(record => ({
+          phone: cleanPhoneNumber(record.phone),
+          name: `${record.firstName} ${record.lastName || ''}`.trim() || undefined,
+          email: record.email || undefined,
+          rawImportRecordId: record.id,
         }));
     } else {
       validContacts = contacts
@@ -373,28 +458,37 @@ export function useCampaignForm(initialSource?: string): UseCampaignFormReturn {
   return {
     agents,
     leads,
+    rawImportRecords,
     contacts,
     formData,
     contactSource,
     selectedLeadIds,
+    selectedRawImportIds,
     selectAll,
+    selectAllRawImports,
     leadFilter,
+    rawImportFilter,
     step,
     loading,
     loadingLeads,
+    loadingRawImports,
     submitting,
     error,
     setFormData,
     setContactSource,
     setSelectedLeadIds,
+    setSelectedRawImportIds,
     setLeadFilter,
+    setRawImportFilter,
     setStep,
     setError,
     addContact,
     removeContact,
     updateContact,
     toggleLeadSelection,
+    toggleRawImportSelection,
     handleSelectAll,
+    handleSelectAllRawImports,
     handleFileUpload,
     validateStep1,
     validateStep2,

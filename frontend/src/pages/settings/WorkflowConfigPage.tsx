@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import {
   Settings,
   Plus,
@@ -16,36 +18,17 @@ import {
   ChevronRight,
   Copy,
   AlertCircle,
+  ArrowLeft,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
+import pipelineSettingsService, {
+  Pipeline,
+  PipelineStage,
+  CreateStageInput
+} from '../../services/pipeline-settings.service';
 
-interface WorkflowStage {
-  id: string;
-  name: string;
-  color: string;
-  order: number;
-  description?: string;
-  automations: StageAutomation[];
-  isDefault?: boolean;
-  exitCriteria?: string[];
-}
-
-interface StageAutomation {
-  id: string;
-  trigger: 'on_enter' | 'on_exit' | 'after_duration';
-  action: 'send_email' | 'send_sms' | 'send_whatsapp' | 'assign_user' | 'create_task' | 'webhook';
-  config: Record<string, any>;
-  enabled: boolean;
-}
-
-interface Workflow {
-  id: string;
-  name: string;
-  type: 'admission' | 'sales' | 'support' | 'custom';
-  stages: WorkflowStage[];
-  isActive: boolean;
-  description?: string;
-}
-
+// Stage colors
 const STAGE_COLORS = [
   '#3B82F6', // blue
   '#10B981', // green
@@ -58,6 +41,15 @@ const STAGE_COLORS = [
   '#6366F1', // indigo
   '#84CC16', // lime
 ];
+
+// Automation configuration
+interface StageAutomation {
+  id: string;
+  trigger: 'on_enter' | 'on_exit' | 'after_duration';
+  action: 'send_email' | 'send_sms' | 'send_whatsapp' | 'assign_user' | 'create_task' | 'webhook';
+  config: Record<string, any>;
+  enabled: boolean;
+}
 
 const AUTOMATION_TRIGGERS = [
   { value: 'on_enter', label: 'When entering stage', icon: ArrowRight },
@@ -74,47 +66,63 @@ const AUTOMATION_ACTIONS = [
   { value: 'webhook', label: 'Call Webhook', icon: Zap },
 ];
 
-const DEFAULT_WORKFLOWS: Workflow[] = [
-  {
-    id: 'admission',
-    name: 'Admission Workflow',
-    type: 'admission',
-    description: 'Track student admissions from enquiry to enrollment',
-    isActive: true,
-    stages: [
-      { id: '1', name: 'New Enquiry', color: '#3B82F6', order: 0, automations: [], isDefault: true },
-      { id: '2', name: 'Contacted', color: '#06B6D4', order: 1, automations: [] },
-      { id: '3', name: 'Campus Visit Scheduled', color: '#8B5CF6', order: 2, automations: [] },
-      { id: '4', name: 'Application Submitted', color: '#F59E0B', order: 3, automations: [] },
-      { id: '5', name: 'Documents Pending', color: '#F97316', order: 4, automations: [] },
-      { id: '6', name: 'Under Review', color: '#EC4899', order: 5, automations: [] },
-      { id: '7', name: 'Offer Made', color: '#10B981', order: 6, automations: [] },
-      { id: '8', name: 'Enrolled', color: '#22C55E', order: 7, automations: [], isDefault: true },
-      { id: '9', name: 'Lost', color: '#EF4444', order: 8, automations: [], isDefault: true },
-    ],
-  },
-  {
-    id: 'sales',
-    name: 'Sales Pipeline',
-    type: 'sales',
-    description: 'Standard sales pipeline for lead conversion',
-    isActive: true,
-    stages: [
-      { id: '1', name: 'New Lead', color: '#3B82F6', order: 0, automations: [], isDefault: true },
-      { id: '2', name: 'Qualified', color: '#06B6D4', order: 1, automations: [] },
-      { id: '3', name: 'Meeting Scheduled', color: '#8B5CF6', order: 2, automations: [] },
-      { id: '4', name: 'Proposal Sent', color: '#F59E0B', order: 3, automations: [] },
-      { id: '5', name: 'Negotiation', color: '#F97316', order: 4, automations: [] },
-      { id: '6', name: 'Won', color: '#10B981', order: 5, automations: [], isDefault: true },
-      { id: '7', name: 'Lost', color: '#EF4444', order: 6, automations: [], isDefault: true },
-    ],
-  },
-];
+// Helper to extract automations from stage actions
+function getStageAutomations(stage: PipelineStage): StageAutomation[] {
+  const automations: StageAutomation[] = [];
+
+  // Extract from autoActions (on_enter)
+  if (stage.autoActions && typeof stage.autoActions === 'object') {
+    Object.entries(stage.autoActions).forEach(([action, config], idx) => {
+      if (config && typeof config === 'object' && (config as any).enabled !== false) {
+        automations.push({
+          id: `enter-${action}-${idx}`,
+          trigger: 'on_enter',
+          action: action as StageAutomation['action'],
+          config: config as Record<string, any>,
+          enabled: true,
+        });
+      }
+    });
+  }
+
+  // Extract from exitActions (on_exit)
+  if (stage.exitActions && typeof stage.exitActions === 'object') {
+    Object.entries(stage.exitActions).forEach(([action, config], idx) => {
+      if (config && typeof config === 'object' && (config as any).enabled !== false) {
+        automations.push({
+          id: `exit-${action}-${idx}`,
+          trigger: 'on_exit',
+          action: action as StageAutomation['action'],
+          config: config as Record<string, any>,
+          enabled: true,
+        });
+      }
+    });
+  }
+
+  return automations;
+}
+
+// Helper to get stage type badge
+function getStageTypeBadge(stageType: string) {
+  switch (stageType) {
+    case 'entry':
+      return { label: 'Entry', className: 'bg-blue-100 text-blue-700' };
+    case 'won':
+      return { label: 'Won', className: 'bg-green-100 text-green-700' };
+    case 'lost':
+      return { label: 'Lost', className: 'bg-red-100 text-red-700' };
+    default:
+      return null;
+  }
+}
 
 export default function WorkflowConfigPage() {
-  const [workflows, setWorkflows] = useState<Workflow[]>(DEFAULT_WORKFLOWS);
-  const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(DEFAULT_WORKFLOWS[0]);
-  const [editingStage, setEditingStage] = useState<WorkflowStage | null>(null);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingStage, setEditingStage] = useState<PipelineStage | null>(null);
   const [showAddStage, setShowAddStage] = useState(false);
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
   const [showAutomationModal, setShowAutomationModal] = useState<{
@@ -123,10 +131,11 @@ export default function WorkflowConfigPage() {
   } | null>(null);
   const [draggedStage, setDraggedStage] = useState<string | null>(null);
 
-  const [newStage, setNewStage] = useState<Partial<WorkflowStage>>({
+  const [newStage, setNewStage] = useState<Partial<CreateStageInput>>({
     name: '',
     color: STAGE_COLORS[0],
-    description: '',
+    stageType: 'active',
+    probability: 50,
   });
 
   const [newAutomation, setNewAutomation] = useState<Partial<StageAutomation>>({
@@ -136,58 +145,106 @@ export default function WorkflowConfigPage() {
     config: {},
   });
 
-  const handleAddStage = () => {
-    if (!selectedWorkflow || !newStage.name) return;
+  // Fetch pipelines on mount
+  useEffect(() => {
+    fetchPipelines();
+  }, []);
 
-    const stage: WorkflowStage = {
-      id: Date.now().toString(),
-      name: newStage.name,
-      color: newStage.color || STAGE_COLORS[0],
-      order: selectedWorkflow.stages.length,
-      description: newStage.description,
-      automations: [],
-    };
-
-    const updatedWorkflow = {
-      ...selectedWorkflow,
-      stages: [...selectedWorkflow.stages, stage],
-    };
-
-    setWorkflows(workflows.map(w => (w.id === selectedWorkflow.id ? updatedWorkflow : w)));
-    setSelectedWorkflow(updatedWorkflow);
-    setNewStage({ name: '', color: STAGE_COLORS[0], description: '' });
-    setShowAddStage(false);
+  const fetchPipelines = async () => {
+    try {
+      setLoading(true);
+      const data = await pipelineSettingsService.getPipelines('LEAD');
+      setPipelines(data);
+      if (data.length > 0 && !selectedPipeline) {
+        // Select the default pipeline or first one
+        const defaultPipeline = data.find(p => p.isDefault) || data[0];
+        setSelectedPipeline(defaultPipeline);
+      }
+    } catch (error) {
+      console.error('Failed to fetch pipelines:', error);
+      toast.error('Failed to load pipelines');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdateStage = (stageId: string, updates: Partial<WorkflowStage>) => {
-    if (!selectedWorkflow) return;
+  const handleAddStage = async () => {
+    if (!selectedPipeline || !newStage.name) return;
 
-    const updatedStages = selectedWorkflow.stages.map(s =>
-      s.id === stageId ? { ...s, ...updates } : s
-    );
+    try {
+      setSaving(true);
+      const stage = await pipelineSettingsService.createStage(selectedPipeline.id, {
+        name: newStage.name,
+        color: newStage.color || STAGE_COLORS[0],
+        stageType: newStage.stageType || 'active',
+        probability: newStage.probability || 50,
+      });
 
-    const updatedWorkflow = { ...selectedWorkflow, stages: updatedStages };
-    setWorkflows(workflows.map(w => (w.id === selectedWorkflow.id ? updatedWorkflow : w)));
-    setSelectedWorkflow(updatedWorkflow);
-    setEditingStage(null);
+      // Refresh pipeline to get updated stages
+      const updated = await pipelineSettingsService.getPipeline(selectedPipeline.id);
+      setSelectedPipeline(updated);
+      setPipelines(pipelines.map(p => p.id === updated.id ? updated : p));
+
+      setNewStage({ name: '', color: STAGE_COLORS[0], stageType: 'active', probability: 50 });
+      setShowAddStage(false);
+      toast.success('Stage added successfully');
+    } catch (error) {
+      console.error('Failed to add stage:', error);
+      toast.error('Failed to add stage');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDeleteStage = (stageId: string) => {
-    if (!selectedWorkflow) return;
+  const handleUpdateStage = async (stageId: string, updates: Partial<CreateStageInput>) => {
+    if (!selectedPipeline) return;
 
-    const stage = selectedWorkflow.stages.find(s => s.id === stageId);
-    if (stage?.isDefault) {
-      alert('Cannot delete default stages');
+    try {
+      setSaving(true);
+      await pipelineSettingsService.updateStage(selectedPipeline.id, stageId, updates);
+
+      // Refresh pipeline
+      const updated = await pipelineSettingsService.getPipeline(selectedPipeline.id);
+      setSelectedPipeline(updated);
+      setPipelines(pipelines.map(p => p.id === updated.id ? updated : p));
+
+      setEditingStage(null);
+      toast.success('Stage updated successfully');
+    } catch (error) {
+      console.error('Failed to update stage:', error);
+      toast.error('Failed to update stage');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteStage = async (stageId: string) => {
+    if (!selectedPipeline) return;
+
+    const stage = selectedPipeline.stages.find(s => s.id === stageId);
+    if (stage?.stageType === 'entry' || stage?.stageType === 'won' || stage?.stageType === 'lost') {
+      toast.error('Cannot delete system stages (entry, won, lost)');
       return;
     }
 
-    const updatedStages = selectedWorkflow.stages
-      .filter(s => s.id !== stageId)
-      .map((s, index) => ({ ...s, order: index }));
+    if (!confirm('Are you sure you want to delete this stage?')) return;
 
-    const updatedWorkflow = { ...selectedWorkflow, stages: updatedStages };
-    setWorkflows(workflows.map(w => (w.id === selectedWorkflow.id ? updatedWorkflow : w)));
-    setSelectedWorkflow(updatedWorkflow);
+    try {
+      setSaving(true);
+      await pipelineSettingsService.deleteStage(selectedPipeline.id, stageId);
+
+      // Refresh pipeline
+      const updated = await pipelineSettingsService.getPipeline(selectedPipeline.id);
+      setSelectedPipeline(updated);
+      setPipelines(pipelines.map(p => p.id === updated.id ? updated : p));
+
+      toast.success('Stage deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete stage:', error);
+      toast.error('Failed to delete stage');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDragStart = (stageId: string) => {
@@ -196,26 +253,42 @@ export default function WorkflowConfigPage() {
 
   const handleDragOver = (e: React.DragEvent, targetStageId: string) => {
     e.preventDefault();
-    if (!draggedStage || draggedStage === targetStageId || !selectedWorkflow) return;
-
-    const stages = [...selectedWorkflow.stages];
-    const draggedIndex = stages.findIndex(s => s.id === draggedStage);
-    const targetIndex = stages.findIndex(s => s.id === targetStageId);
-
-    const [draggedItem] = stages.splice(draggedIndex, 1);
-    stages.splice(targetIndex, 0, draggedItem);
-
-    const reorderedStages = stages.map((s, index) => ({ ...s, order: index }));
-
-    const updatedWorkflow = { ...selectedWorkflow, stages: reorderedStages };
-    setSelectedWorkflow(updatedWorkflow);
+    // Visual feedback only - actual reorder on drop
   };
 
-  const handleDragEnd = () => {
-    if (selectedWorkflow) {
-      setWorkflows(workflows.map(w => (w.id === selectedWorkflow.id ? selectedWorkflow : w)));
+  const handleDragEnd = async () => {
+    if (!draggedStage || !selectedPipeline) {
+      setDraggedStage(null);
+      return;
     }
+
+    // Get current order
+    const stages = [...selectedPipeline.stages].sort((a, b) => a.order - b.order);
+    const draggedIndex = stages.findIndex(s => s.id === draggedStage);
+
+    // For now, just reset - would need to implement proper reorder
     setDraggedStage(null);
+  };
+
+  const handleReorderStages = async (stageIds: string[]) => {
+    if (!selectedPipeline) return;
+
+    try {
+      setSaving(true);
+      await pipelineSettingsService.reorderStages(selectedPipeline.id, stageIds);
+
+      // Refresh pipeline
+      const updated = await pipelineSettingsService.getPipeline(selectedPipeline.id);
+      setSelectedPipeline(updated);
+      setPipelines(pipelines.map(p => p.id === updated.id ? updated : p));
+
+      toast.success('Stages reordered');
+    } catch (error) {
+      console.error('Failed to reorder stages:', error);
+      toast.error('Failed to reorder stages');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleStageExpand = (stageId: string) => {
@@ -228,93 +301,201 @@ export default function WorkflowConfigPage() {
     setExpandedStages(newExpanded);
   };
 
-  const handleAddAutomation = (stageId: string) => {
-    if (!selectedWorkflow || !newAutomation.trigger || !newAutomation.action) return;
+  const handleAddAutomation = async (stageId: string) => {
+    if (!selectedPipeline || !newAutomation.trigger || !newAutomation.action) return;
 
-    const automation: StageAutomation = {
-      id: Date.now().toString(),
-      trigger: newAutomation.trigger as StageAutomation['trigger'],
-      action: newAutomation.action as StageAutomation['action'],
-      config: newAutomation.config || {},
-      enabled: true,
-    };
+    const stage = selectedPipeline.stages.find(s => s.id === stageId);
+    if (!stage) return;
 
-    const updatedStages = selectedWorkflow.stages.map(s =>
-      s.id === stageId ? { ...s, automations: [...s.automations, automation] } : s
+    try {
+      setSaving(true);
+
+      // Build the action config
+      const actionConfig = {
+        ...newAutomation.config,
+        enabled: true,
+      };
+
+      // Update the appropriate actions field
+      let updates: Partial<CreateStageInput>;
+      if (newAutomation.trigger === 'on_enter') {
+        updates = {
+          autoActions: {
+            ...(stage.autoActions || {}),
+            [newAutomation.action]: actionConfig,
+          },
+        };
+      } else {
+        updates = {
+          exitActions: {
+            ...(stage.exitActions || {}),
+            [newAutomation.action]: actionConfig,
+          },
+        };
+      }
+
+      await pipelineSettingsService.updateStage(selectedPipeline.id, stageId, updates);
+
+      // Refresh pipeline
+      const updated = await pipelineSettingsService.getPipeline(selectedPipeline.id);
+      setSelectedPipeline(updated);
+      setPipelines(pipelines.map(p => p.id === updated.id ? updated : p));
+
+      setShowAutomationModal(null);
+      setNewAutomation({ trigger: 'on_enter', action: 'send_email', enabled: true, config: {} });
+      toast.success('Automation added successfully');
+    } catch (error) {
+      console.error('Failed to add automation:', error);
+      toast.error('Failed to add automation');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteAutomation = async (stageId: string, automation: StageAutomation) => {
+    if (!selectedPipeline) return;
+
+    const stage = selectedPipeline.stages.find(s => s.id === stageId);
+    if (!stage) return;
+
+    try {
+      setSaving(true);
+
+      let updates: Partial<CreateStageInput>;
+      if (automation.trigger === 'on_enter') {
+        const newAutoActions = { ...(stage.autoActions || {}) };
+        delete newAutoActions[automation.action];
+        updates = { autoActions: newAutoActions };
+      } else {
+        const newExitActions = { ...(stage.exitActions || {}) };
+        delete newExitActions[automation.action];
+        updates = { exitActions: newExitActions };
+      }
+
+      await pipelineSettingsService.updateStage(selectedPipeline.id, stageId, updates);
+
+      // Refresh pipeline
+      const updated = await pipelineSettingsService.getPipeline(selectedPipeline.id);
+      setSelectedPipeline(updated);
+      setPipelines(pipelines.map(p => p.id === updated.id ? updated : p));
+
+      toast.success('Automation removed');
+    } catch (error) {
+      console.error('Failed to remove automation:', error);
+      toast.error('Failed to remove automation');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDuplicatePipeline = async (pipeline: Pipeline) => {
+    try {
+      setSaving(true);
+
+      // Create new pipeline
+      const newPipeline = await pipelineSettingsService.createPipeline({
+        name: `${pipeline.name} (Copy)`,
+        description: pipeline.description,
+        entityType: pipeline.entityType,
+        color: pipeline.color,
+        isDefault: false,
+      });
+
+      // Create stages
+      for (const stage of pipeline.stages.sort((a, b) => a.order - b.order)) {
+        await pipelineSettingsService.createStage(newPipeline.id, {
+          name: stage.name,
+          color: stage.color,
+          stageType: stage.stageType,
+          probability: stage.probability,
+          autoActions: stage.autoActions,
+          exitActions: stage.exitActions,
+        });
+      }
+
+      // Refresh pipelines
+      await fetchPipelines();
+      toast.success('Pipeline duplicated successfully');
+    } catch (error) {
+      console.error('Failed to duplicate pipeline:', error);
+      toast.error('Failed to duplicate pipeline');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+        </div>
+      </div>
     );
-
-    const updatedWorkflow = { ...selectedWorkflow, stages: updatedStages };
-    setWorkflows(workflows.map(w => (w.id === selectedWorkflow.id ? updatedWorkflow : w)));
-    setSelectedWorkflow(updatedWorkflow);
-    setShowAutomationModal(null);
-    setNewAutomation({ trigger: 'on_enter', action: 'send_email', enabled: true, config: {} });
-  };
-
-  const handleDeleteAutomation = (stageId: string, automationId: string) => {
-    if (!selectedWorkflow) return;
-
-    const updatedStages = selectedWorkflow.stages.map(s =>
-      s.id === stageId
-        ? { ...s, automations: s.automations.filter(a => a.id !== automationId) }
-        : s
-    );
-
-    const updatedWorkflow = { ...selectedWorkflow, stages: updatedStages };
-    setWorkflows(workflows.map(w => (w.id === selectedWorkflow.id ? updatedWorkflow : w)));
-    setSelectedWorkflow(updatedWorkflow);
-  };
-
-  const handleDuplicateWorkflow = (workflow: Workflow) => {
-    const newWorkflow: Workflow = {
-      ...workflow,
-      id: Date.now().toString(),
-      name: `${workflow.name} (Copy)`,
-      stages: workflow.stages.map(s => ({
-        ...s,
-        id: `${Date.now()}-${s.id}`,
-        automations: s.automations.map(a => ({ ...a, id: `${Date.now()}-${a.id}` })),
-      })),
-    };
-    setWorkflows([...workflows, newWorkflow]);
-  };
+  }
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Workflow Configuration</h1>
-        <p className="text-slate-600 mt-1">
-          Customize your admission and sales pipelines with stages and automations
-        </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+              <ArrowLeft className="w-5 h-5 text-slate-600" />
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Workflow Configuration</h1>
+              <p className="text-slate-600 mt-1">
+                Configure your pipelines with stages and automations
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={fetchPipelines}
+            disabled={loading}
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-5 h-5 text-slate-600 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Workflow Sidebar */}
+        {/* Pipeline Sidebar */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <h3 className="font-medium text-slate-900 mb-4">Workflows</h3>
+            <h3 className="font-medium text-slate-900 mb-4">Pipelines</h3>
             <div className="space-y-2">
-              {workflows.map(workflow => (
+              {pipelines.map(pipeline => (
                 <div
-                  key={workflow.id}
+                  key={pipeline.id}
                   className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                    selectedWorkflow?.id === workflow.id
+                    selectedPipeline?.id === pipeline.id
                       ? 'bg-primary-50 border border-primary-200'
                       : 'bg-slate-50 hover:bg-slate-100 border border-transparent'
                   }`}
-                  onClick={() => setSelectedWorkflow(workflow)}
+                  onClick={() => setSelectedPipeline(pipeline)}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-slate-900">{workflow.name}</p>
-                      <p className="text-xs text-slate-500">{workflow.stages.length} stages</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-slate-900">{pipeline.name}</p>
+                        {pipeline.isDefault && (
+                          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded">
+                            Default
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500">{pipeline.stages?.length || 0} stages</p>
                     </div>
                     <button
                       onClick={e => {
                         e.stopPropagation();
-                        handleDuplicateWorkflow(workflow);
+                        handleDuplicatePipeline(pipeline);
                       }}
                       className="p-1 text-slate-400 hover:text-slate-600"
-                      title="Duplicate workflow"
+                      title="Duplicate pipeline"
+                      disabled={saving}
                     >
                       <Copy className="w-4 h-4" />
                     </button>
@@ -323,66 +504,49 @@ export default function WorkflowConfigPage() {
               ))}
             </div>
 
-            <button
-              onClick={() => {
-                const newWorkflow: Workflow = {
-                  id: Date.now().toString(),
-                  name: 'New Workflow',
-                  type: 'custom',
-                  stages: [
-                    { id: '1', name: 'New', color: '#3B82F6', order: 0, automations: [], isDefault: true },
-                    { id: '2', name: 'In Progress', color: '#F59E0B', order: 1, automations: [] },
-                    { id: '3', name: 'Complete', color: '#10B981', order: 2, automations: [], isDefault: true },
-                  ],
-                  isActive: true,
-                };
-                setWorkflows([...workflows, newWorkflow]);
-                setSelectedWorkflow(newWorkflow);
-              }}
+            {pipelines.length === 0 && (
+              <div className="text-center py-8 text-slate-500">
+                <p className="text-sm">No pipelines found</p>
+                <p className="text-xs mt-1">Create one from Pipeline Settings</p>
+              </div>
+            )}
+
+            <Link
+              to="/settings/pipeline"
               className="w-full mt-4 px-4 py-2 border-2 border-dashed border-slate-300 rounded-lg text-slate-600 hover:border-primary-300 hover:text-primary-600 transition-colors flex items-center justify-center gap-2"
             >
               <Plus className="w-4 h-4" />
-              Add Workflow
-            </button>
+              Manage Pipelines
+            </Link>
           </div>
         </div>
 
-        {/* Workflow Editor */}
+        {/* Pipeline Editor */}
         <div className="lg:col-span-3">
-          {selectedWorkflow ? (
+          {selectedPipeline ? (
             <div className="bg-white rounded-lg border border-slate-200">
-              {/* Workflow Header */}
+              {/* Pipeline Header */}
               <div className="p-4 border-b border-slate-200">
                 <div className="flex items-center justify-between">
                   <div>
-                    <input
-                      type="text"
-                      value={selectedWorkflow.name}
-                      onChange={e => {
-                        const updated = { ...selectedWorkflow, name: e.target.value };
-                        setSelectedWorkflow(updated);
-                        setWorkflows(workflows.map(w => (w.id === updated.id ? updated : w)));
-                      }}
-                      className="text-xl font-bold text-slate-900 border-none focus:outline-none focus:ring-0 p-0"
-                    />
+                    <h2 className="text-xl font-bold text-slate-900">{selectedPipeline.name}</h2>
                     <p className="text-sm text-slate-500 mt-1">
-                      {selectedWorkflow.type.charAt(0).toUpperCase() + selectedWorkflow.type.slice(1)} workflow
+                      {selectedPipeline.description || `${selectedPipeline.entityType} pipeline`}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedWorkflow.isActive}
-                        onChange={e => {
-                          const updated = { ...selectedWorkflow, isActive: e.target.checked };
-                          setSelectedWorkflow(updated);
-                          setWorkflows(workflows.map(w => (w.id === updated.id ? updated : w)));
-                        }}
-                        className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                      />
-                      <span className="text-sm text-slate-600">Active</span>
-                    </label>
+                    {selectedPipeline.isDefault && (
+                      <span className="px-2 py-1 bg-green-100 text-green-700 text-sm rounded">
+                        Default Pipeline
+                      </span>
+                    )}
+                    <span className={`px-2 py-1 text-sm rounded ${
+                      selectedPipeline.isActive
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {selectedPipeline.isActive ? 'Active' : 'Inactive'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -394,6 +558,7 @@ export default function WorkflowConfigPage() {
                   <button
                     onClick={() => setShowAddStage(true)}
                     className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1.5"
+                    disabled={saving}
                   >
                     <Plus className="w-4 h-4" />
                     Add Stage
@@ -402,7 +567,7 @@ export default function WorkflowConfigPage() {
 
                 {/* Visual Pipeline */}
                 <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
-                  {selectedWorkflow.stages
+                  {selectedPipeline.stages
                     .sort((a, b) => a.order - b.order)
                     .map((stage, index) => (
                       <div key={stage.id} className="flex items-center">
@@ -412,7 +577,7 @@ export default function WorkflowConfigPage() {
                         >
                           {stage.name}
                         </div>
-                        {index < selectedWorkflow.stages.length - 1 && (
+                        {index < selectedPipeline.stages.length - 1 && (
                           <ArrowRight className="w-4 h-4 text-slate-400 mx-1 flex-shrink-0" />
                         )}
                       </div>
@@ -421,185 +586,198 @@ export default function WorkflowConfigPage() {
 
                 {/* Detailed Stages */}
                 <div className="space-y-3">
-                  {selectedWorkflow.stages
+                  {selectedPipeline.stages
                     .sort((a, b) => a.order - b.order)
-                    .map(stage => (
-                      <div
-                        key={stage.id}
-                        draggable={!stage.isDefault}
-                        onDragStart={() => handleDragStart(stage.id)}
-                        onDragOver={e => handleDragOver(e, stage.id)}
-                        onDragEnd={handleDragEnd}
-                        className={`border rounded-lg transition-all ${
-                          draggedStage === stage.id ? 'opacity-50' : ''
-                        } ${
-                          expandedStages.has(stage.id)
-                            ? 'border-primary-200 bg-primary-50/30'
-                            : 'border-slate-200 bg-white'
-                        }`}
-                      >
-                        <div className="p-3 flex items-center gap-3">
-                          {!stage.isDefault && (
-                            <div className="cursor-grab text-slate-400 hover:text-slate-600">
-                              <GripVertical className="w-4 h-4" />
-                            </div>
-                          )}
-                          {stage.isDefault && <div className="w-4" />}
+                    .map(stage => {
+                      const automations = getStageAutomations(stage);
+                      const typeBadge = getStageTypeBadge(stage.stageType);
+                      const isSystemStage = stage.stageType === 'entry' || stage.stageType === 'won' || stage.stageType === 'lost';
 
-                          <div
-                            className="w-4 h-4 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: stage.color }}
-                          />
-
-                          {editingStage?.id === stage.id ? (
-                            <div className="flex-1 flex items-center gap-2">
-                              <input
-                                type="text"
-                                value={editingStage.name}
-                                onChange={e =>
-                                  setEditingStage({ ...editingStage, name: e.target.value })
-                                }
-                                className="flex-1 px-2 py-1 border border-slate-300 rounded text-sm"
-                                autoFocus
-                              />
-                              <select
-                                value={editingStage.color}
-                                onChange={e =>
-                                  setEditingStage({ ...editingStage, color: e.target.value })
-                                }
-                                className="px-2 py-1 border border-slate-300 rounded text-sm"
-                              >
-                                {STAGE_COLORS.map(color => (
-                                  <option key={color} value={color}>
-                                    {color}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                onClick={() => handleUpdateStage(stage.id, editingStage)}
-                                className="p-1 text-green-600 hover:bg-green-50 rounded"
-                              >
-                                <Check className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => setEditingStage(null)}
-                                className="p-1 text-slate-400 hover:bg-slate-100 rounded"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-slate-900">{stage.name}</span>
-                                  {stage.isDefault && (
-                                    <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-xs rounded">
-                                      System
-                                    </span>
-                                  )}
-                                  {stage.automations.length > 0 && (
-                                    <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded flex items-center gap-1">
-                                      <Zap className="w-3 h-3" />
-                                      {stage.automations.length}
-                                    </span>
-                                  )}
-                                </div>
-                                {stage.description && (
-                                  <p className="text-sm text-slate-500">{stage.description}</p>
-                                )}
-                              </div>
-
-                              <div className="flex items-center gap-1">
-                                <button
-                                  onClick={() => toggleStageExpand(stage.id)}
-                                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded"
-                                >
-                                  {expandedStages.has(stage.id) ? (
-                                    <ChevronDown className="w-4 h-4" />
-                                  ) : (
-                                    <ChevronRight className="w-4 h-4" />
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => setEditingStage(stage)}
-                                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                                {!stage.isDefault && (
-                                  <button
-                                    onClick={() => handleDeleteStage(stage.id)}
-                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                )}
-                              </div>
-                            </>
-                          )}
-                        </div>
-
-                        {/* Expanded Content - Automations */}
-                        {expandedStages.has(stage.id) && (
-                          <div className="border-t border-slate-200 p-3 bg-slate-50/50">
-                            <div className="flex items-center justify-between mb-3">
-                              <h4 className="text-sm font-medium text-slate-700">
-                                Stage Automations
-                              </h4>
-                              <button
-                                onClick={() => setShowAutomationModal({ stageId: stage.id })}
-                                className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
-                              >
-                                <Plus className="w-3 h-3" />
-                                Add Automation
-                              </button>
-                            </div>
-
-                            {stage.automations.length === 0 ? (
-                              <p className="text-sm text-slate-500 italic">
-                                No automations configured
-                              </p>
-                            ) : (
-                              <div className="space-y-2">
-                                {stage.automations.map(automation => (
-                                  <div
-                                    key={automation.id}
-                                    className="flex items-center justify-between bg-white p-2 rounded border border-slate-200"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <Zap className="w-4 h-4 text-amber-500" />
-                                      <span className="text-sm text-slate-700">
-                                        {AUTOMATION_TRIGGERS.find(t => t.value === automation.trigger)?.label}
-                                        {' → '}
-                                        {AUTOMATION_ACTIONS.find(a => a.value === automation.action)?.label}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <button
-                                        onClick={() =>
-                                          handleDeleteAutomation(stage.id, automation.id)
-                                        }
-                                        className="p-1 text-slate-400 hover:text-red-600"
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
+                      return (
+                        <div
+                          key={stage.id}
+                          draggable={!isSystemStage}
+                          onDragStart={() => handleDragStart(stage.id)}
+                          onDragOver={e => handleDragOver(e, stage.id)}
+                          onDragEnd={handleDragEnd}
+                          className={`border rounded-lg transition-all ${
+                            draggedStage === stage.id ? 'opacity-50' : ''
+                          } ${
+                            expandedStages.has(stage.id)
+                              ? 'border-primary-200 bg-primary-50/30'
+                              : 'border-slate-200 bg-white'
+                          }`}
+                        >
+                          <div className="p-3 flex items-center gap-3">
+                            {!isSystemStage && (
+                              <div className="cursor-grab text-slate-400 hover:text-slate-600">
+                                <GripVertical className="w-4 h-4" />
                               </div>
                             )}
+                            {isSystemStage && <div className="w-4" />}
+
+                            <div
+                              className="w-4 h-4 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: stage.color }}
+                            />
+
+                            {editingStage?.id === stage.id ? (
+                              <div className="flex-1 flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={editingStage.name}
+                                  onChange={e =>
+                                    setEditingStage({ ...editingStage, name: e.target.value })
+                                  }
+                                  className="flex-1 px-2 py-1 border border-slate-300 rounded text-sm"
+                                  autoFocus
+                                />
+                                <select
+                                  value={editingStage.color}
+                                  onChange={e =>
+                                    setEditingStage({ ...editingStage, color: e.target.value })
+                                  }
+                                  className="px-2 py-1 border border-slate-300 rounded text-sm"
+                                >
+                                  {STAGE_COLORS.map(color => (
+                                    <option key={color} value={color}>
+                                      {color}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  onClick={() => handleUpdateStage(stage.id, {
+                                    name: editingStage.name,
+                                    color: editingStage.color
+                                  })}
+                                  className="p-1 text-green-600 hover:bg-green-50 rounded"
+                                  disabled={saving}
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => setEditingStage(null)}
+                                  className="p-1 text-slate-400 hover:bg-slate-100 rounded"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-slate-900">{stage.name}</span>
+                                    {typeBadge && (
+                                      <span className={`px-1.5 py-0.5 text-xs rounded ${typeBadge.className}`}>
+                                        {typeBadge.label}
+                                      </span>
+                                    )}
+                                    {automations.length > 0 && (
+                                      <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded flex items-center gap-1">
+                                        <Zap className="w-3 h-3" />
+                                        {automations.length}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {stage.probability !== undefined && (
+                                    <p className="text-xs text-slate-500">
+                                      {stage.probability}% probability
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => toggleStageExpand(stage.id)}
+                                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded"
+                                  >
+                                    {expandedStages.has(stage.id) ? (
+                                      <ChevronDown className="w-4 h-4" />
+                                    ) : (
+                                      <ChevronRight className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingStage(stage)}
+                                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  {!isSystemStage && (
+                                    <button
+                                      onClick={() => handleDeleteStage(stage.id)}
+                                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                      disabled={saving}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    ))}
+
+                          {/* Expanded Content - Automations */}
+                          {expandedStages.has(stage.id) && (
+                            <div className="border-t border-slate-200 p-3 bg-slate-50/50">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-sm font-medium text-slate-700">
+                                  Stage Automations
+                                </h4>
+                                <button
+                                  onClick={() => setShowAutomationModal({ stageId: stage.id })}
+                                  className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                                  disabled={saving}
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  Add Automation
+                                </button>
+                              </div>
+
+                              {automations.length === 0 ? (
+                                <p className="text-sm text-slate-500 italic">
+                                  No automations configured
+                                </p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {automations.map(automation => (
+                                    <div
+                                      key={automation.id}
+                                      className="flex items-center justify-between bg-white p-2 rounded border border-slate-200"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <Zap className="w-4 h-4 text-amber-500" />
+                                        <span className="text-sm text-slate-700">
+                                          {AUTOMATION_TRIGGERS.find(t => t.value === automation.trigger)?.label}
+                                          {' → '}
+                                          {AUTOMATION_ACTIONS.find(a => a.value === automation.action)?.label}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={() => handleDeleteAutomation(stage.id, automation)}
+                                          className="p-1 text-slate-400 hover:text-red-600"
+                                          disabled={saving}
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
 
                 {/* Add Stage Form */}
                 {showAddStage && (
                   <div className="mt-4 p-4 border border-primary-200 rounded-lg bg-primary-50/30">
                     <h4 className="font-medium text-slate-900 mb-3">Add New Stage</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div>
                         <label className="block text-sm text-slate-600 mb-1">Stage Name</label>
                         <input
@@ -607,6 +785,30 @@ export default function WorkflowConfigPage() {
                           value={newStage.name}
                           onChange={e => setNewStage({ ...newStage, name: e.target.value })}
                           placeholder="e.g., Interview Scheduled"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-600 mb-1">Stage Type</label>
+                        <select
+                          value={newStage.stageType}
+                          onChange={e => setNewStage({ ...newStage, stageType: e.target.value as any })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                        >
+                          <option value="active">Active</option>
+                          <option value="entry">Entry</option>
+                          <option value="won">Won</option>
+                          <option value="lost">Lost</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-600 mb-1">Probability %</label>
+                        <input
+                          type="number"
+                          value={newStage.probability}
+                          onChange={e => setNewStage({ ...newStage, probability: parseInt(e.target.value) || 0 })}
+                          min="0"
+                          max="100"
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                         />
                       </div>
@@ -627,16 +829,6 @@ export default function WorkflowConfigPage() {
                           ))}
                         </div>
                       </div>
-                      <div>
-                        <label className="block text-sm text-slate-600 mb-1">Description</label>
-                        <input
-                          type="text"
-                          value={newStage.description}
-                          onChange={e => setNewStage({ ...newStage, description: e.target.value })}
-                          placeholder="Optional description"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                        />
-                      </div>
                     </div>
                     <div className="flex justify-end gap-2 mt-4">
                       <button
@@ -647,9 +839,10 @@ export default function WorkflowConfigPage() {
                       </button>
                       <button
                         onClick={handleAddStage}
-                        disabled={!newStage.name}
-                        className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 disabled:opacity-50"
+                        disabled={!newStage.name || saving}
+                        className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"
                       >
+                        {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                         Add Stage
                       </button>
                     </div>
@@ -660,7 +853,7 @@ export default function WorkflowConfigPage() {
           ) : (
             <div className="bg-white rounded-lg border border-slate-200 p-8 text-center">
               <Settings className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-              <p className="text-slate-500">Select a workflow to configure</p>
+              <p className="text-slate-500">Select a pipeline to configure</p>
             </div>
           )}
         </div>
@@ -742,8 +935,10 @@ export default function WorkflowConfigPage() {
               </button>
               <button
                 onClick={() => handleAddAutomation(showAutomationModal.stageId)}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                disabled={saving}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2"
               >
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                 Add Automation
               </button>
             </div>

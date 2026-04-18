@@ -1171,9 +1171,12 @@ export default function DashboardLayout() {
             <div className="flex items-center gap-2">
               {/* Team Status Indicator (for admins/managers) - Shows who is Active, On Break, Offline */}
               {teamStatus && (isAdmin || isManager || isTeamLead || isSuperAdmin) && (
-                <div className="relative">
+                <div
+                  className="relative"
+                  onMouseEnter={() => setShowTeamStatus(true)}
+                  onMouseLeave={() => setShowTeamStatus(false)}
+                >
                   <button
-                    onClick={() => setShowTeamStatus(!showTeamStatus)}
                     className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
                   >
                     <UsersIcon className="h-4 w-4 text-slate-600" />
@@ -1195,8 +1198,6 @@ export default function DashboardLayout() {
 
                   {/* Team Status Dropdown */}
                   {showTeamStatus && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowTeamStatus(false)} />
                       <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
                         <div className="p-3 border-b border-slate-100">
                           <h3 className="font-semibold text-slate-800">Team Status</h3>
@@ -1265,7 +1266,6 @@ export default function DashboardLayout() {
                           </div>
                         )}
                       </div>
-                    </>
                   )}
                 </div>
               )}
@@ -1303,9 +1303,12 @@ export default function DashboardLayout() {
               </button>
 
               {/* User menu */}
-              <div className="relative">
+              <div
+                className="relative"
+                onMouseEnter={() => setShowUserMenu(true)}
+                onMouseLeave={() => setShowUserMenu(false)}
+              >
                 <button
-                  onClick={() => setShowUserMenu(!showUserMenu)}
                   className={`flex items-center gap-1.5 p-1 rounded-lg transition-colors ${
                     isTelecallerDashboard ? 'hover:bg-slate-800' : 'hover:bg-slate-100'
                   }`}
@@ -1327,12 +1330,7 @@ export default function DashboardLayout() {
 
                 {/* Dropdown */}
                 {showUserMenu && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setShowUserMenu(false)}
-                    />
-                    <div className="dropdown-menu">
+                  <div className="dropdown-menu">
                       <div className="px-4 py-3 border-b border-slate-100">
                         <p className="text-sm font-medium text-slate-900">
                           {user?.firstName} {user?.lastName}
@@ -1375,7 +1373,6 @@ export default function DashboardLayout() {
                         </button>
                       </div>
                     </div>
-                  </>
                 )}
               </div>
             </div>

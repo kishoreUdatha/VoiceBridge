@@ -2,7 +2,7 @@
  * Integration Settings Constants
  */
 
-import { CRMProvider, VoiceBridgeField, TriggerOption } from './integration-settings.types';
+import { CRMProvider, MyLeadXField, TriggerOption } from './integration-settings.types';
 
 export const CRM_PROVIDERS: CRMProvider[] = [
   { id: 'salesforce', name: 'Salesforce', logo: '\u2601\uFE0F', color: 'bg-blue-500', authType: 'oauth' },
@@ -13,7 +13,7 @@ export const CRM_PROVIDERS: CRMProvider[] = [
   { id: 'custom', name: 'Custom CRM', logo: '\u2699\uFE0F', color: 'bg-gray-500', authType: 'webhook' },
 ];
 
-export const VOICEBRIDGE_FIELDS: VoiceBridgeField[] = [
+export const MYLEADX_FIELDS: MyLeadXField[] = [
   { id: 'firstName', label: 'First Name' },
   { id: 'lastName', label: 'Last Name' },
   { id: 'phone', label: 'Phone Number' },

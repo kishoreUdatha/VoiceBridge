@@ -1,6 +1,6 @@
 /**
  * Documentation Section - User Guide with Visual Screenshots
- * Comprehensive guide showing how to use VoiceBridge features
+ * Comprehensive guide showing how to use MyLeadX features
  */
 
 import React, { useState } from 'react';
@@ -375,7 +375,7 @@ export const DocumentationSection: React.FC = () => {
           <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-6">
             Learn how to use{' '}
             <span className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">
-              VoiceBridge
+              MyLeadX
             </span>
           </h2>
           <p className="text-xl text-slate-600">
@@ -472,7 +472,7 @@ export const DocumentationSection: React.FC = () => {
           </p>
           <div className="flex items-center justify-center gap-4">
             <a
-              href="mailto:support@voicebridge.in"
+              href="mailto:support@myleadx.in"
               className="inline-flex items-center gap-2 bg-violet-100 text-violet-700 px-6 py-3 rounded-full font-semibold hover:bg-violet-200 transition-colors"
             >
               <MessageSquare className="w-5 h-5" />

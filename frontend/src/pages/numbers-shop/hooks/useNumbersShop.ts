@@ -4,7 +4,7 @@
  *
  * Supports two options:
  * 1. Connect Your Exotel (BYOC) - Use your own Exotel account
- * 2. Buy from VoiceBridge (PLATFORM) - Purchase numbers from our pool
+ * 2. Buy from MyLeadX (PLATFORM) - Purchase numbers from our pool
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -116,7 +116,7 @@ export function useNumbersShop() {
 
   // Disconnect Exotel account
   const handleDisconnectExotel = async () => {
-    if (!confirm('Are you sure you want to disconnect your Exotel account? Your imported numbers will remain in VoiceBridge.')) {
+    if (!confirm('Are you sure you want to disconnect your Exotel account? Your imported numbers will remain in MyLeadX.')) {
       return;
     }
 

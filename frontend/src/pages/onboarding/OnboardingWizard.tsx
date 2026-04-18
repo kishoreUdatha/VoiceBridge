@@ -226,7 +226,7 @@ export default function OnboardingWizard() {
                 <SparklesIcon className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-slate-900">Welcome to VoiceBridge CRM</h1>
+                <h1 className="text-lg font-bold text-slate-900">Welcome to MyLeadX CRM</h1>
                 <p className="text-sm text-slate-500">Let's set up your account</p>
               </div>
             </div>

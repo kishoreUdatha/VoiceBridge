@@ -56,11 +56,15 @@ export class RawImportController {
     try {
       const userRole = req.user?.role || req.user?.roleSlug;
       const userId = req.user?.id;
+      const assignedDateFrom = req.query.assignedDateFrom as string | undefined;
+      const assignedDateTo = req.query.assignedDateTo as string | undefined;
 
       const stats = await rawImportService.getTelecallerAssignmentStats(
         req.organizationId!,
         userRole,
-        userId
+        userId,
+        assignedDateFrom,
+        assignedDateTo
       );
 
       ApiResponse.success(res, 'Telecaller assignment stats retrieved successfully', stats);
@@ -86,6 +90,9 @@ export class RawImportController {
         // Pass user role and ID for team-based filtering
         userRole: req.user?.role || req.user?.roleSlug,
         userId: req.user?.id,
+        // Date filtering
+        assignedDateFrom: req.query.assignedDateFrom as string | undefined,
+        assignedDateTo: req.query.assignedDateTo as string | undefined,
       };
 
       const { records, total } = await rawImportService.getRecords(filter, page, limit);

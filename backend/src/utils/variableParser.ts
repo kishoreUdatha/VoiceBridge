@@ -157,7 +157,7 @@ export const AVAILABLE_VARIABLES = [
   { key: 'phone', label: 'Phone', description: "Lead's phone number", example: '+1234567890' },
   { key: 'email', label: 'Email', description: "Lead's email address", example: 'john@example.com' },
   { key: 'company', label: 'Company', description: "Lead's company name", example: 'Acme Inc' },
-  { key: 'INSTITUTION_NAME', label: 'Institution Name', description: 'Your institution name', example: 'VoiceBridge' },
+  { key: 'INSTITUTION_NAME', label: 'Institution Name', description: 'Your institution name', example: 'MyLeadX' },
   { key: 'INSTITUTION_PHONE', label: 'Institution Phone', description: 'Your institution phone', example: '+1800123456' },
   { key: 'INSTITUTION_EMAIL', label: 'Institution Email', description: 'Your institution email', example: 'info@example.com' },
   { key: 'INSTITUTION_WEBSITE', label: 'Institution Website', description: 'Your institution website', example: 'www.example.com' },

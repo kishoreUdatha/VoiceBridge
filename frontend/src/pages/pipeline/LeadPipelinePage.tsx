@@ -435,23 +435,13 @@ const LeadPipelinePage: React.FC = () => {
               <PlusIcon className="w-3 h-3" />
               Create Campaign
             </Link>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search Campaign"
-                value={searchCampaign}
-                onChange={(e) => setSearchCampaign(e.target.value)}
-                className="w-36 pl-2 pr-7 py-1.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-              <MagnifyingGlassIcon className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-            </div>
           </div>
         </div>
       </div>
 
-      <div className="flex">
+      <div>
         {/* Main Content */}
-        <div className="flex-1">
+        <div>
           {/* Lead Funnel by Stages */}
           <div className="bg-white border-b border-gray-200">
             <div className="px-4 py-3 border-b border-gray-100">
@@ -674,75 +664,6 @@ const LeadPipelinePage: React.FC = () => {
             </div>
           </div>
           )}
-        </div>
-
-        {/* Right Sidebar - Campaigns */}
-        <div className="w-64 bg-white border-l border-gray-200">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <h2 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-              Campaigns
-            </h2>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-gray-400 uppercase">Hide Paused</span>
-              <button
-                onClick={() => setHidePaused(!hidePaused)}
-                className={`relative w-8 h-4 rounded-full transition-colors ${
-                  hidePaused ? 'bg-indigo-600' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${
-                    hidePaused ? 'translate-x-4' : ''
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-          <div className="p-4">
-
-          <div className="space-y-1 max-h-[calc(100vh-200px)] overflow-y-auto">
-            {filteredCampaigns.length > 0 ? (
-              filteredCampaigns.map((campaign) => (
-                <div
-                  key={campaign.id}
-                  className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedCampaigns.includes(campaign.id)}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      toggleCampaign(campaign.id);
-                    }}
-                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                  />
-                  <Link to={`/outbound-calls/campaigns/${campaign.id}`} className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-indigo-600">↑</span>
-                      <p className="text-sm text-gray-800 truncate hover:text-indigo-600">{campaign.name}</p>
-                    </div>
-                    {campaign.date && (
-                      <p className="text-xs text-gray-500 ml-5">{campaign.date}</p>
-                    )}
-                  </Link>
-                  <button
-                    onClick={(e) => e.stopPropagation()}
-                    className="p-1 hover:bg-gray-200 rounded"
-                  >
-                    <EllipsisVerticalIcon className="w-4 h-4 text-gray-400" />
-                  </button>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <p className="text-sm">No campaigns found</p>
-                <Link to="/outbound-calls/campaigns/create" className="text-xs text-indigo-600 hover:text-indigo-700 mt-2 inline-block">
-                  Create your first campaign
-                </Link>
-              </div>
-            )}
-          </div>
-          </div>
         </div>
       </div>
     </div>

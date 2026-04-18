@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import {
   PlusIcon,
@@ -14,6 +15,7 @@ import {
   BellIcon,
   ArrowPathIcon,
   XMarkIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import {
@@ -411,8 +413,13 @@ export default function FollowUpConfigPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Follow-up Configuration</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <div className="flex items-center gap-3">
+            <Link to="/settings" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+              <ArrowLeftIcon className="w-5 h-5 text-slate-600" />
+            </Link>
+            <h1 className="text-2xl font-bold text-slate-900">Follow-up Configuration</h1>
+          </div>
+          <p className="text-sm text-slate-500 mt-1 ml-12">
             Define follow-up rules, reminders, and escalation policies
           </p>
         </div>

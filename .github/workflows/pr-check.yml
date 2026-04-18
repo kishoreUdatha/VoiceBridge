@@ -1,5 +1,5 @@
 # ================================================================
-# VoiceBridge - Pull Request Check
+# MyLeadX - Pull Request Check
 # ================================================================
 # Runs on all PRs to main/staging branches
 # Validates code quality before merge
@@ -86,7 +86,7 @@ jobs:
         working-directory: ./frontend
         run: npm run build
         env:
-          VITE_API_URL: https://api.example.com
+          VITE_API_URL: https://api.myleadx.ai/api
 
   # ================================
   # Security Check
