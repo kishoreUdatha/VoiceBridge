@@ -79,6 +79,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    ports:
+      - "8080:8080"
     volumes:
       - uploads_data:/app/uploads
     networks:
@@ -93,36 +95,12 @@ services:
         VITE_WS_URL: wss://api.myleadx.ai
     container_name: myleadx-frontend
     restart: always
-    depends_on:
-      - backend
-    networks:
-      - myleadx-network
-
-  nginx:
-    image: nginx:alpine
-    container_name: myleadx-nginx
-    restart: always
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./certbot/conf:/etc/letsencrypt:ro
-      - ./certbot/www:/var/www/certbot:ro
+      - "3000:80"
     depends_on:
-      - frontend
       - backend
     networks:
       - myleadx-network
-
-  certbot:
-    image: certbot/certbot
-    container_name: myleadx-certbot
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 volumes:
   redis_data:
