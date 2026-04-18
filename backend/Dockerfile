@@ -49,9 +49,11 @@ COPY --from=builder /app/prisma ./prisma
 ENV NODE_ENV=production
 ENV PORT=8080
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+# Create directories and non-root user
+RUN mkdir -p /app/public /app/uploads && \
+    addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001 && \
+    chown -R nodejs:nodejs /app
 
 USER nodejs
 
