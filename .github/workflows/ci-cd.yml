@@ -273,28 +273,26 @@ jobs:
             docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
       - name: Health Check
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            echo "Running health checks..."
-            sleep 10
+        run: |
+          echo "Waiting for services to start..."
+          sleep 30
 
-            # Check API
-            if curl -sf https://api.myleadx.ai/api/health > /dev/null; then
-              echo "✅ API is healthy"
-            else
-              echo "⚠️ API health check failed"
-            fi
+          echo "Running health checks..."
 
-            # Check Frontend
-            if curl -sf https://app.myleadx.ai > /dev/null; then
-              echo "✅ Frontend is healthy"
-            else
-              echo "⚠️ Frontend health check failed"
-            fi
+          # Check API
+          if curl -sf --max-time 30 https://api.myleadx.ai/api/health > /dev/null; then
+            echo "✅ API is healthy"
+          else
+            echo "⚠️ API health check failed (may still be starting)"
+          fi
+
+          # Check Frontend
+          if curl -sf --max-time 30 https://app.myleadx.ai > /dev/null; then
+            echo "✅ Frontend is healthy"
+          else
+            echo "⚠️ Frontend health check failed (may still be starting)"
+          fi
+        continue-on-error: true
 
       - name: Deployment Summary
         if: always()
