@@ -84,8 +84,13 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
 
   // Skip for auth endpoints that don't have session yet or use httpOnly cookie auth
   // Also skip logout - it's a session-destroying action that should work even if CSRF cookie is stale
-  const publicAuthEndpoints = ['/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password', '/auth/refresh-token', '/auth/logout', '/super-admin/login', '/super-admin/logout'];
-  if (publicAuthEndpoints.some(endpoint => req.path.endsWith(endpoint))) {
+  const csrfExemptEndpoints = [
+    '/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password',
+    '/auth/refresh-token', '/auth/logout', '/super-admin/login', '/super-admin/logout',
+    // Onboarding endpoints - CSRF cookie may not be set yet after login
+    '/lead-stages/industry', '/onboarding'
+  ];
+  if (csrfExemptEndpoints.some(endpoint => req.path.endsWith(endpoint) || req.path.includes(endpoint))) {
     return next();
   }
 
