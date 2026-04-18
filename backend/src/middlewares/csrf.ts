@@ -58,13 +58,6 @@ export function csrfTokenSetter(req: Request, res: Response, next: NextFunction)
  * Validate CSRF token on state-changing requests
  */
 export function csrfProtection(req: Request, res: Response, next: NextFunction): void | Response {
-  // TEMPORARY: Skip CSRF for all authenticated requests (cookie-based auth)
-  // TODO: Re-enable after frontend CSRF fix is deployed
-  const accessToken = req.cookies?.['access_token'];
-  if (accessToken) {
-    return next();
-  }
-
   // Skip for safe methods (GET, HEAD, OPTIONS)
   const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
   if (safeMethods.includes(req.method)) {

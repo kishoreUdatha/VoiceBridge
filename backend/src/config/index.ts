@@ -106,9 +106,10 @@ export const config = {
   // Cookie settings for secure token storage
   cookie: {
     httpOnly: true,
-    secure: false, // Disabled for HTTP testing
+    secure: isProduction, // Enable secure cookies in production (HTTPS)
     sameSite: 'lax' as 'strict' | 'lax' | 'none',
-    domain: process.env.COOKIE_DOMAIN || undefined,
+    // Set domain for cross-subdomain cookies (api.myleadx.ai <-> app.myleadx.ai)
+    domain: process.env.COOKIE_DOMAIN || (isProduction ? '.myleadx.ai' : undefined),
     accessTokenMaxAge: 15 * 60 * 1000, // 15 minutes in ms
     refreshTokenMaxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
   },
