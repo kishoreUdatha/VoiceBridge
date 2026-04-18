@@ -223,59 +223,62 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
       - name: Deploy to EC2
         id: deploy
-        uses: appleboy/ssh-action@v1.2.0
         continue-on-error: true
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 30m
-          script: |
-            set -e
-            echo "=========================================="
-            echo "  MyLeadX Production Deployment"
-            echo "=========================================="
+        run: |
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -i ~/.ssh/deploy_key ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} 'bash -s' << 'ENDSSH'
+          set -e
+          echo "=========================================="
+          echo "  MyLeadX Production Deployment"
+          echo "=========================================="
 
-            cd ~/myleadx
+          cd ~/myleadx
 
-            echo ""
-            echo "📥 Step 1: Pulling latest code..."
-            git fetch --all --prune
-            git reset --hard origin/main
+          echo ""
+          echo "Step 1: Pulling latest code..."
+          git fetch --all --prune
+          git reset --hard origin/main
 
-            echo ""
-            echo "🔨 Step 2: Building containers..."
-            docker-compose -f docker-compose.prod.yml --env-file .env.production build --parallel
+          echo ""
+          echo "Step 2: Building containers..."
+          docker-compose -f docker-compose.prod.yml --env-file .env.production build --parallel
 
-            echo ""
-            echo "🛑 Step 3: Stopping old containers..."
-            docker-compose -f docker-compose.prod.yml --env-file .env.production down
+          echo ""
+          echo "Step 3: Stopping old containers..."
+          docker-compose -f docker-compose.prod.yml --env-file .env.production down
 
-            echo ""
-            echo "🚀 Step 4: Starting new containers..."
-            docker-compose -f docker-compose.prod.yml --env-file .env.production up -d
+          echo ""
+          echo "Step 4: Starting new containers..."
+          docker-compose -f docker-compose.prod.yml --env-file .env.production up -d
 
-            echo ""
-            echo "⏳ Step 5: Waiting for services..."
-            sleep 20
+          echo ""
+          echo "Step 5: Waiting for services..."
+          sleep 20
 
-            echo ""
-            echo "📊 Step 6: Running database migrations..."
-            docker exec myleadx-backend npx prisma migrate deploy || echo "Migration skipped"
+          echo ""
+          echo "Step 6: Running database migrations..."
+          docker exec myleadx-backend npx prisma migrate deploy || echo "Migration skipped"
 
-            echo ""
-            echo "🧹 Step 7: Cleaning up old images..."
-            docker image prune -f
+          echo ""
+          echo "Step 7: Cleaning up old images..."
+          docker image prune -f
 
-            echo ""
-            echo "✅ Deployment Complete!"
-            echo ""
-            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          echo ""
+          echo "Deployment Complete!"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          ENDSSH
 
-            # Ensure clean exit
-            exit 0
+      - name: Cleanup SSH Key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
 
       - name: Verify Deployment
         run: |
