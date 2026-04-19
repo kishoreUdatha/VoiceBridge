@@ -3,7 +3,7 @@
  * Provides offline support and caching for PWA
  */
 
-const CACHE_NAME = 'voicebridge-v1';
+const CACHE_NAME = 'myleadx-v2';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache on install
