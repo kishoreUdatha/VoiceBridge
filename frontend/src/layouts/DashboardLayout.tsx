@@ -775,8 +775,8 @@ export default function DashboardLayout() {
       >
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="flex h-14 items-center justify-between px-4 border-b border-slate-800">
-            <span className="text-xl font-bold bg-gradient-to-r from-primary-400 to-primary-300 bg-clip-text text-transparent">
+          <div className="flex h-14 items-center justify-between px-3 border-b border-slate-800">
+            <span className="text-xl font-bold bg-gradient-to-r from-primary-400 to-primary-300 bg-clip-text text-transparent pl-2.5">
               MyLeadX
             </span>
             <button
@@ -916,10 +916,10 @@ export default function DashboardLayout() {
         <div className="flex min-h-0 flex-1 flex-col bg-slate-900">
           {/* Logo - Clickable to toggle collapse */}
           <div
-            className="flex h-14 items-center justify-between px-3 border-b border-slate-800 cursor-pointer hover:bg-slate-800/50 transition-colors"
+            className="flex h-14 items-center justify-between px-2 border-b border-slate-800 cursor-pointer hover:bg-slate-800/50 transition-colors"
             onClick={toggleSidebar}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5 pl-2.5">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0">
                 <SparklesIcon className="w-5 h-5 text-white" />
               </div>
