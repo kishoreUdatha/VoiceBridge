@@ -116,11 +116,22 @@ app.use(
       if (process.env.NODE_ENV !== 'production') {
         return callback(null, true);
       }
-      // In production, check against allowed origins
+      // In production, check against allowed origins (supports wildcards)
       const allowedOrigins = Array.isArray(config.corsOrigins)
         ? config.corsOrigins
         : [config.corsOrigins];
-      if (allowedOrigins.includes(origin)) {
+
+      const isAllowed = allowedOrigins.some((allowed) => {
+        // Check for wildcard pattern (e.g., https://*.myleadx.ai)
+        if (allowed.includes('*')) {
+          const pattern = allowed.replace(/\*/g, '[^.]+');
+          const regex = new RegExp(`^${pattern}$`);
+          return regex.test(origin);
+        }
+        return allowed === origin;
+      });
+
+      if (isAllowed) {
         return callback(null, true);
       }
       callback(new Error('Not allowed by CORS'));
