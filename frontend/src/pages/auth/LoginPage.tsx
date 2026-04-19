@@ -56,6 +56,19 @@ export default function LoginPage() {
       } finally {
         setSuperAdminLoading(false);
       }
+    } else {
+      // Regular user login successful - redirect to tenant subdomain
+      const payload = result.payload as { tenantUrl?: string; user?: { organizationSlug?: string } };
+      const tenantUrl = payload?.tenantUrl;
+
+      if (tenantUrl && !window.location.hostname.includes('localhost')) {
+        console.log('[Login] Redirecting to tenant URL:', tenantUrl);
+        // Redirect to tenant subdomain with dashboard
+        window.location.href = `${tenantUrl}/dashboard`;
+      } else {
+        // Fallback to regular dashboard (localhost or no tenant URL)
+        navigate('/dashboard');
+      }
     }
   };
 
