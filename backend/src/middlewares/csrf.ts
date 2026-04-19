@@ -89,7 +89,7 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
     '/auth/refresh-token', '/auth/logout', '/super-admin/login', '/super-admin/logout',
     '/super-admin/setup', // First-time setup endpoint
     // Onboarding endpoints - CSRF cookie may not be set yet after login
-    '/lead-stages/industry', '/onboarding'
+    '/lead-stages/industry', '/onboarding', '/organization/complete-onboarding'
   ];
   if (csrfExemptEndpoints.some(endpoint => req.path.endsWith(endpoint) || req.path.includes(endpoint))) {
     return next();
