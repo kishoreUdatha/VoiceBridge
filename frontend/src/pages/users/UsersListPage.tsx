@@ -1082,7 +1082,7 @@ export default function UsersListPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Email <span className="text-red-500">*</span></label>
-                      <input type="email" {...register('email', { required: true })} disabled={isEditModalOpen} placeholder="john@example.com" className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-1 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-50 disabled:text-gray-500 transition-colors" />
+                      <input type="email" {...register('email', { required: true })} disabled={isEditModalOpen} placeholder="john@example.com" autoComplete="off" className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-1 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-50 disabled:text-gray-500 transition-colors" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
@@ -1101,7 +1101,7 @@ export default function UsersListPage() {
                     {!isEditModalOpen && (
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">Password <span className="text-red-500">*</span></label>
-                        <input type="password" {...register('password', { required: !isEditModalOpen, minLength: 8 })} placeholder="Min 8 chars" className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-colors" />
+                        <input type="password" {...register('password', { required: !isEditModalOpen, minLength: 8 })} placeholder="Min 8 chars" autoComplete="new-password" className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-colors" />
                       </div>
                     )}
                     <div className={!isEditModalOpen ? '' : 'col-span-2'}>
