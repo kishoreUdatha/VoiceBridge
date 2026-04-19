@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from './store';
@@ -346,23 +346,30 @@ function HomeRoute() {
 
 // Super Admin Protected Route
 function SuperAdminProtectedRoute({ children }: { children: React.ReactNode }) {
-  // Only use regular auth - super_admin role users access this panel
-  const { isAuthenticated, user, isInitialized } = useSelector((state: RootState) => state.auth);
+  const [isChecking, setIsChecking] = React.useState(true);
+  const [isAuthorized, setIsAuthorized] = React.useState(false);
 
-  if (!isInitialized) {
+  React.useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        // Check if super admin is logged in via superAdminService
+        const isAuth = await superAdminService.isAuthenticated();
+        setIsAuthorized(isAuth);
+      } catch {
+        setIsAuthorized(false);
+      } finally {
+        setIsChecking(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  if (isChecking) {
     return <AuthLoadingSpinner />;
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthorized) {
     return <Navigate to="/login" replace />;
-  }
-
-  const userRole = user?.role?.toLowerCase();
-  const isSuperAdmin = userRole === 'super_admin' || userRole === 'superadmin';
-
-  if (!isSuperAdmin) {
-    // Not a super admin, redirect to regular dashboard
-    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
