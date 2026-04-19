@@ -513,7 +513,24 @@ export class AuthService {
         });
       }
 
-      // Create admin user
+      // Create default "Headquarters" branch
+      const defaultBranch = await tx.branch.create({
+        data: {
+          organizationId: organization.id,
+          name: 'Headquarters',
+          code: 'HQ-001',
+          isHeadquarters: true,
+          isActive: true,
+          address: input.country || 'India',
+          city: 'Main Office',
+          state: input.country || 'India',
+          country: input.country || 'India',
+          email: input.email,
+          phone: input.phone,
+        },
+      });
+
+      // Create admin user and assign to headquarters branch
       const user = await tx.user.create({
         data: {
           organizationId: organization.id,
@@ -523,10 +540,11 @@ export class AuthService {
           lastName: input.lastName,
           phone: input.phone,
           roleId: adminRole.id,
+          branchId: defaultBranch.id,
         },
       });
 
-      return { organization, user, role: adminRole };
+      return { organization, user, role: adminRole, branch: defaultBranch };
     });
 
     // Generate tokens
