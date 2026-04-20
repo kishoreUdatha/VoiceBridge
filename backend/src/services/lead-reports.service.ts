@@ -779,7 +779,7 @@ class LeadReportsService {
       select: { id: true, name: true, slug: true, autoSyncStatus: true },
     });
 
-    const wonStageIds = stages.filter(s => s.autoSyncStatus === 'WON' || s.slug?.includes('won') || s.slug?.includes('converted')).map(s => s.id);
+    const wonStageIds = stages.filter(s => s.autoSyncStatus === 'WON' || s.slug?.includes('won') || s.slug?.includes('converted') || s.slug?.includes('admitted') || s.slug?.includes('enrolled')).map(s => s.id);
     const lostStageIds = stages.filter(s => s.autoSyncStatus === 'LOST' || s.slug?.includes('lost')).map(s => s.id);
 
     // Get all users with assignments
