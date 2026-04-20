@@ -165,10 +165,11 @@ export default function UsersListPage() {
     // For Admins (who manage Managers), don't filter by branch - Admins are org-wide
     // For other roles, filter by branch if selected
     return managers.filter((m: any) => {
-      const roleMatch = validManagerRoles.includes(m.roleSlug);
+      const managerRoleSlug = m.role?.slug || m.roleSlug;
+      const roleMatch = validManagerRoles.includes(managerRoleSlug);
 
       // Admins can manage anyone in the org regardless of branch
-      if (validManagerRoles.includes('admin') && m.roleSlug === 'admin') {
+      if (validManagerRoles.includes('admin') && managerRoleSlug === 'admin') {
         return roleMatch;
       }
 
