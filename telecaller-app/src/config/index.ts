@@ -27,7 +27,7 @@ try {
 // ============================================================
 
 // Production API URL - HARDCODED for production builds
-const PRODUCTION_API_URL = 'http://13.206.154.118/api';
+const PRODUCTION_API_URL = 'https://api.myleadx.ai/api';
 
 // Set to false for production, true only for local development
 const USE_ADB_REVERSE = false;
