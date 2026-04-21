@@ -104,6 +104,9 @@ export class RawImportService {
     const normalizedRole = userRole?.toLowerCase().replace('_', '');
 
     // Apply role-based filtering for stats consistency
+    // - Admin: sees all records
+    // - Manager: sees all records (full visibility)
+    // - Team Lead: sees unassigned + their team's records
     if (normalizedRole === 'teamlead' && userId) {
       const teamMembers = await prisma.user.findMany({
         where: {
@@ -123,36 +126,8 @@ export class RawImportService {
       } else {
         recordWhere.assignedToId = null;
       }
-    } else if (normalizedRole === 'manager' && userId) {
-      const teamLeads = await prisma.user.findMany({
-        where: {
-          organizationId,
-          managerId: userId,
-          role: { slug: 'team_lead' },
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      const teamLeadIds = teamLeads.map(tl => tl.id);
-
-      const telecallers = await prisma.user.findMany({
-        where: {
-          organizationId,
-          managerId: { in: [...teamLeadIds, userId] },
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      const telecallerIds = telecallers.map(t => t.id);
-
-      if (telecallerIds.length > 0) {
-        recordWhere.OR = [
-          { assignedToId: null },
-          { assignedToId: { in: telecallerIds } },
-        ];
-      }
     }
-    // Admin sees all records (no additional filter)
+    // Manager and Admin see all records (no additional filter)
 
     // Get status breakdown with role-based filtering
     const statusBreakdown = await prisma.rawImportRecord.groupBy({
@@ -265,9 +240,9 @@ export class RawImportService {
     }
 
     // Role-based filtering for team hierarchy
-    // Managers and Team Leads should see:
-    // 1. PENDING records (unassigned) - so they can assign them
-    // 2. Records assigned to their team members
+    // - Admin: sees all records
+    // - Manager: sees all records (can assign to their team only - enforced in assignment)
+    // - Team Lead: sees unassigned records + records assigned to their team members
     const normalizedRole = filter.userRole?.toLowerCase().replace('_', '');
     let roleCondition: any = null;
 
@@ -296,42 +271,7 @@ export class RawImportService {
         roleCondition = { assignedToId: null };
       }
     }
-    // Managers see pending records + records assigned to their team
-    else if (normalizedRole === 'manager' && filter.userId) {
-      // Get team leads who report to this manager
-      const teamLeads = await prisma.user.findMany({
-        where: {
-          organizationId: filter.organizationId,
-          managerId: filter.userId,
-          role: { slug: 'team_lead' },
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      const teamLeadIds = teamLeads.map(tl => tl.id);
-
-      // Get all telecallers under these team leads + direct reports
-      const telecallers = await prisma.user.findMany({
-        where: {
-          organizationId: filter.organizationId,
-          managerId: { in: [...teamLeadIds, filter.userId] },
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      const telecallerIds = telecallers.map(t => t.id);
-
-      // Show unassigned records OR records assigned to team members
-      if (telecallerIds.length > 0) {
-        roleCondition = {
-          OR: [
-            { assignedToId: null }, // Pending/unassigned records
-            { assignedToId: { in: telecallerIds } }, // Team members' records
-          ],
-        };
-      }
-      // If no telecallers, manager sees all (no filter) - they can assign to anyone
-    }
+    // Managers see ALL records (like admins) - assignment is restricted in assignToTelecallers
     // Admin sees all records (no additional filter)
 
     // Combine search and role conditions using AND
@@ -798,7 +738,10 @@ export class RawImportService {
       }
     }
 
-    // Team Lead: only see stats for their team members
+    // Role-based filtering:
+    // - Admin: sees all telecaller stats
+    // - Manager: sees all telecaller stats (full visibility)
+    // - Team Lead: sees only their team members' stats
     const normalizedRole = userRole?.toLowerCase().replace('_', '');
     let allowedTelecallerIds: string[] | null = null;
 
@@ -819,33 +762,7 @@ export class RawImportService {
         return { telecallers: [], unassignedCount: 0, totalTelecallers: 0 };
       }
     }
-    // Manager: see stats for telecallers under their team leads
-    else if (normalizedRole === 'manager' && userId) {
-      const teamLeads = await prisma.user.findMany({
-        where: {
-          organizationId,
-          managerId: userId,
-          role: { slug: 'team_lead' },
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      const teamLeadIds = teamLeads.map(tl => tl.id);
-
-      const telecallers = await prisma.user.findMany({
-        where: {
-          organizationId,
-          managerId: { in: [...teamLeadIds, userId] },
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      allowedTelecallerIds = telecallers.map(t => t.id);
-      if (allowedTelecallerIds.length > 0) {
-        whereClause.assignedToId = { in: allowedTelecallerIds };
-      }
-    }
-    // Admin sees all
+    // Manager and Admin see all telecaller stats (no additional filter)
 
     // Get assignment counts grouped by telecaller
     const assignmentStats = await prisma.rawImportRecord.groupBy({
