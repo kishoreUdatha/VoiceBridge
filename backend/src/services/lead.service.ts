@@ -258,7 +258,8 @@ export class LeadService {
     }
 
     // Build role-based condition separately
-    // - Admin/Manager: see all leads (full visibility)
+    // - Admin: see all leads
+    // - Manager: see leads assigned to them or their team (team leads + telecallers)
     // - Team Lead: see unassigned + their team's leads
     // - Telecaller/Counselor: see only their assigned leads
     const normalizedRole = filter.userRole?.toLowerCase().replace('_', '');
@@ -273,6 +274,38 @@ export class LeadService {
             isActive: true,
           },
         },
+      };
+    } else if (normalizedRole === 'manager' && filter.userId) {
+      // Manager: see leads assigned to them or their team hierarchy
+      const teamLeads = await prisma.user.findMany({
+        where: {
+          organizationId: filter.organizationId,
+          managerId: filter.userId,
+          role: { slug: 'team_lead' },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamLeadIds = teamLeads.map(tl => tl.id);
+
+      // Get all users under these team leads + direct reports
+      const allTeamMembers = await prisma.user.findMany({
+        where: {
+          organizationId: filter.organizationId,
+          OR: [
+            { managerId: { in: teamLeadIds } },
+            { managerId: filter.userId },
+          ],
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      // Include manager + team leads + all team members
+      const allMemberIds = [filter.userId, ...teamLeadIds, ...allTeamMembers.map(m => m.id)];
+
+      // Manager sees only leads assigned to their hierarchy (no unassigned leads)
+      roleCondition = {
+        assignments: { some: { assignedToId: { in: allMemberIds }, isActive: true } },
       };
     } else if (normalizedRole === 'teamlead' && filter.userId) {
       // Team Lead: see unassigned leads + leads assigned to themselves or team members
@@ -295,9 +328,7 @@ export class LeadService {
           { assignments: { some: { assignedToId: { in: allMemberIds }, isActive: true } } },
         ],
       };
-    }
-    // Manager sees ALL leads (like admin) - assignment is restricted in assignLead/assignBulk
-    else if (
+    } else if (
       normalizedRole === 'telecaller' ||
       normalizedRole === 'counselor' ||
       normalizedRole === 'counsellor' ||
