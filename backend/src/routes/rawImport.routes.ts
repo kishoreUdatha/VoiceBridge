@@ -113,6 +113,16 @@ router.get(
   rawImportController.getRecord.bind(rawImportController)
 );
 
+// Assign bulk import to manager (admin only)
+router.post(
+  '/assign/manager',
+  authorize('admin'),
+  body('bulkImportId').isUUID().withMessage('Valid bulk import ID is required'),
+  body('managerId').isUUID().withMessage('Valid manager ID is required'),
+  validate([]),
+  rawImportController.assignToManager.bind(rawImportController)
+);
+
 // Assignment - Allow admin, manager, and team_lead to assign leads
 router.post(
   '/assign/telecallers',

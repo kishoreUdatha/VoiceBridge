@@ -11,14 +11,34 @@ export class RawImportController {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
+      const userRole = req.user?.role || req.user?.roleSlug;
+      const userId = req.user?.id;
 
       const { imports, total } = await rawImportService.getBulkImports(
         req.organizationId!,
         page,
-        limit
+        limit,
+        userRole,
+        userId
       );
 
       ApiResponse.paginated(res, 'Bulk imports retrieved successfully', imports, page, limit, total);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async assignToManager(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { bulkImportId, managerId } = req.body;
+
+      const result = await rawImportService.assignToManager(
+        bulkImportId,
+        managerId,
+        req.organizationId!
+      );
+
+      ApiResponse.success(res, 'Bulk import assigned to manager successfully', result);
     } catch (error) {
       next(error);
     }

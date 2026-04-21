@@ -356,6 +356,7 @@ model User {
 
   // Raw Import Records
   bulkImportsUploaded   BulkImport[]      @relation("BulkImportUploader")
+  bulkImportsManaged    BulkImport[]      @relation("BulkImportManager")
   rawImportsAssignedTo  RawImportRecord[] @relation("RawImportAssignedTo")
   rawImportsAssignedBy  RawImportRecord[] @relation("RawImportAssignedBy")
   rawImportsConvertedBy RawImportRecord[] @relation("RawImportConvertedBy")
@@ -2071,14 +2072,22 @@ model SmsLog {
   direction     MessageDirection
   status        MessageStatus    @default(PENDING)
   providerMsgId String?
-  provider      String?          @default("TWILIO") // TWILIO or PLIVO
+  provider      String?          @default("TWILIO") // TWILIO, PLIVO, MSG91, EXOTEL
   sentAt        DateTime?
   deliveredAt   DateTime?
   createdAt     DateTime         @default(now())
 
+  // MSG91/DLT specific fields
+  templateId    String? // Internal template ID
+  dltTemplateId String? // DLT registered template ID
+  credits       Int?    // SMS credits used
+
   lead Lead? @relation(fields: [leadId], references: [id])
   user User  @relation(fields: [userId], references: [id])
 
+  @@index([leadId])
+  @@index([userId])
+  @@index([providerMsgId])
   @@map("sms_logs")
 }
 
@@ -5551,6 +5560,11 @@ model MessageTemplate {
   whatsappStatus     WhatsAppTemplateStatus @default(PENDING)
   whatsappLanguage   String?                @default("en")
 
+  // MSG91/DLT specific (for India SMS compliance)
+  dltTemplateId   String? // DLT registered template ID
+  dltEntityId     String? // DLT entity ID (PE ID)
+  msg91TemplateId String? // MSG91 Flow template ID
+
   // Variables/placeholders
   variables    Json @default("[]") // ["name", "phone", "date"]
   sampleValues Json @default("{}") // {"name": "John", "phone": "123"}
@@ -6029,16 +6043,22 @@ model BulkImport {
   status       BulkImportStatus @default(PROCESSING)
   errorMessage String?
 
+  // Manager Assignment - Admin assigns bulk import to a manager
+  assignedManagerId String?
+  assignedManagerAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  uploadedBy   User              @relation("BulkImportUploader", fields: [uploadedById], references: [id])
-  records      RawImportRecord[]
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedBy      User              @relation("BulkImportUploader", fields: [uploadedById], references: [id])
+  assignedManager User?             @relation("BulkImportManager", fields: [assignedManagerId], references: [id])
+  records         RawImportRecord[]
 
   @@index([organizationId, createdAt])
   @@index([organizationId, status])
+  @@index([assignedManagerId])
   @@map("bulk_imports")
 }
 
