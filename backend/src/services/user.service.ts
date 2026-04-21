@@ -410,6 +410,106 @@ export class UserService {
     }));
   }
 
+  /**
+   * Get users that the current user can assign leads to based on hierarchy
+   * Admin: can assign to managers, team leads, telecallers
+   * Manager: can assign to their team leads and telecallers
+   * Team Lead: can assign to their telecallers only
+   */
+  async getAssignableUsers(organizationId: string, userRole: string, userId: string) {
+    const normalizedRole = userRole?.toLowerCase().replace('_', '');
+    let assignableUsers: any[] = [];
+
+    if (normalizedRole === 'admin' || normalizedRole === 'super_admin' || normalizedRole === 'superadmin') {
+      // Admin can assign to anyone except other admins
+      assignableUsers = await prisma.user.findMany({
+        where: {
+          organizationId,
+          isActive: true,
+          role: { slug: { notIn: ['admin', 'super_admin'] } },
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          managerId: true,
+          branchId: true,
+          role: { select: { name: true, slug: true } },
+          branch: { select: { id: true, name: true } },
+          manager: { select: { firstName: true, lastName: true } },
+        },
+      });
+    } else if (normalizedRole === 'manager') {
+      // Manager can assign to:
+      // 1. Team leads who report directly to them
+      // 2. Telecallers who report to them or to their team leads
+      const teamLeads = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: userId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamLeadIds = teamLeads.map((tl) => tl.id);
+
+      assignableUsers = await prisma.user.findMany({
+        where: {
+          organizationId,
+          isActive: true,
+          OR: [
+            { managerId: userId }, // Direct reports (team leads or telecallers)
+            { managerId: { in: teamLeadIds } }, // Telecallers under team leads
+          ],
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          managerId: true,
+          branchId: true,
+          role: { select: { name: true, slug: true } },
+          branch: { select: { id: true, name: true } },
+          manager: { select: { firstName: true, lastName: true } },
+        },
+      });
+    } else if (normalizedRole === 'teamlead' || normalizedRole === 'team_lead') {
+      // Team lead can only assign to their direct reports
+      assignableUsers = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: userId,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          managerId: true,
+          branchId: true,
+          role: { select: { name: true, slug: true } },
+          branch: { select: { id: true, name: true } },
+          manager: { select: { firstName: true, lastName: true } },
+        },
+      });
+    }
+
+    return assignableUsers.map((user) => ({
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role?.name || user.role?.slug || 'Unknown',
+      roleSlug: user.role?.slug || '',
+      branchId: user.branchId,
+      branchName: user.branch?.name || null,
+      managerName: user.manager ? `${user.manager.firstName} ${user.manager.lastName}` : null,
+    }));
+  }
+
   async getRoles(organizationId: string) {
     // Return only organization-specific roles (no duplicates)
     return prisma.role.findMany({

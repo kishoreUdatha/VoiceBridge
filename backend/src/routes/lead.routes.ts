@@ -159,9 +159,12 @@ router.post(
 );
 
 // Bulk assign leads to counselors - must be before /:id routes
+// Admin: can assign to anyone
+// Manager: can assign to their team leads and telecallers
+// Team Lead: can assign to their telecallers only
 router.post(
   '/assign-bulk',
-  authorize('admin'),
+  authorize('admin', 'manager', 'team_lead'),
   validate([
     body('source').optional().isIn([
       'MANUAL', 'BULK_UPLOAD', 'FORM', 'LANDING_PAGE', 'CHATBOT',
@@ -214,9 +217,13 @@ router.delete(
   leadController.delete.bind(leadController)
 );
 
+// Assign single lead
+// Admin: can assign to anyone
+// Manager: can assign to their team leads and telecallers
+// Team Lead: can assign to their telecallers only
 router.put(
   '/:id/assign',
-  authorize('admin'),
+  authorize('admin', 'manager', 'team_lead'),
   validate(assignLeadValidation),
   leadController.assign.bind(leadController)
 );
