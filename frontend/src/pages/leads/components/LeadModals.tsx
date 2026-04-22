@@ -2,10 +2,12 @@
  * Lead Detail Modals - Extracted modal components
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { LeadPayment, LeadDocument } from '../../../services/leadDetails.service';
 import { CustomFieldsRenderer } from '../../../components/CustomFieldsRenderer';
+import { smsService, SmsTemplate, SmsInfo } from '../../../services/sms.service';
+import { templateService, MessageTemplate } from '../../../services/template.service';
 
 interface ModalWrapperProps {
   isOpen: boolean;
@@ -485,25 +487,96 @@ export function WhatsAppModal({ isOpen, onClose, onSubmit, phone }: WhatsAppModa
 interface SmsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (message: string) => void;
+  onSubmit: (message: string, templateId?: string) => void;
   phone: string;
+  leadId?: string;
+  leadName?: string;
+  leadData?: Record<string, string>;
 }
 
-export function SmsModal({ isOpen, onClose, onSubmit, phone }: SmsModalProps) {
+export function SmsModal({ isOpen, onClose, onSubmit, phone, leadId, leadName, leadData = {} }: SmsModalProps) {
   const [message, setMessage] = useState('');
+  const [templates, setTemplates] = useState<SmsTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<SmsTemplate | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendViaApi, setSendViaApi] = useState(true);
+  const [smsInfo, setSmsInfo] = useState<SmsInfo>({ characterCount: 0, smsCount: 0, encoding: 'GSM', remainingInCurrentSms: 160 });
 
-  const handleSendSms = () => {
-    // Create SMS URL - works on mobile and some desktop apps
-    const smsUrl = `sms:${phone}?body=${encodeURIComponent(message)}`;
+  // Load templates on mount
+  useEffect(() => {
+    if (isOpen) {
+      loadTemplates();
+    }
+  }, [isOpen]);
 
-    // Open SMS app
-    window.location.href = smsUrl;
+  // Update SMS info when message changes
+  useEffect(() => {
+    setSmsInfo(smsService.getSmsInfo(message));
+  }, [message]);
 
-    // Also call the onSubmit to log the activity
-    onSubmit(message);
+  const loadTemplates = async () => {
+    setLoading(true);
+    try {
+      const data = await smsService.getTemplates();
+      setTemplates(data);
+    } catch (error) {
+      console.error('Failed to load SMS templates:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // Reset and close
+  const handleTemplateSelect = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      setSelectedTemplate(template);
+      // Substitute variables with lead data
+      const variables = {
+        firstName: leadData.firstName || leadName?.split(' ')[0] || '',
+        lastName: leadData.lastName || leadName?.split(' ').slice(1).join(' ') || '',
+        fullName: leadName || '',
+        phone: phone,
+        ...leadData,
+      };
+      const substitutedMessage = smsService.substituteVariables(template.content, variables);
+      setMessage(substitutedMessage);
+    } else {
+      setSelectedTemplate(null);
+    }
+  };
+
+  const handleSendSms = async () => {
+    if (sendViaApi && leadId) {
+      setSending(true);
+      try {
+        await smsService.sendSms({
+          phone,
+          message,
+          templateId: selectedTemplate?.msg91TemplateId || selectedTemplate?.id,
+          dltTemplateId: selectedTemplate?.dltTemplateId,
+          leadId,
+        });
+        toast.success('SMS sent successfully');
+        onSubmit(message, selectedTemplate?.id);
+        resetAndClose();
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Failed to send SMS');
+      } finally {
+        setSending(false);
+      }
+    } else {
+      // Fallback to native SMS app
+      const smsUrl = `sms:${phone}?body=${encodeURIComponent(message)}`;
+      window.location.href = smsUrl;
+      onSubmit(message, selectedTemplate?.id);
+      resetAndClose();
+    }
+  };
+
+  const resetAndClose = () => {
     setMessage('');
+    setSelectedTemplate(null);
     onClose();
   };
 
@@ -521,7 +594,7 @@ export function SmsModal({ isOpen, onClose, onSubmit, phone }: SmsModalProps) {
           </div>
           <div>
             <h3 className="text-white font-semibold">Send SMS</h3>
-            <p className="text-amber-100 text-xs">Opens messaging app</p>
+            <p className="text-amber-100 text-xs">{sendViaApi ? 'Send via MSG91' : 'Opens messaging app'}</p>
           </div>
         </div>
 
@@ -535,8 +608,24 @@ export function SmsModal({ isOpen, onClose, onSubmit, phone }: SmsModalProps) {
             </div>
             <div>
               <p className="text-xs text-slate-500">To</p>
-              <p className="font-medium text-slate-800">{phone}</p>
+              <p className="font-medium text-slate-800">{leadName ? `${leadName} (${phone})` : phone}</p>
             </div>
+          </div>
+
+          {/* Template selector */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Template (optional)</label>
+            <select
+              value={selectedTemplate?.id || ''}
+              onChange={(e) => handleTemplateSelect(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              disabled={loading}
+            >
+              <option value="">Select a template or write custom message</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Message input */}
@@ -547,55 +636,85 @@ export function SmsModal({ isOpen, onClose, onSubmit, phone }: SmsModalProps) {
               onChange={(e) => setMessage(e.target.value)}
               className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
               rows={4}
-              maxLength={160}
             />
-            <div className="absolute bottom-2 right-3">
-              <span className={`text-xs ${message.length > 140 ? 'text-amber-600' : 'text-slate-400'}`}>
-                {message.length}/160
+            <div className="absolute bottom-2 right-3 flex items-center gap-2">
+              <span className={`text-xs px-1.5 py-0.5 rounded ${smsInfo.encoding === 'UNICODE' ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-500'}`}>
+                {smsInfo.encoding}
+              </span>
+              <span className={`text-xs ${smsInfo.smsCount > 1 ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
+                {smsInfo.characterCount} chars / {smsInfo.smsCount} SMS
               </span>
             </div>
           </div>
 
-          {/* Quick message templates */}
-          <div>
-            <p className="text-xs text-slate-500 mb-2">Quick Templates</p>
-            <div className="flex flex-wrap gap-2">
-              {[
-                'Please call me back.',
-                'Are you available for a quick call?',
-                'Thank you for your inquiry!',
-              ].map((template, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setMessage(template)}
-                  className="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
-                >
-                  {template}
-                </button>
-              ))}
+          {/* SMS count warning */}
+          {smsInfo.smsCount > 1 && (
+            <div className="flex items-start gap-2 p-2 bg-amber-50 rounded-lg">
+              <svg className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p className="text-xs text-amber-700">
+                Message will be sent as {smsInfo.smsCount} SMS parts. Each part may incur separate charges.
+              </p>
             </div>
+          )}
+
+          {/* Send method toggle */}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-500">Send via API (MSG91)</span>
+            <button
+              onClick={() => setSendViaApi(!sendViaApi)}
+              className={`relative w-10 h-5 rounded-full transition-colors ${sendViaApi ? 'bg-amber-500' : 'bg-slate-200'}`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${sendViaApi ? 'translate-x-5' : ''}`}
+              />
+            </button>
           </div>
+
+          {/* Quick message templates */}
+          {!selectedTemplate && (
+            <div>
+              <p className="text-xs text-slate-500 mb-2">Quick Templates</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  'Please call me back.',
+                  'Are you available for a quick call?',
+                  'Thank you for your inquiry!',
+                ].map((template, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setMessage(template)}
+                    className="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
+                  >
+                    {template}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
         <div className="px-4 py-3 bg-slate-50 flex justify-end gap-3">
           <button
-            onClick={() => {
-              setMessage('');
-              onClose();
-            }}
+            onClick={resetAndClose}
             className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSendSms}
-            disabled={!message.trim()}
+            disabled={!message.trim() || sending}
             className="px-4 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
+            {sending ? (
+              <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            )}
             Send SMS
           </button>
         </div>
@@ -609,25 +728,75 @@ export function SmsModal({ isOpen, onClose, onSubmit, phone }: SmsModalProps) {
 interface EmailModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { subject: string; body: string }) => void;
+  onSubmit: (data: { subject: string; body: string; templateId?: string }) => void;
   email: string;
   leadName?: string;
+  leadId?: string;
+  leadData?: Record<string, string>;
 }
 
-export function EmailModal({ isOpen, onClose, onSubmit, email, leadName }: EmailModalProps) {
+export function EmailModal({ isOpen, onClose, onSubmit, email, leadName, leadId, leadData = {} }: EmailModalProps) {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Load templates on mount
+  useEffect(() => {
+    if (isOpen) {
+      loadTemplates();
+    }
+  }, [isOpen]);
+
+  const loadTemplates = async () => {
+    setLoading(true);
+    try {
+      const { templates: data } = await templateService.getTemplates({ type: 'EMAIL', isActive: true });
+      setTemplates(data);
+    } catch (error) {
+      console.error('Failed to load email templates:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const substituteVariables = (text: string, variables: Record<string, string>): string => {
+    let result = text;
+    for (const [key, value] of Object.entries(variables)) {
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+      result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+    }
+    return result;
+  };
+
+  const handleTemplateSelect = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      setSelectedTemplate(template);
+      // Substitute variables with lead data
+      const variables = {
+        firstName: leadData.firstName || leadName?.split(' ')[0] || '',
+        lastName: leadData.lastName || leadName?.split(' ').slice(1).join(' ') || '',
+        fullName: leadName || '',
+        email: email,
+        ...leadData,
+      };
+      setSubject(substituteVariables(template.subject || '', variables));
+      setBody(substituteVariables(template.content, variables));
+    } else {
+      setSelectedTemplate(null);
+    }
+  };
 
   const handleSendEmail = async () => {
     setSending(true);
     try {
       // Call the onSubmit to send via backend API
-      await onSubmit({ subject, body });
+      await onSubmit({ subject, body, templateId: selectedTemplate?.id });
       toast.success('Email sent successfully');
-      setSubject('');
-      setBody('');
-      onClose();
+      resetAndClose();
     } catch (error) {
       toast.error('Failed to send email');
     } finally {
@@ -639,6 +808,13 @@ export function EmailModal({ isOpen, onClose, onSubmit, email, leadName }: Email
     // Open in default email client with pre-filled content
     const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = mailtoUrl;
+    onClose();
+  };
+
+  const resetAndClose = () => {
+    setSubject('');
+    setBody('');
+    setSelectedTemplate(null);
     onClose();
   };
 
@@ -656,7 +832,7 @@ export function EmailModal({ isOpen, onClose, onSubmit, email, leadName }: Email
           </div>
           <div>
             <h3 className="text-white font-semibold">Compose Email</h3>
-            <p className="text-purple-100 text-xs">Send email to lead</p>
+            <p className="text-purple-100 text-xs">Send via AWS SES</p>
           </div>
         </div>
 
@@ -672,6 +848,22 @@ export function EmailModal({ isOpen, onClose, onSubmit, email, leadName }: Email
               <p className="text-xs text-slate-500">To</p>
               <p className="font-medium text-slate-800 truncate">{leadName && <span className="text-slate-600">{leadName} &lt;</span>}{email}{leadName && <span className="text-slate-600">&gt;</span>}</p>
             </div>
+          </div>
+
+          {/* Template selector */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Template (optional)</label>
+            <select
+              value={selectedTemplate?.id || ''}
+              onChange={(e) => handleTemplateSelect(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              disabled={loading}
+            >
+              <option value="">Select a template or compose manually</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Subject */}
@@ -698,28 +890,30 @@ export function EmailModal({ isOpen, onClose, onSubmit, email, leadName }: Email
             />
           </div>
 
-          {/* Quick templates */}
-          <div>
-            <p className="text-xs text-slate-500 mb-2">Quick Templates</p>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { subject: 'Following up on our conversation', body: 'Hi,\n\nI wanted to follow up on our recent conversation. Please let me know if you have any questions.\n\nBest regards' },
-                { subject: 'Thank you for your inquiry', body: 'Hi,\n\nThank you for reaching out to us. We appreciate your interest.\n\nBest regards' },
-                { subject: 'Meeting request', body: 'Hi,\n\nI would like to schedule a meeting to discuss further. Please let me know your availability.\n\nBest regards' },
-              ].map((template, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setSubject(template.subject);
-                    setBody(template.body);
-                  }}
-                  className="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
-                >
-                  {template.subject.length > 25 ? template.subject.slice(0, 25) + '...' : template.subject}
-                </button>
-              ))}
+          {/* Quick templates (only show when no template selected) */}
+          {!selectedTemplate && (
+            <div>
+              <p className="text-xs text-slate-500 mb-2">Quick Templates</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { subject: 'Following up on our conversation', body: 'Hi,\n\nI wanted to follow up on our recent conversation. Please let me know if you have any questions.\n\nBest regards' },
+                  { subject: 'Thank you for your inquiry', body: 'Hi,\n\nThank you for reaching out to us. We appreciate your interest.\n\nBest regards' },
+                  { subject: 'Meeting request', body: 'Hi,\n\nI would like to schedule a meeting to discuss further. Please let me know your availability.\n\nBest regards' },
+                ].map((template, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setSubject(template.subject);
+                      setBody(template.body);
+                    }}
+                    className="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
+                  >
+                    {template.subject.length > 25 ? template.subject.slice(0, 25) + '...' : template.subject}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -736,11 +930,7 @@ export function EmailModal({ isOpen, onClose, onSubmit, email, leadName }: Email
           </button>
           <div className="flex gap-3">
             <button
-              onClick={() => {
-                setSubject('');
-                setBody('');
-                onClose();
-              }}
+              onClick={resetAndClose}
               className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
             >
               Cancel
