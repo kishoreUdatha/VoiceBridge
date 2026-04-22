@@ -20,7 +20,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../api';
 import { followUpApi } from '../api/telecaller';
 import { useAppSelector } from '../store';
-import { MainTabParamList, RootStackParamList } from '../types';
+import { MainTabParamList, RootStackParamList, isTeamLeadOrAbove } from '../types';
 
 type NavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'Dashboard'>,
@@ -130,13 +130,6 @@ interface FollowUpSummary {
   totalPending: number;
 }
 
-// Helper to check if user is a team lead or manager
-const isTeamLeadOrManager = (role?: string): boolean => {
-  if (!role) return false;
-  const r = role.toLowerCase();
-  return r.includes('team_lead') || r.includes('teamlead') || r.includes('manager') || r.includes('admin') || r.includes('supervisor');
-};
-
 interface TeamMember {
   id: string;
   firstName: string;
@@ -164,7 +157,7 @@ const DashboardScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const isTeamLead = isTeamLeadOrManager(user?.role);
+  const isTeamLead = isTeamLeadOrAbove(user?.role);
 
   const fetchData = useCallback(async () => {
     try {

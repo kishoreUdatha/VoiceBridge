@@ -183,6 +183,8 @@ export type RootStackParamList = {
   FollowUps: undefined;
   NotificationSettings: undefined;
   CallRecordingSetup: undefined;
+  TeamMemberDetail: { memberId: string };
+  TeamPerformance: undefined;
 };
 
 // Lead Form Data
@@ -198,10 +200,28 @@ export interface LeadFormData {
 
 export type MainTabParamList = {
   Dashboard: undefined;
+  Team: undefined;
   AssignedData: undefined;
   Leads: undefined;
   History: undefined;
   Settings: undefined;
+};
+
+// User role types
+export type UserRole = 'telecaller' | 'team_lead' | 'manager' | 'admin' | 'supervisor' | 'counselor';
+
+// Helper to check if user has team management capabilities
+export const isTeamLeadOrAbove = (role?: string): boolean => {
+  if (!role) return false;
+  const r = role.toLowerCase().replace('_', '');
+  return ['teamlead', 'manager', 'admin', 'supervisor'].includes(r);
+};
+
+// Helper to check if user is manager or above
+export const isManagerOrAbove = (role?: string): boolean => {
+  if (!role) return false;
+  const r = role.toLowerCase().replace('_', '');
+  return ['manager', 'admin'].includes(r);
 };
 
 // Assigned Data (Raw Import Record) Types

@@ -15,10 +15,11 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-import { RootStackParamList, MainTabParamList, STORAGE_KEYS } from '../types';
+import { RootStackParamList, MainTabParamList, STORAGE_KEYS, isTeamLeadOrAbove, User } from '../types';
 
 // Import screens
 import DashboardScreen from '../screens/DashboardScreen';
+import TeamScreen from '../screens/TeamScreen';
 import LeadsScreen from '../screens/LeadsScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -165,8 +166,28 @@ const LoginScreen: React.FC<{ onLoginSuccess: () => void }> = ({ onLoginSuccess 
   );
 };
 
-// Main Tab Navigator
+// Main Tab Navigator - Role-aware
 const MainTabNavigator: React.FC = () => {
+  const [userRole, setUserRole] = useState<string>('telecaller');
+
+  useEffect(() => {
+    const loadUserRole = async () => {
+      try {
+        const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
+        if (userData) {
+          const user = JSON.parse(userData) as User;
+          setUserRole(user.role || 'telecaller');
+          console.log('[MainTabNavigator] User role:', user.role);
+        }
+      } catch (e) {
+        console.log('[MainTabNavigator] Error loading user role:', e);
+      }
+    };
+    loadUserRole();
+  }, []);
+
+  const showTeamTab = isTeamLeadOrAbove(userRole);
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -176,6 +197,9 @@ const MainTabNavigator: React.FC = () => {
           switch (route.name) {
             case 'Dashboard':
               iconName = focused ? 'view-dashboard' : 'view-dashboard-outline';
+              break;
+            case 'Team':
+              iconName = focused ? 'account-supervisor' : 'account-supervisor-outline';
               break;
             case 'AssignedData':
               iconName = focused ? 'clipboard-text' : 'clipboard-text-outline';
@@ -223,10 +247,17 @@ const MainTabNavigator: React.FC = () => {
         component={DashboardScreen}
         options={{ title: 'Dashboard', headerShown: false }}
       />
+      {showTeamTab && (
+        <Tab.Screen
+          name="Team"
+          component={TeamScreen}
+          options={{ title: 'Team', headerTitle: 'My Team' }}
+        />
+      )}
       <Tab.Screen
         name="AssignedData"
         component={AssignedDataScreen}
-        options={{ title: 'Tasks', headerTitle: 'My Tasks' }}
+        options={{ title: 'Tasks', headerTitle: showTeamTab ? 'Team Tasks' : 'My Tasks' }}
       />
       <Tab.Screen
         name="Leads"
