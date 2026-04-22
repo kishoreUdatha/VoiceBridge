@@ -183,35 +183,61 @@ class DeepgramService {
    * Maps the agent speaker → assistant, other speaker → user
    *
    * Heuristics for speaker assignment (outbound calls):
-   * - Customer answers first ("Hello?") so first speaker is usually customer
-   * - Agent talks more (pitching, explaining) so most talkative = agent
-   * - Use most talkative speaker as agent (more reliable than first speaker)
+   * 1. Semantic detection: Look for agent intro phrases ("calling from", "Good morning", etc.)
+   * 2. Position fallback: Customer answers first, Agent speaks second
    */
   convertToMessages(diarized: DiarizedTranscript): TranscriptMessage[] {
     if (!diarized || !diarized.segments || diarized.segments.length === 0) {
       return [];
     }
 
-    // Count words per speaker to identify agent (usually talks more)
+    // Agent intro phrases (case-insensitive) - works for English, Hindi, Telugu
+    const agentPhrases = [
+      'calling from', 'call from', 'this is', 'i am calling', 'my name is',
+      'good morning', 'good afternoon', 'good evening', 'namaste', 'namaskar',
+      'speaking from', 'from career', 'from myleadx', 'abroad education',
+      'interested in', 'are you looking', 'would you like', 'can i speak',
+      // Telugu phrases
+      'నా పేరు', 'నేను', 'మీకు', 'చెప్పాలనుకుంటున్నాను',
+      // Hindi phrases
+      'मेरा नाम', 'मैं बात कर रहा', 'क्या आप'
+    ];
+
+    // Try to identify agent by intro phrases (semantic detection)
+    let agentSpeaker: number | null = null;
+    for (const seg of diarized.segments) {
+      const textLower = seg.text.toLowerCase();
+      const hasAgentPhrase = agentPhrases.some(phrase => textLower.includes(phrase.toLowerCase()));
+      if (hasAgentPhrase) {
+        agentSpeaker = seg.speaker;
+        console.log(`[Deepgram] Agent identified by phrase: "${seg.text.substring(0, 50)}..." → Speaker ${agentSpeaker}`);
+        break;
+      }
+    }
+
+    // Fallback: For outbound calls, first speaker = customer, second = agent
+    if (agentSpeaker === null) {
+      const firstSpeaker = diarized.segments[0]?.speaker ?? 0;
+      const uniqueSpeakers = [...new Set(diarized.segments.map(s => s.speaker))];
+
+      if (uniqueSpeakers.length >= 2) {
+        // Second speaker is agent (customer answers first in outbound calls)
+        agentSpeaker = diarized.segments.find(s => s.speaker !== firstSpeaker)?.speaker ?? firstSpeaker;
+        console.log(`[Deepgram] Agent fallback (second speaker): ${agentSpeaker}, First speaker (customer): ${firstSpeaker}`);
+      } else {
+        // Only 1 speaker - default to speaker 0 as agent
+        agentSpeaker = firstSpeaker;
+        console.log(`[Deepgram] Single speaker detected, defaulting to agent: ${agentSpeaker}`);
+      }
+    }
+
+    // Count words per speaker for logging
     const wordCounts: Record<number, number> = {};
     for (const seg of diarized.segments) {
       const words = seg.text.split(/\s+/).length;
       wordCounts[seg.speaker] = (wordCounts[seg.speaker] || 0) + words;
     }
-
-    // Sort speakers by word count (descending)
-    const speakersByWordCount = Object.entries(wordCounts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([speaker]) => parseInt(speaker));
-
-    const mostTalkativeSpeaker = speakersByWordCount[0] ?? 0;
-    const firstSpeaker = diarized.segments[0]?.speaker ?? 0;
-
-    // For outbound calls: customer answers first ("Hello?"), agent talks more (pitching)
-    // Use most talkative speaker as agent - this is more reliable than first speaker
-    const agentSpeaker = mostTalkativeSpeaker;
-
-    console.log(`[Deepgram] Speaker assignment - Agent: Speaker ${agentSpeaker} (most talkative), First speaker: ${firstSpeaker}, Word counts:`, wordCounts);
+    console.log(`[Deepgram] Final speaker assignment - Agent: Speaker ${agentSpeaker}, Word counts:`, wordCounts);
 
     // Convert segments to messages with timestamps
     const messages: TranscriptMessage[] = diarized.segments.map(seg => ({
