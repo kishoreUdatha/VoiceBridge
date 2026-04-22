@@ -155,7 +155,7 @@ const CallAssignedDataScreen: React.FC = () => {
     return adjustedDuration;
   }, [data.phone]);
 
-  // Auto-end call - try accessibility recording first, then fall back to duration-based classification
+  // Auto-end call - returns quickly, recording search and upload happens in background
   const autoEndCall = useCallback(async (duration?: number, recPath?: string) => {
     if (hasEndedRef.current) {
       console.log('[CallAssignedDataScreen] Already ended, skipping');
@@ -168,7 +168,7 @@ const CallAssignedDataScreen: React.FC = () => {
     setIsEnding(true);
     stopTimer();
 
-    // Get duration from call log (most accurate source)
+    // Get duration from call log (quick operation with retry)
     let finalDuration = duration;
     if (finalDuration === undefined) {
       setStatusMessage('Getting call duration...');
@@ -177,121 +177,91 @@ const CallAssignedDataScreen: React.FC = () => {
     console.log('[CallAssignedDataScreen] Final duration:', finalDuration, 'seconds');
 
     // Use provided recording path or state
-    let finalRecordingPath = recPath || recordingPath;
-    console.log('[CallAssignedDataScreen] Initial recording path:', finalRecordingPath);
+    const initialRecordingPath = recPath || recordingPath;
+    console.log('[CallAssignedDataScreen] Initial recording path:', initialRecordingPath);
 
-    // Try to find system call recording (recorded by phone's built-in call recorder)
-    // This captures BOTH sides of the call, unlike our MIC recording
-    if (CallRecording && CallRecording.findSystemCallRecording) {
-      setStatusMessage('Looking for call recording...');
-      console.log('[CallAssignedDataScreen] Searching for system call recording for:', data.phone);
+    // Store values for background processing
+    const currentCallId = callId;
+    const currentDataId = data.id;
+    const phoneNumber = data.phone;
+    const callAttempts = data.callAttempts || 1;
 
-      // Try multiple times with increasing delays (system needs time to write the file)
-      for (let attempt = 1; attempt <= 3; attempt++) {
+    // Start background recording search and upload (non-blocking)
+    if (currentCallId && finalDuration > 5) {
+      console.log('[CallAssignedDataScreen] Starting background recording search and upload...');
+      setStatusMessage('Processing in background...');
+
+      // Fire and forget - don't await
+      (async () => {
         try {
-          const waitTime = attempt * 2000; // 2s, 4s, 6s
-          console.log(`[CallAssignedDataScreen] Attempt ${attempt}/3 - waiting ${waitTime}ms...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
+          let uploadPath = initialRecordingPath;
 
-          const systemRecording = await CallRecording.findSystemCallRecording(data.phone);
-          if (systemRecording && systemRecording.path) {
-            console.log('[CallAssignedDataScreen] ========== FOUND SYSTEM RECORDING ==========');
-            console.log('[CallAssignedDataScreen] Path:', systemRecording.path);
-            console.log('[CallAssignedDataScreen] Size:', systemRecording.size, 'bytes');
+          // Try to find system call recording in background
+          if (CallRecording && CallRecording.findSystemCallRecording && phoneNumber) {
+            console.log('[CallAssignedDataScreen] [BG] Searching for system recording...');
 
-            // Use system recording (both sides of call)
-            finalRecordingPath = systemRecording.path;
-            setRecordingPath(systemRecording.path);
-            console.log('[CallAssignedDataScreen] Using system recording instead of MIC recording');
-            break;
-          } else {
-            console.log(`[CallAssignedDataScreen] Attempt ${attempt}: No system recording found yet`);
-          }
-        } catch (err) {
-          console.log(`[CallAssignedDataScreen] Attempt ${attempt} failed:`, err);
-        }
-      }
+            for (let attempt = 1; attempt <= 2; attempt++) {
+              try {
+                const waitTime = attempt === 1 ? 2000 : 3000;
+                await new Promise(resolve => setTimeout(resolve, waitTime));
 
-      if (!finalRecordingPath || finalRecordingPath === recordingPath) {
-        console.log('[CallAssignedDataScreen] No system recording found after all attempts');
-        console.log('[CallAssignedDataScreen] TIP: Enable auto call recording in Phone app settings');
-      }
-    }
-
-    console.log('[CallAssignedDataScreen] Final recording path:', finalRecordingPath);
-
-    // If we have a recording and call was long enough, upload for AI analysis
-    if (finalRecordingPath && callId && finalDuration > 5) {
-      try {
-        setStatusMessage('Uploading recording for AI analysis...');
-        console.log('[CallAssignedDataScreen] Uploading recording to backend...');
-
-        // Try background upload first (works even when app goes to background)
-        if (backgroundUploadService.isAvailable()) {
-          console.log('[CallAssignedDataScreen] Using background upload service');
-          const started = await backgroundUploadService.uploadRecording(
-            finalRecordingPath,
-            callId,
-            data.id,
-            finalDuration,
-            {
-              onSuccess: (cid, recordingUrl) => {
-                console.log('[CallAssignedDataScreen] Background upload success:', recordingUrl);
-              },
-              onError: (cid, error) => {
-                console.warn('[CallAssignedDataScreen] Background upload error:', error);
-              },
-              onProgress: (cid, progress) => {
-                console.log('[CallAssignedDataScreen] Background upload progress:', progress + '%');
+                const systemRecording = await CallRecording.findSystemCallRecording(phoneNumber);
+                if (systemRecording && systemRecording.path) {
+                  console.log('[CallAssignedDataScreen] [BG] Found system recording:', systemRecording.path);
+                  uploadPath = systemRecording.path;
+                  break;
+                }
+              } catch (err) {
+                console.log(`[CallAssignedDataScreen] [BG] Attempt ${attempt} failed:`, err);
               }
             }
-          );
-
-          if (started) {
-            console.log('[CallAssignedDataScreen] Background upload started - AI analysis will begin soon');
-            setStatusMessage('Recording upload started...');
-
-            // Navigate back - upload continues in background
-            setTimeout(() => {
-              setStatusMessage('Done! Recording uploading in background.');
-              setTimeout(() => navigation.goBack(), 800);
-            }, 1000);
-
-            return;
           }
+
+          // Upload recording in background
+          if (uploadPath) {
+            console.log('[CallAssignedDataScreen] [BG] Starting upload for:', uploadPath);
+
+            if (backgroundUploadService.isAvailable()) {
+              const started = await backgroundUploadService.uploadRecording(
+                uploadPath,
+                currentCallId,
+                currentDataId,
+                finalDuration,
+                {
+                  onSuccess: (cid, url) => console.log('[CallAssignedDataScreen] [BG] Upload success:', url),
+                  onError: (cid, error) => console.warn('[CallAssignedDataScreen] [BG] Upload error:', error),
+                  onProgress: (cid, progress) => console.log('[CallAssignedDataScreen] [BG] Progress:', progress + '%'),
+                }
+              );
+
+              if (started) {
+                console.log('[CallAssignedDataScreen] [BG] Background upload started');
+                return;
+              }
+            }
+
+            // Fallback: try direct upload
+            try {
+              await telecallerApi.uploadAssignedDataRecording(
+                currentDataId,
+                currentCallId,
+                uploadPath,
+                finalDuration,
+                () => {}
+              );
+              console.log('[CallAssignedDataScreen] [BG] Direct upload completed');
+            } catch (err) {
+              console.warn('[CallAssignedDataScreen] [BG] Upload failed:', err);
+            }
+          }
+        } catch (error) {
+          console.error('[CallAssignedDataScreen] [BG] Background processing failed:', error);
         }
-
-        // Fallback: use regular upload (blocks until complete)
-        console.log('[CallAssignedDataScreen] Fallback to regular upload');
-        await telecallerApi.uploadAssignedDataRecording(
-          data.id,
-          callId,
-          finalRecordingPath,
-          finalDuration,
-          (progress) => {
-            setStatusMessage(`Uploading... ${progress}%`);
-          }
-        );
-
-        console.log('[CallAssignedDataScreen] Recording uploaded - AI analysis started');
-        setStatusMessage('AI analyzing call...');
-
-        // Give backend a moment to start processing, then go back
-        setTimeout(() => {
-          setStatusMessage('Done! AI will update status shortly.');
-          setTimeout(() => navigation.goBack(), 800);
-        }, 1000);
-
-        return;
-      } catch (uploadError: any) {
-        console.warn('[CallAssignedDataScreen] Recording upload failed:', uploadError?.message);
-        setStatusMessage('Upload failed, using duration...');
-      }
+      })();
     }
 
-    // Fallback: Duration-based classification (when no recording or upload failed)
+    // Duration-based classification (quick, no waiting for upload)
     console.log('[CallAssignedDataScreen] Using duration-based classification');
-    const callAttempts = data.callAttempts || 1;
     const { assignedDataStatus, callOutcome } = classifyCallOutcome(finalDuration, callAttempts);
     console.log('[CallAssignedDataScreen] Auto-classified:', { assignedDataStatus, callOutcome });
 
@@ -325,7 +295,7 @@ const CallAssignedDataScreen: React.FC = () => {
       setStatusMessage('Update failed');
       setTimeout(() => navigation.goBack(), 1000);
     }
-  }, [data.id, data.callAttempts, callId, recordingPath, navigation, stopTimer, getCallDurationFromLog]);
+  }, [data.id, data.phone, data.callAttempts, callId, recordingPath, navigation, stopTimer, getCallDurationFromLog]);
 
   // Handle app state changes
   useEffect(() => {

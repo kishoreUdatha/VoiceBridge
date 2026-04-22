@@ -253,6 +253,7 @@ export const useCallRecording = (): UseCallRecordingReturn => {
   );
 
   // End call (stop recording, stop timer, auto-upload for AI analysis)
+  // This function returns IMMEDIATELY - all recording search and upload happens in background
   const endCall = useCallback(async (): Promise<void> => {
     console.log('[useCallRecording] ========== END CALL ==========');
     console.log('[useCallRecording] Is recording:', isRecording);
@@ -265,7 +266,7 @@ export const useCallRecording = (): UseCallRecordingReturn => {
     let finalRecordingPath = recordingPath;
     let finalDuration = callDuration;
 
-    // Stop our MIC recording
+    // Stop our MIC recording (quick operation)
     if (isRecording) {
       try {
         console.log('[useCallRecording] Stopping recording...');
@@ -292,128 +293,93 @@ export const useCallRecording = (): UseCallRecordingReturn => {
       console.log('[useCallRecording] Not recording, skipping stop');
     }
 
-    // Try to find system call recording first (captures BOTH voices)
-    // System recorder takes a few seconds to write the file after call ends
-    if (currentCall && NativeCallRecording) {
-      const phoneNumber = (currentCall as any).phoneNumber || currentCall.leadPhone || '';
-      console.log('[useCallRecording] Searching for system call recording for:', phoneNumber);
+    // Store values for background processing
+    const callId = currentCall?.id;
+    const phoneNumber = (currentCall as any)?.phoneNumber || currentCall?.leadPhone || '';
+    const micRecordingPath = finalRecordingPath;
+    const duration = finalDuration;
 
-      // Wait for system recording (2 attempts: 2s, 3s = 5s total max wait)
-      for (let attempt = 1; attempt <= 2; attempt++) {
+    // Run system recording search and upload in background (non-blocking)
+    // User can immediately proceed to outcome screen
+    if (callId) {
+      console.log('[useCallRecording] Starting background recording search and upload...');
+
+      // Fire and forget - don't await this
+      (async () => {
         try {
-          const waitTime = attempt === 1 ? 2000 : 3000;
-          console.log(`[useCallRecording] Attempt ${attempt}/2 - waiting ${waitTime}ms...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
+          let uploadPath = micRecordingPath;
 
-          const systemRecording = await NativeCallRecording.findSystemCallRecording(phoneNumber);
-          if (systemRecording && systemRecording.path) {
-            console.log('[useCallRecording] ========== FOUND SYSTEM RECORDING ==========');
-            console.log('[useCallRecording] Path:', systemRecording.path);
-            console.log('[useCallRecording] Size:', systemRecording.size, 'bytes');
+          // Try to find system call recording (captures BOTH voices)
+          if (NativeCallRecording && phoneNumber) {
+            console.log('[useCallRecording] [BG] Searching for system recording...');
 
-            // Use system recording (captures both agent and customer voice)
-            finalRecordingPath = systemRecording.path;
-            dispatch(setRecordingPath(systemRecording.path));
-            console.log('[useCallRecording] Using system recording (both voices captured)');
-            break;
-          } else {
-            console.log(`[useCallRecording] Attempt ${attempt}: No system recording found yet`);
-          }
-        } catch (err) {
-          console.log(`[useCallRecording] Attempt ${attempt} failed:`, err);
-        }
-      }
+            // Wait for system recording (2 attempts in background)
+            for (let attempt = 1; attempt <= 2; attempt++) {
+              try {
+                const waitTime = attempt === 1 ? 2000 : 3000;
+                await new Promise(resolve => setTimeout(resolve, waitTime));
 
-      if (finalRecordingPath === recordingPath) {
-        console.log('[useCallRecording] No system recording found, using MIC recording (agent voice only)');
-        console.log('[useCallRecording] TIP: Enable auto call recording in Phone app settings');
-      }
-    }
-
-    // Auto-upload recording for AI analysis
-    if (finalRecordingPath && currentCall?.id) {
-      console.log('[useCallRecording] ========== UPLOADING RECORDING ==========');
-      console.log('[useCallRecording] Call ID:', currentCall.id);
-      console.log('[useCallRecording] Recording path:', finalRecordingPath);
-      console.log('[useCallRecording] Duration:', finalDuration);
-
-      // STEP 1: Backup recording locally first (prevents data loss)
-      try {
-        const backupPath = await recordingBackupService.backup(
-          currentCall.id,
-          finalRecordingPath
-        );
-        if (backupPath) {
-          console.log('[useCallRecording] Recording backed up to:', backupPath);
-        }
-      } catch (backupError) {
-        console.warn('[useCallRecording] Recording backup failed:', backupError);
-        // Continue anyway - we still have the original path
-      }
-
-      // STEP 2: Add to Redux pending uploads (for UI tracking)
-      dispatch(
-        addPendingUpload({
-          callId: currentCall.id,
-          recordingPath: finalRecordingPath,
-        })
-      );
-
-      // STEP 3: Try background upload service first (most reliable for background uploads)
-      if (backgroundUploadService.isAvailable()) {
-        console.log('[useCallRecording] Using background upload service');
-        const started = await backgroundUploadService.uploadRecording(
-          finalRecordingPath,
-          currentCall.id,
-          null, // No dataId for regular leads
-          finalDuration,
-          {
-            onSuccess: (callId, recordingUrl) => {
-              console.log('[useCallRecording] Background upload success:', recordingUrl);
-            },
-            onError: (callId, error) => {
-              console.warn('[useCallRecording] Background upload error:', error);
-              // Fallback to offline queue on error
-              offlineQueue.addRecordingUpload(currentCall.id, finalRecordingPath, finalDuration)
-                .catch(e => console.error('[useCallRecording] Queue fallback failed:', e));
-            },
-            onProgress: (callId, progress) => {
-              console.log('[useCallRecording] Background upload progress:', progress + '%');
+                const systemRecording = await NativeCallRecording.findSystemCallRecording(phoneNumber);
+                if (systemRecording && systemRecording.path) {
+                  console.log('[useCallRecording] [BG] Found system recording:', systemRecording.path);
+                  uploadPath = systemRecording.path;
+                  dispatch(setRecordingPath(systemRecording.path));
+                  break;
+                }
+              } catch (err) {
+                console.log(`[useCallRecording] [BG] Attempt ${attempt} failed:`, err);
+              }
             }
           }
-        );
 
-        if (started) {
-          console.log('[useCallRecording] Background upload started - AI analysis will begin soon');
-          return; // Exit early, upload is handled
+          // Upload recording in background
+          if (uploadPath) {
+            console.log('[useCallRecording] [BG] Starting upload for:', uploadPath);
+
+            // Backup first (quick operation)
+            try {
+              await recordingBackupService.backup(callId, uploadPath);
+            } catch (e) {
+              console.warn('[useCallRecording] [BG] Backup failed:', e);
+            }
+
+            // Add to pending uploads
+            dispatch(addPendingUpload({ callId, recordingPath: uploadPath }));
+
+            // Use background upload service (runs in Android foreground service)
+            if (backgroundUploadService.isAvailable()) {
+              const started = await backgroundUploadService.uploadRecording(
+                uploadPath,
+                callId,
+                null,
+                duration,
+                {
+                  onSuccess: (id, url) => console.log('[useCallRecording] [BG] Upload success:', url),
+                  onError: (id, error) => {
+                    console.warn('[useCallRecording] [BG] Upload error:', error);
+                    offlineQueue.addRecordingUpload(callId, uploadPath, duration).catch(() => {});
+                  },
+                  onProgress: (id, progress) => console.log('[useCallRecording] [BG] Progress:', progress + '%'),
+                }
+              );
+              if (started) {
+                console.log('[useCallRecording] [BG] Background upload started');
+                return;
+              }
+            }
+
+            // Fallback to offline queue
+            await offlineQueue.addRecordingUpload(callId, uploadPath, duration);
+            console.log('[useCallRecording] [BG] Queued for upload');
+          }
+        } catch (error) {
+          console.error('[useCallRecording] [BG] Background processing failed:', error);
         }
-      }
-
-      // STEP 4: Fallback to offline queue (handles retries & offline sync)
-      try {
-        await offlineQueue.addRecordingUpload(
-          currentCall.id,
-          finalRecordingPath,
-          finalDuration
-        );
-        console.log('[useCallRecording] Recording upload queued successfully');
-      } catch (queueError) {
-        console.error('[useCallRecording] Failed to queue recording upload:', queueError);
-
-        // Final fallback: try direct upload via Redux thunk
-        dispatch(
-          uploadRecording({
-            callId: currentCall.id,
-            recordingPath: finalRecordingPath,
-            duration: finalDuration,
-          })
-        ).then(() => {
-          console.log('[useCallRecording] Fallback: Recording upload initiated');
-        }).catch((err) => {
-          console.warn('[useCallRecording] Fallback upload also failed:', err);
-        });
-      }
+      })();
     }
+
+    // Return immediately - user can proceed to outcome screen
+    console.log('[useCallRecording] endCall returning immediately (upload in background)');
   }, [dispatch, isRecording, recordingPath, currentCall, callDuration, stopTimer]);
 
   // Submit call outcome
