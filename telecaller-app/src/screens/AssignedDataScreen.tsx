@@ -133,11 +133,24 @@ const AssignedDataScreen: React.FC = () => {
     load();
   }, []);
 
-  // Refresh data when screen comes into focus (after returning from CallAssignedDataScreen)
+  // Refresh data when screen comes into focus + auto-poll every 30 seconds
   useFocusEffect(
     useCallback(() => {
+      // Fetch immediately when screen gains focus
       fetchData();
       fetchStats();
+
+      // Set up auto-polling every 30 seconds to get newly assigned data
+      const pollInterval = setInterval(() => {
+        console.log('[AssignedDataScreen] Auto-polling for new assigned data...');
+        fetchData();
+        fetchStats();
+      }, 30000); // 30 seconds
+
+      // Cleanup on unfocus
+      return () => {
+        clearInterval(pollInterval);
+      };
     }, [fetchData, fetchStats])
   );
 
