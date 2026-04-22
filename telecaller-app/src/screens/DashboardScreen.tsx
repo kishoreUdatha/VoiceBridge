@@ -130,20 +130,57 @@ interface FollowUpSummary {
   totalPending: number;
 }
 
+// Helper to check if user is a team lead or manager
+const isTeamLeadOrManager = (role?: string): boolean => {
+  if (!role) return false;
+  const r = role.toLowerCase();
+  return r.includes('team_lead') || r.includes('teamlead') || r.includes('manager') || r.includes('admin') || r.includes('supervisor');
+};
+
+interface TeamMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  todayCalls: number;
+  status: 'active' | 'on_break' | 'offline';
+}
+
+interface TeamStats {
+  totalMembers: number;
+  activeNow: number;
+  onBreak: number;
+  todayTeamCalls: number;
+  teamConversionRate: number;
+  members: TeamMember[];
+}
+
 const DashboardScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { user } = useAppSelector((state) => state.auth);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [followUpSummary, setFollowUpSummary] = useState<FollowUpSummary | null>(null);
+  const [teamStats, setTeamStats] = useState<TeamStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const isTeamLead = isTeamLeadOrManager(user?.role);
+
   const fetchData = useCallback(async () => {
     try {
-      const [statsRes, fuStats] = await Promise.all([
+      const promises: Promise<any>[] = [
         api.get('/telecaller/dashboard-stats'),
         followUpApi.getFollowUpStats().catch(() => null),
-      ]);
+      ];
+
+      // Fetch team stats if user is a team lead
+      if (isTeamLead) {
+        promises.push(api.get('/telecaller/team-stats').catch(() => null));
+      }
+
+      const results = await Promise.all(promises);
+      const [statsRes, fuStats, teamStatsRes] = results;
+
       setStats(statsRes.data?.data || null);
       if (fuStats) {
         setFollowUpSummary({
@@ -156,12 +193,17 @@ const DashboardScreen: React.FC = () => {
             ((fuStats as any).upcoming || 0),
         });
       }
+
+      // Set team stats for team leads
+      if (isTeamLead && teamStatsRes?.data?.data) {
+        setTeamStats(teamStatsRes.data.data);
+      }
     } catch (err) {
       console.log('[Dashboard] Failed to fetch stats:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isTeamLead]);
 
   const handleQuickAction = useCallback(
     (action: 'Import' | 'Assign' | 'Reports' | 'Team' | 'Campaigns' | 'Settings') => {
@@ -242,6 +284,12 @@ const DashboardScreen: React.FC = () => {
             </Text>
             <View style={styles.headerMeta}>
               <Text style={styles.headerDate}>{formatDate(new Date())}</Text>
+              {isTeamLead && (
+                <View style={styles.roleBadge}>
+                  <Icon name="account-supervisor" size={12} color="#7C3AED" />
+                  <Text style={styles.roleText}>Team Lead</Text>
+                </View>
+              )}
               <View style={styles.liveBadge}>
                 <View style={styles.liveDot} />
                 <Text style={styles.liveText}>Live</Text>
@@ -302,6 +350,81 @@ const DashboardScreen: React.FC = () => {
                 onPress={() => navigation.navigate('AssignedData' as any)}
               />
             </View>
+
+            {/* Team Overview Section - Only for Team Leads */}
+            {isTeamLead && teamStats && (
+              <>
+                <View style={styles.sectionHead}>
+                  <Text style={styles.sectionTitle}>Team Overview</Text>
+                  <View style={styles.teamBadge}>
+                    <Icon name="account-group" size={14} color="#7C3AED" />
+                    <Text style={styles.teamBadgeText}>{teamStats.totalMembers} members</Text>
+                  </View>
+                </View>
+                <View style={styles.teamStatsStrip}>
+                  <View style={[styles.teamStatCard, { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' }]}>
+                    <Text style={[styles.teamStatValue, { color: '#166534' }]}>{teamStats.activeNow}</Text>
+                    <Text style={[styles.teamStatLabel, { color: '#15803D' }]}>Active</Text>
+                  </View>
+                  <View style={[styles.teamStatCard, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
+                    <Text style={[styles.teamStatValue, { color: '#92400E' }]}>{teamStats.onBreak}</Text>
+                    <Text style={[styles.teamStatLabel, { color: '#B45309' }]}>On Break</Text>
+                  </View>
+                  <View style={[styles.teamStatCard, { backgroundColor: '#DBEAFE', borderColor: '#93C5FD' }]}>
+                    <Text style={[styles.teamStatValue, { color: '#1E40AF' }]}>{teamStats.todayTeamCalls}</Text>
+                    <Text style={[styles.teamStatLabel, { color: '#1D4ED8' }]}>Team Calls</Text>
+                  </View>
+                  <View style={[styles.teamStatCard, { backgroundColor: '#EDE9FE', borderColor: '#C4B5FD' }]}>
+                    <Text style={[styles.teamStatValue, { color: '#5B21B6' }]}>{teamStats.teamConversionRate}%</Text>
+                    <Text style={[styles.teamStatLabel, { color: '#6D28D9' }]}>Conv.</Text>
+                  </View>
+                </View>
+
+                {/* Team Members List */}
+                {teamStats.members && teamStats.members.length > 0 && (
+                  <View style={styles.teamMembersList}>
+                    {teamStats.members.slice(0, 5).map((member) => (
+                      <View key={member.id} style={styles.teamMemberCard}>
+                        <View style={styles.teamMemberAvatar}>
+                          <Text style={styles.teamMemberInitial}>
+                            {member.firstName?.charAt(0) || '?'}
+                          </Text>
+                          <View
+                            style={[
+                              styles.statusIndicator,
+                              {
+                                backgroundColor:
+                                  member.status === 'active'
+                                    ? '#22C55E'
+                                    : member.status === 'on_break'
+                                    ? '#F59E0B'
+                                    : '#9CA3AF',
+                              },
+                            ]}
+                          />
+                        </View>
+                        <View style={styles.teamMemberInfo}>
+                          <Text style={styles.teamMemberName}>
+                            {member.firstName} {member.lastName}
+                          </Text>
+                          <Text style={styles.teamMemberStatus}>
+                            {member.status === 'active'
+                              ? 'Active now'
+                              : member.status === 'on_break'
+                              ? 'On break'
+                              : 'Offline'}
+                          </Text>
+                        </View>
+                        <View style={styles.teamMemberCalls}>
+                          <Text style={styles.teamMemberCallCount}>{member.todayCalls}</Text>
+                          <Text style={styles.teamMemberCallLabel}>calls</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
 
             {/* Today's Highlights — 2x2 grid matching web */}
             <View style={styles.sectionHead}>
@@ -568,6 +691,18 @@ const styles = StyleSheet.create({
   },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
   liveText: { fontSize: 10, color: '#059669', fontWeight: '600' },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: '#EDE9FE',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#C4B5FD',
+  },
+  roleText: { fontSize: 10, color: '#7C3AED', fontWeight: '600' },
   breakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -855,6 +990,97 @@ const styles = StyleSheet.create({
   followUpNotes: { fontSize: 12, color: '#B45309', marginTop: 4 },
 
   emptyText: { fontSize: 13, color: '#B45309', textAlign: 'center', paddingVertical: 16 },
+
+  /* Team Section Styles */
+  teamBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#EDE9FE',
+    borderRadius: 999,
+  },
+  teamBadgeText: { fontSize: 12, color: '#7C3AED', fontWeight: '600' },
+  teamStatsStrip: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  teamStatCard: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  teamStatValue: { fontSize: 18, fontWeight: '700' },
+  teamStatLabel: { fontSize: 10, fontWeight: '600', marginTop: 2 },
+  teamMembersList: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  teamMemberCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  teamMemberAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#4F46E5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  teamMemberInitial: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  statusIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  teamMemberInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  teamMemberName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  teamMemberStatus: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  teamMemberCalls: {
+    alignItems: 'center',
+  },
+  teamMemberCallCount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#4F46E5',
+  },
+  teamMemberCallLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+  },
 });
 
 export default DashboardScreen;

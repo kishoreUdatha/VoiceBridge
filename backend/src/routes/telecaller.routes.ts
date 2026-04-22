@@ -2494,6 +2494,128 @@ router.get('/team-dashboard-stats', async (req: TenantRequest, res: Response) =>
   }
 });
 
+// ==================== TEAM STATS FOR MOBILE APP ====================
+// Simplified team stats endpoint for mobile team lead dashboard
+router.get('/team-stats', async (req: TenantRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const userRole = req.user!.role || req.user!.roleSlug;
+    const organizationId = req.organization!.id;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(today);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    // Check if user is a team lead or manager
+    const normalizedRole = userRole?.toLowerCase().replace('_', '');
+    if (!['teamlead', 'manager', 'admin', 'supervisor'].includes(normalizedRole || '')) {
+      return ApiResponse.error(res, 'This endpoint is only for team leads and managers', 403);
+    }
+
+    // Get team members (users reporting to this team lead/manager)
+    const teamMembers = await prisma.user.findMany({
+      where: {
+        organizationId,
+        managerId: userId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+      },
+    });
+
+    const teamMemberIds = teamMembers.map(m => m.id);
+
+    // Get active work sessions to determine who is active/on break
+    const activeSessions = await prisma.workSession.findMany({
+      where: {
+        userId: { in: teamMemberIds },
+        organizationId,
+        status: { in: ['ACTIVE', 'ON_BREAK'] },
+      },
+      select: {
+        userId: true,
+        status: true,
+      },
+    });
+
+    const sessionMap = new Map(activeSessions.map(s => [s.userId, s.status]));
+
+    // Get calls today for each member
+    const callsToday = await prisma.telecallerCall.groupBy({
+      by: ['telecallerId'],
+      where: {
+        telecallerId: { in: teamMemberIds },
+        organizationId,
+        startedAt: { gte: today, lte: todayEnd },
+      },
+      _count: true,
+    });
+
+    const callsMap = new Map(callsToday.map(c => [c.telecallerId, c._count]));
+
+    // Build member list with status
+    const membersWithStatus = teamMembers.map(member => {
+      const sessionStatus = sessionMap.get(member.id);
+      let status: 'active' | 'on_break' | 'offline' = 'offline';
+      if (sessionStatus === 'ACTIVE') status = 'active';
+      else if (sessionStatus === 'ON_BREAK') status = 'on_break';
+
+      return {
+        id: member.id,
+        firstName: member.firstName,
+        lastName: member.lastName || '',
+        email: member.email,
+        todayCalls: callsMap.get(member.id) || 0,
+        status,
+      };
+    });
+
+    // Calculate totals
+    const totalMembers = teamMembers.length;
+    const activeNow = membersWithStatus.filter(m => m.status === 'active').length;
+    const onBreak = membersWithStatus.filter(m => m.status === 'on_break').length;
+    const todayTeamCalls = membersWithStatus.reduce((sum, m) => sum + m.todayCalls, 0);
+
+    // Get conversion rate for the team
+    const [totalLeads, convertedLeads] = await Promise.all([
+      prisma.lead.count({
+        where: {
+          organizationId,
+          assignments: { some: { assignedToId: { in: teamMemberIds }, isActive: true } },
+        },
+      }),
+      prisma.lead.count({
+        where: {
+          organizationId,
+          assignments: { some: { assignedToId: { in: teamMemberIds }, isActive: true } },
+          OR: [
+            { isConverted: true },
+            { stage: { name: { in: ['Admitted', 'ADMITTED', 'Enrolled', 'ENROLLED', 'Won', 'WON', 'Converted', 'CONVERTED'] } } },
+          ],
+        },
+      }),
+    ]);
+
+    const teamConversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
+
+    ApiResponse.success(res, 'Team stats retrieved', {
+      totalMembers,
+      activeNow,
+      onBreak,
+      todayTeamCalls,
+      teamConversionRate,
+      members: membersWithStatus,
+    });
+  } catch (error) {
+    console.error('[Team Stats] Error:', error);
+    ApiResponse.error(res, (error as Error).message, 500);
+  }
+});
+
 // Get AI analysis status for a call
 router.get('/calls/:id/analysis', async (req: TenantRequest, res: Response) => {
   try {
