@@ -156,7 +156,64 @@ export const OutboundCallsPage: React.FC = () => {
   const [tcFilterSearch, setTcFilterSearch] = useState('');
   const [tcFilterDateFrom, setTcFilterDateFrom] = useState('');
   const [tcFilterDateTo, setTcFilterDateTo] = useState('');
+  const [tcFilterDatePreset, setTcFilterDatePreset] = useState('');
   const [tcLoading, setTcLoading] = useState(false);
+
+  // Date preset helper function
+  const applyDatePreset = (preset: string) => {
+    setTcFilterDatePreset(preset);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let fromDate: Date;
+    let toDate: Date = new Date();
+    toDate.setHours(23, 59, 59, 999);
+
+    switch (preset) {
+      case 'today':
+        fromDate = today;
+        break;
+      case 'yesterday':
+        fromDate = new Date(today);
+        fromDate.setDate(fromDate.getDate() - 1);
+        toDate = new Date(fromDate);
+        toDate.setHours(23, 59, 59, 999);
+        break;
+      case 'last7days':
+        fromDate = new Date(today);
+        fromDate.setDate(fromDate.getDate() - 6);
+        break;
+      case 'lastweek':
+        // Last week (Monday to Sunday of previous week)
+        const dayOfWeek = today.getDay();
+        const daysToLastMonday = dayOfWeek === 0 ? 13 : dayOfWeek + 6;
+        fromDate = new Date(today);
+        fromDate.setDate(fromDate.getDate() - daysToLastMonday);
+        toDate = new Date(fromDate);
+        toDate.setDate(toDate.getDate() + 6);
+        toDate.setHours(23, 59, 59, 999);
+        break;
+      case 'thismonth':
+        fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        break;
+      case 'lastmonth':
+        fromDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        toDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        toDate.setHours(23, 59, 59, 999);
+        break;
+      case 'custom':
+        // Don't change dates, let user select manually
+        return;
+      default:
+        // Clear dates
+        setTcFilterDateFrom('');
+        setTcFilterDateTo('');
+        return;
+    }
+
+    setTcFilterDateFrom(fromDate.toISOString().split('T')[0]);
+    setTcFilterDateTo(toDate.toISOString().split('T')[0]);
+  };
 
 
   useEffect(() => {
@@ -429,6 +486,7 @@ export const OutboundCallsPage: React.FC = () => {
     setTcFilterSearch('');
     setTcFilterDateFrom('');
     setTcFilterDateTo('');
+    setTcFilterDatePreset('');
   };
 
   const viewTelecallerCallSummary = (callId: string) => {
@@ -1075,21 +1133,39 @@ export const OutboundCallsPage: React.FC = () => {
               <option value="medium">30s - 2min</option>
               <option value="long">&gt; 2min</option>
             </select>
-            <input
-              type="date"
-              value={tcFilterDateFrom}
-              onChange={(e) => setTcFilterDateFrom(e.target.value)}
+            <select
+              value={tcFilterDatePreset}
+              onChange={(e) => applyDatePreset(e.target.value)}
               className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
-              placeholder="From"
-            />
-            <input
-              type="date"
-              value={tcFilterDateTo}
-              onChange={(e) => setTcFilterDateTo(e.target.value)}
-              className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
-              placeholder="To"
-            />
-            {(tcFilterTelecaller || tcFilterOutcome || tcFilterCallType || tcFilterDuration || tcFilterSearch || tcFilterDateFrom || tcFilterDateTo) && (
+            >
+              <option value="">All Time</option>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="last7days">Last 7 Days</option>
+              <option value="lastweek">Last Week</option>
+              <option value="thismonth">This Month</option>
+              <option value="lastmonth">Last Month</option>
+              <option value="custom">Custom Range</option>
+            </select>
+            {tcFilterDatePreset === 'custom' && (
+              <>
+                <input
+                  type="date"
+                  value={tcFilterDateFrom}
+                  onChange={(e) => setTcFilterDateFrom(e.target.value)}
+                  className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  placeholder="From"
+                />
+                <input
+                  type="date"
+                  value={tcFilterDateTo}
+                  onChange={(e) => setTcFilterDateTo(e.target.value)}
+                  className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  placeholder="To"
+                />
+              </>
+            )}
+            {(tcFilterTelecaller || tcFilterOutcome || tcFilterCallType || tcFilterDuration || tcFilterSearch || tcFilterDatePreset || tcFilterDateFrom || tcFilterDateTo) && (
               <button
                 onClick={clearTcFilters}
                 className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
