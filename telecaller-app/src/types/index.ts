@@ -128,6 +128,7 @@ export interface UpdateCallPayload {
   outcome: CallOutcome;
   notes?: string;
   duration: number;
+  callbackAt?: string; // ISO date string for callback scheduling
 }
 
 // Dashboard Stats

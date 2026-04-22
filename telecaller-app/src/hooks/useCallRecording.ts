@@ -65,7 +65,7 @@ interface UseCallRecordingReturn {
   recordingPath: string | null;
   initiateCall: (lead: Lead) => Promise<boolean>;
   endCall: () => Promise<void>;
-  submitOutcome: (outcome: CallOutcome, notes?: string) => Promise<boolean>;
+  submitOutcome: (outcome: CallOutcome, notes?: string, callbackAt?: string) => Promise<boolean>;
   cancelCall: () => void;
 }
 
@@ -418,10 +418,11 @@ export const useCallRecording = (): UseCallRecordingReturn => {
 
   // Submit call outcome
   const submitOutcome = useCallback(
-    async (outcome: CallOutcome, notes?: string): Promise<boolean> => {
+    async (outcome: CallOutcome, notes?: string, callbackAt?: string): Promise<boolean> => {
       console.log('[useCallRecording] ========== SUBMIT OUTCOME ==========');
       console.log('[useCallRecording] Outcome:', outcome);
       console.log('[useCallRecording] Notes:', notes);
+      console.log('[useCallRecording] Callback At:', callbackAt);
       console.log('[useCallRecording] Call duration:', callDuration);
       console.log('[useCallRecording] Recording path:', recordingPath);
       console.log('[useCallRecording] Current call:', currentCall?.id);
@@ -436,6 +437,7 @@ export const useCallRecording = (): UseCallRecordingReturn => {
           outcome,
           notes,
           duration: callDuration,
+          ...(callbackAt && { callbackAt }),
         };
 
         // Try direct API call first

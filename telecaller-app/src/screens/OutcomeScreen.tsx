@@ -8,10 +8,12 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useCallRecording } from '../hooks/useCallRecording';
 import OutcomeButton from '../components/OutcomeButton';
 import { formatDuration } from '../utils/formatters';
@@ -48,9 +50,77 @@ const OutcomeScreen: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Callback scheduling state
+  const [callbackDate, setCallbackDate] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
   const handleOutcomeSelect = useCallback((outcome: CallOutcome) => {
     setSelectedOutcome(outcome);
+    // Set default callback time to next business hour if selecting callback
+    if (outcome === 'CALLBACK') {
+      const now = new Date();
+      const nextHour = new Date(now);
+      nextHour.setHours(now.getHours() + 1, 0, 0, 0);
+      // If after 6 PM, set to next day 10 AM
+      if (nextHour.getHours() >= 18) {
+        nextHour.setDate(nextHour.getDate() + 1);
+        nextHour.setHours(10, 0, 0, 0);
+      }
+      // If before 9 AM, set to 10 AM
+      if (nextHour.getHours() < 9) {
+        nextHour.setHours(10, 0, 0, 0);
+      }
+      setCallbackDate(nextHour);
+    }
   }, []);
+
+  const handleDateChange = useCallback((event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      const newDate = new Date(callbackDate);
+      newDate.setFullYear(selectedDate.getFullYear());
+      newDate.setMonth(selectedDate.getMonth());
+      newDate.setDate(selectedDate.getDate());
+      setCallbackDate(newDate);
+    }
+  }, [callbackDate]);
+
+  const handleTimeChange = useCallback((event: any, selectedTime?: Date) => {
+    setShowTimePicker(false);
+    if (selectedTime) {
+      const newDate = new Date(callbackDate);
+      newDate.setHours(selectedTime.getHours());
+      newDate.setMinutes(selectedTime.getMinutes());
+      setCallbackDate(newDate);
+    }
+  }, [callbackDate]);
+
+  const formatCallbackDate = (date: Date) => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const isToday = date.toDateString() === today.toDateString();
+    const isTomorrow = date.toDateString() === tomorrow.toDateString();
+
+    if (isToday) return 'Today';
+    if (isTomorrow) return 'Tomorrow';
+
+    return date.toLocaleDateString('en-IN', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
+  };
+
+  const formatCallbackTime = (date: Date) => {
+    return date.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
 
   const handleSubmit = useCallback(async () => {
     if (!selectedOutcome) {
@@ -58,10 +128,30 @@ const OutcomeScreen: React.FC = () => {
       return;
     }
 
+    // Validate callback date is in the future
+    if (selectedOutcome === 'CALLBACK') {
+      const now = new Date();
+      if (callbackDate <= now) {
+        Alert.alert('Invalid Time', 'Please select a future date and time for the callback.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
-      const success = await submitOutcome(selectedOutcome, notes.trim() || undefined);
+      // Include callback date in notes if CALLBACK selected
+      let finalNotes = notes.trim();
+      if (selectedOutcome === 'CALLBACK') {
+        const callbackInfo = `Callback scheduled: ${formatCallbackDate(callbackDate)} at ${formatCallbackTime(callbackDate)}`;
+        finalNotes = finalNotes ? `${callbackInfo}\n\n${finalNotes}` : callbackInfo;
+      }
+
+      const success = await submitOutcome(
+        selectedOutcome,
+        finalNotes || undefined,
+        selectedOutcome === 'CALLBACK' ? callbackDate.toISOString() : undefined
+      );
 
       if (success) {
         navigation.reset({
@@ -72,7 +162,7 @@ const OutcomeScreen: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedOutcome, notes, submitOutcome, navigation]);
+  }, [selectedOutcome, notes, callbackDate, submitOutcome, navigation]);
 
   const handleSkip = useCallback(() => {
     Alert.alert(
@@ -140,6 +230,70 @@ const OutcomeScreen: React.FC = () => {
             />
           ))}
         </View>
+
+        {/* Callback Scheduler - Only show when CALLBACK is selected */}
+        {selectedOutcome === 'CALLBACK' && (
+          <View style={styles.callbackSection}>
+            <Text style={styles.sectionTitle}>
+              <Icon name="calendar-clock" size={18} color="#3B82F6" /> Schedule Callback
+            </Text>
+            <View style={styles.callbackCard}>
+              {/* Date Picker */}
+              <TouchableOpacity
+                style={styles.callbackRow}
+                onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.callbackIconContainer}>
+                  <Icon name="calendar" size={22} color="#3B82F6" />
+                </View>
+                <View style={styles.callbackInfo}>
+                  <Text style={styles.callbackLabel}>Date</Text>
+                  <Text style={styles.callbackValue}>{formatCallbackDate(callbackDate)}</Text>
+                </View>
+                <Icon name="chevron-right" size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+
+              <View style={styles.callbackDivider} />
+
+              {/* Time Picker */}
+              <TouchableOpacity
+                style={styles.callbackRow}
+                onPress={() => setShowTimePicker(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.callbackIconContainer}>
+                  <Icon name="clock-outline" size={22} color="#3B82F6" />
+                </View>
+                <View style={styles.callbackInfo}>
+                  <Text style={styles.callbackLabel}>Time</Text>
+                  <Text style={styles.callbackValue}>{formatCallbackTime(callbackDate)}</Text>
+                </View>
+                <Icon name="chevron-right" size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Date/Time Pickers */}
+            {showDatePicker && (
+              <DateTimePicker
+                value={callbackDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={handleDateChange}
+                minimumDate={new Date()}
+              />
+            )}
+            {showTimePicker && (
+              <DateTimePicker
+                value={callbackDate}
+                mode="time"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={handleTimeChange}
+                is24Hour={false}
+              />
+            )}
+          </View>
+        )}
 
         {/* Notes */}
         <Text style={styles.sectionTitle}>Notes (Optional)</Text>
@@ -284,6 +438,49 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  // Callback scheduling styles
+  callbackSection: {
+    marginBottom: 24,
+  },
+  callbackCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  callbackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  callbackIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  callbackInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  callbackLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  callbackValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  callbackDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginLeft: 68,
   },
 });
 
