@@ -42,6 +42,12 @@ const App: React.FC = () => {
       try {
         console.log('[App] Initializing services...');
 
+        // Request all call permissions on app startup
+        // This ensures READ_CALL_LOG is granted for accurate call duration
+        const { requestCallPermissions } = require('./utils/permissions');
+        const permissionsGranted = await requestCallPermissions();
+        console.log('[App] Permissions granted:', permissionsGranted);
+
         // Initialize offline queue (includes network monitoring)
         await offlineQueue.init();
         console.log('[App] Offline queue initialized');

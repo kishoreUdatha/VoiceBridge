@@ -13,11 +13,12 @@ const s3Client = new S3Client({
     : undefined, // Let SDK auto-detect credentials (IAM instance profile, etc.)
 });
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET || 'crm-lead-generation-files';
-const RECORDINGS_BUCKET = process.env.AWS_RECORDINGS_BUCKET || 'myleadx-recordings-3e6c1oe0';
+// Support both AWS_S3_BUCKET and AWS_BUCKET_NAME for backward compatibility
+const BUCKET_NAME = process.env.AWS_S3_BUCKET || process.env.AWS_BUCKET_NAME || 'crm-lead-generation-files';
+// Use recordings bucket if set, otherwise fall back to main bucket
+const RECORDINGS_BUCKET = process.env.AWS_RECORDINGS_BUCKET || BUCKET_NAME;
 // Use local storage only if no bucket is configured AND no explicit credentials
-// On EC2 with IAM role, AWS_RECORDINGS_BUCKET should be set to enable S3
-const USE_LOCAL_STORAGE = !process.env.AWS_ACCESS_KEY_ID && !process.env.AWS_RECORDINGS_BUCKET;
+const USE_LOCAL_STORAGE = !process.env.AWS_ACCESS_KEY_ID && !process.env.AWS_RECORDINGS_BUCKET && !process.env.AWS_BUCKET_NAME;
 
 // For local development without S3
 const localFileStore: Map<string, { buffer: Buffer; mimeType: string }> = new Map();
@@ -116,9 +117,9 @@ export function generateFileKey(folder: string, fileName: string): string {
 
 // Log initialization
 if (USE_LOCAL_STORAGE) {
-  console.log('[S3] Using LOCAL STORAGE mode (set AWS_RECORDINGS_BUCKET to enable S3)');
+  console.log('[S3] Using LOCAL STORAGE mode (set AWS_BUCKET_NAME or AWS_RECORDINGS_BUCKET to enable S3)');
 } else {
-  console.log(`[S3] Client initialized for recordings bucket: ${RECORDINGS_BUCKET}`);
+  console.log(`[S3] Client initialized - Main bucket: ${BUCKET_NAME}, Recordings bucket: ${RECORDINGS_BUCKET}`);
   console.log(`[S3] Using ${process.env.AWS_ACCESS_KEY_ID ? 'explicit credentials' : 'IAM instance profile'}`);
 }
 
