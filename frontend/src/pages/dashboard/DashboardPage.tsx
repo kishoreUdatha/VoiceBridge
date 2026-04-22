@@ -1388,357 +1388,284 @@ function ManagerDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stat
   const overallConversionRate = totalRecords > 0 ? Math.round((convertedRecords / totalRecords) * 100 * 10) / 10 : 0;
 
   return (
-    <div className="space-y-6 p-1">
-      {/* Header - Clean and Professional */}
-      <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">{getGreeting()}, {user?.firstName ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1).toLowerCase() : ''}</h1>
-            <p className="text-gray-500 text-sm mt-1">Manager Dashboard Overview</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-3">
-              <div className="text-center px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-2xl font-bold text-gray-900">{teamOverview.length}</p>
-                <p className="text-xs text-gray-500">Teams</p>
-              </div>
-              <div className="text-center px-4 py-2 bg-emerald-50 rounded-lg border border-emerald-200">
-                <p className="text-2xl font-bold text-emerald-600">{overallConversionRate}%</p>
-                <p className="text-xs text-emerald-600">Conversion</p>
-              </div>
+    <div className="space-y-6 p-2">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{getGreeting()}, {user?.firstName ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1).toLowerCase() : ''}</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Here's what's happening with your team today</p>
+        </div>
+        <button onClick={handleRefresh} className="p-2.5 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-all shadow-sm">
+          <ArrowPathIcon className={`w-5 h-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
+      {/* Key Metrics Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Total Leads</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{stats?.total || 0}</p>
             </div>
-            <button onClick={handleRefresh} className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all border border-gray-200">
-              <ArrowPathIcon className={`w-5 h-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
-            </button>
+            <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
+              <UsersIcon className="w-6 h-6 text-indigo-600" />
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <Link to="/leads" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">View all leads →</Link>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Converted</p>
+              <p className="text-3xl font-bold text-emerald-600 mt-1">{rawImportStats?.convertedRecords || 0}</p>
+            </div>
+            <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+              <CheckCircleIcon className="w-6 h-6 text-emerald-600" />
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <span className="text-sm text-gray-500">{overallConversionRate}% conversion rate</span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Active Now</p>
+              <p className="text-3xl font-bold text-blue-600 mt-1">{liveStatus?.summary.active || 0}</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+              </span>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <Link to="/team-monitoring" className="text-sm text-blue-600 hover:text-blue-700 font-medium">Monitor team →</Link>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Teams</p>
+              <p className="text-3xl font-bold text-purple-600 mt-1">{teamOverview.length}</p>
+            </div>
+            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+              <UserGroupIcon className="w-6 h-6 text-purple-600" />
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <Link to="/users" className="text-sm text-purple-600 hover:text-purple-700 font-medium">Manage teams →</Link>
           </div>
         </div>
       </div>
 
-      {/* Live Team Status - Clean Design */}
-      {liveStatus && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
-              <h2 className="text-lg font-semibold text-gray-900">Live Team Status</h2>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Lead Status Chart - Takes 2 columns */}
+        <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Lead Distribution</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Current status of all leads</p>
             </div>
-            <Link to="/team-monitoring" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">View Details →</Link>
+            <Link to="/leads" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">View All →</Link>
           </div>
-          <div className="grid grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-200">
-              <p className="text-3xl font-bold text-gray-900">{liveStatus.summary.total}</p>
-              <p className="text-sm text-gray-500 mt-1">Total Team</p>
-            </div>
-            <div className="text-center p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-              <div className="flex items-center justify-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <p className="text-3xl font-bold text-emerald-600">{liveStatus.summary.active}</p>
+          {statusPieData.length > 0 ? (
+            <div className="flex items-start gap-8">
+              <div className="w-48 h-48 flex-shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={statusPieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value" strokeWidth={0}>
+                      {statusPieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-              <p className="text-sm text-emerald-600 mt-1">Active Now</p>
-            </div>
-            <div className="text-center p-4 bg-amber-50 rounded-xl border border-amber-200">
-              <div className="flex items-center justify-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                <p className="text-3xl font-bold text-amber-600">{liveStatus.summary.onBreak}</p>
-              </div>
-              <p className="text-sm text-amber-600 mt-1">On Break</p>
-            </div>
-            <div className="text-center p-4 bg-gray-100 rounded-xl border border-gray-200">
-              <div className="flex items-center justify-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                <p className="text-3xl font-bold text-gray-500">{liveStatus.summary.offline}</p>
-              </div>
-              <p className="text-sm text-gray-500 mt-1">Offline</p>
-            </div>
-          </div>
-          {liveStatus.members.filter(m => m.status === 'active').length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-sm text-gray-500 mb-3">Currently Active:</p>
-              <div className="flex flex-wrap gap-2">
-                {liveStatus.members.filter(m => m.status === 'active').slice(0, 10).map((member) => (
-                  <div key={member.id} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                    <span className="text-sm text-emerald-700 font-medium">{member.name.split(' ')[0]}</span>
+              <div className="flex-1 grid grid-cols-2 gap-4">
+                {statusPieData.slice(0, 6).map((entry, index) => (
+                  <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-gray-600 truncate">{entry.name}</p>
+                      <p className="text-xl font-bold text-gray-900">{entry.value}</p>
+                    </div>
                   </div>
                 ))}
-                {liveStatus.members.filter(m => m.status === 'active').length > 10 && (
-                  <span className="text-sm text-gray-500 px-3 py-1.5 bg-gray-100 rounded-full">+{liveStatus.members.filter(m => m.status === 'active').length - 10} more</span>
-                )}
               </div>
+            </div>
+          ) : (
+            <div className="h-48 flex items-center justify-center text-gray-400">No lead data available</div>
+          )}
+        </div>
+
+        {/* Team Status */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Team Status</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Real-time availability</p>
+            </div>
+          </div>
+          {liveStatus && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50">
+                <div className="flex items-center gap-3">
+                  <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-sm font-medium text-emerald-700">Active</span>
+                </div>
+                <span className="text-2xl font-bold text-emerald-600">{liveStatus.summary.active}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50">
+                <div className="flex items-center gap-3">
+                  <span className="w-3 h-3 rounded-full bg-amber-500"></span>
+                  <span className="text-sm font-medium text-amber-700">On Break</span>
+                </div>
+                <span className="text-2xl font-bold text-amber-600">{liveStatus.summary.onBreak}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-xl bg-gray-100">
+                <div className="flex items-center gap-3">
+                  <span className="w-3 h-3 rounded-full bg-gray-400"></span>
+                  <span className="text-sm font-medium text-gray-600">Offline</span>
+                </div>
+                <span className="text-2xl font-bold text-gray-500">{liveStatus.summary.offline}</span>
+              </div>
+              {liveStatus.members.filter(m => m.status === 'active').length > 0 && (
+                <div className="pt-4 border-t border-gray-100">
+                  <p className="text-xs text-gray-500 mb-2">Currently Active:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {liveStatus.members.filter(m => m.status === 'active').slice(0, 6).map((member) => (
+                      <span key={member.id} className="text-xs px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full font-medium">{member.name.split(' ')[0]}</span>
+                    ))}
+                    {liveStatus.members.filter(m => m.status === 'active').length > 6 && (
+                      <span className="text-xs text-gray-400 px-2 py-1">+{liveStatus.members.filter(m => m.status === 'active').length - 6}</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
-
-      {/* KPIs - Clean Card Design */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <Link to="/leads" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all group">
-          <div className="flex items-center justify-between">
-            <p className="text-gray-500 text-sm font-medium">Total Leads</p>
-            <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
-              <UsersIcon className="w-4 h-4 text-indigo-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{stats?.total || 0}</p>
-        </Link>
-        <Link to="/leads?status=NEW" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all group">
-          <div className="flex items-center justify-between">
-            <p className="text-gray-500 text-sm font-medium">New Today</p>
-            <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
-              <SparklesIcon className="w-4 h-4 text-emerald-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{stats?.todayCount || 0}</p>
-        </Link>
-        <Link to="/raw-imports" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md hover:border-amber-300 transition-all group">
-          <div className="flex items-center justify-between">
-            <p className="text-gray-500 text-sm font-medium">Pending</p>
-            <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center group-hover:bg-amber-100 transition-colors">
-              <ClockIcon className="w-4 h-4 text-amber-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{rawImportStats?.pendingRecords || 0}</p>
-        </Link>
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <p className="text-gray-500 text-sm font-medium">Assigned</p>
-            <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-              <UserGroupIcon className="w-4 h-4 text-blue-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{rawImportStats?.assignedRecords || 0}</p>
-        </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <p className="text-gray-500 text-sm font-medium">Interested</p>
-            <div className="w-8 h-8 bg-teal-50 rounded-lg flex items-center justify-center">
-              <FireIcon className="w-4 h-4 text-teal-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{rawImportStats?.interestedRecords || 0}</p>
-        </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <p className="text-gray-500 text-sm font-medium">Converted</p>
-            <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center">
-              <CheckCircleIcon className="w-4 h-4 text-purple-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{rawImportStats?.convertedRecords || 0}</p>
-        </div>
       </div>
 
-      {/* Teams Overview + Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Bottom Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top Performers */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Top Performers</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Today's leaderboard</p>
+            </div>
+            <Link to="/analytics/telecaller-performance" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">View All →</Link>
+          </div>
+          {leaderboard.length > 0 ? (
+            <div className="space-y-3">
+              {leaderboard.slice(0, 5).map((entry, idx) => (
+                <div key={entry.id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                    idx === 0 ? 'bg-gradient-to-br from-amber-400 to-amber-500 text-white' :
+                    idx === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-white' :
+                    idx === 2 ? 'bg-gradient-to-br from-orange-400 to-orange-500 text-white' :
+                    'bg-gray-100 text-gray-500'
+                  }`}>
+                    {idx + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{entry.name}</p>
+                    <p className="text-xs text-gray-500">{entry.calls} calls</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-emerald-600">{entry.conversions}</p>
+                    <p className="text-xs text-gray-500">conversions</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="h-48 flex flex-col items-center justify-center text-gray-400">
+              <PhoneIcon className="w-10 h-10 text-gray-300 mb-2" />
+              <p className="text-sm">No call data yet today</p>
+            </div>
+          )}
+        </div>
+
         {/* Teams Overview */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Teams Overview</h2>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Teams Overview</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Team structure</p>
+            </div>
             <Link to="/users" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Manage →</Link>
           </div>
           {teamOverview.length > 0 ? (
             <div className="space-y-3">
-              {teamOverview.map((team, idx) => (
-                <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
-                        <UserGroupIcon className="w-5 h-5 text-indigo-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">{team.name}</p>
-                        <p className="text-xs text-gray-500">{team.memberCount} members</p>
-                      </div>
-                    </div>
-                    <span className="text-lg font-bold text-indigo-600">{team.memberCount}</span>
+              {teamOverview.slice(0, 5).map((team, idx) => (
+                <div key={idx} className="flex items-center gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm">
+                    {team.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{team.name}</p>
+                    <p className="text-xs text-gray-500">Team Lead</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-gray-900">{team.memberCount}</p>
+                    <p className="text-xs text-gray-500">members</p>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8">
-              <div className="w-12 h-12 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-3">
-                <UserGroupIcon className="w-6 h-6 text-gray-400" />
-              </div>
-              <p className="text-sm text-gray-500">No teams created yet</p>
-              <Link to="/users" className="text-sm text-indigo-600 mt-2 inline-block font-medium">Add Team Leads →</Link>
+            <div className="h-48 flex flex-col items-center justify-center text-gray-400">
+              <UserGroupIcon className="w-10 h-10 text-gray-300 mb-2" />
+              <p className="text-sm">No teams created yet</p>
+              <Link to="/users" className="text-sm text-indigo-600 mt-2 font-medium">Add Team Leads →</Link>
             </div>
           )}
         </div>
-
-        {/* Lead Status */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Lead Status</h2>
-            <Link to="/leads" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">View All →</Link>
-          </div>
-          {statusPieData.length > 0 ? (
-            <div className="h-44">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={statusPieData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={2} dataKey="value" strokeWidth={0}>
-                    {statusPieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="h-44 flex items-center justify-center text-gray-400">No data</div>
-          )}
-          <div className="flex flex-wrap gap-2 mt-3 justify-center">
-            {statusPieData.slice(0, 4).map((entry, index) => (
-              <div key={index} className="flex items-center gap-1.5 text-xs px-2 py-1">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                <span className="text-gray-600">{entry.name}: {entry.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Telecaller Leaderboard */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Top Telecallers Today</h2>
-            <Link to="/analytics/telecaller-performance" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">View All →</Link>
-          </div>
-          {leaderboard.length > 0 ? (
-            <div className="space-y-2">
-              {leaderboard.slice(0, 5).map((entry, idx) => (
-                <div key={entry.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100 hover:bg-gray-100 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                      idx === 0 ? 'bg-amber-100 text-amber-700' :
-                      idx === 1 ? 'bg-gray-200 text-gray-700' :
-                      idx === 2 ? 'bg-orange-100 text-orange-700' :
-                      'bg-gray-100 text-gray-500'
-                    }`}>
-                      {idx + 1}
-                    </span>
-                    <span className="text-sm font-medium text-gray-900 truncate max-w-[120px]">{entry.name}</span>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="text-center">
-                      <p className="font-semibold text-gray-900">{entry.calls}</p>
-                      <p className="text-xs text-gray-500">calls</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="font-semibold text-emerald-600">{entry.conversions}</p>
-                      <p className="text-xs text-gray-500">conv</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="h-44 flex flex-col items-center justify-center">
-              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
-                <PhoneIcon className="w-6 h-6 text-gray-400" />
-              </div>
-              <p className="text-sm text-gray-500">No call data today</p>
-              <p className="text-xs text-gray-400 mt-1">Updates as calls are made</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Import Pipeline Overview */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold text-gray-900">Import Pipeline Overview</h2>
-          <Link to="/raw-imports" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Manage →</Link>
-        </div>
-        <div className="grid grid-cols-5 gap-4">
-          <div className="text-center p-4 rounded-xl bg-gray-50 border border-gray-200">
-            <p className="text-2xl font-bold text-gray-900">{rawImportStats?.totalRecords || 0}</p>
-            <p className="text-sm text-gray-500 mt-1">Total Records</p>
-          </div>
-          <div className="text-center p-4 rounded-xl bg-amber-50 border border-amber-200">
-            <p className="text-2xl font-bold text-amber-600">{rawImportStats?.pendingRecords || 0}</p>
-            <p className="text-sm text-amber-600 mt-1">Pending</p>
-          </div>
-          <div className="text-center p-4 rounded-xl bg-blue-50 border border-blue-200">
-            <p className="text-2xl font-bold text-blue-600">{rawImportStats?.assignedRecords || 0}</p>
-            <p className="text-sm text-blue-600 mt-1">Assigned</p>
-          </div>
-          <div className="text-center p-4 rounded-xl bg-teal-50 border border-teal-200">
-            <p className="text-2xl font-bold text-teal-600">{rawImportStats?.interestedRecords || 0}</p>
-            <p className="text-sm text-teal-600 mt-1">Interested</p>
-          </div>
-          <div className="text-center p-4 rounded-xl bg-purple-50 border border-purple-200">
-            <p className="text-2xl font-bold text-purple-600">{rawImportStats?.convertedRecords || 0}</p>
-            <p className="text-sm text-purple-600 mt-1">Converted</p>
-          </div>
-        </div>
-        {(rawImportStats?.totalRecords || 0) > 0 && (
-          <div className="mt-5">
-            <div className="flex h-2 rounded-full overflow-hidden bg-gray-100">
-              <div className="bg-amber-400 transition-all" style={{ width: `${((rawImportStats?.pendingRecords || 0) / (rawImportStats?.totalRecords || 1)) * 100}%` }} />
-              <div className="bg-blue-400 transition-all" style={{ width: `${((rawImportStats?.assignedRecords || 0) / (rawImportStats?.totalRecords || 1)) * 100}%` }} />
-              <div className="bg-teal-400 transition-all" style={{ width: `${((rawImportStats?.interestedRecords || 0) / (rawImportStats?.totalRecords || 1)) * 100}%` }} />
-              <div className="bg-purple-400 transition-all" style={{ width: `${((rawImportStats?.convertedRecords || 0) / (rawImportStats?.totalRecords || 1)) * 100}%` }} />
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Link to="/leads/bulk-upload" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all group flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <h3 className="text-sm font-semibold text-gray-700 mb-4">Quick Actions</h3>
+        <div className="flex flex-wrap gap-3">
+          <Link to="/leads/bulk-upload" className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors">
             <DocumentArrowUpIcon className="w-5 h-5 text-indigo-600" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Import Data</p>
-            <p className="text-xs text-gray-500">CSV/Excel</p>
-          </div>
-        </Link>
-        <Link to="/assignments" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md hover:border-purple-300 transition-all group flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center group-hover:bg-purple-100 transition-colors">
+            <span className="text-sm font-medium text-indigo-700">Import Data</span>
+          </Link>
+          <Link to="/assignments" className="flex items-center gap-2 px-4 py-2.5 bg-purple-50 hover:bg-purple-100 rounded-xl transition-colors">
             <UserGroupIcon className="w-5 h-5 text-purple-600" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Assignments</p>
-            <p className="text-xs text-gray-500">Distribute</p>
-          </div>
-        </Link>
-        <Link to="/campaigns" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all group flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
+            <span className="text-sm font-medium text-purple-700">Assign Leads</span>
+          </Link>
+          <Link to="/campaigns" className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors">
             <RocketLaunchIcon className="w-5 h-5 text-emerald-600" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Campaigns</p>
-            <p className="text-xs text-gray-500">Manage</p>
-          </div>
-        </Link>
-        <Link to="/call-monitoring" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all group flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+            <span className="text-sm font-medium text-emerald-700">Campaigns</span>
+          </Link>
+          <Link to="/call-monitoring" className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors">
             <EyeIcon className="w-5 h-5 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Monitoring</p>
-            <p className="text-xs text-gray-500">Live calls</p>
-          </div>
-        </Link>
-        <Link to="/analytics" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md hover:border-amber-300 transition-all group flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center group-hover:bg-amber-100 transition-colors">
+            <span className="text-sm font-medium text-blue-700">Live Calls</span>
+          </Link>
+          <Link to="/analytics" className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors">
             <ChartBarIcon className="w-5 h-5 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Analytics</p>
-            <p className="text-xs text-gray-500">Reports</p>
-          </div>
-        </Link>
+            <span className="text-sm font-medium text-amber-700">Analytics</span>
+          </Link>
+        </div>
       </div>
 
       {/* Footer */}
-      <div className="text-sm text-gray-400 text-center py-2">
-        Last updated: {lastRefresh.toLocaleTimeString()} | Organization-wide view
+      <div className="text-xs text-gray-400 text-center">
+        Last updated: {lastRefresh.toLocaleTimeString()}
       </div>
     </div>
   );

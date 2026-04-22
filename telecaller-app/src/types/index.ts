@@ -246,7 +246,7 @@ export interface AssignedDataStats {
   new: number;
   pending: number;
   assigned: number;
-  calling: number;
+  calling?: number;
   interested: number;
   notInterested: number;
   noAnswer: number;

@@ -80,7 +80,7 @@ const AssignedDataScreen: React.FC = () => {
     { key: 'ALL', label: 'All', count: stats?.total || 0 },
     { key: 'NEW', label: 'New', count: newCount },
     { key: 'INTERESTED', label: 'Interested', count: stats?.interested || 0 },
-    { key: 'CALLBACK_REQUESTED', label: 'Callback', count: stats?.callback || 0 },
+    { key: 'CALLBACK', label: 'Callback', count: stats?.callback || 0 }, // Match both CALLBACK and CALLBACK_REQUESTED
     { key: 'NO_ANSWER', label: 'No Ans', count: stats?.noAnswer || 0 },
     { key: 'NOT_INTERESTED', label: 'Not Int', count: stats?.notInterested || 0 },
     { key: 'CONVERTED', label: 'Done', count: stats?.converted || 0 },
@@ -115,10 +115,14 @@ const AssignedDataScreen: React.FC = () => {
     const tabKey = tabs[activeTab]?.key;
     let filtered = allRecords;
 
-    // Filter by status. "NEW" = anything not yet dispositioned: PENDING (freshly imported,
-    // which is the Prisma default), ASSIGNED (handed to telecaller), or CALLING (mid-call).
+    // Filter by status. "NEW" groups anything not yet dispositioned: PENDING (freshly
+    // imported), ASSIGNED (handed to telecaller), or CALLING (mid-call). The CALLBACK
+    // tab matches both CALLBACK and CALLBACK_REQUESTED since the backend uses different
+    // names in TelecallerCall vs RawImportRecord.
     if (tabKey === 'NEW') {
       filtered = filtered.filter(r => ['PENDING', 'ASSIGNED', 'CALLING'].includes(r.status));
+    } else if (tabKey === 'CALLBACK') {
+      filtered = filtered.filter(r => r.status === 'CALLBACK' || r.status === 'CALLBACK_REQUESTED');
     } else if (tabKey !== 'ALL') {
       filtered = filtered.filter(r => r.status === tabKey);
     }
