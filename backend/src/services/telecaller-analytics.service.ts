@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '../config/database';
+import { userService } from './user.service';
 
 interface LeaderboardOptions {
   startDate?: Date;
@@ -11,6 +12,10 @@ interface LeaderboardOptions {
   limit?: number;
   branchId?: string;      // For manager: filter by branch
   managerId?: string;     // For team lead: filter by assigned telecallers
+  // Role-based filtering (auto-apply based on current user)
+  userRole?: string;
+  userId?: string;
+  organizationId?: string;
 }
 
 class TelecallerAnalyticsService {
@@ -70,28 +75,42 @@ class TelecallerAnalyticsService {
   }
 
   async getTelecallerLeaderboard(organizationId: string, metric: string = 'calls', options: LeaderboardOptions = {}) {
-    const { startDate, endDate, limit = 50, branchId, managerId } = options;
+    const { startDate, endDate, limit = 50, branchId, managerId, userRole, userId } = options;
     const defaultStartDate = new Date();
     defaultStartDate.setDate(defaultStartDate.getDate() - 30);
 
-    // Get telecaller IDs based on filters (branch or manager)
+    // Get viewable team member IDs based on role
+    let viewableUserIds: string[] | null = null;
+    if (userRole && userId) {
+      viewableUserIds = await userService.getViewableTeamMemberIds(organizationId, userRole, userId);
+    }
+
+    // Get telecaller IDs based on filters (role-based, branch or manager)
     let telecallerIds: string[] | undefined;
 
-    if (branchId || managerId) {
-      const telecallerFilter: any = {
-        organizationId,
-        role: { slug: 'telecaller' },
-        isActive: true,
-      };
+    // Build base filter
+    const telecallerFilter: any = {
+      organizationId,
+      role: { slug: { in: ['telecaller', 'counselor'] } },
+      isActive: true,
+    };
 
-      if (branchId) {
-        telecallerFilter.branchId = branchId;
-      }
+    // Apply role-based filtering first
+    if (viewableUserIds !== null) {
+      telecallerFilter.id = { in: viewableUserIds };
+    }
 
-      if (managerId) {
-        telecallerFilter.managerId = managerId;
-      }
+    // Apply additional filters
+    if (branchId) {
+      telecallerFilter.branchId = branchId;
+    }
 
+    if (managerId) {
+      telecallerFilter.managerId = managerId;
+    }
+
+    // Fetch telecallers based on combined filters
+    if (viewableUserIds !== null || branchId || managerId) {
       const telecallers = await prisma.user.findMany({
         where: telecallerFilter,
         select: { id: true },
@@ -166,19 +185,30 @@ class TelecallerAnalyticsService {
   }
 
   // Get daily report for today with role-based filtering
-  async getDailyReport(organizationId: string, date: Date, options: { branchId?: string; managerId?: string } = {}) {
-    const { branchId, managerId } = options;
+  async getDailyReport(organizationId: string, date: Date, options: { branchId?: string; managerId?: string; userRole?: string; userId?: string } = {}) {
+    const { branchId, managerId, userRole, userId } = options;
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
+    // Get viewable team member IDs based on role
+    let viewableUserIds: string[] | null = null;
+    if (userRole && userId) {
+      viewableUserIds = await userService.getViewableTeamMemberIds(organizationId, userRole, userId);
+    }
+
     // Get telecaller IDs based on filters
     const telecallerFilter: any = {
       organizationId,
-      role: { slug: 'telecaller' },
+      role: { slug: { in: ['telecaller', 'counselor'] } },
       isActive: true,
     };
+
+    // Apply role-based filtering first
+    if (viewableUserIds !== null) {
+      telecallerFilter.id = { in: viewableUserIds };
+    }
 
     if (branchId) {
       telecallerFilter.branchId = branchId;

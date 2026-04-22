@@ -9,7 +9,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';
 import { fetchLeadById, updateLead, assignLead } from '../../store/slices/leadSlice';
-import { fetchCounselors } from '../../store/slices/userSlice';
+import { fetchAssignableUsers } from '../../store/slices/userSlice';
 import {
   ArrowLeftIcon,
   PhoneIcon,
@@ -113,7 +113,7 @@ export default function LeadDetailPage() {
   const navigate = useNavigate();
   const dispatch = useDispatch<AppDispatch>();
   const { currentLead, isLoading } = useSelector((state: RootState) => state.leads);
-  const { counselors } = useSelector((state: RootState) => state.users);
+  const { assignableUsers } = useSelector((state: RootState) => state.users);
 
   // UI state
   const [activeTab, setActiveTab] = useState('overview');
@@ -167,7 +167,7 @@ export default function LeadDetailPage() {
   useEffect(() => {
     if (id) {
       dispatch(fetchLeadById(id));
-      dispatch(fetchCounselors());
+      dispatch(fetchAssignableUsers());
     }
   }, [dispatch, id]);
 
@@ -518,16 +518,21 @@ export default function LeadDetailPage() {
                 <ChevronDownIcon className="h-3 w-3" />
               </button>
               {showAgentDropdown && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[160px] py-1">
-                  {counselors.map((counselor) => (
-                    <button
-                      key={counselor.id}
-                      onClick={() => handleAssign(counselor.id)}
-                      className="block w-full text-left px-3 py-1.5 hover:bg-slate-50 text-xs"
-                    >
-                      {counselor.firstName} {counselor.lastName}
-                    </button>
-                  ))}
+                <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[200px] py-1 max-h-60 overflow-y-auto">
+                  {assignableUsers.length === 0 ? (
+                    <div className="px-3 py-2 text-xs text-slate-400">No team members to assign</div>
+                  ) : (
+                    assignableUsers.map((user) => (
+                      <button
+                        key={user.id}
+                        onClick={() => handleAssign(user.id)}
+                        className="block w-full text-left px-3 py-1.5 hover:bg-slate-50 text-xs"
+                      >
+                        <span className="font-medium">{user.firstName} {user.lastName}</span>
+                        {user.role && <span className="text-slate-400 ml-1">({user.role})</span>}
+                      </button>
+                    ))
+                  )}
                 </div>
               )}
             </div>
@@ -816,14 +821,14 @@ export default function LeadDetailPage() {
         isOpen={showTaskModal}
         onClose={() => setShowTaskModal(false)}
         onSubmit={(task) => leadData.addTask(task)}
-        counselors={counselors}
+        counselors={assignableUsers}
       />
 
       <FollowUpModal
         isOpen={showFollowUpModal}
         onClose={() => setShowFollowUpModal(false)}
         onSubmit={(followUp) => leadData.addFollowUp(followUp)}
-        counselors={counselors}
+        counselors={assignableUsers}
       />
 
       <QueryModal

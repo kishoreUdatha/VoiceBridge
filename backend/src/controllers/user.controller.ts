@@ -117,6 +117,19 @@ export class UserController {
     }
   }
 
+  async getAssignableUsers(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userRole = req.user!.role || req.user!.roleSlug;
+      const userId = req.user!.id;
+
+      const assignableUsers = await userService.getAssignableUsers(req.organizationId!, userRole, userId);
+
+      ApiResponse.success(res, 'Assignable users retrieved successfully', assignableUsers);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async resetPassword(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       await userService.resetPassword(req.params.id, req.organizationId!, req.body.password);

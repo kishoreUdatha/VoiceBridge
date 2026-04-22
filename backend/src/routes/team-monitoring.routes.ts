@@ -54,6 +54,9 @@ const buildFilters = (req: TenantRequest) => {
     managerId: req.query.managerId as string | undefined,
     dateFrom: req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined,
     dateTo: req.query.dateTo ? new Date(req.query.dateTo as string) : undefined,
+    // Role-based filtering
+    userRole: req.user?.roleSlug || req.user?.role,
+    userId: req.user?.id,
   };
 };
 

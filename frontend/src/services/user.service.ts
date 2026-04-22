@@ -99,4 +99,10 @@ export const userService = {
     const response = await api.get('/users/managers');
     return response.data.data;
   },
+
+  // Get users that the current user can assign leads to based on hierarchy
+  async getAssignableUsers(): Promise<User[]> {
+    const response = await api.get('/users/assignable');
+    return response.data.data;
+  },
 };

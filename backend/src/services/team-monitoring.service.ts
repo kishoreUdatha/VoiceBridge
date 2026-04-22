@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '../config/database';
+import { userService } from './user.service';
 
 interface TeamMonitoringFilters {
   organizationId: string;
@@ -11,6 +12,9 @@ interface TeamMonitoringFilters {
   managerId?: string;
   dateFrom?: Date;
   dateTo?: Date;
+  // Role-based filtering
+  userRole?: string;
+  userId?: string;
 }
 
 interface TeamMemberPerformance {
@@ -95,7 +99,7 @@ class TeamMonitoringService {
    * Get team overview summary metrics
    */
   async getTeamOverview(filters: TeamMonitoringFilters): Promise<TeamOverview> {
-    const { organizationId, branchId, managerId, dateFrom, dateTo } = filters;
+    const { organizationId, branchId, managerId, dateFrom, dateTo, userRole, userId } = filters;
     const now = new Date();
     const defaultDateFrom = dateFrom || new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const defaultDateTo = dateTo || now;
@@ -104,6 +108,8 @@ class TeamMonitoringService {
       organizationId,
       branchId,
       managerId,
+      userRole,
+      userId,
       dateFrom: defaultDateFrom?.toISOString(),
       dateTo: defaultDateTo?.toISOString(),
     });
@@ -125,12 +131,24 @@ class TeamMonitoringService {
       };
     }
 
+    // Get viewable team member IDs based on role
+    let viewableUserIds: string[] | null = null;
+    if (userRole && userId) {
+      viewableUserIds = await userService.getViewableTeamMemberIds(organizationId, userRole, userId);
+    }
+
     // Build user filter
     const userFilter: any = {
       organizationId,
       isActive: true,
       role: { slug: { in: ['telecaller', 'counselor'] } },
     };
+
+    // Apply role-based filtering first
+    if (viewableUserIds !== null) {
+      userFilter.id = { in: viewableUserIds };
+    }
+
     if (branchId) userFilter.branchId = branchId;
     if (managerId) userFilter.managerId = managerId;
 
@@ -265,10 +283,16 @@ class TeamMonitoringService {
    * Get individual telecaller performance metrics
    */
   async getTelecallerPerformance(filters: TeamMonitoringFilters): Promise<TeamMemberPerformance[]> {
-    const { organizationId, branchId, managerId, dateFrom, dateTo } = filters;
+    const { organizationId, branchId, managerId, dateFrom, dateTo, userRole, userId } = filters;
     const now = new Date();
     const defaultDateFrom = dateFrom || new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const defaultDateTo = dateTo || now;
+
+    // Get viewable team member IDs based on role
+    let viewableUserIds: string[] | null = null;
+    if (userRole && userId) {
+      viewableUserIds = await userService.getViewableTeamMemberIds(organizationId, userRole, userId);
+    }
 
     // Build user filter
     const userFilter: any = {
@@ -276,6 +300,12 @@ class TeamMonitoringService {
       isActive: true,
       role: { slug: { in: ['telecaller', 'counselor'] } },
     };
+
+    // Apply role-based filtering first
+    if (viewableUserIds !== null) {
+      userFilter.id = { in: viewableUserIds };
+    }
+
     if (branchId) userFilter.branchId = branchId;
     if (managerId) userFilter.managerId = managerId;
 
@@ -595,14 +625,26 @@ class TeamMonitoringService {
    * Get pending follow-ups grouped by assignee
    */
   async getPendingFollowUps(filters: TeamMonitoringFilters): Promise<any> {
-    const { organizationId, branchId, managerId } = filters;
+    const { organizationId, branchId, managerId, userRole, userId } = filters;
     const now = new Date();
+
+    // Get viewable team member IDs based on role
+    let viewableUserIds: string[] | null = null;
+    if (userRole && userId) {
+      viewableUserIds = await userService.getViewableTeamMemberIds(organizationId, userRole, userId);
+    }
 
     // Build user filter
     const userFilter: any = {
       organizationId,
       isActive: true,
     };
+
+    // Apply role-based filtering first
+    if (viewableUserIds !== null) {
+      userFilter.id = { in: viewableUserIds };
+    }
+
     if (branchId) userFilter.branchId = branchId;
     if (managerId) userFilter.managerId = managerId;
 
@@ -677,16 +719,28 @@ class TeamMonitoringService {
    * Get call outcome distribution
    */
   async getCallOutcomes(filters: TeamMonitoringFilters): Promise<CallOutcomeData[]> {
-    const { organizationId, branchId, managerId, dateFrom, dateTo } = filters;
+    const { organizationId, branchId, managerId, dateFrom, dateTo, userRole, userId } = filters;
     const now = new Date();
     const defaultDateFrom = dateFrom || new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const defaultDateTo = dateTo || now;
+
+    // Get viewable team member IDs based on role
+    let viewableUserIds: string[] | null = null;
+    if (userRole && userId) {
+      viewableUserIds = await userService.getViewableTeamMemberIds(organizationId, userRole, userId);
+    }
 
     // Build user filter
     const userFilter: any = {
       organizationId,
       isActive: true,
     };
+
+    // Apply role-based filtering first
+    if (viewableUserIds !== null) {
+      userFilter.id = { in: viewableUserIds };
+    }
+
     if (branchId) userFilter.branchId = branchId;
     if (managerId) userFilter.managerId = managerId;
 
@@ -722,16 +776,28 @@ class TeamMonitoringService {
    * Get daily conversion trend
    */
   async getConversionTrend(filters: TeamMonitoringFilters): Promise<ConversionTrendData[]> {
-    const { organizationId, branchId, managerId, dateFrom, dateTo } = filters;
+    const { organizationId, branchId, managerId, dateFrom, dateTo, userRole, userId } = filters;
     const now = new Date();
     const defaultDateFrom = dateFrom || new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const defaultDateTo = dateTo || now;
+
+    // Get viewable team member IDs based on role
+    let viewableUserIds: string[] | null = null;
+    if (userRole && userId) {
+      viewableUserIds = await userService.getViewableTeamMemberIds(organizationId, userRole, userId);
+    }
 
     // Build user filter
     const userFilter: any = {
       organizationId,
       isActive: true,
     };
+
+    // Apply role-based filtering first
+    if (viewableUserIds !== null) {
+      userFilter.id = { in: viewableUserIds };
+    }
+
     if (branchId) userFilter.branchId = branchId;
     if (managerId) userFilter.managerId = managerId;
 

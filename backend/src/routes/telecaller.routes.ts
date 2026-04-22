@@ -864,7 +864,7 @@ router.get('/leads', async (req: TenantRequest, res: Response) => {
   }
 });
 
-// Get ALL telecaller calls in organization (All roles can view)
+// Get ALL telecaller calls in organization (role-based filtering)
 router.get('/all-calls', async (req: TenantRequest, res: Response) => {
   // Prevent caching of this endpoint
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -873,7 +873,11 @@ router.get('/all-calls', async (req: TenantRequest, res: Response) => {
 
   try {
     const organizationId = req.organization!.id;
-    console.log(`[TelecallerAllCalls] Fetching calls for org: ${organizationId}`);
+    const userRole = req.user?.role || req.user?.roleSlug;
+    const userId = req.user?.id;
+    const normalizedRole = userRole?.toLowerCase().replace('_', '');
+
+    console.log(`[TelecallerAllCalls] Fetching calls for org: ${organizationId}, role: ${normalizedRole}`);
     const {
       telecallerId,
       leadId,
@@ -882,54 +886,140 @@ router.get('/all-calls', async (req: TenantRequest, res: Response) => {
       dateTo,
       outcome,
       status,
+      callType,
+      duration,
       limit = '50',
       offset = '0'
     } = req.query;
 
-    const whereClause: any = {
+    // Base where clause without outcome filter (for getting outcome counts)
+    const baseWhereClause: any = {
       organizationId,
     };
 
+    // Role-based filtering
+    // Admin: sees all calls
+    // Manager: sees calls from their team (team leads + telecallers under them)
+    // Team Lead: sees calls from their telecallers
+    // Telecaller: sees only their own calls
+    if (normalizedRole === 'manager' && userId) {
+      // Get team leads reporting to this manager
+      const teamLeads = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: userId,
+          role: { slug: 'team_lead' },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamLeadIds = teamLeads.map(tl => tl.id);
+
+      // Get all telecallers under these team leads + direct reports
+      const teamMembers = await prisma.user.findMany({
+        where: {
+          organizationId,
+          OR: [
+            { managerId: { in: teamLeadIds } },
+            { managerId: userId },
+          ],
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamMemberIds = [...teamLeadIds, ...teamMembers.map(m => m.id)];
+
+      if (teamMemberIds.length > 0) {
+        baseWhereClause.telecallerId = { in: teamMemberIds };
+      } else {
+        // No team members, show no calls
+        baseWhereClause.telecallerId = userId;
+      }
+    } else if (normalizedRole === 'teamlead' && userId) {
+      // Get telecallers reporting to this team lead
+      const teamMembers = await prisma.user.findMany({
+        where: {
+          organizationId,
+          managerId: userId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamMemberIds = [userId, ...teamMembers.map(m => m.id)];
+      baseWhereClause.telecallerId = { in: teamMemberIds };
+    } else if (normalizedRole === 'telecaller' && userId) {
+      // Telecaller sees only their own calls
+      baseWhereClause.telecallerId = userId;
+    }
+    // Admin sees all (no additional filter)
+
+    // If telecallerId filter is provided, it overrides role-based filter (for drill-down)
     if (telecallerId) {
-      whereClause.telecallerId = telecallerId;
+      baseWhereClause.telecallerId = telecallerId;
     }
 
     // Filter by branch - get calls from telecallers in the specified branch
     if (branchId) {
-      whereClause.telecaller = {
+      baseWhereClause.telecaller = {
+        ...baseWhereClause.telecaller,
         branchId: branchId as string,
       };
     }
 
     if (leadId) {
-      whereClause.leadId = leadId;
+      baseWhereClause.leadId = leadId;
     }
+
+    if (status) {
+      baseWhereClause.status = status as string;
+    }
+
+    if (dateFrom || dateTo) {
+      baseWhereClause.createdAt = {};
+      if (dateFrom) baseWhereClause.createdAt.gte = new Date(dateFrom as string);
+      if (dateTo) baseWhereClause.createdAt.lte = new Date(dateTo as string);
+    }
+
+    // Filter by call type (INBOUND/OUTBOUND)
+    if (callType) {
+      baseWhereClause.callType = callType as string;
+    }
+
+    // Filter by duration range
+    if (duration) {
+      if (duration === 'short') {
+        // Short: < 30 seconds
+        baseWhereClause.duration = { lt: 30 };
+      } else if (duration === 'medium') {
+        // Medium: 30 seconds - 2 minutes
+        baseWhereClause.duration = { gte: 30, lt: 120 };
+      } else if (duration === 'long') {
+        // Long: > 2 minutes
+        baseWhereClause.duration = { gte: 120 };
+      }
+    }
+
+    // Full where clause including outcome filter (for listing calls)
+    const whereClause: any = { ...baseWhereClause };
 
     if (outcome) {
       if (outcome === 'PENDING') {
         whereClause.outcome = null;
       } else if (outcome === 'Connected') {
         // Connected = calls where customer answered
-        whereClause.outcome = { in: ['INTERESTED', 'NOT_INTERESTED', 'CALLBACK_REQUESTED', 'CONVERTED', 'CONNECTED'] };
+        whereClause.outcome = { in: ['INTERESTED', 'NOT_INTERESTED', 'CALLBACK_REQUESTED', 'CALLBACK', 'CONVERTED', 'CONNECTED'] };
       } else if (outcome === 'Not Connected' || outcome === 'NOT_CONNECTED') {
         // Not Connected = calls where customer didn't answer
         whereClause.outcome = { in: ['NO_ANSWER', 'BUSY', 'VOICEMAIL'] };
       } else if (outcome === 'Lost' || outcome === 'LOST') {
         // Lost = not interested
         whereClause.outcome = 'NOT_INTERESTED';
+      } else if (outcome === 'CALLBACK_REQUESTED' || outcome === 'CALLBACK') {
+        // Handle both CALLBACK and CALLBACK_REQUESTED
+        whereClause.outcome = { in: ['CALLBACK_REQUESTED', 'CALLBACK'] };
       } else {
         whereClause.outcome = outcome as string;
       }
-    }
-
-    if (status) {
-      whereClause.status = status as string;
-    }
-
-    if (dateFrom || dateTo) {
-      whereClause.createdAt = {};
-      if (dateFrom) whereClause.createdAt.gte = new Date(dateFrom as string);
-      if (dateTo) whereClause.createdAt.lte = new Date(dateTo as string);
     }
 
     const [calls, total] = await Promise.all([
@@ -950,23 +1040,25 @@ router.get('/all-calls', async (req: TenantRequest, res: Response) => {
       prisma.telecallerCall.count({ where: whereClause }),
     ]);
 
-    // Get outcome counts
+    // When no outcome filter: show all outcome breakdown (baseWhereClause)
+    // When outcome filter applied: show stats for filtered calls only (whereClause)
+    const statsWhereClause = outcome ? whereClause : baseWhereClause;
+
     const outcomeCounts = await prisma.telecallerCall.groupBy({
       by: ['outcome'],
-      where: { organizationId },
+      where: statsWhereClause,
       _count: { _all: true },
     });
 
-    // Get status counts
     const statusCounts = await prisma.telecallerCall.groupBy({
       by: ['status'],
-      where: { organizationId },
+      where: statsWhereClause,
       _count: { _all: true },
     });
 
-    const totalCalls = await prisma.telecallerCall.count({ where: { organizationId } });
+    const totalCalls = await prisma.telecallerCall.count({ where: statsWhereClause });
     const pendingCalls = await prisma.telecallerCall.count({
-      where: { organizationId, outcome: null }
+      where: { ...statsWhereClause, outcome: null }
     });
 
     const counts: Record<string, number> = {

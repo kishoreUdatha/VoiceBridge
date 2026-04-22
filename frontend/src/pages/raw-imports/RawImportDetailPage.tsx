@@ -18,7 +18,7 @@ import {
   assignToAIAgent,
   clearCurrentImport,
 } from '../../store/slices/rawImportSlice';
-import { fetchTelecallers } from '../../store/slices/userSlice';
+import { fetchAssignableUsers } from '../../store/slices/userSlice';
 import {
   ArrowLeftIcon,
   UserGroupIcon,
@@ -52,7 +52,7 @@ export default function RawImportDetailPage() {
   const { currentImport, records, selectedRecords, recordsTotal, isLoading } = useSelector(
     (state: RootState) => state.rawImports
   );
-  const { telecallers } = useSelector((state: RootState) => state.users);
+  const { assignableUsers } = useSelector((state: RootState) => state.users);
 
   // UI state
   const [activeTab, setActiveTab] = useState<RawImportRecordStatus | 'ALL'>('ALL');
@@ -104,7 +104,7 @@ export default function RawImportDetailPage() {
   useEffect(() => {
     if (id) {
       dispatch(fetchBulkImportById(id));
-      dispatch(fetchTelecallers());
+      dispatch(fetchAssignableUsers());
       loadRecords();
       loadVoiceAgents();
     }
@@ -453,8 +453,8 @@ export default function RawImportDetailPage() {
           onChange={(e) => { setFilterAssignedTo(e.target.value); setPage(1); }}
           className="px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[140px]"
         >
-          <option value="">All Telecallers</option>
-          {telecallers.map((t) => (
+          <option value="">All Assignees</option>
+          {assignableUsers.map((t) => (
             <option key={t.id} value={t.id}>
               {t.firstName} {t.lastName}
             </option>
@@ -559,7 +559,7 @@ export default function RawImportDetailPage() {
       {showAssignModal && (
         <TelecallerAssignPanel
           selectedRecordsCount={selectedRecords.length}
-          telecallers={telecallers.map(t => ({ ...t, activeRecordCount: (t as any).activeRecordCount }))}
+          telecallers={assignableUsers.map(t => ({ ...t, activeRecordCount: (t as any).activeRecordCount }))}
           selectedTelecallers={selectedTelecallers}
           onToggleTelecaller={toggleTelecaller}
           onAssign={handleAssignTelecallers}

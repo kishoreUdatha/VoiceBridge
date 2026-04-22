@@ -113,6 +113,9 @@ function parseFilters(req: TenantRequest) {
     userId: userId as string | undefined,
     branchId: branchId as string | undefined,
     roleId: roleId as string | undefined,
+    // Role-based filtering
+    currentUserRole: req.user?.roleSlug || req.user?.role,
+    currentUserId: req.user?.id,
   };
 }
 

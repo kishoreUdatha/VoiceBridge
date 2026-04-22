@@ -14,9 +14,17 @@ export interface BulkImport {
   convertedCount: number;
   status: 'PROCESSING' | 'COMPLETED' | 'FAILED';
   errorMessage?: string;
+  assignedManagerId?: string;
+  assignedManagerAt?: string;
   createdAt: string;
   updatedAt: string;
   uploadedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  assignedManager?: {
     id: string;
     firstName: string;
     lastName: string;
@@ -190,6 +198,14 @@ export const rawImportService = {
   },
 
   // Assignment
+  async assignToManager(bulkImportId: string, managerId: string) {
+    const response = await api.post('/raw-imports/assign/manager', {
+      bulkImportId,
+      managerId,
+    });
+    return response.data.data;
+  },
+
   async assignToTelecallers(recordIds: string[], telecallerIds: string[]) {
     const response = await api.post('/raw-imports/assign/telecallers', {
       recordIds,

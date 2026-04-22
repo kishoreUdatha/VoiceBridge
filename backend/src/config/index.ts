@@ -158,6 +158,24 @@ export const config = {
     region: process.env.AWS_REGION || 'ap-south-1',
   },
 
+  // AWS SES Configuration
+  ses: {
+    region: process.env.AWS_SES_REGION || process.env.AWS_REGION || 'ap-south-1',
+    accessKeyId: process.env.AWS_SES_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY,
+    fromEmail: process.env.AWS_SES_FROM_EMAIL || 'noreply@myleadx.ai',
+    fromName: process.env.AWS_SES_FROM_NAME || 'MyLeadX',
+  },
+
+  // MSG91 SMS Configuration
+  msg91: {
+    authKey: process.env.MSG91_AUTH_KEY,
+    senderId: process.env.MSG91_SENDER_ID || 'MYLEADX',
+    dltEntityId: process.env.MSG91_DLT_ENTITY_ID,
+    route: process.env.MSG91_ROUTE || '4', // 4 = Transactional, 1 = Promotional
+    baseUrl: process.env.MSG91_BASE_URL || 'https://control.msg91.com',
+  },
+
   smtp: {
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || '587', 10),

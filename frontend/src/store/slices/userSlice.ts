@@ -5,6 +5,7 @@ interface UserState {
   users: User[];
   counselors: User[];
   telecallers: User[];
+  assignableUsers: User[];
   managers: Manager[];
   roles: Role[];
   currentUser: User | null;
@@ -17,6 +18,7 @@ const initialState: UserState = {
   users: [],
   counselors: [],
   telecallers: [],
+  assignableUsers: [],
   managers: [],
   roles: [],
   currentUser: null,
@@ -60,6 +62,20 @@ export const fetchTelecallers = createAsyncThunk(
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
       return rejectWithValue(err.response?.data?.message || 'Failed to fetch telecallers');
+    }
+  }
+);
+
+// Fetch users that the current user can assign leads to based on hierarchy
+export const fetchAssignableUsers = createAsyncThunk(
+  'users/fetchAssignableUsers',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await userService.getAssignableUsers();
+      return response;
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      return rejectWithValue(err.response?.data?.message || 'Failed to fetch assignable users');
     }
   }
 );
@@ -161,6 +177,11 @@ const userSlice = createSlice({
     // Fetch telecallers
     builder.addCase(fetchTelecallers.fulfilled, (state, action) => {
       state.telecallers = action.payload;
+    });
+
+    // Fetch assignable users (hierarchy-based)
+    builder.addCase(fetchAssignableUsers.fulfilled, (state, action) => {
+      state.assignableUsers = action.payload;
     });
 
     // Fetch roles

@@ -7,6 +7,7 @@
 
 import { prisma } from '../config/database';
 import { Prisma } from '@prisma/client';
+import { userService } from './user.service';
 
 interface DateRange {
   start: Date;
@@ -19,6 +20,9 @@ interface ReportFilters {
   userId?: string;
   branchId?: string;
   roleId?: string;
+  // Role-based filtering
+  currentUserRole?: string;
+  currentUserId?: string;
 }
 
 interface UserPerformanceSummary {
@@ -623,15 +627,30 @@ class UserPerformanceReportsService {
     followUpsPerUser: FollowUpsPerUser[];
     conversionPerUser: ConversionPerUser[];
   }> {
-    const { organizationId, dateRange = this.getDefaultDateRange() } = filters;
+    const { organizationId, dateRange = this.getDefaultDateRange(), currentUserRole, currentUserId } = filters;
     const now = new Date();
 
     console.log('[UserPerformance] getComprehensiveReport called for org:', organizationId);
     console.log('[UserPerformance] Date range:', dateRange);
+    console.log('[UserPerformance] Role-based filtering - role:', currentUserRole, 'userId:', currentUserId);
 
-    // Get all users in organization (single query)
+    // Get viewable team member IDs based on role
+    let viewableUserIds: string[] | null = null;
+    if (currentUserRole && currentUserId) {
+      viewableUserIds = await userService.getViewableTeamMemberIds(organizationId, currentUserRole, currentUserId);
+    }
+
+    // Build user filter
+    const userFilter: any = { organizationId, isActive: true };
+
+    // Apply role-based filtering
+    if (viewableUserIds !== null) {
+      userFilter.id = { in: viewableUserIds };
+    }
+
+    // Get all users based on role visibility (single query)
     const users = await prisma.user.findMany({
-      where: { organizationId, isActive: true },
+      where: userFilter,
       select: {
         id: true,
         firstName: true,
@@ -852,16 +871,32 @@ class UserPerformanceReportsService {
    * Returns all 30+ fields needed for the User Report page
    */
   async getUserReportData(filters: ReportFilters): Promise<UserReportData[]> {
-    const { organizationId, dateRange = this.getDefaultDateRange() } = filters;
+    const { organizationId, dateRange = this.getDefaultDateRange(), currentUserRole, currentUserId } = filters;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
     const todayStr = today.toISOString().split('T')[0];
 
-    // Get all users with manager info
+    console.log('[UserReportData] Role-based filtering - role:', currentUserRole, 'userId:', currentUserId);
+
+    // Get viewable team member IDs based on role
+    let viewableUserIds: string[] | null = null;
+    if (currentUserRole && currentUserId) {
+      viewableUserIds = await userService.getViewableTeamMemberIds(organizationId, currentUserRole, currentUserId);
+    }
+
+    // Build user filter
+    const userFilter: any = { organizationId, isActive: true };
+
+    // Apply role-based filtering
+    if (viewableUserIds !== null) {
+      userFilter.id = { in: viewableUserIds };
+    }
+
+    // Get all users with manager info based on role visibility
     const users = await prisma.user.findMany({
-      where: { organizationId, isActive: true },
+      where: userFilter,
       select: {
         id: true,
         firstName: true,

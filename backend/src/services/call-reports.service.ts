@@ -7,6 +7,7 @@
 
 import { prisma } from '../config/database';
 import { Prisma, CallDirection, CallStatus, CallOutcome, OutboundCallStatus } from '@prisma/client';
+import { userService } from './user.service';
 
 interface DateRange {
   start: Date;
@@ -451,15 +452,29 @@ class CallReportsService {
    * 6. AGENT-WISE CALL PERFORMANCE
    */
   async getAgentPerformance(filters: ReportFilters): Promise<AgentPerformance[]> {
-    const { organizationId, dateRange = this.getDefaultDateRange() } = filters;
+    const { organizationId, dateRange = this.getDefaultDateRange(), userRole, userId } = filters;
+
+    // Get viewable team member IDs based on role
+    let viewableUserIds: string[] | null = null;
+    if (userRole && userId) {
+      viewableUserIds = await userService.getViewableTeamMemberIds(organizationId, userRole, userId);
+    }
+
+    // Build human agent filter
+    const agentFilter: any = {
+      organizationId,
+      isActive: true,
+      role: { slug: { in: ['telecaller', 'counselor', 'sales_rep'] } },
+    };
+
+    // Apply role-based filtering
+    if (viewableUserIds !== null) {
+      agentFilter.id = { in: viewableUserIds };
+    }
 
     // Get human agents (telecallers)
     const humanAgents = await prisma.user.findMany({
-      where: {
-        organizationId,
-        isActive: true,
-        role: { slug: { in: ['telecaller', 'counselor', 'sales_rep'] } },
-      },
+      where: agentFilter,
       select: { id: true, firstName: true, lastName: true },
     });
 
@@ -779,18 +794,33 @@ class CallReportsService {
       wrongNumber: number;
     }[];
   }> {
-    const { organizationId, dateRange = this.getDefaultDateRange() } = filters;
+    const { organizationId, dateRange = this.getDefaultDateRange(), userRole, userId } = filters;
 
     console.log('[CallReports] getLeadDispositionReport called, orgId:', organizationId);
     console.log('[CallReports] Date range:', dateRange);
+    console.log('[CallReports] Role-based filtering - role:', userRole, 'userId:', userId);
 
-    // Get all telecallers/counselors in the organization
+    // Get viewable team member IDs based on role
+    let viewableUserIds: string[] | null = null;
+    if (userRole && userId) {
+      viewableUserIds = await userService.getViewableTeamMemberIds(organizationId, userRole, userId);
+    }
+
+    // Build user filter
+    const userFilter: any = {
+      organizationId,
+      isActive: true,
+      role: { slug: { in: ['telecaller', 'counselor', 'sales_rep', 'manager', 'admin'] } },
+    };
+
+    // Apply role-based filtering
+    if (viewableUserIds !== null) {
+      userFilter.id = { in: viewableUserIds };
+    }
+
+    // Get all telecallers/counselors based on role visibility
     const users = await prisma.user.findMany({
-      where: {
-        organizationId,
-        isActive: true,
-        role: { slug: { in: ['telecaller', 'counselor', 'sales_rep', 'manager', 'admin'] } },
-      },
+      where: userFilter,
       select: { id: true, firstName: true, lastName: true },
     });
 
@@ -924,16 +954,31 @@ class CallReportsService {
       totalConnected: number;
     };
   }> {
-    const { organizationId, dateRange = this.getDefaultDateRange() } = filters;
+    const { organizationId, dateRange = this.getDefaultDateRange(), userRole, userId } = filters;
 
     console.log('[UserCallReport] Fetching for org:', organizationId, 'dateRange:', dateRange);
+    console.log('[UserCallReport] Role-based filtering - role:', userRole, 'userId:', userId);
 
-    // Get all active users - include all roles that might make calls
+    // Get viewable team member IDs based on role
+    let viewableUserIds: string[] | null = null;
+    if (userRole && userId) {
+      viewableUserIds = await userService.getViewableTeamMemberIds(organizationId, userRole, userId);
+    }
+
+    // Build user filter
+    const userFilter: any = {
+      organizationId,
+      isActive: true,
+    };
+
+    // Apply role-based filtering
+    if (viewableUserIds !== null) {
+      userFilter.id = { in: viewableUserIds };
+    }
+
+    // Get all active users based on role visibility
     const users = await prisma.user.findMany({
-      where: {
-        organizationId,
-        isActive: true,
-      },
+      where: userFilter,
       select: {
         id: true,
         firstName: true,
@@ -1033,7 +1078,13 @@ class CallReportsService {
    * Get AI-powered failure analysis report for non-converted calls
    */
   async getFailureAnalysisReport(filters: ReportFilters) {
-    const { organizationId, dateRange } = filters;
+    const { organizationId, dateRange, userRole, userId } = filters;
+
+    // Get viewable team member IDs based on role
+    let viewableUserIds: string[] | null = null;
+    if (userRole && userId) {
+      viewableUserIds = await userService.getViewableTeamMemberIds(organizationId, userRole, userId);
+    }
 
     const whereClause: any = {
       organizationId,
@@ -1042,6 +1093,11 @@ class CallReportsService {
       },
       failurePrimaryReason: { not: null },
     };
+
+    // Apply role-based filtering
+    if (viewableUserIds !== null) {
+      whereClause.telecallerId = { in: viewableUserIds };
+    }
 
     if (dateRange) {
       whereClause.startedAt = {

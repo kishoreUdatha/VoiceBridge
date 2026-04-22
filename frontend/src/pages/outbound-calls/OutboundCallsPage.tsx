@@ -137,6 +137,7 @@ export const OutboundCallsPage: React.FC = () => {
   const [calls, setCalls] = useState<OutboundCall[]>([]);
   const [telecallerCalls, setTelecallerCalls] = useState<TelecallerCall[]>([]);
   const [telecallerCallsTotal, setTelecallerCallsTotal] = useState(0);
+  const [telecallerOutcomeCounts, setTelecallerOutcomeCounts] = useState<Record<string, number>>({});
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [aiCallsAnalytics, setAiCallsAnalytics] = useState<Analytics | null>(null);
   const [telecallerAnalytics, setTelecallerAnalytics] = useState<Analytics | null>(null);
@@ -150,6 +151,8 @@ export const OutboundCallsPage: React.FC = () => {
   const [telecallers, setTelecallers] = useState<Telecaller[]>([]);
   const [tcFilterTelecaller, setTcFilterTelecaller] = useState('');
   const [tcFilterOutcome, setTcFilterOutcome] = useState('');
+  const [tcFilterCallType, setTcFilterCallType] = useState('');
+  const [tcFilterDuration, setTcFilterDuration] = useState('');
   const [tcFilterSearch, setTcFilterSearch] = useState('');
   const [tcFilterDateFrom, setTcFilterDateFrom] = useState('');
   const [tcFilterDateTo, setTcFilterDateTo] = useState('');
@@ -244,44 +247,43 @@ export const OutboundCallsPage: React.FC = () => {
       if (telecallerCallsRes.data.success) {
         const tcCalls = telecallerCallsRes.data.data?.calls || [];
         const total = telecallerCallsRes.data.data?.total || 0;
-        console.log(`Setting ${tcCalls.length} telecaller calls, total: ${total}`);
+        const outcomeCounts = telecallerCallsRes.data.data?.outcomeCounts || {};
+        console.log(`Setting ${tcCalls.length} telecaller calls, total: ${total}, outcomeCounts:`, outcomeCounts);
         setTelecallerCalls(tcCalls);
         setTelecallerCallsTotal(total);
+        setTelecallerOutcomeCounts(outcomeCounts);
 
-        // For admin - compute telecaller analytics from the calls data
+        // For admin - use backend-provided outcome counts (accurate for all calls)
         if (!isTelecaller) {
-          // Connected = calls where customer answered and conversation happened (excluding NOT_INTERESTED which is "lost")
-          const connectedOutcomes = ['INTERESTED', 'CALLBACK_REQUESTED', 'CONVERTED', 'CONNECTED'];
-          const unconnectedOutcomes = ['NO_ANSWER', 'BUSY', 'VOICEMAIL'];
-          const lostOutcomes = ['NOT_INTERESTED'];
+          // Use outcomeCounts from backend instead of calculating from partial data
+          const interested = (outcomeCounts['INTERESTED'] || 0) + (outcomeCounts['CONNECTED'] || 0);
+          const callback = outcomeCounts['CALLBACK_REQUESTED'] || outcomeCounts['CALLBACK'] || 0;
+          const converted = outcomeCounts['CONVERTED'] || 0;
+          const noAnswer = outcomeCounts['NO_ANSWER'] || 0;
+          const busy = outcomeCounts['BUSY'] || 0;
+          const voicemail = outcomeCounts['VOICEMAIL'] || 0;
+          const notInterested = outcomeCounts['NOT_INTERESTED'] || 0;
+          const pending = outcomeCounts['PENDING'] || 0;
 
-          let connected = 0, unconnected = 0, lost = 0, totalDuration = 0, durationCount = 0;
+          const connected = interested + callback + converted;
+          const unconnected = noAnswer + busy + voicemail;
+          const lost = notInterested;
 
+          // Calculate avg duration from loaded calls (best effort)
+          let totalDuration = 0, durationCount = 0;
           tcCalls.forEach((call: TelecallerCall) => {
-            const outcome = call.outcome?.toUpperCase().replace(/ /g, '_') || '';
-            if (connectedOutcomes.includes(outcome)) connected++;
-            if (unconnectedOutcomes.includes(outcome)) unconnected++;
-            if (lostOutcomes.includes(outcome)) lost++;
             if (call.duration) {
               totalDuration += call.duration;
               durationCount++;
             }
           });
 
-          const converted = tcCalls.filter((c: TelecallerCall) =>
-            c.outcome?.toUpperCase().replace(/ /g, '_') === 'CONVERTED'
-          ).length;
-
-          const interested = tcCalls.filter((c: TelecallerCall) =>
-            ['INTERESTED', 'CONVERTED'].includes(c.outcome?.toUpperCase().replace(/ /g, '_') || '')
-          ).length;
-
           setTelecallerAnalytics({
             totalCalls: total,
             completedCalls: total,
             answeredCalls: connected,
             answerRate: total > 0 ? ((connected / total) * 100).toFixed(1) : '0.0',
-            leadsGenerated: interested,
+            leadsGenerated: interested + converted,
             conversionRate: total > 0 ? Math.round((converted / total) * 100) : 0,
             avgDuration: durationCount > 0 ? Math.round(totalDuration / durationCount) : 0,
             totalConnected: connected,
@@ -338,6 +340,8 @@ export const OutboundCallsPage: React.FC = () => {
       // Apply telecaller filter for admins/managers/team_leads who can view all calls
       if (canViewAllCalls && tcFilterTelecaller) params.append('telecallerId', tcFilterTelecaller);
       if (tcFilterOutcome) params.append('outcome', tcFilterOutcome);
+      if (tcFilterCallType) params.append('callType', tcFilterCallType);
+      if (tcFilterDuration) params.append('duration', tcFilterDuration);
       if (tcFilterDateFrom) params.append('dateFrom', tcFilterDateFrom);
       if (tcFilterDateTo) params.append('dateTo', tcFilterDateTo);
       params.append('_t', Date.now().toString());
@@ -361,6 +365,7 @@ export const OutboundCallsPage: React.FC = () => {
         }
         setTelecallerCalls(calls);
         setTelecallerCallsTotal(res.data.data?.total || 0);
+        setTelecallerOutcomeCounts(res.data.data?.outcomeCounts || {});
       }
     } catch (err) {
       console.error('Failed to fetch telecaller calls:', err);
@@ -374,43 +379,39 @@ export const OutboundCallsPage: React.FC = () => {
     if (activeTab === 'telecaller-calls') {
       fetchTelecallerCalls();
     }
-  }, [tcFilterTelecaller, tcFilterOutcome, tcFilterDateFrom, tcFilterDateTo, activeTab]);
+  }, [tcFilterTelecaller, tcFilterOutcome, tcFilterCallType, tcFilterDuration, tcFilterDateFrom, tcFilterDateTo, activeTab]);
 
-  // Recalculate telecaller analytics when telecallerCalls changes
+  // Recalculate telecaller analytics when outcomeCounts changes
   useEffect(() => {
-    if (!isTelecaller && telecallerCalls.length >= 0) {
-      // Connected = calls where customer answered and conversation happened (excluding NOT_INTERESTED which is "lost")
-      const connectedOutcomes = ['INTERESTED', 'CALLBACK_REQUESTED', 'CONVERTED', 'CONNECTED'];
-      const unconnectedOutcomes = ['NO_ANSWER', 'BUSY', 'VOICEMAIL'];
-      const lostOutcomes = ['NOT_INTERESTED'];
+    if (!isTelecaller && Object.keys(telecallerOutcomeCounts).length > 0) {
+      // Use backend-provided outcomeCounts for accurate stats
+      const interested = (telecallerOutcomeCounts['INTERESTED'] || 0) + (telecallerOutcomeCounts['CONNECTED'] || 0);
+      const callback = telecallerOutcomeCounts['CALLBACK_REQUESTED'] || telecallerOutcomeCounts['CALLBACK'] || 0;
+      const converted = telecallerOutcomeCounts['CONVERTED'] || 0;
+      const noAnswer = telecallerOutcomeCounts['NO_ANSWER'] || 0;
+      const busy = telecallerOutcomeCounts['BUSY'] || 0;
+      const voicemail = telecallerOutcomeCounts['VOICEMAIL'] || 0;
+      const notInterested = telecallerOutcomeCounts['NOT_INTERESTED'] || 0;
 
-      let connected = 0, unconnected = 0, lost = 0, totalDuration = 0, durationCount = 0;
+      const connected = interested + callback + converted;
+      const unconnected = noAnswer + busy + voicemail;
+      const lost = notInterested;
 
+      // Calculate avg duration from loaded calls (best effort)
+      let totalDuration = 0, durationCount = 0;
       telecallerCalls.forEach((call) => {
-        const outcome = call.outcome?.toUpperCase().replace(/ /g, '_') || '';
-        if (connectedOutcomes.includes(outcome)) connected++;
-        if (unconnectedOutcomes.includes(outcome)) unconnected++;
-        if (lostOutcomes.includes(outcome)) lost++;
         if (call.duration) {
           totalDuration += call.duration;
           durationCount++;
         }
       });
 
-      const converted = telecallerCalls.filter((c) =>
-        c.outcome?.toUpperCase().replace(/ /g, '_') === 'CONVERTED'
-      ).length;
-
-      const interested = telecallerCalls.filter((c) =>
-        ['INTERESTED', 'CONVERTED'].includes(c.outcome?.toUpperCase().replace(/ /g, '_') || '')
-      ).length;
-
       setTelecallerAnalytics({
         totalCalls: telecallerCallsTotal || telecallerCalls.length,
         completedCalls: telecallerCallsTotal || telecallerCalls.length,
         answeredCalls: connected,
         answerRate: telecallerCallsTotal > 0 ? ((connected / telecallerCallsTotal) * 100).toFixed(1) : '0.0',
-        leadsGenerated: interested,
+        leadsGenerated: interested + converted,
         conversionRate: telecallerCallsTotal > 0 ? Math.round((converted / telecallerCallsTotal) * 100) : 0,
         avgDuration: durationCount > 0 ? Math.round(totalDuration / durationCount) : 0,
         totalConnected: connected,
@@ -418,11 +419,13 @@ export const OutboundCallsPage: React.FC = () => {
         totalLost: lost,
       });
     }
-  }, [telecallerCalls, telecallerCallsTotal, isTelecaller]);
+  }, [telecallerOutcomeCounts, telecallerCallsTotal, telecallerCalls, isTelecaller]);
 
   const clearTcFilters = () => {
     setTcFilterTelecaller('');
     setTcFilterOutcome('');
+    setTcFilterCallType('');
+    setTcFilterDuration('');
     setTcFilterSearch('');
     setTcFilterDateFrom('');
     setTcFilterDateTo('');
@@ -580,28 +583,21 @@ export const OutboundCallsPage: React.FC = () => {
           );
         }
 
-        // For Telecaller Calls tab - compute stats directly from the calls with all outcomes
+        // For Telecaller Calls tab - use backend-provided outcomeCounts for accurate stats
         if (activeTab === 'telecaller-calls') {
-          // Count all outcomes
-          let interested = 0, notInterested = 0, callback = 0, converted = 0;
-          let noAnswer = 0, busy = 0, voicemail = 0, pending = 0;
+          // Use outcomeCounts from backend (accurate for ALL calls, not just loaded ones)
+          const interested = (telecallerOutcomeCounts['INTERESTED'] || 0) + (telecallerOutcomeCounts['CONNECTED'] || 0);
+          const notInterested = telecallerOutcomeCounts['NOT_INTERESTED'] || 0;
+          const callback = telecallerOutcomeCounts['CALLBACK_REQUESTED'] || telecallerOutcomeCounts['CALLBACK'] || 0;
+          const converted = telecallerOutcomeCounts['CONVERTED'] || 0;
+          const noAnswer = telecallerOutcomeCounts['NO_ANSWER'] || 0;
+          const busy = telecallerOutcomeCounts['BUSY'] || 0;
+          const voicemail = telecallerOutcomeCounts['VOICEMAIL'] || 0;
+          const pending = telecallerOutcomeCounts['PENDING'] || 0;
+
+          // Calculate avg duration from loaded calls (best effort for display)
           let totalDuration = 0, durationCount = 0;
-
           telecallerCalls.forEach((call) => {
-            const outcome = call.outcome?.toUpperCase().replace(/ /g, '_') || '';
-
-            switch (outcome) {
-              case 'INTERESTED': interested++; break;
-              case 'NOT_INTERESTED': notInterested++; break;
-              case 'CALLBACK_REQUESTED': case 'CALLBACK': callback++; break;
-              case 'CONVERTED': converted++; break;
-              case 'NO_ANSWER': noAnswer++; break;
-              case 'BUSY': busy++; break;
-              case 'VOICEMAIL': voicemail++; break;
-              case 'CONNECTED': interested++; break; // Count CONNECTED as interested
-              default: if (!outcome) pending++;
-            }
-
             if (call.duration) {
               totalDuration += call.duration;
               durationCount++;
@@ -1060,6 +1056,25 @@ export const OutboundCallsPage: React.FC = () => {
               <option value="CONNECTED">Connected</option>
               <option value="PENDING">Pending</option>
             </select>
+            <select
+              value={tcFilterCallType}
+              onChange={(e) => setTcFilterCallType(e.target.value)}
+              className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            >
+              <option value="">All Types</option>
+              <option value="OUTBOUND">Outbound</option>
+              <option value="INBOUND">Inbound</option>
+            </select>
+            <select
+              value={tcFilterDuration}
+              onChange={(e) => setTcFilterDuration(e.target.value)}
+              className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            >
+              <option value="">All Durations</option>
+              <option value="short">&lt; 30s</option>
+              <option value="medium">30s - 2min</option>
+              <option value="long">&gt; 2min</option>
+            </select>
             <input
               type="date"
               value={tcFilterDateFrom}
@@ -1074,7 +1089,7 @@ export const OutboundCallsPage: React.FC = () => {
               className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
               placeholder="To"
             />
-            {(tcFilterTelecaller || tcFilterOutcome || tcFilterSearch || tcFilterDateFrom || tcFilterDateTo) && (
+            {(tcFilterTelecaller || tcFilterOutcome || tcFilterCallType || tcFilterDuration || tcFilterSearch || tcFilterDateFrom || tcFilterDateTo) && (
               <button
                 onClick={clearTcFilters}
                 className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"

@@ -4,6 +4,7 @@
 
 export * from './LeadModals';
 export * from './LeadTabs';
+export * from './BulkMessageModal';
 export * from './AdmissionTracker';
 export * from './IndustryJourneyTracker';
 export { default as QuickReminderDropdown } from './QuickReminderDropdown';

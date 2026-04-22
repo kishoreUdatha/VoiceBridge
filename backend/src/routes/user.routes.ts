@@ -93,6 +93,8 @@ router.get('/counselors', userController.getCounselors.bind(userController));
 router.get('/telecallers', userController.getTelecallers.bind(userController));
 router.get('/managers', userController.getManagers.bind(userController));
 router.get('/roles', userController.getRoles.bind(userController));
+// Get users that the current user can assign leads to based on hierarchy
+router.get('/assignable', authorize('admin', 'manager', 'team_lead'), userController.getAssignableUsers.bind(userController));
 
 router.post(
   '/',

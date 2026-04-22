@@ -5,7 +5,7 @@ import { useDropzone, FileRejection } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { AppDispatch, RootState } from '../../store';
 import { bulkUploadLeads, clearBulkUploadResult } from '../../store/slices/leadSlice';
-import { fetchCounselors } from '../../store/slices/userSlice';
+import { fetchAssignableUsers } from '../../store/slices/userSlice';
 import {
   ArrowLeftIcon,
   CloudArrowUpIcon,
@@ -32,17 +32,17 @@ export default function BulkUploadPage() {
   const dispatch = useDispatch<AppDispatch>();
   const { t } = useTranslation(['leads', 'common', 'notifications']);
   const { isLoading, bulkUploadResult } = useSelector((state: RootState) => state.leads);
-  const { counselors } = useSelector((state: RootState) => state.users);
+  const { assignableUsers } = useSelector((state: RootState) => state.users);
 
   const [file, setFile] = useState<File | null>(null);
   const [selectedCounselors, setSelectedCounselors] = useState<string[]>([]);
   const [voiceAgents, setVoiceAgents] = useState<VoiceAgent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string>('');
-  const [assignmentType, setAssignmentType] = useState<'counselors' | 'ai-agent' | null>(null);
+  const [assignmentType, setAssignmentType] = useState<'assignableUsers' | 'ai-agent' | null>(null);
   const [isAssigning, setIsAssigning] = useState(false);
 
   useEffect(() => {
-    dispatch(fetchCounselors());
+    dispatch(fetchAssignableUsers());
     // Fetch voice agents
     api.get('/voice-ai/agents').then((res) => {
       setVoiceAgents(res.data.data?.agents || []);
@@ -139,7 +139,7 @@ export default function BulkUploadPage() {
         source: 'BULK_UPLOAD',
         counselorIds: selectedCounselors,
       });
-      showToast.success('Leads assigned to counselors successfully');
+      showToast.success('Leads assigned to assignableUsers successfully');
       navigate('/leads');
     } catch (error) {
       showToast.error('Failed to assign leads');
@@ -332,7 +332,7 @@ export default function BulkUploadPage() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <button
-                    onClick={() => setAssignmentType('counselors')}
+                    onClick={() => setAssignmentType('assignableUsers')}
                     className="p-6 border-2 border-gray-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-all text-left"
                   >
                     <UserGroupIcon className="h-10 w-10 text-primary-600 mb-3" />
@@ -356,7 +356,7 @@ export default function BulkUploadPage() {
             )}
 
             {/* Counselor Assignment */}
-            {assignmentType === 'counselors' && (
+            {assignmentType === 'assignableUsers' && (
               <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-gray-900">Select Counselors</h3>
@@ -368,13 +368,13 @@ export default function BulkUploadPage() {
                   </button>
                 </div>
                 <p className="text-sm text-gray-500 mb-4">
-                  Leads will be distributed equally among selected counselors using round-robin
+                  Leads will be distributed equally among selected assignableUsers using round-robin
                 </p>
-                {counselors.length === 0 ? (
-                  <p className="text-sm text-gray-500">No counselors available</p>
+                {assignableUsers.length === 0 ? (
+                  <p className="text-sm text-gray-500">No assignableUsers available</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
-                    {counselors.map((counselor) => (
+                    {assignableUsers.map((counselor) => (
                       <label
                         key={counselor.id}
                         className="flex items-center p-3 bg-white rounded-lg border hover:border-primary-300 cursor-pointer"

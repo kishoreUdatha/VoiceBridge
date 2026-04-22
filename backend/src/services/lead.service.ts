@@ -1,5 +1,5 @@
 import { prisma } from '../config/database';
-import { NotFoundError } from '../utils/errors';
+import { NotFoundError, ValidationError } from '../utils/errors';
 import { LeadSource, LeadPriority, Prisma, AdmissionStatus, AdmissionType } from '@prisma/client';
 import { leadPipelineService } from './lead-pipeline.service';
 import { leadLifecycleService } from './lead-lifecycle.service';
@@ -258,6 +258,10 @@ export class LeadService {
     }
 
     // Build role-based condition separately
+    // - Admin: see all leads
+    // - Manager: see leads assigned to them or their team (team leads + telecallers)
+    // - Team Lead: see unassigned + their team's leads
+    // - Telecaller/Counselor: see only their assigned leads
     const normalizedRole = filter.userRole?.toLowerCase().replace('_', '');
     let roleCondition: Prisma.LeadWhereInput | null = null;
 
@@ -271,29 +275,8 @@ export class LeadService {
           },
         },
       };
-    } else if (normalizedRole === 'teamlead' && filter.userId) {
-      // Team Lead: see unassigned leads + leads assigned to themselves or team members
-      const teamMembers = await prisma.user.findMany({
-        where: {
-          organizationId: filter.organizationId,
-          managerId: filter.userId,
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      // Include team lead themselves + their team members
-      const allMemberIds = [filter.userId, ...teamMembers.map(m => m.id)];
-
-      roleCondition = {
-        OR: [
-          // Unassigned leads (no active assignment)
-          { assignments: { none: { isActive: true } } },
-          // Leads assigned to team lead or their team
-          { assignments: { some: { assignedToId: { in: allMemberIds }, isActive: true } } },
-        ],
-      };
     } else if (normalizedRole === 'manager' && filter.userId) {
-      // Manager: see unassigned leads + leads assigned to their hierarchy
+      // Manager: see leads assigned to them or their team hierarchy
       const teamLeads = await prisma.user.findMany({
         where: {
           organizationId: filter.organizationId,
@@ -320,11 +303,28 @@ export class LeadService {
       // Include manager + team leads + all team members
       const allMemberIds = [filter.userId, ...teamLeadIds, ...allTeamMembers.map(m => m.id)];
 
+      // Manager sees only leads assigned to their hierarchy (no unassigned leads)
+      roleCondition = {
+        assignments: { some: { assignedToId: { in: allMemberIds }, isActive: true } },
+      };
+    } else if (normalizedRole === 'teamlead' && filter.userId) {
+      // Team Lead: see unassigned leads + leads assigned to themselves or team members
+      const teamMembers = await prisma.user.findMany({
+        where: {
+          organizationId: filter.organizationId,
+          managerId: filter.userId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      // Include team lead themselves + their team members
+      const allMemberIds = [filter.userId, ...teamMembers.map(m => m.id)];
+
       roleCondition = {
         OR: [
-          // Unassigned leads
+          // Unassigned leads (no active assignment)
           { assignments: { none: { isActive: true } } },
-          // Leads assigned to anyone in the hierarchy
+          // Leads assigned to team lead or their team
           { assignments: { some: { assignedToId: { in: allMemberIds }, isActive: true } } },
         ],
       };
@@ -792,13 +792,104 @@ export class LeadService {
     await prisma.lead.delete({ where: { id } });
   }
 
-  async assignLead(leadId: string, assignedToId: string, assignedById: string, organizationId: string) {
+  /**
+   * Validate that the assigner can assign to the assignee based on hierarchy
+   * Admin: can assign to anyone in the organization
+   * Manager: can assign to their team leads and telecallers under them
+   * Team Lead: can assign to their telecallers only
+   */
+  async validateAssignmentHierarchy(
+    assignerId: string,
+    assigneeId: string,
+    organizationId: string
+  ): Promise<{ valid: boolean; error?: string }> {
+    // Get assigner details with role
+    const assigner = await prisma.user.findFirst({
+      where: { id: assignerId, organizationId },
+      include: {
+        role: { select: { slug: true } },
+      },
+    });
+
+    if (!assigner) {
+      return { valid: false, error: 'Assigner not found' };
+    }
+
+    const assignerRole = assigner.role?.slug || '';
+
+    // Admin can assign to anyone
+    if (assignerRole === 'admin' || assignerRole === 'super_admin') {
+      return { valid: true };
+    }
+
+    // Get assignee details
+    const assignee = await prisma.user.findFirst({
+      where: { id: assigneeId, organizationId },
+      include: {
+        role: { select: { slug: true } },
+      },
+    });
+
+    if (!assignee) {
+      return { valid: false, error: 'Assignee not found' };
+    }
+
+    // Manager can assign to:
+    // - Direct reports (managerId = assignerId)
+    // - Telecallers under their team leads
+    if (assignerRole === 'manager') {
+      // Check if assignee is a direct report
+      if (assignee.managerId === assignerId) {
+        return { valid: true };
+      }
+
+      // Check if assignee is under a team lead who reports to this manager
+      const teamLeads = await prisma.user.findMany({
+        where: { managerId: assignerId, organizationId },
+        select: { id: true },
+      });
+      const teamLeadIds = teamLeads.map(tl => tl.id);
+
+      if (teamLeadIds.includes(assignee.managerId || '')) {
+        return { valid: true };
+      }
+
+      return { valid: false, error: 'You can only assign to your team members' };
+    }
+
+    // Team Lead can assign to their direct reports only
+    if (assignerRole === 'team_lead') {
+      if (assignee.managerId === assignerId) {
+        return { valid: true };
+      }
+      return { valid: false, error: 'You can only assign to your telecallers' };
+    }
+
+    // Other roles cannot assign
+    return { valid: false, error: 'You do not have permission to assign leads' };
+  }
+
+  async assignLead(
+    leadId: string,
+    assignedToId: string,
+    assignedById: string,
+    organizationId: string,
+    skipHierarchyCheck: boolean = false
+  ) {
     const lead = await prisma.lead.findFirst({
       where: { id: leadId, organizationId },
     });
 
     if (!lead) {
       throw new NotFoundError('Lead not found');
+    }
+
+    // Validate hierarchy unless explicitly skipped (for system assignments)
+    if (!skipHierarchyCheck) {
+      const hierarchyCheck = await this.validateAssignmentHierarchy(assignedById, assignedToId, organizationId);
+      if (!hierarchyCheck.valid) {
+        throw new ValidationError(hierarchyCheck.error || 'Invalid assignment');
+      }
     }
 
     // Deactivate existing assignments
@@ -828,8 +919,23 @@ export class LeadService {
     organizationId: string,
     counselorIds: string[],
     assignedById: string,
-    source?: LeadSource
+    source?: LeadSource,
+    skipHierarchyCheck: boolean = false
   ): Promise<{ assignedCount: number; counselorAssignments: Record<string, number> }> {
+    // Validate hierarchy for all counselors before assigning
+    if (!skipHierarchyCheck) {
+      const invalidCounselors: string[] = [];
+      for (const counselorId of counselorIds) {
+        const hierarchyCheck = await this.validateAssignmentHierarchy(assignedById, counselorId, organizationId);
+        if (!hierarchyCheck.valid) {
+          invalidCounselors.push(counselorId);
+        }
+      }
+      if (invalidCounselors.length > 0) {
+        throw new ValidationError(`You cannot assign to ${invalidCounselors.length} selected user(s). You can only assign to your team members.`);
+      }
+    }
+
     // Find unassigned leads (optionally filtered by source)
     const whereClause: Prisma.LeadWhereInput = {
       organizationId,

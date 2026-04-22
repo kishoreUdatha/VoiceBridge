@@ -55,15 +55,45 @@ export class RawImportService {
   async getBulkImports(
     organizationId: string,
     page: number = 1,
-    limit: number = 20
+    limit: number = 20,
+    userRole?: string,
+    userId?: string
   ) {
     const skip = (page - 1) * limit;
 
+    // Build where clause based on role
+    const where: any = { organizationId };
+    const normalizedRole = userRole?.toLowerCase().replace('_', '');
+
+    // Manager: only see bulk imports assigned to them
+    if (normalizedRole === 'manager' && userId) {
+      where.assignedManagerId = userId;
+    }
+    // Team Lead: see bulk imports where they have assigned records OR assigned to their manager
+    else if (normalizedRole === 'teamlead' && userId) {
+      // Get the team lead's manager
+      const teamLead = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { managerId: true },
+      });
+
+      // Team leads see imports assigned to their manager OR where they have records
+      where.OR = [
+        { assignedManagerId: teamLead?.managerId },
+        { records: { some: { assignedToId: userId } } },
+        { records: { some: { assignedTo: { managerId: userId } } } },
+      ];
+    }
+    // Admin sees all
+
     const [imports, total] = await Promise.all([
       prisma.bulkImport.findMany({
-        where: { organizationId },
+        where,
         include: {
           uploadedBy: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
+          assignedManager: {
             select: { id: true, firstName: true, lastName: true, email: true },
           },
           _count: {
@@ -74,10 +104,56 @@ export class RawImportService {
         skip,
         take: limit,
       }),
-      prisma.bulkImport.count({ where: { organizationId } }),
+      prisma.bulkImport.count({ where }),
     ]);
 
     return { imports, total };
+  }
+
+  // Assign bulk import to a manager (admin only)
+  async assignToManager(
+    bulkImportId: string,
+    managerId: string,
+    organizationId: string
+  ) {
+    // Verify bulk import exists
+    const bulkImport = await prisma.bulkImport.findFirst({
+      where: { id: bulkImportId, organizationId },
+    });
+
+    if (!bulkImport) {
+      throw new NotFoundError('Bulk import not found');
+    }
+
+    // Verify manager exists and has manager role
+    const manager = await prisma.user.findFirst({
+      where: {
+        id: managerId,
+        organizationId,
+        isActive: true,
+        role: { slug: { in: ['manager', 'admin'] } },
+      },
+    });
+
+    if (!manager) {
+      throw new BadRequestError('Invalid manager or user is not a manager');
+    }
+
+    // Update bulk import
+    const updated = await prisma.bulkImport.update({
+      where: { id: bulkImportId },
+      data: {
+        assignedManagerId: managerId,
+        assignedManagerAt: new Date(),
+      },
+      include: {
+        assignedManager: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+      },
+    });
+
+    return updated;
   }
 
   async getBulkImportById(
@@ -104,6 +180,9 @@ export class RawImportService {
     const normalizedRole = userRole?.toLowerCase().replace('_', '');
 
     // Apply role-based filtering for stats consistency
+    // - Admin: sees all records
+    // - Manager: sees all records (full visibility)
+    // - Team Lead: sees unassigned + their team's records
     if (normalizedRole === 'teamlead' && userId) {
       const teamMembers = await prisma.user.findMany({
         where: {
@@ -123,36 +202,8 @@ export class RawImportService {
       } else {
         recordWhere.assignedToId = null;
       }
-    } else if (normalizedRole === 'manager' && userId) {
-      const teamLeads = await prisma.user.findMany({
-        where: {
-          organizationId,
-          managerId: userId,
-          role: { slug: 'team_lead' },
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      const teamLeadIds = teamLeads.map(tl => tl.id);
-
-      const telecallers = await prisma.user.findMany({
-        where: {
-          organizationId,
-          managerId: { in: [...teamLeadIds, userId] },
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      const telecallerIds = telecallers.map(t => t.id);
-
-      if (telecallerIds.length > 0) {
-        recordWhere.OR = [
-          { assignedToId: null },
-          { assignedToId: { in: telecallerIds } },
-        ];
-      }
     }
-    // Admin sees all records (no additional filter)
+    // Manager and Admin see all records (no additional filter)
 
     // Get status breakdown with role-based filtering
     const statusBreakdown = await prisma.rawImportRecord.groupBy({
@@ -265,13 +316,20 @@ export class RawImportService {
     }
 
     // Role-based filtering for team hierarchy
-    // Managers and Team Leads should see:
-    // 1. PENDING records (unassigned) - so they can assign them
-    // 2. Records assigned to their team members
+    // - Admin: sees all records
+    // - Manager: sees only records from bulk imports assigned to them
+    // - Team Lead: sees unassigned records + records assigned to their team members
     const normalizedRole = filter.userRole?.toLowerCase().replace('_', '');
     let roleCondition: any = null;
 
-    if ((normalizedRole === 'teamlead') && filter.userId) {
+    if (normalizedRole === 'manager' && filter.userId) {
+      // Manager: only see records from bulk imports assigned to them
+      roleCondition = {
+        bulkImport: {
+          assignedManagerId: filter.userId,
+        },
+      };
+    } else if ((normalizedRole === 'teamlead') && filter.userId) {
       // Get telecallers who report to this team lead
       const teamMembers = await prisma.user.findMany({
         where: {
@@ -283,54 +341,27 @@ export class RawImportService {
       });
       const teamMemberIds = teamMembers.map(m => m.id);
 
-      // Show unassigned records OR records assigned to team members
+      // Get the team lead's manager
+      const teamLead = await prisma.user.findUnique({
+        where: { id: filter.userId },
+        select: { managerId: true },
+      });
+
+      // Show records from bulk imports assigned to their manager OR assigned to their team
       if (teamMemberIds.length > 0) {
         roleCondition = {
           OR: [
-            { assignedToId: null }, // Pending/unassigned records
-            { assignedToId: { in: teamMemberIds } }, // Team members' records
+            // Records from bulk imports assigned to their manager
+            { bulkImport: { assignedManagerId: teamLead?.managerId } },
+            // Records assigned to team members
+            { assignedToId: { in: teamMemberIds } },
           ],
         };
-      } else {
-        // No team members, only show unassigned
-        roleCondition = { assignedToId: null };
-      }
-    }
-    // Managers see pending records + records assigned to their team
-    else if (normalizedRole === 'manager' && filter.userId) {
-      // Get team leads who report to this manager
-      const teamLeads = await prisma.user.findMany({
-        where: {
-          organizationId: filter.organizationId,
-          managerId: filter.userId,
-          role: { slug: 'team_lead' },
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      const teamLeadIds = teamLeads.map(tl => tl.id);
-
-      // Get all telecallers under these team leads + direct reports
-      const telecallers = await prisma.user.findMany({
-        where: {
-          organizationId: filter.organizationId,
-          managerId: { in: [...teamLeadIds, filter.userId] },
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      const telecallerIds = telecallers.map(t => t.id);
-
-      // Show unassigned records OR records assigned to team members
-      if (telecallerIds.length > 0) {
+      } else if (teamLead?.managerId) {
         roleCondition = {
-          OR: [
-            { assignedToId: null }, // Pending/unassigned records
-            { assignedToId: { in: telecallerIds } }, // Team members' records
-          ],
+          bulkImport: { assignedManagerId: teamLead.managerId },
         };
       }
-      // If no telecallers, manager sees all (no filter) - they can assign to anyone
     }
     // Admin sees all records (no additional filter)
 
@@ -798,7 +829,10 @@ export class RawImportService {
       }
     }
 
-    // Team Lead: only see stats for their team members
+    // Role-based filtering:
+    // - Admin: sees all telecaller stats
+    // - Manager: sees all telecaller stats (full visibility)
+    // - Team Lead: sees only their team members' stats
     const normalizedRole = userRole?.toLowerCase().replace('_', '');
     let allowedTelecallerIds: string[] | null = null;
 
@@ -819,33 +853,7 @@ export class RawImportService {
         return { telecallers: [], unassignedCount: 0, totalTelecallers: 0 };
       }
     }
-    // Manager: see stats for telecallers under their team leads
-    else if (normalizedRole === 'manager' && userId) {
-      const teamLeads = await prisma.user.findMany({
-        where: {
-          organizationId,
-          managerId: userId,
-          role: { slug: 'team_lead' },
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      const teamLeadIds = teamLeads.map(tl => tl.id);
-
-      const telecallers = await prisma.user.findMany({
-        where: {
-          organizationId,
-          managerId: { in: [...teamLeadIds, userId] },
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      allowedTelecallerIds = telecallers.map(t => t.id);
-      if (allowedTelecallerIds.length > 0) {
-        whereClause.assignedToId = { in: allowedTelecallerIds };
-      }
-    }
-    // Admin sees all
+    // Manager and Admin see all telecaller stats (no additional filter)
 
     // Get assignment counts grouped by telecaller
     const assignmentStats = await prisma.rawImportRecord.groupBy({

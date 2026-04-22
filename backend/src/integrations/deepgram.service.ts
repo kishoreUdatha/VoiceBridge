@@ -180,11 +180,12 @@ class DeepgramService {
 
   /**
    * Convert diarized transcript to message array format
-   * Maps Speaker 0 → Agent (assistant), Speaker 1 → Customer (user)
+   * Maps the agent speaker → assistant, other speaker → user
    *
-   * Heuristics for speaker assignment:
-   * - First speaker is usually the agent (they initiate the call)
-   * - Speaker with more words is usually the agent (they pitch)
+   * Heuristics for speaker assignment (outbound calls):
+   * - Customer answers first ("Hello?") so first speaker is usually customer
+   * - Agent talks more (pitching, explaining) so most talkative = agent
+   * - Use most talkative speaker as agent (more reliable than first speaker)
    */
   convertToMessages(diarized: DiarizedTranscript): TranscriptMessage[] {
     if (!diarized || !diarized.segments || diarized.segments.length === 0) {
@@ -198,20 +199,19 @@ class DeepgramService {
       wordCounts[seg.speaker] = (wordCounts[seg.speaker] || 0) + words;
     }
 
-    // First speaker is usually the agent (initiates call)
-    // But also consider: agent typically talks more
-    const firstSpeaker = diarized.segments[0]?.speaker ?? 0;
+    // Sort speakers by word count (descending)
     const speakersByWordCount = Object.entries(wordCounts)
       .sort((a, b) => b[1] - a[1])
       .map(([speaker]) => parseInt(speaker));
 
     const mostTalkativeSpeaker = speakersByWordCount[0] ?? 0;
+    const firstSpeaker = diarized.segments[0]?.speaker ?? 0;
 
-    // Use first speaker as agent (most reliable for outbound calls)
-    // If first speaker is not the most talkative, still trust first speaker
-    const agentSpeaker = firstSpeaker;
+    // For outbound calls: customer answers first ("Hello?"), agent talks more (pitching)
+    // Use most talkative speaker as agent - this is more reliable than first speaker
+    const agentSpeaker = mostTalkativeSpeaker;
 
-    console.log(`[Deepgram] Speaker assignment - Agent: Speaker ${agentSpeaker}, Word counts:`, wordCounts);
+    console.log(`[Deepgram] Speaker assignment - Agent: Speaker ${agentSpeaker} (most talkative), First speaker: ${firstSpeaker}, Word counts:`, wordCounts);
 
     // Convert segments to messages with timestamps
     const messages: TranscriptMessage[] = diarized.segments.map(seg => ({

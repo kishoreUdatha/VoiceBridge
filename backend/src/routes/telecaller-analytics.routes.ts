@@ -13,27 +13,18 @@ import { telecallerAnalyticsService } from '../services/telecaller-analytics.ser
 
 const router = Router();
 
-// Helper to get role-based filters
-function getRoleBasedFilters(user: any): { branchId?: string; managerId?: string } {
+// Helper to get role-based filters - now uses getViewableTeamMemberIds in service
+function getRoleBasedFilters(user: any): { branchId?: string; managerId?: string; userRole?: string; userId?: string; organizationId?: string } {
   const roleSlug = user.role?.slug || user.roleSlug;
 
-  // Admin sees everything
-  if (roleSlug === 'admin' || roleSlug === 'owner') {
-    return {};
-  }
-
-  // Manager sees their branch only
-  if (roleSlug === 'manager') {
-    return { branchId: user.branchId || undefined };
-  }
-
-  // Team Lead sees their assigned telecallers only
-  if (roleSlug === 'team_lead' || roleSlug === 'teamlead') {
-    return { managerId: user.id };
-  }
-
-  // Default: show nothing for other roles
-  return { managerId: 'none' };
+  // Pass role info to let service handle filtering via getViewableTeamMemberIds
+  return {
+    userRole: roleSlug,
+    userId: user.id,
+    organizationId: user.organizationId,
+    // Keep legacy filters for backward compatibility
+    branchId: roleSlug === 'manager' ? (user.branchId || undefined) : undefined,
+  };
 }
 
 // Get telecaller leaderboard with role-based filtering
