@@ -17,6 +17,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../api';
+import { workSessionApi } from '../api/telecaller';
 import { useAppSelector } from '../store';
 import { MainTabParamList, RootStackParamList } from '../types';
 
@@ -127,6 +128,10 @@ const DashboardScreen: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [onBreak, setOnBreak] = useState(false);
+  const [breakStartTime, setBreakStartTime] = useState<Date | null>(null);
+  const [breakDuration, setBreakDuration] = useState(0);
+  const [breakLoading, setBreakLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -139,11 +144,65 @@ const DashboardScreen: React.FC = () => {
     }
   }, []);
 
+  const fetchSessionStatus = useCallback(async () => {
+    try {
+      const session = await workSessionApi.getCurrentSession();
+      if (session?.status === 'ON_BREAK') {
+        setOnBreak(true);
+        // Find active break (no endTime)
+        const activeBreak = session.breaks?.find((b) => !b.endTime);
+        if (activeBreak?.startTime) {
+          setBreakStartTime(new Date(activeBreak.startTime));
+        }
+      } else {
+        setOnBreak(false);
+        setBreakStartTime(null);
+        setBreakDuration(0);
+      }
+    } catch (err) {
+      console.log('[Dashboard] Failed to fetch session status:', err);
+    }
+  }, []);
+
+  const toggleBreak = useCallback(async () => {
+    if (breakLoading) return;
+    setBreakLoading(true);
+    try {
+      if (onBreak) {
+        await workSessionApi.endBreak();
+        setOnBreak(false);
+        setBreakStartTime(null);
+        setBreakDuration(0);
+      } else {
+        const breakRecord = await workSessionApi.startBreak('BREAK', 'Taking a break');
+        setOnBreak(true);
+        setBreakStartTime(new Date(breakRecord.startTime));
+      }
+    } catch (err: any) {
+      console.log('[Dashboard] Failed to toggle break:', err);
+    } finally {
+      setBreakLoading(false);
+    }
+  }, [onBreak, breakLoading]);
+
   useEffect(() => {
     fetchData();
+    fetchSessionStatus();
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, [fetchData, fetchSessionStatus]);
+
+  // Update break duration every second when on break
+  useEffect(() => {
+    if (!onBreak || !breakStartTime) return;
+    const updateDuration = () => {
+      const elapsed = Math.floor((Date.now() - breakStartTime.getTime()) / 1000);
+      setBreakDuration(elapsed);
+    };
+    updateDuration();
+    const interval = setInterval(updateDuration, 1000);
+    return () => clearInterval(interval);
+  }, [onBreak, breakStartTime]);
 
   useFocusEffect(
     useCallback(() => {
@@ -153,9 +212,15 @@ const DashboardScreen: React.FC = () => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchData();
+    await Promise.all([fetchData(), fetchSessionStatus()]);
     setRefreshing(false);
-  }, [fetchData]);
+  }, [fetchData, fetchSessionStatus]);
+
+  const formatBreakDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const firstName = user?.firstName
     ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1).toLowerCase()
@@ -193,15 +258,44 @@ const DashboardScreen: React.FC = () => {
             </Text>
             <View style={styles.headerMeta}>
               <Text style={styles.headerDate}>{formatDate(new Date())}</Text>
-              <View style={styles.liveBadge}>
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>Live</Text>
-              </View>
+              {onBreak ? (
+                <View style={styles.breakBadge}>
+                  <Icon name="coffee" size={12} color="#DC2626" />
+                  <Text style={styles.breakText}>On Break {formatBreakDuration(breakDuration)}</Text>
+                </View>
+              ) : (
+                <View style={styles.liveBadge}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.liveText}>Live</Text>
+                </View>
+              )}
             </View>
           </View>
-          <TouchableOpacity onPress={onRefresh} style={styles.refreshBtn}>
-            <Icon name="refresh" size={20} color="#6B7280" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={toggleBreak}
+              disabled={breakLoading}
+              style={[styles.breakBtn, onBreak && styles.breakBtnActive]}
+            >
+              {breakLoading ? (
+                <ActivityIndicator size="small" color={onBreak ? '#FFFFFF' : '#F59E0B'} />
+              ) : (
+                <>
+                  <Icon
+                    name={onBreak ? 'play' : 'coffee'}
+                    size={16}
+                    color={onBreak ? '#FFFFFF' : '#F59E0B'}
+                  />
+                  <Text style={[styles.breakBtnText, onBreak && styles.breakBtnTextActive]}>
+                    {onBreak ? 'Resume' : 'Break'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onRefresh} style={styles.refreshBtn}>
+              <Icon name="refresh" size={20} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loading && !stats ? (
@@ -424,6 +518,36 @@ const styles = StyleSheet.create({
   },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
   liveText: { fontSize: 10, color: '#059669', fontWeight: '600' },
+  breakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  breakText: { fontSize: 10, color: '#DC2626', fontWeight: '600' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  breakBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  breakBtnActive: {
+    backgroundColor: '#10B981',
+    borderColor: '#059669',
+  },
+  breakBtnText: { fontSize: 12, color: '#F59E0B', fontWeight: '600' },
+  breakBtnTextActive: { color: '#FFFFFF' },
   refreshBtn: { padding: 6, borderRadius: 8 },
 
   loadingBox: { paddingVertical: 48, alignItems: 'center' },

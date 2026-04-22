@@ -842,4 +842,77 @@ export const followUpApi = {
   },
 };
 
+// ==================== WORK SESSION & BREAKS ====================
+
+export interface UserBreak {
+  id: string;
+  startTime: string;
+  endTime?: string;
+  breakType?: string;
+  reason?: string;
+  duration?: number;
+}
+
+export interface WorkSession {
+  id: string;
+  status: 'ACTIVE' | 'ENDED' | 'ON_BREAK';
+  startTime: string;
+  endTime?: string;
+  breaks?: UserBreak[];
+}
+
+export const workSessionApi = {
+  /**
+   * Get current work session status
+   */
+  getCurrentSession: async (): Promise<WorkSession | null> => {
+    try {
+      const response = await api.get<ApiResponse<WorkSession>>('/work-sessions/current');
+      return response.data.data;
+    } catch (error) {
+      console.error('[WorkSessionAPI] Error getting current session:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Start a break
+   */
+  startBreak: async (breakType?: string, reason?: string): Promise<UserBreak> => {
+    try {
+      const response = await api.post<ApiResponse<UserBreak>>('/work-sessions/break/start', {
+        breakType,
+        reason,
+      });
+      return response.data.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
+  },
+
+  /**
+   * End current break
+   */
+  endBreak: async (): Promise<UserBreak> => {
+    try {
+      const response = await api.post<ApiResponse<UserBreak>>('/work-sessions/break/end');
+      return response.data.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
+  },
+
+  /**
+   * Get breaks for today
+   */
+  getTodayBreaks: async (): Promise<UserBreak[]> => {
+    try {
+      const response = await api.get<ApiResponse<UserBreak[]>>('/work-sessions/breaks');
+      return response.data.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
+  },
+};
+
 export default telecallerApi;
