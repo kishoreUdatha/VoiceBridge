@@ -292,29 +292,42 @@ export const useCallRecording = (): UseCallRecordingReturn => {
       console.log('[useCallRecording] Not recording, skipping stop');
     }
 
-    // Upload MIC recording IMMEDIATELY - don't wait for system recording
-    // System recording search happens in background (non-blocking)
-    console.log('[useCallRecording] Uploading MIC recording immediately (no waiting)');
-
-    // Search for system recording in background (fire-and-forget)
-    // If found later, it will be uploaded as a supplementary recording
+    // Try to find system call recording first (captures BOTH voices)
+    // System recorder takes a few seconds to write the file after call ends
     if (currentCall && NativeCallRecording) {
       const phoneNumber = (currentCall as any).phoneNumber || currentCall.leadPhone || '';
+      console.log('[useCallRecording] Searching for system call recording for:', phoneNumber);
 
-      // Non-blocking background search
-      (async () => {
+      // Wait for system recording (2 attempts: 2s, 3s = 5s total max wait)
+      for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          // Single quick attempt after 2 seconds
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          const waitTime = attempt === 1 ? 2000 : 3000;
+          console.log(`[useCallRecording] Attempt ${attempt}/2 - waiting ${waitTime}ms...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+
           const systemRecording = await NativeCallRecording.findSystemCallRecording(phoneNumber);
           if (systemRecording && systemRecording.path) {
-            console.log('[useCallRecording] Found system recording in background:', systemRecording.path);
-            // Note: MIC recording already uploaded, system recording is bonus
+            console.log('[useCallRecording] ========== FOUND SYSTEM RECORDING ==========');
+            console.log('[useCallRecording] Path:', systemRecording.path);
+            console.log('[useCallRecording] Size:', systemRecording.size, 'bytes');
+
+            // Use system recording (captures both agent and customer voice)
+            finalRecordingPath = systemRecording.path;
+            dispatch(setRecordingPath(systemRecording.path));
+            console.log('[useCallRecording] Using system recording (both voices captured)');
+            break;
+          } else {
+            console.log(`[useCallRecording] Attempt ${attempt}: No system recording found yet`);
           }
         } catch (err) {
-          console.log('[useCallRecording] Background system recording search failed:', err);
+          console.log(`[useCallRecording] Attempt ${attempt} failed:`, err);
         }
-      })();
+      }
+
+      if (finalRecordingPath === recordingPath) {
+        console.log('[useCallRecording] No system recording found, using MIC recording (agent voice only)');
+        console.log('[useCallRecording] TIP: Enable auto call recording in Phone app settings');
+      }
     }
 
     // Auto-upload recording for AI analysis
