@@ -24,6 +24,10 @@ interface Telecaller {
   firstName: string;
   lastName: string;
   activeRecordCount?: number;
+  role?: {
+    name: string;
+    slug: string;
+  };
 }
 
 // Telecaller Assignment Panel
@@ -110,9 +114,16 @@ export const TelecallerAssignPanel: React.FC<TelecallerPanelProps> = ({
                     className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                   />
                   <div className="ml-3 flex-1">
-                    <p className="text-sm font-medium text-gray-900">
-                      {telecaller.firstName} {telecaller.lastName}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-gray-900">
+                        {telecaller.firstName} {telecaller.lastName}
+                      </p>
+                      {telecaller.role?.name && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                          {telecaller.role.name}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500">
                       {telecaller.activeRecordCount || 0} active records
                     </p>
