@@ -259,12 +259,12 @@ const DashboardScreen: React.FC = () => {
           </View>
         ) : (
           <>
-            {/* KPI Grid (2 cols) */}
+            {/* KPI Grid — mirrors the 6 cards on the web dashboard */}
             <View style={styles.kpiGrid}>
               <KpiCard
                 label="Leads"
                 value={stats?.leads?.total || 0}
-                gradient={['#3B82F6', '#4F46E5']}
+                gradient={['#4F46E5', '#6366F1']}
                 onPress={() => navigation.navigate('Leads' as any)}
               />
               <KpiCard
@@ -276,35 +276,130 @@ const DashboardScreen: React.FC = () => {
                   </Text>
                 }
                 badge={`${Math.round(callsProgress)}%`}
-                gradient={['#8B5CF6', '#7C3AED']}
+                gradient={['#3B82F6', '#2563EB']}
                 onPress={() => navigation.navigate('History' as any)}
               />
               <KpiCard
-                label="Follow-ups"
-                value={
-                  <Text>
-                    {stats?.today?.followUpsCompleted || 0}
-                    <Text style={styles.kpiValueSub}> +{stats?.today?.pendingFollowUps || 0}</Text>
-                  </Text>
-                }
-                gradient={['#F59E0B', '#F97316']}
-                onPress={() => navigation.navigate('FollowUps' as any)}
+                label="Pending"
+                value={stats?.assignedData?.rawRecords || 0}
+                gradient={['#F97316', '#EA580C']}
+                onPress={() => navigation.navigate('AssignedData' as any)}
               />
               <KpiCard
-                label="Conversion"
+                label="Converted"
+                value={stats?.leads?.converted || 0}
+                gradient={['#10B981', '#059669']}
+              />
+              <KpiCard
+                label="Conv. Rate"
                 value={`${stats?.leads?.conversionRate || 0}%`}
-                gradient={['#10B981', '#14B8A6']}
+                gradient={['#8B5CF6', '#7C3AED']}
               />
               <KpiCard
-                label="Win Rate"
-                value={`${stats?.leads?.winRate || 0}%`}
-                gradient={['#06B6D4', '#3B82F6']}
+                label="Assigned"
+                value={stats?.assignedData?.total || 0}
+                gradient={['#0EA5E9', '#0284C7']}
+                onPress={() => navigation.navigate('AssignedData' as any)}
               />
-              <KpiCard
-                label="Won"
-                value={stats?.leads?.won || 0}
-                gradient={['#22C55E', '#059669']}
-              />
+            </View>
+
+            {/* Today's Highlights — 2x2 grid matching web */}
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>Today's Highlights</Text>
+              <Text style={styles.sectionDate}>{formatDate(new Date())}</Text>
+            </View>
+            <View style={styles.highlightsGrid}>
+              <View style={[styles.highlightCard, { backgroundColor: '#EEF2FF' }]}>
+                <Text style={[styles.highlightValue, { color: '#4F46E5' }]}>
+                  {stats?.today?.followUpsCompleted || 0}
+                </Text>
+                <Text style={styles.highlightLabel}>New Leads</Text>
+              </View>
+              <View style={[styles.highlightCard, { backgroundColor: '#FEF3C7' }]}>
+                <Text style={[styles.highlightValue, { color: '#B45309' }]}>
+                  {stats?.today?.pendingFollowUps || 0}
+                </Text>
+                <Text style={styles.highlightLabel}>Follow-ups Due</Text>
+              </View>
+              <View style={[styles.highlightCard, { backgroundColor: '#DCFCE7' }]}>
+                <Text style={[styles.highlightValue, { color: '#047857' }]}>
+                  {`${stats?.leads?.conversionRate || 0}%`}
+                </Text>
+                <Text style={styles.highlightLabel}>Conversion Rate</Text>
+              </View>
+              <View style={[styles.highlightCard, { backgroundColor: '#EDE9FE' }]}>
+                <Text style={[styles.highlightValue, { color: '#6D28D9' }]}>
+                  {todayCalls}
+                </Text>
+                <Text style={styles.highlightLabel}>Assigned Today</Text>
+              </View>
+            </View>
+
+            {/* Follow-ups Overview — 4 count cards in a row */}
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>Follow-ups Overview</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('FollowUps' as any)}>
+                <Text style={styles.sectionLink}>View All →</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.followUpStrip}>
+              <View style={[styles.followUpStripCard, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
+                <Text style={[styles.followUpStripLabel, { color: '#B91C1C' }]}>Overdue</Text>
+                <Text style={[styles.followUpStripValue, { color: '#7F1D1D' }]}>
+                  {followUpSummary?.overdue ?? 0}
+                </Text>
+              </View>
+              <View style={[styles.followUpStripCard, { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }]}>
+                <Text style={[styles.followUpStripLabel, { color: '#B45309' }]}>Today</Text>
+                <Text style={[styles.followUpStripValue, { color: '#78350F' }]}>
+                  {followUpSummary?.today ?? 0}
+                </Text>
+              </View>
+              <View style={[styles.followUpStripCard, { backgroundColor: '#DBEAFE', borderColor: '#93C5FD' }]}>
+                <Text style={[styles.followUpStripLabel, { color: '#1E40AF' }]}>Upcoming</Text>
+                <Text style={[styles.followUpStripValue, { color: '#1E3A8A' }]}>
+                  {followUpSummary?.upcoming ?? 0}
+                </Text>
+              </View>
+              <View style={[styles.followUpStripCard, { backgroundColor: '#D1FAE5', borderColor: '#6EE7B7' }]}>
+                <Text style={[styles.followUpStripLabel, { color: '#047857' }]}>Pending</Text>
+                <Text style={[styles.followUpStripValue, { color: '#064E3B' }]}>
+                  {followUpSummary?.totalPending ?? 0}
+                </Text>
+              </View>
+            </View>
+
+            {/* Quick Actions — 3x2 grid */}
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>Quick Actions</Text>
+            </View>
+            <View style={styles.quickActionsGrid}>
+              {(
+                [
+                  { key: 'Import', label: 'Import', icon: 'file-upload', gradient: ['#4F46E5', '#6366F1'] },
+                  { key: 'Assign', label: 'Assign', icon: 'account-multiple', gradient: ['#8B5CF6', '#7C3AED'] },
+                  { key: 'Reports', label: 'Reports', icon: 'chart-bar', gradient: ['#10B981', '#059669'] },
+                  { key: 'Team', label: 'Team', icon: 'account-group', gradient: ['#0EA5E9', '#0284C7'] },
+                  { key: 'Campaigns', label: 'Campaigns', icon: 'rocket-launch', gradient: ['#EC4899', '#BE185D'] },
+                  { key: 'Settings', label: 'Settings', icon: 'cog', gradient: ['#4B5563', '#1F2937'] },
+                ] as const
+              ).map(action => (
+                <Pressable
+                  key={action.key}
+                  style={styles.quickActionWrap}
+                  onPress={() => handleQuickAction(action.key as any)}
+                >
+                  <LinearGradient
+                    colors={action.gradient as any}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.quickActionCard}
+                  >
+                    <Icon name={action.icon} size={22} color="#FFFFFF" />
+                    <Text style={styles.quickActionLabel}>{action.label}</Text>
+                  </LinearGradient>
+                </Pressable>
+              ))}
             </View>
 
             {/* Today's Calls */}
@@ -476,6 +571,82 @@ const styles = StyleSheet.create({
   refreshBtn: { padding: 6, borderRadius: 8 },
 
   loadingBox: { paddingVertical: 48, alignItems: 'center' },
+
+  /* Section header (for Today's Highlights / Follow-ups Overview / Quick Actions) */
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    marginBottom: 10,
+  },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  sectionDate: { fontSize: 12, color: '#6B7280' },
+  sectionLink: { fontSize: 12, color: '#4F46E5', fontWeight: '600' },
+
+  /* Today's Highlights */
+  highlightsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -6,
+    marginBottom: 4,
+  },
+  highlightCard: {
+    width: '50%',
+    borderRadius: 12,
+    padding: 14,
+    minHeight: 76,
+    justifyContent: 'center',
+    marginHorizontal: 6,
+    marginVertical: 6,
+    flexGrow: 0,
+    flexBasis: '46%',
+    maxWidth: '46%',
+  },
+  highlightValue: { fontSize: 22, fontWeight: '700' },
+  highlightLabel: { fontSize: 12, color: '#374151', marginTop: 2, fontWeight: '500' },
+
+  /* Follow-ups Overview strip */
+  followUpStrip: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 4,
+  },
+  followUpStripCard: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  followUpStripLabel: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
+  followUpStripValue: { fontSize: 20, fontWeight: '700' },
+
+  /* Quick Actions */
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -6,
+    marginBottom: 10,
+  },
+  quickActionWrap: {
+    width: '33.33%',
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+  },
+  quickActionCard: {
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 70,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  quickActionLabel: { fontSize: 12, fontWeight: '600', color: '#FFFFFF', marginTop: 6 },
 
   /* KPI grid */
   kpiGrid: {
