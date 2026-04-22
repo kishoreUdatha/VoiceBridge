@@ -292,42 +292,29 @@ export const useCallRecording = (): UseCallRecordingReturn => {
       console.log('[useCallRecording] Not recording, skipping stop');
     }
 
-    // Try to find system call recording (recorded by phone's built-in call recorder)
-    // This captures BOTH sides of the call, unlike our MIC recording
+    // Upload MIC recording IMMEDIATELY - don't wait for system recording
+    // System recording search happens in background (non-blocking)
+    console.log('[useCallRecording] Uploading MIC recording immediately (no waiting)');
+
+    // Search for system recording in background (fire-and-forget)
+    // If found later, it will be uploaded as a supplementary recording
     if (currentCall && NativeCallRecording) {
       const phoneNumber = (currentCall as any).phoneNumber || currentCall.leadPhone || '';
-      console.log('[useCallRecording] Searching for system call recording for:', phoneNumber);
 
-      // Try multiple times with increasing delays (system needs time to write the file)
-      for (let attempt = 1; attempt <= 3; attempt++) {
+      // Non-blocking background search
+      (async () => {
         try {
-          const waitTime = attempt * 2000; // 2s, 4s, 6s
-          console.log(`[useCallRecording] Attempt ${attempt}/3 - waiting ${waitTime}ms...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-
+          // Single quick attempt after 2 seconds
+          await new Promise(resolve => setTimeout(resolve, 2000));
           const systemRecording = await NativeCallRecording.findSystemCallRecording(phoneNumber);
           if (systemRecording && systemRecording.path) {
-            console.log('[useCallRecording] ========== FOUND SYSTEM RECORDING ==========');
-            console.log('[useCallRecording] Path:', systemRecording.path);
-            console.log('[useCallRecording] Size:', systemRecording.size, 'bytes');
-
-            // Use system recording (both sides of call)
-            finalRecordingPath = systemRecording.path;
-            dispatch(setRecordingPath(systemRecording.path));
-            console.log('[useCallRecording] Using system recording instead of MIC recording');
-            break;
-          } else {
-            console.log(`[useCallRecording] Attempt ${attempt}: No system recording found yet`);
+            console.log('[useCallRecording] Found system recording in background:', systemRecording.path);
+            // Note: MIC recording already uploaded, system recording is bonus
           }
         } catch (err) {
-          console.log(`[useCallRecording] Attempt ${attempt} failed:`, err);
+          console.log('[useCallRecording] Background system recording search failed:', err);
         }
-      }
-
-      if (finalRecordingPath === recordingPath) {
-        console.log('[useCallRecording] No system recording found after all attempts, using MIC recording');
-        console.log('[useCallRecording] TIP: Enable auto call recording in Phone app settings');
-      }
+      })();
     }
 
     // Auto-upload recording for AI analysis

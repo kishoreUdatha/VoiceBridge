@@ -468,14 +468,22 @@ public class CallRecordingService extends Service {
                 Log.d(TAG, "USING CALLLOG DURATION: " + duration + "s (most accurate)");
             } else {
                 Log.w(TAG, "CallLog query FAILED - duration was " + duration);
-                // For OUTGOING calls, OFFHOOK doesn't help because it triggers at call initiation, not answer
-                // So we should NOT use conversationStartTime for outgoing calls
-                // Last fallback: use recording duration (this includes ringing time - not ideal)
-                long recordingDuration = (System.currentTimeMillis() - recordingStartTime) / 1000;
-                Log.w(TAG, "FALLBACK: Using recording duration: " + recordingDuration + "s");
-                Log.w(TAG, "NOTE: This includes ringing time which is NOT ideal for outgoing calls");
-                Log.w(TAG, "Please check READ_CALL_LOG permission is granted in app settings");
-                duration = recordingDuration;
+                // For OUTGOING calls, OFFHOOK triggers at call initiation, not answer
+                // Use conversationStartTime if we detected the call was answered (OFFHOOK after ringing)
+                if (callAnswered && conversationStartTime > 0) {
+                    // Calculate duration from when we detected the call was in progress
+                    // This is more accurate than recording start time for answered calls
+                    long conversationDuration = (System.currentTimeMillis() - conversationStartTime) / 1000;
+                    Log.d(TAG, "FALLBACK: Using conversation duration: " + conversationDuration + "s");
+                    duration = conversationDuration;
+                } else {
+                    // Last fallback: use recording duration (includes ringing time - not ideal)
+                    long recordingDuration = (System.currentTimeMillis() - recordingStartTime) / 1000;
+                    Log.w(TAG, "FALLBACK: Using recording duration: " + recordingDuration + "s");
+                    Log.w(TAG, "NOTE: This includes ringing time which is NOT ideal for outgoing calls");
+                    Log.w(TAG, "Please check READ_CALL_LOG permission is granted in app settings");
+                    duration = recordingDuration;
+                }
             }
 
             File file = new File(currentRecordingPath);
