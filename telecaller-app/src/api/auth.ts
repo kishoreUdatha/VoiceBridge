@@ -36,6 +36,9 @@ export const authApi = {
         createdAt: rawUser.createdAt,
       };
 
+      // Clear old cached data for fresh login
+      await AsyncStorage.removeItem(STORAGE_KEYS.CACHED_LEADS);
+
       // Store tokens
       await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
       await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken || '');

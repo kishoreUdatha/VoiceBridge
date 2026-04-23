@@ -858,6 +858,8 @@ router.get('/leads', async (req: TenantRequest, res: Response) => {
     const isManager = normalizedRole === 'manager';
     const isAdmin = normalizedRole === 'admin';
 
+    console.log(`[Telecaller/Leads] User: ${req.user!.email}, Role: ${userRole}, Normalized: ${normalizedRole}, isAdmin: ${isAdmin}, isManager: ${isManager}, isTeamLead: ${isTeamLead}`);
+
     // Admin sees all leads
     // Manager sees leads assigned to their team (team leads + telecallers under them)
     // Team Lead sees leads assigned to their telecallers
@@ -972,6 +974,8 @@ router.get('/leads', async (req: TenantRequest, res: Response) => {
       ];
     }
 
+    console.log(`[Telecaller/Leads] Where clause:`, JSON.stringify(whereClause, null, 2));
+
     const [leads, total] = await Promise.all([
       prisma.lead.findMany({
         where: whereClause,
@@ -995,6 +999,8 @@ router.get('/leads', async (req: TenantRequest, res: Response) => {
       }),
       prisma.lead.count({ where: whereClause }),
     ]);
+
+    console.log(`[Telecaller/Leads] Found ${leads.length} leads, total: ${total}`);
 
     // Decorate each lead with totalCalls and lastCallOutcome so the mobile app
     // can move it into the right tab without further API calls.
