@@ -847,14 +847,43 @@ router.get('/leads', async (req: TenantRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const userRole = req.user!.roleSlug;
-    const { status, search, limit = '50', offset = '0' } = req.query;
+    const { status, search, limit = '50', offset = '0', showTeam } = req.query;
 
     const whereClause: any = {
       organizationId: req.organization!.id,
     };
 
-    // Admin/Manager can see all leads, telecaller only sees assigned leads
-    if (userRole !== 'admin' && userRole !== 'manager') {
+    const normalizedRole = (userRole || '').toLowerCase().replace('_', '');
+    const isTeamLead = normalizedRole === 'teamlead' || normalizedRole === 'team_lead';
+    const isManager = normalizedRole === 'manager' || normalizedRole === 'admin';
+
+    // Admin/Manager can see all leads
+    // Team Lead can see their own leads OR team leads (if showTeam=true)
+    // Telecaller only sees assigned leads
+    if (isManager) {
+      // Manager/Admin sees all leads - no filter needed
+    } else if (isTeamLead && showTeam === 'true') {
+      // Team lead viewing team leads - get all telecallers under them
+      const teamMembers = await prisma.user.findMany({
+        where: {
+          organizationId: req.organization!.id,
+          OR: [
+            { managerId: userId },
+            { id: userId }, // Include their own leads
+          ],
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const teamMemberIds = teamMembers.map(m => m.id);
+      whereClause.assignments = {
+        some: {
+          assignedToId: { in: teamMemberIds },
+          isActive: true,
+        },
+      };
+    } else {
+      // Telecaller or Team Lead viewing own leads
       whereClause.assignments = {
         some: {
           assignedToId: userId,

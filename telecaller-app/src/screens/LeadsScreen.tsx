@@ -11,18 +11,24 @@ import {
   ScrollView,
   Linking,
   Alert,
+  StatusBar,
+  Modal,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import LinearGradient from 'react-native-linear-gradient';
 import { useLeads } from '../hooks/useLeads';
 import { useCallRecording } from '../hooks/useCallRecording';
 import LeadCard from '../components/LeadCard';
 import { Lead, LeadStatus, RootStackParamList, STORAGE_KEYS, isTeamLeadOrAbove } from '../types';
-import DateRangeFilter, { DateRangeType } from '../components/DateRangeFilter';
+import { DateRangeType } from '../components/DateRangeFilter';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+// Conversion tabs like web
+type ConversionTab = 'all' | 'active' | 'converted';
 
 interface StatusFilter {
   label: string;
@@ -32,13 +38,21 @@ interface StatusFilter {
 }
 
 const STATUS_FILTERS: StatusFilter[] = [
-  { label: 'All', value: 'ALL', icon: 'format-list-bulleted', color: '#6366F1' },
-  { label: 'New', value: 'NEW', icon: 'new-box', color: '#3B82F6' },
+  { label: 'All', value: 'ALL', icon: 'format-list-bulleted', color: '#6B7280' },
+  { label: 'New', value: 'NEW', icon: 'star-four-points', color: '#3B82F6' },
   { label: 'Contacted', value: 'CONTACTED', icon: 'phone-check', color: '#F59E0B' },
-  { label: 'Qualified', value: 'QUALIFIED', icon: 'star', color: '#8B5CF6' },
+  { label: 'Qualified', value: 'QUALIFIED', icon: 'check-decagram', color: '#8B5CF6' },
   { label: 'Negotiation', value: 'NEGOTIATION', icon: 'handshake', color: '#EC4899' },
-  { label: 'Converted', value: 'CONVERTED', icon: 'check-circle', color: '#10B981' },
+  { label: 'Converted', value: 'CONVERTED', icon: 'trophy', color: '#10B981' },
   { label: 'Lost', value: 'LOST', icon: 'close-circle', color: '#EF4444' },
+];
+
+const DATE_FILTERS = [
+  { key: 'all', label: 'All Time' },
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'thisWeek', label: 'This Week' },
+  { key: 'thisMonth', label: 'This Month' },
 ];
 
 // Helper function to get date range
@@ -85,6 +99,7 @@ const LeadsScreen: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<LeadStatus | 'ALL'>('ALL');
+  const [conversionTab, setConversionTab] = useState<ConversionTab>('all');
   const [dateRange, setDateRange] = useState<DateRangeType>('all');
   const [customDates, setCustomDates] = useState<{ startDate: Date | null; endDate: Date | null }>({
     startDate: null,
@@ -92,6 +107,7 @@ const LeadsScreen: React.FC = () => {
   });
   const [userRole, setUserRole] = useState<string>('telecaller');
   const [showTeamLeads, setShowTeamLeads] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
   const isLoadingRef = useRef(false);
   const hasInitializedRef = useRef(false);
   const lastLoadTimeRef = useRef(0);
@@ -119,11 +135,11 @@ const LeadsScreen: React.FC = () => {
     if (!hasInitializedRef.current) {
       hasInitializedRef.current = true;
       console.log('[LeadsScreen] Initial load triggered');
-      loadLeads(true).then(() => {
+      loadLeads(true, showTeamLeads).then(() => {
         console.log('[LeadsScreen] Leads loaded, count:', leads.length);
       });
     }
-  }, [loadLeads]);
+  }, [loadLeads, showTeamLeads]);
 
   useEffect(() => {
     console.log('[LeadsScreen] Leads state updated, count:', leads.length, 'isLoading:', isLoading);
@@ -135,10 +151,18 @@ const LeadsScreen: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       if (hasInitializedRef.current) {
-        loadLeads(true);
+        loadLeads(true, showTeamLeads);
       }
-    }, [loadLeads])
+    }, [loadLeads, showTeamLeads])
   );
+
+  // Reload leads when team toggle changes
+  useEffect(() => {
+    if (hasInitializedRef.current) {
+      console.log('[LeadsScreen] Team toggle changed, reloading leads. showTeam:', showTeamLeads);
+      loadLeads(true, showTeamLeads);
+    }
+  }, [showTeamLeads, loadLeads]);
 
   // Filter leads by date range first
   const dateFilteredLeads = useMemo(() => {
@@ -169,21 +193,44 @@ const LeadsScreen: React.FC = () => {
     return l.status === filter;
   };
 
-  // Get final filtered leads (date + status)
-  const displayLeads = useMemo(() => {
-    return dateFilteredLeads.filter(l => matchesFilter(l, activeFilter));
-  }, [dateFilteredLeads, activeFilter]);
+  // Filter by conversion tab
+  const matchesConversionTab = (l: any, tab: ConversionTab) => {
+    if (tab === 'all') return true;
+    if (tab === 'converted') return l.status === 'CONVERTED';
+    // Active = not converted and not lost
+    return l.status !== 'CONVERTED' && l.status !== 'LOST';
+  };
 
-  // Calculate counts for each status (based on date-filtered leads)
+  // Get final filtered leads (date + conversion tab + status)
+  const displayLeads = useMemo(() => {
+    return dateFilteredLeads
+      .filter(l => matchesConversionTab(l, conversionTab))
+      .filter(l => matchesFilter(l, activeFilter));
+  }, [dateFilteredLeads, conversionTab, activeFilter]);
+
+  // Calculate counts for conversion tabs
+  const conversionCounts = useMemo(() => {
+    return {
+      all: dateFilteredLeads.length,
+      active: dateFilteredLeads.filter(l => l.status !== 'CONVERTED' && l.status !== 'LOST').length,
+      converted: dateFilteredLeads.filter(l => l.status === 'CONVERTED').length,
+    };
+  }, [dateFilteredLeads]);
+
+  // Calculate counts for each status (based on conversion-tab-filtered leads)
+  const conversionFilteredLeads = useMemo(() => {
+    return dateFilteredLeads.filter(l => matchesConversionTab(l, conversionTab));
+  }, [dateFilteredLeads, conversionTab]);
+
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { ALL: dateFilteredLeads.length };
+    const counts: Record<string, number> = { ALL: conversionFilteredLeads.length };
     STATUS_FILTERS.forEach(filter => {
       if (filter.value !== 'ALL') {
-        counts[filter.value] = dateFilteredLeads.filter(l => matchesFilter(l, filter.value)).length;
+        counts[filter.value] = conversionFilteredLeads.filter(l => matchesFilter(l, filter.value)).length;
       }
     });
     return counts;
-  }, [dateFilteredLeads]);
+  }, [conversionFilteredLeads]);
 
   const handleDateRangeChange = useCallback(
     (range: DateRangeType, dates?: { startDate: Date | null; endDate: Date | null }) => {
@@ -197,8 +244,8 @@ const LeadsScreen: React.FC = () => {
 
   const handleRefresh = useCallback(() => {
     isLoadingRef.current = false; // Reset on refresh
-    loadLeads(true);
-  }, [loadLeads]);
+    loadLeads(true, showTeamLeads);
+  }, [loadLeads, showTeamLeads]);
 
   const handleLoadMore = useCallback(() => {
     const now = Date.now();
@@ -216,13 +263,13 @@ const LeadsScreen: React.FC = () => {
     }
     lastLoadTimeRef.current = now;
     isLoadingRef.current = true;
-    loadLeads(false).finally(() => {
+    loadLeads(false, showTeamLeads).finally(() => {
       // Reset after a delay to prevent rapid re-triggering
       setTimeout(() => {
         isLoadingRef.current = false;
       }, 500);
     });
-  }, [isLoading, hasMore, loadLeads, displayLeads.length]);
+  }, [isLoading, hasMore, loadLeads, displayLeads.length, showTeamLeads]);
 
   const handleSearch = useCallback(
     (text: string) => {
@@ -230,10 +277,10 @@ const LeadsScreen: React.FC = () => {
       if (text.length >= 2) {
         search(text);
       } else if (text.length === 0) {
-        loadLeads(true);
+        loadLeads(true, showTeamLeads);
       }
     },
-    [search, loadLeads]
+    [search, loadLeads, showTeamLeads]
   );
 
   // Tab change is purely client-side: filter the already-loaded leads instead of
@@ -297,8 +344,72 @@ const LeadsScreen: React.FC = () => {
     );
   };
 
+  const activeFilterCount = activeFilter !== 'ALL' || dateRange !== 'all' ? 1 : 0;
+
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* Header Row - Like web */}
+      <View style={styles.headerRow}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerTitle}>Leads</Text>
+          <View style={styles.totalBadge}>
+            <Text style={styles.totalBadgeText}>{conversionCounts.all}</Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={styles.createBtn}
+          onPress={() => navigation.navigate('CreateLead')}
+        >
+          <Icon name="plus" size={18} color="#FFFFFF" />
+          <Text style={styles.createBtnText}>New Lead</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Conversion Tabs - Like web (All, Active, Converted) */}
+      <View style={styles.conversionTabs}>
+        <TouchableOpacity
+          style={[styles.conversionTab, conversionTab === 'all' && styles.conversionTabActive]}
+          onPress={() => { setConversionTab('all'); setActiveFilter('ALL'); }}
+        >
+          <Text style={[styles.conversionTabText, conversionTab === 'all' && styles.conversionTabTextActive]}>
+            All Leads
+          </Text>
+          <View style={[styles.conversionBadge, conversionTab === 'all' && styles.conversionBadgeActive]}>
+            <Text style={[styles.conversionBadgeText, conversionTab === 'all' && styles.conversionBadgeTextActive]}>
+              {conversionCounts.all}
+            </Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.conversionTab, conversionTab === 'active' && styles.conversionTabActive]}
+          onPress={() => { setConversionTab('active'); setActiveFilter('ALL'); }}
+        >
+          <Text style={[styles.conversionTabText, conversionTab === 'active' && styles.conversionTabTextActive]}>
+            Active
+          </Text>
+          <View style={[styles.conversionBadge, conversionTab === 'active' && styles.conversionBadgeActive]}>
+            <Text style={[styles.conversionBadgeText, conversionTab === 'active' && styles.conversionBadgeTextActive]}>
+              {conversionCounts.active}
+            </Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.conversionTab, conversionTab === 'converted' && styles.conversionTabActive]}
+          onPress={() => { setConversionTab('converted'); setActiveFilter('ALL'); }}
+        >
+          <Text style={[styles.conversionTabText, conversionTab === 'converted' && styles.conversionTabTextActive]}>
+            Converted
+          </Text>
+          <View style={[styles.conversionBadge, conversionTab === 'converted' && styles.conversionBadgeActive]}>
+            <Text style={[styles.conversionBadgeText, conversionTab === 'converted' && styles.conversionBadgeTextActive]}>
+              {conversionCounts.converted}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
       {/* Team Toggle for Team Leads */}
       {isTeamLead && (
         <View style={styles.teamToggleContainer}>
@@ -306,7 +417,6 @@ const LeadsScreen: React.FC = () => {
             style={[styles.teamToggleBtn, !showTeamLeads && styles.teamToggleBtnActive]}
             onPress={() => setShowTeamLeads(false)}
           >
-            <Icon name="account" size={16} color={!showTeamLeads ? '#FFFFFF' : '#6B7280'} />
             <Text style={[styles.teamToggleText, !showTeamLeads && styles.teamToggleTextActive]}>
               My Leads
             </Text>
@@ -315,87 +425,184 @@ const LeadsScreen: React.FC = () => {
             style={[styles.teamToggleBtn, showTeamLeads && styles.teamToggleBtnActive]}
             onPress={() => setShowTeamLeads(true)}
           >
-            <Icon name="account-group" size={16} color={showTeamLeads ? '#FFFFFF' : '#6B7280'} />
             <Text style={[styles.teamToggleText, showTeamLeads && styles.teamToggleTextActive]}>
-              Team Leads
+              Team
             </Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Date Range Filter */}
-      <DateRangeFilter
-        selectedRange={dateRange}
-        onRangeChange={handleDateRangeChange}
-        customDates={customDates}
-      />
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Icon name="magnify" size={20} color="#6B7280" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search leads..."
-          placeholderTextColor="#9CA3AF"
-          value={searchQuery}
-          onChangeText={handleSearch}
-          returnKeyType="search"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => handleSearch('')}>
-            <Icon name="close-circle" size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-        )}
+      {/* Search Bar with Filter Button - Like web */}
+      <View style={styles.searchRow}>
+        <View style={styles.searchContainer}>
+          <Icon name="magnify" size={18} color="#9CA3AF" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name, phone, email..."
+            placeholderTextColor="#9CA3AF"
+            value={searchQuery}
+            onChangeText={handleSearch}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => handleSearch('')}>
+              <Icon name="close-circle" size={18} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          style={[styles.filterBtn, activeFilterCount > 0 && styles.filterBtnActive]}
+          onPress={() => setShowFilterModal(true)}
+        >
+          <Icon name="filter-variant" size={18} color={activeFilterCount > 0 ? '#FFFFFF' : '#6B7280'} />
+          {activeFilterCount > 0 && (
+            <View style={styles.filterBtnBadge}>
+              <Text style={styles.filterBtnBadgeText}>{activeFilterCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
-      {/* Status Filters */}
-      <View style={styles.filtersContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersList}
-        >
-          {STATUS_FILTERS.map((filter) => {
-            const isActive = activeFilter === filter.value;
-            const count = statusCounts[filter.value] || 0;
+      {/* Active Filters Display */}
+      {(activeFilter !== 'ALL' || dateRange !== 'all') && (
+        <View style={styles.activeFiltersRow}>
+          {activeFilter !== 'ALL' && (
+            <View style={styles.activeFilterChip}>
+              <Text style={styles.activeFilterChipText}>
+                Status: {STATUS_FILTERS.find(f => f.value === activeFilter)?.label}
+              </Text>
+              <TouchableOpacity onPress={() => setActiveFilter('ALL')}>
+                <Icon name="close" size={14} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+          )}
+          {dateRange !== 'all' && (
+            <View style={styles.activeFilterChip}>
+              <Text style={styles.activeFilterChipText}>
+                Date: {DATE_FILTERS.find(f => f.key === dateRange)?.label}
+              </Text>
+              <TouchableOpacity onPress={() => handleDateRangeChange('all')}>
+                <Icon name="close" size={14} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+          )}
+          <TouchableOpacity
+            style={styles.clearAllBtn}
+            onPress={() => { setActiveFilter('ALL'); handleDateRangeChange('all'); }}
+          >
+            <Text style={styles.clearAllBtnText}>Clear All</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-            return (
-              <TouchableOpacity
-                key={filter.value}
-                style={[
-                  styles.filterTab,
-                  isActive && { backgroundColor: filter.color + '15', borderColor: filter.color },
-                ]}
-                onPress={() => handleFilterChange(filter.value)}
-              >
-                <Icon
-                  name={filter.icon}
-                  size={16}
-                  color={isActive ? filter.color : '#6B7280'}
-                />
-                <Text
+      {/* Results count */}
+      <View style={styles.resultsRow}>
+        <Text style={styles.resultsText}>
+          {displayLeads.length} {displayLeads.length === 1 ? 'lead' : 'leads'}
+        </Text>
+      </View>
+
+      {/* Filter Modal */}
+      <Modal
+        visible={showFilterModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFilterModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filters</Text>
+              <TouchableOpacity onPress={() => setShowFilterModal(false)}>
+                <Icon name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Status Filter */}
+            <Text style={styles.filterSectionTitle}>Status</Text>
+            <View style={styles.filterOptions}>
+              {STATUS_FILTERS.map((filter) => (
+                <TouchableOpacity
+                  key={filter.value}
                   style={[
-                    styles.filterTabText,
-                    isActive && { color: filter.color, fontWeight: '600' },
+                    styles.filterOption,
+                    activeFilter === filter.value && styles.filterOptionActive,
                   ]}
+                  onPress={() => setActiveFilter(filter.value)}
                 >
-                  {filter.label}
-                </Text>
-                {count > 0 && (
-                  <View
+                  <Icon
+                    name={filter.icon}
+                    size={16}
+                    color={activeFilter === filter.value ? '#FFFFFF' : filter.color}
+                  />
+                  <Text
                     style={[
-                      styles.filterBadge,
-                      { backgroundColor: isActive ? filter.color : '#9CA3AF' },
+                      styles.filterOptionText,
+                      activeFilter === filter.value && styles.filterOptionTextActive,
                     ]}
                   >
-                    <Text style={styles.filterBadgeText}>{count}</Text>
-                  </View>
-                )}
+                    {filter.label}
+                  </Text>
+                  <Text style={[
+                    styles.filterOptionCount,
+                    activeFilter === filter.value && styles.filterOptionCountActive,
+                  ]}>
+                    {statusCounts[filter.value] || 0}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Date Filter */}
+            <Text style={styles.filterSectionTitle}>Date Range</Text>
+            <View style={styles.filterOptions}>
+              {DATE_FILTERS.map((filter) => (
+                <TouchableOpacity
+                  key={filter.key}
+                  style={[
+                    styles.filterOption,
+                    dateRange === filter.key && styles.filterOptionActive,
+                  ]}
+                  onPress={() => handleDateRangeChange(filter.key as DateRangeType)}
+                >
+                  <Icon
+                    name="calendar"
+                    size={16}
+                    color={dateRange === filter.key ? '#FFFFFF' : '#6B7280'}
+                  />
+                  <Text
+                    style={[
+                      styles.filterOptionText,
+                      dateRange === filter.key && styles.filterOptionTextActive,
+                    ]}
+                  >
+                    {filter.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalClearBtn}
+                onPress={() => {
+                  setActiveFilter('ALL');
+                  handleDateRangeChange('all');
+                }}
+              >
+                <Text style={styles.modalClearBtnText}>Clear All</Text>
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
+              <TouchableOpacity
+                style={styles.modalApplyBtn}
+                onPress={() => setShowFilterModal(false)}
+              >
+                <Text style={styles.modalApplyBtnText}>Apply Filters</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Leads List */}
       <FlatList
@@ -420,14 +627,6 @@ const LeadsScreen: React.FC = () => {
         ListFooterComponent={renderFooter}
       />
 
-      {/* Floating Action Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('CreateLead')}
-        activeOpacity={0.8}
-      >
-        <Icon name="plus" size={24} color="#FFFFFF" />
-      </TouchableOpacity>
     </View>
   );
 };
@@ -437,141 +636,351 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  searchContainer: {
+  // Header Row - Like web
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 8,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    fontSize: 15,
-    color: '#1E293B',
-  },
-  filtersContainer: {
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    paddingVertical: 8,
   },
-  filtersList: {
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  filterTab: {
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  totalBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  totalBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4F46E5',
+  },
+  createBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4F46E5',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-    marginRight: 8,
-    gap: 6,
+    borderRadius: 8,
+    gap: 4,
   },
-  filterTabText: {
+  createBtnText: {
     fontSize: 13,
-    color: '#6B7280',
-  },
-  filterBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  filterBadgeText: {
-    fontSize: 11,
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  listContent: {
-    paddingTop: 4,
-    paddingBottom: 100,
+  // Conversion Tabs - Like web
+  conversionTabs: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
-  emptyContainer: {
-    flex: 1,
+  conversionTab: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    marginRight: 20,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+    gap: 6,
   },
-  emptyTitle: {
-    fontSize: 18,
+  conversionTabActive: {
+    borderBottomColor: '#4F46E5',
+  },
+  conversionTabText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  conversionTabTextActive: {
+    color: '#4F46E5',
     fontWeight: '600',
-    color: '#1E293B',
-    marginTop: 16,
   },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  footer: {
-    paddingVertical: 16,
+  conversionBadge: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    minWidth: 20,
     alignItems: 'center',
   },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: '#2563EB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 8,
+  conversionBadgeActive: {
+    backgroundColor: '#EEF2FF',
   },
-  // Team Toggle Styles
+  conversionBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  conversionBadgeTextActive: {
+    color: '#4F46E5',
+  },
+  // Team Toggle
   teamToggleContainer: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    padding: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     gap: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   teamToggleBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
     backgroundColor: '#F3F4F6',
-    gap: 6,
   },
   teamToggleBtnActive: {
     backgroundColor: '#4F46E5',
   },
   teamToggleText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
     color: '#6B7280',
   },
   teamToggleTextActive: {
+    color: '#FFFFFF',
+  },
+  // Search Row
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  searchContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1E293B',
+    padding: 0,
+  },
+  filterBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterBtnActive: {
+    backgroundColor: '#4F46E5',
+  },
+  filterBtnBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterBtnBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  // Active Filters Row
+  activeFiltersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+    flexWrap: 'wrap',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  activeFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
+    gap: 6,
+  },
+  activeFilterChipText: {
+    fontSize: 12,
+    color: '#4F46E5',
+    fontWeight: '500',
+  },
+  clearAllBtn: {
+    marginLeft: 'auto',
+  },
+  clearAllBtnText: {
+    fontSize: 12,
+    color: '#EF4444',
+    fontWeight: '500',
+  },
+  // Results Row
+  resultsRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  resultsText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  // List
+  listContent: {
+    paddingBottom: 24,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 24,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 16,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  footer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  // Filter Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  filterSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 10,
+  },
+  filterOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  filterOptionActive: {
+    backgroundColor: '#4F46E5',
+  },
+  filterOptionText: {
+    fontSize: 13,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  filterOptionTextActive: {
+    color: '#FFFFFF',
+  },
+  filterOptionCount: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  filterOptionCountActive: {
+    color: 'rgba(255,255,255,0.8)',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    gap: 12,
+  },
+  modalClearBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+  },
+  modalClearBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  modalApplyBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#4F46E5',
+    alignItems: 'center',
+  },
+  modalApplyBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
 });

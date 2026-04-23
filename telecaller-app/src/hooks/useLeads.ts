@@ -21,10 +21,10 @@ export const useLeads = () => {
 
   // Fetch leads (paginated)
   const loadLeads = useCallback(
-    async (refresh: boolean = false) => {
+    async (refresh: boolean = false, showTeam: boolean = false) => {
       // Use ref to get current page to avoid dependency on pagination.page
       const currentPage = refresh ? 1 : pagination.page + 1;
-      await dispatch(fetchLeads({ page: currentPage, refresh }));
+      await dispatch(fetchLeads({ page: currentPage, refresh, showTeam }));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [dispatch]

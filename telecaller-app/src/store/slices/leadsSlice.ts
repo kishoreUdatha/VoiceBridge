@@ -23,14 +23,15 @@ export const fetchLeads = createAsyncThunk(
     {
       page = 1,
       refresh = false,
-    }: { page?: number; refresh?: boolean },
+      showTeam = false,
+    }: { page?: number; refresh?: boolean; showTeam?: boolean },
     { getState, rejectWithValue }
   ) => {
     try {
       const state = getState() as { leads: LeadsState };
       const { filters } = state.leads;
 
-      const response = await leadsApi.getAssignedLeads(page, 20, filters);
+      const response = await leadsApi.getAssignedLeads(page, 20, { ...filters, showTeam });
       console.log('[LeadsSlice] Got leads:', response.data?.length, 'pagination:', response.pagination);
 
       return {

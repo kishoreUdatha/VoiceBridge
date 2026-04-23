@@ -57,6 +57,7 @@ export const leadsApi = {
     filters?: {
       status?: LeadStatus;
       search?: string;
+      showTeam?: boolean;
     }
   ): Promise<PaginatedResponse<Lead>> => {
     try {
@@ -67,6 +68,7 @@ export const leadsApi = {
 
       if (filters?.status) params.append('status', filters.status);
       if (filters?.search) params.append('search', filters.search);
+      if (filters?.showTeam) params.append('showTeam', 'true');
 
       console.log('[LeadsAPI] Fetching leads from /telecaller/leads');
       const response = await api.get(`/telecaller/leads?${params.toString()}`);
@@ -166,7 +168,7 @@ export const leadsApi = {
 
       const leadData = response.data.data || response.data;
 
-      // Transform to match app's Lead type
+      // Transform to match app's Lead type - include both pipelineStageId (unified) and stageId (legacy)
       const lead: Lead = {
         id: leadData.id,
         name: `${leadData.firstName || ''} ${leadData.lastName || ''}`.trim() || 'Unknown',
@@ -174,14 +176,34 @@ export const leadsApi = {
         email: leadData.email || undefined,
         company: leadData.centerName || leadData.company || undefined,
         status: (leadData.status || 'NEW') as LeadStatus,
+        // Unified pipeline system (used by web) - prefer this
+        pipelineStageId: leadData.pipelineStageId || undefined,
+        pipelineStage: leadData.pipelineStage ? {
+          id: leadData.pipelineStage.id,
+          name: leadData.pipelineStage.name,
+          slug: leadData.pipelineStage.slug,
+          color: leadData.pipelineStage.color,
+          order: leadData.pipelineStage.order,
+          stageType: leadData.pipelineStage.stageType,
+        } : undefined,
+        // Legacy stage system - fallback
+        stageId: leadData.stageId || undefined,
+        stage: leadData.stage ? {
+          id: leadData.stage.id,
+          name: leadData.stage.name,
+          slug: leadData.stage.slug,
+          color: leadData.stage.color,
+          order: leadData.stage.order,
+          journeyOrder: leadData.stage.journeyOrder,
+        } : undefined,
         source: leadData.source || undefined,
         notes: leadData.notes || undefined,
         lastContactedAt: leadData.lastContactedAt || undefined,
         createdAt: leadData.createdAt || new Date().toISOString(),
         updatedAt: leadData.updatedAt || new Date().toISOString(),
-      };
+      } as any;
 
-      console.log('[LeadsAPI] Transformed lead:', JSON.stringify(lead));
+      console.log('[LeadsAPI] Transformed lead with stage:', JSON.stringify(lead));
       return lead;
     } catch (error) {
       console.error('[LeadsAPI] Error fetching lead:', error);
