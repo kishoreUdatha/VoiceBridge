@@ -241,9 +241,10 @@ const DashboardScreen: React.FC = () => {
     setRefreshing(false);
   }, [fetchData]);
 
+  // Get display name - use firstName, fallback to email username
   const firstName = user?.firstName
     ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1).toLowerCase()
-    : '';
+    : user?.email?.split('@')[0] || '';
 
   const todayCalls = stats?.today?.calls || 0;
   const dailyTarget = stats?.today?.target?.calls || stats?.assignedData?.total || 0;
