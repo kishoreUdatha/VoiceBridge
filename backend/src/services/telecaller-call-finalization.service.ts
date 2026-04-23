@@ -220,14 +220,16 @@ The input is a raw transcript with NO speaker labels — often a run-on paragrap
 - Location preference: "near our home", "ఇక్కడ దగ్గర", "close by"
 
 === CRITICAL RULES ===
-1. Output MUST contain BOTH "assistant" AND "user" turns if the transcript has >= 15 words. A real phone call ALWAYS has two speakers. A one-sided result is almost always a diarization failure — split aggressively.
-2. Questions (with ? or question words above) are ALMOST ALWAYS the AGENT, never the customer.
-3. Short acknowledgments following a question belong to the CUSTOMER.
-4. Break run-on sentences at natural speaker-change points: greeting → introduction, question → answer, answer → next question.
-5. Self-introductions ("I'm calling from X college") are ALWAYS the AGENT.
-6. Family identification ("I'm the parent of X", "my daughter") is ALWAYS the CUSTOMER.
-7. Preserve ORIGINAL wording and language — do NOT translate or paraphrase. Just split and assign.
-8. Sentiment: "positive" for interest/agreement/enthusiasm, "negative" for rejection/concerns/frustration, "neutral" for factual statements and questions.
+1. Output MUST contain BOTH "assistant" AND "user" turns if the transcript has >= 10 words. A real phone call ALWAYS has two speakers. A one-sided result is almost always a diarization failure — split aggressively.
+2. **OUTBOUND CALL RULE**: The CUSTOMER always speaks FIRST (they answer the phone with "Hello"). The AGENT speaks SECOND (they placed the call). This is the MOST RELIABLE signal.
+3. Questions (with ? or question words) are ALMOST ALWAYS the AGENT, never the customer.
+4. Short acknowledgments following a question belong to the CUSTOMER.
+5. Break run-on sentences at natural speaker-change points: greeting → introduction, question → answer, answer → next question.
+6. Self-introductions ("I'm calling from X college") are ALWAYS the AGENT.
+7. Family identification ("I'm the parent of X", "my daughter") is ALWAYS the CUSTOMER.
+8. Preserve ORIGINAL wording and language — do NOT translate or paraphrase. Just split and assign.
+9. Sentiment: "positive" for interest/agreement/enthusiasm, "negative" for rejection/concerns/frustration, "neutral" for factual statements and questions.
+10. **FALLBACK**: If no clear cues exist, use this pattern: First utterance = CUSTOMER (user), then ALTERNATE between speakers for each sentence or natural pause.
 ${language ? `- The transcript language is ${language}. Keep the output in that language.` : ''}
 
 Return JSON:
@@ -356,6 +358,73 @@ Use "assistant" for the telecaller/agent, and "user" for the customer/student/pa
     }
 
     const rebuiltRoles = new Set(merged.map(t => t.role));
+
+    // If still single-speaker after cue-based rebalancing, force alternation
+    // Detect who speaks first based on content, then alternate
+    if (rebuiltRoles.size !== 2 && sentences.length >= 2) {
+      console.log(`[TelecallerAI] Cue-based rebalancing failed, detecting first speaker...`);
+      const forced: Array<{ role: string; content: string; sentiment: string; startTimeSeconds: number }> = [];
+
+      // Detect first speaker based on content:
+      // - Short greeting ("Hello", "Hi", "హలో") = Customer answered
+      // - Introduction ("I'm calling from", "Good morning", "నేను...నుండి") = Agent speaking
+      // - Question or course/college words = Agent
+      const firstSentence = sentences[0].toLowerCase();
+      const shortGreetingPattern = /^(hello|hi|hey|yes|yeah|హలో|హాయ్|అవును|నమస్కారం|నమస్తే)\b/i;
+      const agentIntroPattern = /(calling from|i'?m from|this is|speaking from|good morning|good afternoon|good evening|నేను.*నుండి|కాలేజీ|college|course|fee)/i;
+      const questionPattern = /\?|^(what|where|when|how|which|who|why|can|do|did|will|would|ఏం|ఎక్కడ|ఎప్పుడు|ఎలా|ఎంత)\b/i;
+
+      let firstSpeakerIsCustomer = true; // Default: customer answers first (outbound call)
+
+      if (agentIntroPattern.test(firstSentence) || questionPattern.test(firstSentence)) {
+        // Agent spoke first (introduction or question)
+        firstSpeakerIsCustomer = false;
+        console.log(`[TelecallerAI] First speaker detected as AGENT (intro/question pattern)`);
+      } else if (shortGreetingPattern.test(firstSentence) && firstSentence.split(/\s+/).length <= 4) {
+        // Short greeting = customer answered
+        firstSpeakerIsCustomer = true;
+        console.log(`[TelecallerAI] First speaker detected as CUSTOMER (short greeting)`);
+      } else {
+        // Check sentence length: short = likely customer answer, long = likely agent intro
+        const wordCount = firstSentence.split(/\s+/).length;
+        firstSpeakerIsCustomer = wordCount <= 5;
+        console.log(`[TelecallerAI] First speaker detected as ${firstSpeakerIsCustomer ? 'CUSTOMER' : 'AGENT'} (word count: ${wordCount})`);
+      }
+
+      // Alternate based on detected first speaker
+      sentences.forEach((sentence, idx) => {
+        const isEvenIndex = idx % 2 === 0;
+        const role: 'user' | 'assistant' = firstSpeakerIsCustomer
+          ? (isEvenIndex ? 'user' : 'assistant')  // Customer first: 0=customer, 1=agent, 2=customer...
+          : (isEvenIndex ? 'assistant' : 'user'); // Agent first: 0=agent, 1=customer, 2=agent...
+        forced.push({
+          role,
+          content: sentence,
+          sentiment: 'neutral',
+          startTimeSeconds: Math.round((idx / sentences.length) * callDuration),
+        });
+      });
+
+      // Merge consecutive same-role turns
+      const forcedMerged: Array<{ role: string; content: string; sentiment: string; startTimeSeconds: number }> = [];
+      for (const t of forced) {
+        const last = forcedMerged[forcedMerged.length - 1];
+        if (last && last.role === t.role) {
+          last.content = (last.content + ' ' + t.content).trim();
+        } else {
+          forcedMerged.push({ ...t });
+        }
+      }
+
+      const forcedRoles = new Set(forcedMerged.map(t => t.role));
+      if (forcedRoles.size === 2) {
+        console.log(
+          `[TelecallerAI] Forced alternation produced ${forcedMerged.length} turns (agent=${forcedMerged.filter(m => m.role === 'assistant').length}, customer=${forcedMerged.filter(m => m.role === 'user').length})`
+        );
+        return forcedMerged;
+      }
+    }
+
     if (rebuiltRoles.size !== 2) return turns;
 
     console.log(
