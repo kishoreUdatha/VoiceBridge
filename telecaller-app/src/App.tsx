@@ -21,6 +21,9 @@ LogBox.ignoreLogs([
   'React Native Firebase namespaced API',
   'migrating-to-v22',
   '[NotificationService]',
+  '[useCallRecording]',
+  'No recording',
+  'Recording service',
 ]);
 
 // Loading component for PersistGate
@@ -59,6 +62,18 @@ const App: React.FC = () => {
         // Initialize push notifications
         const notificationsInitialized = await notificationService.init();
         console.log('[App] Notifications initialized:', notificationsInitialized);
+
+        // Schedule nightly recording cleanup at 11 PM IST
+        try {
+          const { NativeModules } = require('react-native');
+          const { CallRecording } = NativeModules;
+          if (CallRecording && CallRecording.scheduleNightlyCleanup) {
+            const result = await CallRecording.scheduleNightlyCleanup();
+            console.log('[App] Nightly cleanup scheduled:', result);
+          }
+        } catch (cleanupError) {
+          console.log('[App] Could not schedule nightly cleanup:', cleanupError);
+        }
 
         servicesInitialized.current = true;
         console.log('[App] All services initialized');

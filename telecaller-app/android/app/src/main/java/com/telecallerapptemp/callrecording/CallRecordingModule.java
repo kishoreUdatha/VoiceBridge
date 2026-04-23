@@ -18,6 +18,13 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Calendar;
+import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
+
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
 
 import android.content.ContentResolver;
 import android.database.Cursor;
@@ -410,5 +417,182 @@ public class CallRecordingModule extends ReactContextBaseJavaModule {
         }
 
         return null;
+    }
+
+    /**
+     * Clean up old recordings from device storage.
+     * Deletes recordings older than specified hours.
+     * Call this to free up storage space after recordings are uploaded.
+     */
+    @ReactMethod
+    public void cleanupOldRecordings(int hoursOld, Promise promise) {
+        Log.d(TAG, "========== CLEANING UP OLD RECORDINGS ==========");
+        Log.d(TAG, "Deleting recordings older than " + hoursOld + " hours");
+
+        int deletedCount = 0;
+        long totalFreedBytes = 0;
+        long cutoffTime = System.currentTimeMillis() - (hoursOld * 60 * 60 * 1000L);
+
+        // Clean app recordings directory
+        File recordingsDir = new File(getReactApplicationContext().getFilesDir(), "recordings");
+        if (recordingsDir.exists() && recordingsDir.isDirectory()) {
+            File[] files = recordingsDir.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isFile() && file.lastModified() < cutoffTime) {
+                        long fileSize = file.length();
+                        String fileName = file.getName();
+                        if (file.delete()) {
+                            deletedCount++;
+                            totalFreedBytes += fileSize;
+                            Log.d(TAG, "Deleted: " + fileName + " (" + fileSize + " bytes)");
+                        }
+                    }
+                }
+            }
+        }
+
+        // Clean accessibility recordings directory
+        File accessibilityDir = new File(getReactApplicationContext().getFilesDir(), "accessibility_recordings");
+        if (accessibilityDir.exists() && accessibilityDir.isDirectory()) {
+            File[] files = accessibilityDir.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isFile() && file.lastModified() < cutoffTime) {
+                        long fileSize = file.length();
+                        String fileName = file.getName();
+                        if (file.delete()) {
+                            deletedCount++;
+                            totalFreedBytes += fileSize;
+                            Log.d(TAG, "Deleted: " + fileName + " (" + fileSize + " bytes)");
+                        }
+                    }
+                }
+            }
+        }
+
+        Log.d(TAG, "Cleanup complete: " + deletedCount + " files deleted, " + (totalFreedBytes / 1024 / 1024) + " MB freed");
+
+        WritableMap result = Arguments.createMap();
+        result.putInt("deletedCount", deletedCount);
+        result.putDouble("freedBytes", totalFreedBytes);
+        result.putDouble("freedMB", totalFreedBytes / 1024.0 / 1024.0);
+        promise.resolve(result);
+    }
+
+    /**
+     * Get storage info for recordings directories
+     */
+    @ReactMethod
+    public void getRecordingsStorageInfo(Promise promise) {
+        long totalSize = 0;
+        int fileCount = 0;
+
+        // Check app recordings directory
+        File recordingsDir = new File(getReactApplicationContext().getFilesDir(), "recordings");
+        if (recordingsDir.exists() && recordingsDir.isDirectory()) {
+            File[] files = recordingsDir.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isFile()) {
+                        totalSize += file.length();
+                        fileCount++;
+                    }
+                }
+            }
+        }
+
+        // Check accessibility recordings directory
+        File accessibilityDir = new File(getReactApplicationContext().getFilesDir(), "accessibility_recordings");
+        if (accessibilityDir.exists() && accessibilityDir.isDirectory()) {
+            File[] files = accessibilityDir.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isFile()) {
+                        totalSize += file.length();
+                        fileCount++;
+                    }
+                }
+            }
+        }
+
+        WritableMap result = Arguments.createMap();
+        result.putInt("fileCount", fileCount);
+        result.putDouble("totalBytes", totalSize);
+        result.putDouble("totalMB", totalSize / 1024.0 / 1024.0);
+        promise.resolve(result);
+    }
+
+    /**
+     * Schedule automatic cleanup at 11 PM IST daily
+     */
+    @ReactMethod
+    public void scheduleNightlyCleanup(Promise promise) {
+        Log.d(TAG, "========== SCHEDULING NIGHTLY CLEANUP ==========");
+
+        try {
+            // Calculate initial delay to 11 PM IST
+            Calendar now = Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"));
+            Calendar target = (Calendar) now.clone();
+            target.set(Calendar.HOUR_OF_DAY, 23); // 11 PM
+            target.set(Calendar.MINUTE, 0);
+            target.set(Calendar.SECOND, 0);
+
+            // If it's already past 11 PM, schedule for tomorrow
+            if (now.after(target)) {
+                target.add(Calendar.DAY_OF_MONTH, 1);
+            }
+
+            long initialDelayMs = target.getTimeInMillis() - now.getTimeInMillis();
+            long initialDelayMinutes = initialDelayMs / (60 * 1000);
+
+            Log.d(TAG, "Current time (IST): " + now.getTime());
+            Log.d(TAG, "Target time (IST): " + target.getTime());
+            Log.d(TAG, "Initial delay: " + initialDelayMinutes + " minutes");
+
+            // Create periodic work request (every 24 hours)
+            PeriodicWorkRequest cleanupWork = new PeriodicWorkRequest.Builder(
+                    RecordingCleanupWorker.class,
+                    24, TimeUnit.HOURS
+                )
+                .setInitialDelay(initialDelayMinutes, TimeUnit.MINUTES)
+                .addTag("recording_cleanup")
+                .build();
+
+            // Schedule with WorkManager
+            WorkManager.getInstance(getReactApplicationContext())
+                .enqueueUniquePeriodicWork(
+                    "nightly_recording_cleanup",
+                    ExistingPeriodicWorkPolicy.UPDATE,
+                    cleanupWork
+                );
+
+            Log.d(TAG, "Nightly cleanup scheduled successfully");
+
+            WritableMap result = Arguments.createMap();
+            result.putString("status", "scheduled");
+            result.putDouble("initialDelayMinutes", initialDelayMinutes);
+            result.putString("nextRunTime", target.getTime().toString());
+            promise.resolve(result);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to schedule cleanup: " + e.getMessage(), e);
+            promise.reject("SCHEDULE_ERROR", "Failed to schedule cleanup: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Cancel scheduled nightly cleanup
+     */
+    @ReactMethod
+    public void cancelNightlyCleanup(Promise promise) {
+        try {
+            WorkManager.getInstance(getReactApplicationContext())
+                .cancelUniqueWork("nightly_recording_cleanup");
+            Log.d(TAG, "Nightly cleanup cancelled");
+            promise.resolve(true);
+        } catch (Exception e) {
+            promise.reject("CANCEL_ERROR", e.getMessage());
+        }
     }
 }
