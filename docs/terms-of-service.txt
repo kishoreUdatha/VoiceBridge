@@ -1,0 +1,353 @@
+MYLEADX TERMS OF SERVICE
+Telecaller CRM Mobile Application
+Last Updated: April 24, 2026
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1. Acceptance of Terms
+2. Description of Service
+3. User Accounts
+4. Acceptable Use Policy
+5. Call Recording Terms
+6. Data and Content
+7. Intellectual Property
+8. Third-Party Services
+9. Disclaimers
+10. Limitation of Liability
+11. Indemnification
+12. Termination
+13. Changes to Terms
+14. Governing Law
+15. Miscellaneous
+16. Contact Information
+
+================================================================================
+PLEASE READ THESE TERMS OF SERVICE CAREFULLY BEFORE USING MYLEADX.
+By accessing or using our application, you agree to be bound by these terms.
+If you do not agree, please do not use the application.
+================================================================================
+
+1. ACCEPTANCE OF TERMS
+================================================================================
+
+By downloading, installing, or using the MyLeadX mobile application ("App"),
+you ("User," "you," or "your") agree to be bound by these Terms of Service
+("Terms"), our Privacy Policy, and any additional terms and conditions that
+may apply.
+
+These Terms constitute a legally binding agreement between you and MyLeadX
+("Company," "we," "us," or "our"). If you are using the App on behalf of an
+organization, you represent that you have the authority to bind that
+organization to these Terms.
+
+2. DESCRIPTION OF SERVICE
+================================================================================
+
+MyLeadX is a mobile Customer Relationship Management (CRM) application
+designed for telecallers and sales teams. The App provides the following
+services:
+
+- Lead management and tracking
+- Call initiation and duration tracking
+- Call recording capabilities (where legally permitted)
+- Call outcome and disposition logging
+- Follow-up scheduling and reminders
+- Performance analytics and reporting
+- Team management features (for team leads and managers)
+
+We reserve the right to modify, suspend, or discontinue any part of the
+Service at any time with or without notice.
+
+3. USER ACCOUNTS
+================================================================================
+
+3.1 Account Creation
+
+To use MyLeadX, you must have valid login credentials provided by your
+organization. You are responsible for:
+- Maintaining the confidentiality of your account credentials
+- All activities that occur under your account
+- Notifying us immediately of any unauthorized access
+
+3.2 Account Requirements
+
+- You must be at least 18 years old to use this App
+- You must provide accurate and complete information
+- You must be authorized by your organization to access the App
+- One account per user - sharing accounts is prohibited
+
+3.3 Account Security
+
+You are solely responsible for safeguarding your login credentials.
+We recommend:
+- Using a strong, unique password
+- Not sharing your credentials with others
+- Logging out when not using the App
+- Reporting any security concerns immediately
+
+4. ACCEPTABLE USE POLICY
+================================================================================
+
+4.1 Permitted Uses
+
+You may use MyLeadX for legitimate business purposes including:
+- Managing and contacting leads assigned to you
+- Tracking your call activities and outcomes
+- Recording calls with proper consent and legal compliance
+- Collaborating with your team members
+
+4.2 Prohibited Activities
+
+You agree NOT to:
+- Use the App for any illegal or unauthorized purpose
+- Make harassing, threatening, or abusive calls
+- Violate any telemarketing laws or Do-Not-Call regulations
+- Record calls without proper consent where required by law
+- Share, sell, or misuse lead data or customer information
+- Attempt to hack, reverse engineer, or compromise the App
+- Use automated systems or bots with the App
+- Impersonate another person or entity
+- Transmit viruses, malware, or harmful code
+- Interfere with other users' access to the Service
+- Use the App for spam or unsolicited communications
+- Violate any applicable laws or regulations
+
+WARNING: Violation of this Acceptable Use Policy may result in immediate
+termination of your account and potential legal action.
+
+5. CALL RECORDING TERMS
+================================================================================
+
+IMPORTANT LEGAL NOTICE: Call recording laws vary by jurisdiction. It is YOUR
+responsibility to understand and comply with all applicable laws regarding
+call recording in your location and the location of the person you are calling.
+
+5.1 Your Responsibilities
+
+- Obtain proper consent before recording any call where required by law
+- Inform the other party that the call may be recorded
+- Comply with all applicable federal, state, and local laws
+- Use recordings only for legitimate business purposes
+
+5.2 Recording Consent
+
+Many jurisdictions require "two-party consent" or "all-party consent" for
+call recording. This means ALL parties on the call must agree to be recorded.
+Some jurisdictions only require "one-party consent." You must:
+- Know the laws in your jurisdiction
+- Know the laws in the called party's jurisdiction
+- When in doubt, always obtain explicit consent
+
+5.3 Company Disclaimer
+
+MyLeadX provides call recording as a feature but does not provide legal
+advice. We are not responsible for any legal consequences arising from your
+use of the call recording feature. You assume all liability for ensuring
+compliance with applicable laws.
+
+6. DATA AND CONTENT
+================================================================================
+
+6.1 Your Data
+
+You retain ownership of all data you enter into the App, including:
+- Lead information and contact details
+- Call notes and summaries
+- Custom fields and tags
+
+6.2 Organization Data
+
+Lead data and customer information belong to your organization. Your access
+to this data is governed by your employment or contractual relationship with
+your organization.
+
+6.3 Data Accuracy
+
+You are responsible for ensuring the accuracy of data you enter. We are not
+liable for any consequences arising from inaccurate or incomplete data.
+
+6.4 Data Backup
+
+While we maintain backups, you are encouraged to export important data
+regularly. We are not liable for data loss.
+
+7. INTELLECTUAL PROPERTY
+================================================================================
+
+7.1 Our Intellectual Property
+
+The MyLeadX App, including its design, features, code, graphics, logos, and
+content, is owned by us and protected by intellectual property laws.
+You may not:
+- Copy, modify, or distribute the App
+- Reverse engineer or decompile the App
+- Use our trademarks without permission
+- Create derivative works based on the App
+
+7.2 License to Use
+
+We grant you a limited, non-exclusive, non-transferable, revocable license
+to use the App for its intended purpose, subject to these Terms.
+
+8. THIRD-PARTY SERVICES
+================================================================================
+
+The App may integrate with or contain links to third-party services,
+including:
+- Phone dialer applications
+- Cloud storage services
+- Analytics providers
+- Push notification services
+
+We are not responsible for the content, privacy practices, or functionality
+of third-party services. Your use of such services is subject to their
+respective terms and policies.
+
+9. DISCLAIMERS
+================================================================================
+
+9.1 "As Is" Provision
+
+THE APP IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY
+KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO:
+- Implied warranties of merchantability
+- Fitness for a particular purpose
+- Non-infringement
+- Accuracy or reliability of any content
+
+9.2 No Guarantee
+
+We do not guarantee that:
+- The App will be uninterrupted or error-free
+- Defects will be corrected
+- The App is free of viruses or harmful components
+- The App will meet your specific requirements
+- Call recordings will always be captured successfully
+
+9.3 Telecommunications
+
+We are not a telecommunications provider. Call quality, connectivity, and
+availability depend on your device, carrier, and network conditions. We are
+not responsible for failed calls or poor call quality.
+
+10. LIMITATION OF LIABILITY
+================================================================================
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW:
+- We shall not be liable for any indirect, incidental, special,
+  consequential, or punitive damages
+- We shall not be liable for any loss of profits, revenue, data, or
+  business opportunities
+- Our total liability shall not exceed the amount paid by your organization
+  for the Service in the 12 months preceding the claim
+- We are not liable for any actions taken based on data or analytics
+  provided by the App
+
+11. INDEMNIFICATION
+================================================================================
+
+You agree to indemnify, defend, and hold harmless MyLeadX, its officers,
+directors, employees, and agents from any claims, damages, losses, or
+expenses (including legal fees) arising from:
+- Your use of the App
+- Your violation of these Terms
+- Your violation of any law or rights of a third party
+- Your call recording activities
+- Any data you enter into the App
+
+12. TERMINATION
+================================================================================
+
+12.1 Termination by You
+
+You may stop using the App at any time. Contact your organization
+administrator to deactivate your account.
+
+12.2 Termination by Us
+
+We may suspend or terminate your access to the App:
+- For violation of these Terms
+- For illegal or harmful activities
+- Upon request from your organization
+- If required by law
+- For any reason with reasonable notice
+
+12.3 Effect of Termination
+
+Upon termination:
+- Your access to the App will be revoked
+- Your data may be deleted according to our data retention policy
+- Sections regarding liability, indemnification, and intellectual property
+  survive termination
+
+13. CHANGES TO TERMS
+================================================================================
+
+We reserve the right to modify these Terms at any time. Changes will be
+effective when posted. We will notify you of material changes through:
+- In-app notifications
+- Email to your registered address
+- Updated "Last Modified" date
+
+Your continued use of the App after changes constitutes acceptance of the
+modified Terms.
+
+14. GOVERNING LAW
+================================================================================
+
+14.1 Jurisdiction
+
+These Terms shall be governed by and construed in accordance with the laws
+of India, without regard to its conflict of law provisions.
+
+14.2 Dispute Resolution
+
+Any disputes arising from these Terms or your use of the App shall be:
+- First attempted to be resolved through good-faith negotiation
+- If unresolved, submitted to binding arbitration in Bangalore, India
+- Subject to the exclusive jurisdiction of courts in Bangalore, Karnataka,
+  India
+
+14.3 Severability
+
+If any provision of these Terms is found to be unenforceable, the remaining
+provisions shall continue in full force and effect.
+
+14.4 Waiver
+
+Our failure to enforce any provision of these Terms shall not constitute a
+waiver of that provision.
+
+15. MISCELLANEOUS
+================================================================================
+
+15.1 Entire Agreement
+
+These Terms, together with our Privacy Policy, constitute the entire
+agreement between you and MyLeadX regarding your use of the App.
+
+15.2 Assignment
+
+You may not assign your rights under these Terms. We may assign our rights
+to any successor or affiliate.
+
+15.3 Force Majeure
+
+We shall not be liable for any failure to perform due to circumstances
+beyond our reasonable control, including natural disasters, wars, or
+infrastructure failures.
+
+16. CONTACT INFORMATION
+================================================================================
+
+If you have any questions about these Terms of Service, please contact us:
+
+Email: legal@myleadx.ai
+Support: support@myleadx.ai
+Address: Bangalore, Karnataka, India
+
+================================================================================
+
+Copyright 2026 MyLeadX. All rights reserved.
+These Terms of Service are effective as of April 24, 2026.

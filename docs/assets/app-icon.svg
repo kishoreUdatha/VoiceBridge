@@ -1,0 +1,57 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4F46E5"/>
+      <stop offset="100%" style="stop-color:#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="phoneGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF"/>
+      <stop offset="100%" style="stop-color:#E0E7FF"/>
+    </linearGradient>
+    <linearGradient id="arrowGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#10B981"/>
+      <stop offset="100%" style="stop-color:#34D399"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded rectangle background -->
+  <rect width="512" height="512" rx="108" fill="url(#bgGradient)"/>
+
+  <!-- Phone icon -->
+  <g transform="translate(120, 100)">
+    <!-- Phone body -->
+    <path d="M60 0C26.9 0 0 26.9 0 60v192c0 33.1 26.9 60 60 60h152c33.1 0 60-26.9 60-60V60c0-33.1-26.9-60-60-60H60z" fill="url(#phoneGradient)" opacity="0.95"/>
+
+    <!-- Screen -->
+    <rect x="20" y="40" width="232" height="200" rx="12" fill="#4F46E5" opacity="0.15"/>
+
+    <!-- Contact lines on screen -->
+    <rect x="40" y="70" width="120" height="12" rx="6" fill="#4F46E5" opacity="0.4"/>
+    <rect x="40" y="95" width="80" height="8" rx="4" fill="#4F46E5" opacity="0.25"/>
+
+    <rect x="40" y="130" width="100" height="12" rx="6" fill="#4F46E5" opacity="0.4"/>
+    <rect x="40" y="155" width="60" height="8" rx="4" fill="#4F46E5" opacity="0.25"/>
+
+    <rect x="40" y="190" width="140" height="12" rx="6" fill="#4F46E5" opacity="0.4"/>
+    <rect x="40" y="215" width="90" height="8" rx="4" fill="#4F46E5" opacity="0.25"/>
+
+    <!-- Call button circles -->
+    <circle cx="210" cy="82" r="18" fill="#10B981"/>
+    <circle cx="210" cy="142" r="18" fill="#10B981"/>
+    <circle cx="210" cy="202" r="18" fill="#10B981"/>
+
+    <!-- Phone icons in circles -->
+    <path d="M203 76c0-1 .8-1.8 1.8-1.8h10.4c1 0 1.8.8 1.8 1.8v10.4c0 1-.8 1.8-1.8 1.8h-10.4c-1 0-1.8-.8-1.8-1.8V76z" fill="white" transform="rotate(-45 210 82)"/>
+  </g>
+
+  <!-- Upward arrow (growth indicator) -->
+  <g transform="translate(320, 80)">
+    <path d="M40 120 L40 30 L10 60 M40 30 L70 60" stroke="url(#arrowGradient)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+
+  <!-- Small decorative elements -->
+  <circle cx="100" cy="420" r="25" fill="white" opacity="0.15"/>
+  <circle cx="420" cy="380" r="35" fill="white" opacity="0.1"/>
+  <circle cx="380" cy="120" r="20" fill="white" opacity="0.1"/>
+</svg>
