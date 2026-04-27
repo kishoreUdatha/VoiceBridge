@@ -5,11 +5,9 @@
 export {
   Navigation,
   HeroSection,
-  PlanCard,
   PricingCards,
   TrustBadges,
   ComparisonToggle,
-  ComparisonTable,
   CategoryComparisonTable,
   WalletRatesSection,
   AddOnsSection,

@@ -1265,6 +1265,23 @@ router.post('/agents/:agentId/publish', validate([
       return ApiResponse.error(res, 'Agent not found', 404);
     }
 
+    // Check if at least one phone number is assigned to the agent
+    const assignedPhoneNumber = await prisma.phoneNumber.findFirst({
+      where: {
+        assignedToAgentId: agentId,
+        status: 'ASSIGNED',
+      },
+    });
+
+    if (!assignedPhoneNumber) {
+      return ApiResponse.error(
+        res,
+        'Cannot publish agent without an assigned phone number. Please assign a phone number first.',
+        400,
+        { code: 'NO_PHONE_NUMBER_ASSIGNED' }
+      );
+    }
+
     // Create a snapshot of current configuration
     const configSnapshot = {
       systemPrompt: agent.systemPrompt,
@@ -1317,12 +1334,18 @@ router.post('/agents/:agentId/publish', validate([
       },
     });
 
-    console.log(`[VoiceAI] Agent ${agentId} published as version ${newVersion} by user ${userId}`);
+    console.log(`[VoiceAI] Agent ${agentId} published as version ${newVersion} by user ${userId} with phone number ${assignedPhoneNumber.number}`);
 
     ApiResponse.success(res, 'Agent published successfully', {
       status: updatedAgent.status,
       versionNumber: updatedAgent.versionNumber,
       publishedAt: updatedAgent.publishedAt,
+      assignedPhoneNumber: {
+        id: assignedPhoneNumber.id,
+        number: assignedPhoneNumber.number,
+        displayNumber: assignedPhoneNumber.displayNumber,
+        provider: assignedPhoneNumber.provider,
+      },
     });
   } catch (error) {
     console.error('[VoiceAI] Publish agent error:', error);
@@ -1515,13 +1538,26 @@ router.post('/test-call', async (req: TenantRequest, res: Response) => {
       return ApiResponse.error(res, 'No voice provider configured. Please configure Plivo or Exotel.', 400);
     }
 
-    // Get agent for the call
+    // Get agent for the call (only PUBLISHED agents can handle real calls)
     let agent = null;
     if (agentId) {
       agent = await prisma.voiceAgent.findUnique({ where: { id: agentId } });
+      // Verify agent is published
+      if (agent && agent.status !== 'PUBLISHED') {
+        console.log(`[VoiceAI] Agent ${agent.name} is not published (status: ${agent.status})`);
+        return ApiResponse.error(res, 'This agent is not published yet. Please publish the agent to make calls.', 400);
+      }
     }
     if (!agent) {
-      agent = await prisma.voiceAgent.findFirst({ where: { isActive: true } });
+      agent = await prisma.voiceAgent.findFirst({
+        where: {
+          isActive: true,
+          status: 'PUBLISHED'  // Only published agents can handle live calls
+        }
+      });
+    }
+    if (!agent) {
+      return ApiResponse.error(res, 'No published voice agent found. Please publish an agent first.', 400);
     }
 
     // Format phone number

@@ -290,6 +290,13 @@ export async function generateAI4BharatTTS(
 
 /**
  * Generate TTS audio based on language and voice settings
+ *
+ * SIMPLIFIED PROVIDER SELECTION:
+ * 1. ElevenLabs custom voice (elevenlabs_xxx) -> ElevenLabs
+ * 2. Indian languages -> Sarvam AI (best quality for Indian languages)
+ * 3. English/Other -> OpenAI (reliable, good quality)
+ *
+ * Fallback: Always OpenAI if primary fails
  */
 export async function generateTTS(
   text: string,
@@ -313,66 +320,39 @@ export async function generateTTS(
 
   let resampledAudio: Buffer;
 
-  // Check for ElevenLabs custom voice FIRST
+  // ========================================
+  // PRIORITY 1: ElevenLabs Custom Voice
+  // ========================================
   if (voiceId?.toLowerCase().startsWith('elevenlabs_') && process.env.ELEVENLABS_API_KEY) {
     const elevenLabsVoiceId = voiceId.replace(/^elevenlabs_/i, '');
     try {
+      console.log(`[TTS] Using ElevenLabs (custom voice): ${elevenLabsVoiceId}`);
       resampledAudio = await generateElevenLabsTTS(text, elevenLabsVoiceId);
       setCachedTTS(text, normalizedLang, voiceId, resampledAudio);
       return resampledAudio;
     } catch (error) {
-      console.error('[TTS] ElevenLabs error, falling back:', error);
+      console.error('[TTS] ElevenLabs failed, falling back to OpenAI:', error);
     }
   }
 
-  // Check for AI4Bharat voice
-  if (voiceId?.toLowerCase().startsWith('ai4bharat') && ai4bharatService.isAvailable()) {
-    try {
-      resampledAudio = await generateAI4BharatTTS(text, normalizedLang, voiceGender);
-      setCachedTTS(text, normalizedLang, voiceId, resampledAudio);
-      return resampledAudio;
-    } catch (error) {
-      console.error('[TTS] AI4Bharat error, falling back:', error);
-    }
-  }
-
-  // Use Sarvam for regional Indian languages
+  // ========================================
+  // PRIORITY 2: Indian Languages -> Sarvam AI
+  // ========================================
   if (isRegionalIndian && sarvamService.isAvailable()) {
     try {
+      console.log(`[TTS] Using Sarvam AI (Indian language): ${normalizedLang}`);
       resampledAudio = await generateSarvamTTS(text, normalizedLang, voiceGender);
       setCachedTTS(text, normalizedLang, cacheVoice, resampledAudio);
       return resampledAudio;
     } catch (error) {
-      console.error('[TTS] Sarvam error, falling back to AI4Bharat:', error);
-
-      // Try AI4Bharat as fallback for Indian languages
-      if (ai4bharatService.isAvailable() && ai4bharatService.isLanguageSupported(normalizedLang)) {
-        try {
-          resampledAudio = await generateAI4BharatTTS(text, normalizedLang, voiceGender);
-          setCachedTTS(text, normalizedLang, `ai4bharat-${normalizedLang}`, resampledAudio);
-          return resampledAudio;
-        } catch (ai4bError) {
-          console.error('[TTS] AI4Bharat fallback error:', ai4bError);
-        }
-      }
+      console.error('[TTS] Sarvam failed, falling back to OpenAI:', error);
     }
   }
 
-  // Try AI4Bharat for regional Indian languages if Sarvam not available
-  if (isRegionalIndian && !sarvamService.isAvailable() && ai4bharatService.isAvailable()) {
-    if (ai4bharatService.isLanguageSupported(normalizedLang)) {
-      try {
-        resampledAudio = await generateAI4BharatTTS(text, normalizedLang, voiceGender);
-        setCachedTTS(text, normalizedLang, `ai4bharat-${normalizedLang}`, resampledAudio);
-        return resampledAudio;
-      } catch (error) {
-        console.error('[TTS] AI4Bharat error, falling back to OpenAI:', error);
-      }
-    }
-  }
-
-  // Use OpenAI TTS for English and unsupported languages
-  console.log(`[TTS] Using OpenAI for: "${text.substring(0, 50)}..." (${normalizedLang})`);
+  // ========================================
+  // FALLBACK: OpenAI (English & all fallbacks)
+  // ========================================
+  console.log(`[TTS] Using OpenAI: "${text.substring(0, 50)}..." (${normalizedLang})`);
   resampledAudio = await generateOpenAITTS(text, voiceId);
   setCachedTTS(text, normalizedLang, voiceId || 'nova', resampledAudio);
   return resampledAudio;

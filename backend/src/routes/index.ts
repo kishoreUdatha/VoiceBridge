@@ -29,6 +29,7 @@ import realtimeVoiceRoutes from './realtime-voice.routes';
 import exotelRoutes from './exotel.routes';
 import softphoneRoutes from './softphone.routes';
 import telephonyRoutes from './telephony.routes';
+import unifiedVoiceRoutes from './telephony/voice.routes';
 import superAdminRoutes from './super-admin.routes';
 import whiteLabelRoutes from './white-label.routes';
 import emailSettingsRoutes from './email-settings.routes';
@@ -94,6 +95,7 @@ import conversationalAIAgentRoutes from './conversational-ai-agent.routes';
 import ragRoutes from './rag.routes';
 import agentAnalyticsRoutes from './agent-analytics.routes';
 import messagingRoutes from './messaging.routes';
+import whatsappRoutes from './whatsapp.routes';
 import notificationDeviceRoutes from './notification-device.routes';
 import smsRoutes from './sms.routes';
 import emailRoutes from './email.routes';
@@ -104,6 +106,7 @@ import branchRoutes from './branch.routes';
 import roleRoutes from './role.routes';
 import leadStageRoutes from './lead-stage.routes';
 import industryCustomFieldsRoutes from './industry-custom-fields.routes';
+import industryManagementRoutes from './admin/industry-management.routes';
 import customFieldsRoutes from './custom-fields.routes';
 import paymentCategoriesRoutes from './payment-categories.routes';
 import leadDeduplicationRoutes from './lead-deduplication.routes';
@@ -231,6 +234,7 @@ router.use('/realtime-voice', realtimeVoiceRoutes);
 router.use('/exotel', exotelRoutes);
 router.use('/softphone', softphoneRoutes);
 router.use('/telephony', telephonyRoutes);
+router.use('/telephony/voice', unifiedVoiceRoutes); // Unified voice routes for AI calls
 router.use('/super-admin', superAdminRoutes);
 router.use('/white-label', whiteLabelRoutes);
 router.use('/email-settings', emailSettingsRoutes);
@@ -253,6 +257,7 @@ router.use('/raw-imports', rawImportRoutes);
 router.use('/assignment-schedules', assignmentScheduleRoutes);
 router.use('/telecaller', telecallerRoutes);
 router.use('/messaging', messagingRoutes);
+router.use('/whatsapp', whatsappRoutes);
 router.use('/sms', smsRoutes);
 router.use('/email', emailRoutes);
 router.use('/messaging-webhooks', messagingWebhooksRoutes);
@@ -384,6 +389,9 @@ router.use('/follow-up-config', followUpConfigRoutes);
 
 // Industry Custom Fields
 router.use('/industry-fields', industryCustomFieldsRoutes);
+
+// Admin Industry Management (Dynamic Industries)
+router.use('/admin/industries', industryManagementRoutes);
 
 // Custom Fields (Organization-specific)
 router.use('/custom-fields', customFieldsRoutes);

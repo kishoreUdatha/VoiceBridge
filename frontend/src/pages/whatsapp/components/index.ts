@@ -8,6 +8,8 @@ export {
   PageHeader,
   RecipientsPanel,
   CampaignNameInput,
+  MessageModeSelector,
+  TemplateSelector,
   MessageComposer,
   MediaAttachments,
   ProgressPanel,

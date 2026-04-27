@@ -11,6 +11,8 @@ import {
   MediaFile,
   RecipientStats,
   SendProgress,
+  WhatsAppTemplate,
+  MessageMode,
 } from '../bulk-whatsapp.types';
 import { parsePhoneNumbers, getMediaType } from '../bulk-whatsapp.constants';
 
@@ -30,6 +32,17 @@ interface UseBulkWhatsAppReturn {
   stats: RecipientStats;
   loadingLeads: boolean;
 
+  // Template state
+  messageMode: MessageMode;
+  setMessageMode: (mode: MessageMode) => void;
+  templates: WhatsAppTemplate[];
+  selectedTemplate: WhatsAppTemplate | null;
+  setSelectedTemplate: (template: WhatsAppTemplate | null) => void;
+  templateParams: string[];
+  setTemplateParams: (params: string[]) => void;
+  loadingTemplates: boolean;
+  templateError: string | null;
+
   // Refs
   fileInputRef: React.RefObject<HTMLInputElement>;
   imageInputRef: React.RefObject<HTMLInputElement>;
@@ -47,6 +60,7 @@ interface UseBulkWhatsAppReturn {
   handleSendBulk: () => Promise<void>;
   addNamePlaceholder: () => void;
   loadLeadsFromCRM: (filter?: { stageId?: string; source?: string }) => Promise<void>;
+  fetchTemplates: () => Promise<void>;
 }
 
 export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
@@ -59,6 +73,13 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
   const [whatsappConfigured, setWhatsappConfigured] = useState<boolean | null>(null);
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(false);
+
+  // Template state
+  const [messageMode, setMessageMode] = useState<MessageMode>('freeform');
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<WhatsAppTemplate | null>(null);
+  const [templateParams, setTemplateParams] = useState<string[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -82,6 +103,44 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
       setWhatsappConfigured(false);
     }
   };
+
+  // Template fetch error state
+  const [templateError, setTemplateError] = useState<string | null>(null);
+
+  // Fetch approved templates from Meta
+  const fetchTemplates = useCallback(async () => {
+    setLoadingTemplates(true);
+    setTemplateError(null);
+    try {
+      const response = await api.get('/whatsapp/templates');
+      const data = response.data.data || response.data;
+      console.log('[Templates] Raw data from API:', data);
+      // Filter only approved/active templates (Meta returns APPROVED or sometimes with quality suffix)
+      const approvedTemplates = Array.isArray(data)
+        ? data.filter((t: WhatsAppTemplate) => {
+            const status = (t.status || '').toUpperCase();
+            return status === 'APPROVED' || status.startsWith('APPROVED') || status === 'ACTIVE';
+          })
+        : [];
+      setTemplates(approvedTemplates);
+      if (approvedTemplates.length === 0 && Array.isArray(data) && data.length > 0) {
+        setTemplateError('No approved templates found. Templates must be approved by Meta before use.');
+      }
+    } catch (error: any) {
+      console.error('Error fetching templates:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to fetch templates';
+      if (errorMessage.includes('Business Account ID')) {
+        setTemplateError('Business Account ID not configured. Go to Settings > WhatsApp to add it.');
+      } else if (errorMessage.includes('nonexisting field')) {
+        setTemplateError('Invalid Business Account ID. Please check your WhatsApp settings.');
+      } else {
+        setTemplateError(errorMessage);
+      }
+      setTemplates([]);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }, []);
 
   const handleAddPhones = useCallback(() => {
     const phones = parsePhoneNumbers(phoneInput);
@@ -251,7 +310,12 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
   );
 
   const handleSendBulk = useCallback(async () => {
-    if ((!message.trim() && mediaFiles.length === 0) || recipients.length === 0) return;
+    // Validate based on message mode
+    if (messageMode === 'template') {
+      if (!selectedTemplate || recipients.length === 0) return;
+    } else {
+      if ((!message.trim() && mediaFiles.length === 0) || recipients.length === 0) return;
+    }
 
     setSending(true);
     setProgress({ sent: 0, total: recipients.length });
@@ -259,51 +323,69 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
     try {
       const updatedRecipients = [...recipients];
 
-      // Prepare media data for attachments
-      const mediaData = await Promise.all(
-        mediaFiles.map(async (media) => {
-          const reader = new FileReader();
-          return new Promise<{ type: string; data: string; filename: string }>((resolve) => {
-            reader.onload = () => {
-              resolve({
-                type: media.type,
-                data: reader.result as string,
-                filename: media.name,
-              });
-            };
-            reader.readAsDataURL(media.file);
-          });
-        })
-      );
+      // Prepare media data for attachments (only for freeform mode)
+      let mediaData: { type: string; data: string; filename: string }[] = [];
+      if (messageMode === 'freeform' && mediaFiles.length > 0) {
+        mediaData = await Promise.all(
+          mediaFiles.map(async (media) => {
+            const reader = new FileReader();
+            return new Promise<{ type: string; data: string; filename: string }>((resolve) => {
+              reader.onload = () => {
+                resolve({
+                  type: media.type,
+                  data: reader.result as string,
+                  filename: media.name,
+                });
+              };
+              reader.readAsDataURL(media.file);
+            });
+          })
+        );
+      }
 
       for (let i = 0; i < recipients.length; i++) {
         const recipient = recipients[i];
 
         try {
-          // Build request payload with optional media attachments
-          const requestPayload: {
-            to: string;
-            message: string;
-            media?: { type: string; data: string; filename: string }[];
-          } = {
-            to: recipient.phone,
-            message: message.replace(/{name}/g, recipient.name || ''),
-          };
+          let response;
 
-          // Include media attachments if available
-          if (mediaData && mediaData.length > 0) {
-            requestPayload.media = mediaData;
+          if (messageMode === 'template' && selectedTemplate) {
+            // Send template message
+            const templatePayload = {
+              to: recipient.phone,
+              templateName: selectedTemplate.name,
+              language: selectedTemplate.language,
+              templateParams: templateParams.map((param) =>
+                param.replace(/{name}/g, recipient.name || '')
+              ),
+            };
+            response = await api.post('/whatsapp/send-template', templatePayload);
+          } else {
+            // Send freeform message
+            const requestPayload: {
+              to: string;
+              message: string;
+              media?: { type: string; data: string; filename: string }[];
+            } = {
+              to: recipient.phone,
+              message: message.replace(/{name}/g, recipient.name || ''),
+            };
+
+            // Include media attachments if available
+            if (mediaData && mediaData.length > 0) {
+              requestPayload.media = mediaData;
+            }
+
+            // Use the multi-provider messaging API
+            response = await api.post('/messaging/whatsapp', requestPayload);
           }
-
-          // Use the multi-provider messaging API
-          const response = await api.post('/messaging/whatsapp', requestPayload);
 
           const result = response.data.data || response.data;
           updatedRecipients[i] = {
             ...recipient,
-            status: result.success ? 'sent' : 'failed',
+            status: result.success !== false ? 'sent' : 'failed',
             messageId: result.messageId,
-            error: result.success ? undefined : 'Failed to send',
+            error: result.success !== false ? undefined : result.error || 'Failed to send',
           };
         } catch (error: any) {
           updatedRecipients[i] = {
@@ -324,7 +406,7 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
     } finally {
       setSending(false);
     }
-  }, [message, mediaFiles, recipients]);
+  }, [message, mediaFiles, recipients, messageMode, selectedTemplate, templateParams]);
 
   const addNamePlaceholder = useCallback(() => {
     setMessage(message + '{name}');
@@ -418,11 +500,23 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
     mediaFiles,
     stats,
     loadingLeads,
+    // Template state
+    messageMode,
+    setMessageMode,
+    templates,
+    selectedTemplate,
+    setSelectedTemplate,
+    templateParams,
+    setTemplateParams,
+    loadingTemplates,
+    templateError,
+    // Refs
     fileInputRef,
     imageInputRef,
     videoInputRef,
     audioInputRef,
     docInputRef,
+    // Actions
     handleAddPhones,
     handleFileUpload,
     handleMediaUpload,
@@ -432,6 +526,7 @@ export function useBulkWhatsApp(): UseBulkWhatsAppReturn {
     handleSendBulk,
     addNamePlaceholder,
     loadLeadsFromCRM,
+    fetchTemplates,
   };
 }
 

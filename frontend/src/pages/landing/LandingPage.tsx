@@ -1,48 +1,41 @@
 /**
- * Landing Page - Clean Modern Design
+ * Landing Page - Premium SaaS Design (Zoho-style)
  */
 
+import { useEffect } from 'react';
 import {
   Navigation,
   HeroSection,
-  FeaturesOverviewSection,
-  DifferentiatorsSection,
-  IndustriesSection,
   FeaturesSection,
-  HowItWorksSection,
+  ProductDemoSection,
+  IndustriesSection,
+  AISection,
+  IntegrationsSection,
   TestimonialsSection,
-  SecuritySection,
-  PricingPreviewSection,
-  MobileAppSection,
+  PricingSection,
   CTASection,
   Footer,
 } from './components';
-import {
-  STATS,
-  DIFFERENTIATORS,
-  INDUSTRIES,
-  FEATURES,
-  PRICING_TIERS,
-  STEPS,
-  FOOTER_SECTIONS,
-} from './landing.constants';
 
 export default function LandingPage() {
+  useEffect(() => {
+    // Scroll to top on mount
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white overflow-x-hidden">
       <Navigation />
-      <HeroSection stats={STATS} />
-      <FeaturesOverviewSection />
-      <DifferentiatorsSection differentiators={DIFFERENTIATORS} />
-      <IndustriesSection industries={INDUSTRIES} />
-      <FeaturesSection features={FEATURES} />
-      <HowItWorksSection steps={STEPS} />
+      <HeroSection />
+      <FeaturesSection />
+      <ProductDemoSection />
+      <IndustriesSection />
+      <AISection />
+      <IntegrationsSection />
       <TestimonialsSection />
-      <SecuritySection />
-      <PricingPreviewSection tiers={PRICING_TIERS} />
-      <MobileAppSection />
+      <PricingSection />
       <CTASection />
-      <Footer sections={FOOTER_SECTIONS} />
+      <Footer />
     </div>
   );
 }

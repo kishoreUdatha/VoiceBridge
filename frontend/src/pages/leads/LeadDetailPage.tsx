@@ -172,13 +172,15 @@ export default function LeadDetailPage() {
   }, [dispatch, id]);
 
   // Load organization industry and pipeline stages (unified system)
+  // Re-fetch when lead changes to get the correct pipeline stages for this lead
   useEffect(() => {
     const loadIndustryAndStages = async () => {
       try {
         setLoadingStages(true);
         const [industryRes, stagesRes] = await Promise.all([
           api.get('/lead-stages/industry'),
-          api.get('/lead-pipeline/stages'),
+          // Pass leadId to get stages from the lead's actual pipeline
+          api.get(`/lead-pipeline/stages${id ? `?leadId=${id}` : ''}`),
         ]);
         setOrganizationIndustry(industryRes.data.data?.industry || 'GENERAL');
 
@@ -203,7 +205,7 @@ export default function LeadDetailPage() {
       }
     };
     loadIndustryAndStages();
-  }, []);
+  }, [id]);
 
   // Sync stage with lead data (use pipelineStageId for unified system)
   useEffect(() => {
@@ -219,8 +221,37 @@ export default function LeadDetailPage() {
   }, [activeTab, leadData.loadTabData]);
 
   // Stage change handler - uses unified pipeline system
+  // Only allows forward movement (no going back to previous stages)
   const handleStageChange = async (newStageId: string) => {
-    if (!id) return;
+    if (!id || !newStageId) return;
+
+    // Prevent changes for converted leads
+    if (currentLead?.isConverted) {
+      toast.error('Cannot change stage for converted leads');
+      setIsEditingStage(false);
+      return;
+    }
+
+    // Get current and target stage orders
+    const currentStage = leadStages.find(s => s.id === selectedStageId);
+    const targetStage = leadStages.find(s => s.id === newStageId);
+
+    if (currentStage && targetStage) {
+      // Prevent backward movement
+      if (targetStage.order < currentStage.order) {
+        toast.error('Cannot move to a previous stage. Only forward movement is allowed.');
+        setIsEditingStage(false);
+        return;
+      }
+
+      // Prevent changing from won stage
+      if (currentStage.stageType === 'won') {
+        toast.error('Cannot change stage after completion.');
+        setIsEditingStage(false);
+        return;
+      }
+    }
+
     try {
       // Use unified pipeline API to move lead to new stage
       await api.post(`/lead-pipeline/${id}/move`, { toStageId: newStageId });
@@ -414,13 +445,30 @@ export default function LeadDetailPage() {
                 <select
                   value={selectedStageId}
                   onChange={(e) => handleStageChange(e.target.value)}
-                  className="px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary-500"
+                  disabled={currentLead.isConverted}
+                  className="px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 >
                   <option value="">Select Stage</option>
-                  {leadStages.filter(s => s.journeyOrder >= 0).map((stage) => (
-                    <option key={stage.id} value={stage.id}>{stage.name}</option>
-                  ))}
-                  {leadStages.filter(s => s.journeyOrder < 0).map((stage) => (
+                  {(() => {
+                    const currentStage = leadStages.find(s => s.id === selectedStageId);
+                    const currentOrder = currentStage?.order ?? 0;
+                    const isWonStage = currentStage?.stageType === 'won';
+
+                    return leadStages.filter(s => (s.journeyOrder ?? 0) >= 0).map((stage) => {
+                      const isPastStage = stage.order < currentOrder;
+                      const isDisabled = isPastStage || isWonStage || currentLead.isConverted;
+                      return (
+                        <option
+                          key={stage.id}
+                          value={stage.id}
+                          disabled={isDisabled}
+                        >
+                          {stage.name}{isPastStage ? ' (completed)' : ''}
+                        </option>
+                      );
+                    });
+                  })()}
+                  {leadStages.filter(s => (s.journeyOrder ?? 0) < 0).map((stage) => (
                     <option key={stage.id} value={stage.id}>--- {stage.name} ---</option>
                   ))}
                 </select>
@@ -430,19 +478,21 @@ export default function LeadDetailPage() {
               </div>
             ) : (
               <button
-                onClick={() => setIsEditingStage(true)}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium"
+                onClick={() => !currentLead.isConverted && setIsEditingStage(true)}
+                disabled={currentLead.isConverted}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${currentLead.isConverted ? 'cursor-not-allowed opacity-75' : ''}`}
                 style={{
                   backgroundColor: `${leadStages.find(s => s.id === selectedStageId)?.color || '#94A3B8'}20`,
                   color: leadStages.find(s => s.id === selectedStageId)?.color || '#64748B',
                 }}
+                title={currentLead.isConverted ? 'Cannot change stage for converted leads' : 'Click to change stage'}
               >
                 <span
                   className="w-1.5 h-1.5 rounded-full"
                   style={{ backgroundColor: leadStages.find(s => s.id === selectedStageId)?.color || '#94A3B8' }}
                 />
                 {leadStages.find(s => s.id === selectedStageId)?.name || 'Select Stage'}
-                <ChevronDownIcon className="h-3 w-3 opacity-60" />
+                {!currentLead.isConverted && <ChevronDownIcon className="h-3 w-3 opacity-60" />}
               </button>
             )}
 

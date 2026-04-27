@@ -130,6 +130,9 @@ import { PricingPage } from './pages/pricing';
 import { CheckoutPage, SubscriptionManagementPage, SuccessPage } from './pages/subscription';
 import { RealtimeVoiceDemo } from './components/RealtimeVoiceWidget';
 import LandingPage from './pages/LandingPage';
+import { PrivacyPolicyPage, TermsOfServicePage } from './pages/legal';
+import { FeatureDetailPage } from './pages/features';
+import { IndustryDetailPage } from './pages/industries';
 import RealtimeTestPage from './pages/RealtimeTestPage';
 import {
   PartnerDashboardPage,
@@ -267,6 +270,8 @@ import {
   SystemPage as SuperAdminSystemPage,
   BillingPage as SuperAdminBillingPage,
   PhoneNumbersPage as SuperAdminPhoneNumbersPage,
+  IndustriesPage as SuperAdminIndustriesPage,
+  IndustryDetailPage as SuperAdminIndustryDetailPage,
 } from './pages/super-admin';
 import { superAdminService } from './services/super-admin.service';
 
@@ -450,6 +455,16 @@ function App() {
 
       {/* Public Documentation Page */}
       <Route path="/docs" element={<DocsPage />} />
+
+      {/* Legal Pages */}
+      <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+      <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+
+      {/* Public Feature Pages */}
+      <Route path="/features/:slug" element={<FeatureDetailPage />} />
+
+      {/* Public Industry Pages */}
+      <Route path="/industries/:slug" element={<IndustryDetailPage />} />
 
       {/* Public Realtime Voice Test Page */}
       <Route path="/realtime-test" element={<RealtimeTestPage />} />
@@ -837,6 +852,8 @@ function App() {
         {/* Advanced Features */}
         <Route path="/super-admin/realtime" element={<SuperAdminRealtimePage />} />
         <Route path="/super-admin/intelligence" element={<SuperAdminIntelligencePage />} />
+        <Route path="/super-admin/industries" element={<SuperAdminIndustriesPage />} />
+        <Route path="/super-admin/industries/:slug" element={<SuperAdminIndustryDetailPage />} />
         <Route path="/super-admin/financial" element={<SuperAdminFinancialPage />} />
         <Route path="/super-admin/billing" element={<SuperAdminBillingPage />} />
         <Route path="/super-admin/phone-numbers" element={<SuperAdminPhoneNumbersPage />} />

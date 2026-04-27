@@ -1,6 +1,6 @@
 /**
  * Exotel Telephony Provider
- * Adapter for Exotel Voice API
+ * Adapter for Exotel Voice API with AI conversation support
  */
 
 import axios, { AxiosInstance } from 'axios';
@@ -8,10 +8,13 @@ import {
   ITelephonyProvider,
   TelephonyProviderType,
   MakeCallParams,
+  AICallParams,
   CallResult,
   CallStatus,
   EndCallResult,
   ProviderConfig,
+  SpeechInputResult,
+  XMLGeneratorParams,
 } from '../telephony.types';
 
 interface ExotelConfig {
@@ -251,7 +254,7 @@ export class ExotelProvider implements ITelephonyProvider {
   }
 
   /**
-   * Generate ExoML response for call handling
+   * Generate ExoML response for call handling (legacy)
    */
   generateAnswerXml(params: {
     sayText?: string;
@@ -259,24 +262,254 @@ export class ExotelProvider implements ITelephonyProvider {
     gatherInput?: boolean;
     gatherAction?: string;
   }): string {
+    return this.generateXML(params);
+  }
+
+  // ==================== AI METHODS ====================
+
+  /**
+   * Make an AI-powered outbound call
+   */
+  async makeAICall(params: AICallParams): Promise<CallResult> {
+    const baseUrl = process.env.API_BASE_URL || process.env.BACKEND_URL || 'http://localhost:3001';
+
+    // Use AI-specific answer URL that triggers the voice bot flow
+    const answerUrl = `${baseUrl}/api/telephony/voice/ai-answer/${params.agentId}`;
+    const statusCallback = `${baseUrl}/api/telephony/voice/status`;
+
+    return this.makeCall({
+      ...params,
+      answerUrl,
+      statusCallback,
+      customData: {
+        ...params.customData,
+        agentId: params.agentId,
+        leadId: params.leadId,
+        isAICall: true,
+      },
+    });
+  }
+
+  /**
+   * Parse speech/transcription webhook data from Exotel
+   */
+  parseSpeechWebhook(body: any): SpeechInputResult {
+    return {
+      text: body.TranscriptionText || body.SpeechResult || '',
+      confidence: parseFloat(body.Confidence || '0.9'),
+      language: body.Language || 'en-IN',
+      isFinal: body.IsFinal !== 'false',
+    };
+  }
+
+  /**
+   * Generate XML/ExoML response
+   */
+  generateXML(params: XMLGeneratorParams): string {
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n';
 
-    if (params.sayText) {
-      xml += `  <Say>${params.sayText}</Say>\n`;
-    }
-
+    // Play audio URL first if provided
     if (params.playUrl) {
       xml += `  <Play>${params.playUrl}</Play>\n`;
     }
 
-    if (params.gatherInput && params.gatherAction) {
-      xml += `  <Gather action="${params.gatherAction}" method="POST" timeout="10" numDigits="1">\n`;
-      xml += `    <Say>Please enter your response</Say>\n`;
+    // Say text
+    if (params.sayText) {
+      xml += `  <Say voice="Polly.Aditi">${this.escapeXml(params.sayText)}</Say>\n`;
+    }
+
+    // Gather speech input
+    if (params.speechInput && params.speechAction) {
+      xml += `  <Gather input="speech" action="${params.speechAction}" method="POST" `;
+      xml += `timeout="${params.gatherTimeout || 5}" language="${params.speechLanguage || 'en-IN'}">\n`;
       xml += `  </Gather>\n`;
+    }
+
+    // Gather DTMF input
+    if (params.gatherInput && params.gatherAction && !params.speechInput) {
+      xml += `  <Gather action="${params.gatherAction}" method="POST" timeout="${params.gatherTimeout || 10}" numDigits="1">\n`;
+      xml += `  </Gather>\n`;
+    }
+
+    // Stream for bidirectional audio
+    if (params.streamUrl) {
+      xml += `  <Stream url="${params.streamUrl}" />\n`;
+    }
+
+    // Dial to transfer
+    if (params.dialNumber) {
+      xml += `  <Dial callerId="${this.config?.accountSid || ''}">\n`;
+      xml += `    <Number>${params.dialNumber}</Number>\n`;
+      xml += `  </Dial>\n`;
+    }
+
+    // Hangup
+    if (params.hangup) {
+      xml += `  <Hangup/>\n`;
     }
 
     xml += '</Response>';
     return xml;
+  }
+
+  /**
+   * Generate XML for AI conversation response
+   */
+  generateAIResponseXML(params: {
+    responseText: string;
+    voiceId?: string;
+    language?: string;
+    callId: string;
+    baseUrl: string;
+    shouldEnd?: boolean;
+    shouldTransfer?: boolean;
+    transferTo?: string;
+    playAudioUrl?: string;
+  }): string {
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n';
+
+    // Play pre-generated audio or use TTS
+    if (params.playAudioUrl) {
+      xml += `  <Play>${params.playAudioUrl}</Play>\n`;
+    } else if (params.responseText) {
+      const voice = this.mapVoiceId(params.voiceId, params.language);
+      xml += `  <Say voice="${voice}">${this.escapeXml(params.responseText)}</Say>\n`;
+    }
+
+    // Handle transfer
+    if (params.shouldTransfer && params.transferTo) {
+      xml += `  <Say voice="Polly.Aditi">Please hold while I transfer you.</Say>\n`;
+      xml += `  <Dial callerId="${this.config?.accountSid || ''}" timeout="30">\n`;
+      xml += `    <Number>${params.transferTo}</Number>\n`;
+      xml += `  </Dial>\n`;
+    }
+
+    // Handle end
+    if (params.shouldEnd) {
+      xml += `  <Hangup/>\n`;
+    } else if (!params.shouldTransfer) {
+      // Continue conversation - gather next speech input
+      const speechAction = `${params.baseUrl}/api/telephony/voice/speech/${params.callId}`;
+      xml += `  <Gather input="speech dtmf" action="${speechAction}" method="POST" `;
+      xml += `timeout="5" language="${params.language || 'en-IN'}">\n`;
+      xml += `  </Gather>\n`;
+      // Fallback if no input
+      xml += `  <Say voice="Polly.Aditi">I didn't hear anything. Are you still there?</Say>\n`;
+      xml += `  <Redirect>${speechAction}</Redirect>\n`;
+    }
+
+    xml += '</Response>';
+    return xml;
+  }
+
+  /**
+   * Generate XML for gathering speech input
+   */
+  generateGatherSpeechXML(params: {
+    promptText?: string;
+    promptAudioUrl?: string;
+    callId: string;
+    baseUrl: string;
+    language?: string;
+    voiceId?: string;
+    timeout?: number;
+  }): string {
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n';
+
+    const speechAction = `${params.baseUrl}/api/telephony/voice/speech/${params.callId}`;
+    const voice = this.mapVoiceId(params.voiceId, params.language);
+
+    xml += `  <Gather input="speech dtmf" action="${speechAction}" method="POST" `;
+    xml += `timeout="${params.timeout || 5}" language="${params.language || 'en-IN'}">\n`;
+
+    if (params.promptAudioUrl) {
+      xml += `    <Play>${params.promptAudioUrl}</Play>\n`;
+    } else if (params.promptText) {
+      xml += `    <Say voice="${voice}">${this.escapeXml(params.promptText)}</Say>\n`;
+    }
+
+    xml += `  </Gather>\n`;
+    xml += '</Response>';
+    return xml;
+  }
+
+  /**
+   * Generate XML for bidirectional audio streaming (for realtime AI)
+   */
+  generateStreamXML(params: {
+    streamUrl: string;
+    callId: string;
+    greeting?: string;
+    voiceId?: string;
+    language?: string;
+  }): string {
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n';
+
+    // Say greeting if provided
+    if (params.greeting) {
+      const voice = this.mapVoiceId(params.voiceId, params.language);
+      xml += `  <Say voice="${voice}">${this.escapeXml(params.greeting)}</Say>\n`;
+    }
+
+    // Start bidirectional stream
+    xml += `  <Stream url="${params.streamUrl}" />\n`;
+
+    xml += '</Response>';
+    return xml;
+  }
+
+  /**
+   * Get webhook URLs for Exotel
+   */
+  getWebhookUrls(baseUrl: string, callId: string): {
+    answer: string;
+    status: string;
+    speech: string;
+    stream: string;
+    recording: string;
+  } {
+    return {
+      answer: `${baseUrl}/api/telephony/voice/answer/${callId}`,
+      status: `${baseUrl}/api/telephony/voice/status`,
+      speech: `${baseUrl}/api/telephony/voice/speech/${callId}`,
+      stream: `${baseUrl}/api/telephony/voice/stream/${callId}`,
+      recording: `${baseUrl}/api/telephony/voice/recording`,
+    };
+  }
+
+  /**
+   * Map voice ID to Exotel-compatible voice
+   */
+  private mapVoiceId(voiceId?: string, language?: string): string {
+    // Exotel supports Polly voices
+    if (voiceId?.startsWith('Polly.')) {
+      return voiceId;
+    }
+
+    // Map language to appropriate Polly voice
+    const voiceMap: Record<string, string> = {
+      'hi-IN': 'Polly.Aditi',
+      'en-IN': 'Polly.Aditi',
+      'en-US': 'Polly.Joanna',
+      'te-IN': 'Polly.Aditi',
+      'ta-IN': 'Polly.Aditi',
+      'kn-IN': 'Polly.Aditi',
+      'ml-IN': 'Polly.Aditi',
+    };
+
+    return voiceMap[language || 'en-IN'] || 'Polly.Aditi';
+  }
+
+  /**
+   * Escape XML special characters
+   */
+  private escapeXml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
   }
 }
 

@@ -39,7 +39,7 @@ interface RegisterFormData {
   agreeToTerms: boolean;
 }
 
-// Industry options
+// Industry options - matches backend OrganizationIndustry enum
 const industryOptions = [
   { value: 'EDUCATION', label: 'Education & Training', description: 'Schools, Colleges, Coaching Centers' },
   { value: 'REAL_ESTATE', label: 'Real Estate', description: 'Property, Builders, Brokers' },
@@ -48,8 +48,12 @@ const industryOptions = [
   { value: 'FINANCE', label: 'Finance & Banking', description: 'Loans, Investments, Banking' },
   { value: 'AUTOMOTIVE', label: 'Automotive', description: 'Car Dealers, Service Centers' },
   { value: 'IT_SERVICES', label: 'IT & Software', description: 'IT Services, Software Companies' },
-  { value: 'RECRUITMENT', label: 'Recruitment & HR', description: 'Staffing, HR Consultants' },
+  { value: 'IT_RECRUITMENT', label: 'IT Recruitment', description: 'Tech Staffing, IT HR' },
   { value: 'ECOMMERCE', label: 'E-Commerce', description: 'Online Stores, D2C Brands' },
+  { value: 'CALL_CENTERS', label: 'Call Centers', description: 'BPO, Contact Centers' },
+  { value: 'TRAVEL', label: 'Travel & Hospitality', description: 'Travel Agents, Hotels' },
+  { value: 'FITNESS', label: 'Fitness & Wellness', description: 'Gyms, Studios, Wellness' },
+  { value: 'B2B_SALES', label: 'B2B Sales', description: 'Enterprise, Business Sales' },
   { value: 'GENERAL', label: 'Other / General', description: 'Other Business Types' },
 ];
 

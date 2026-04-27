@@ -44,7 +44,8 @@ export class WhatsAppService {
   }
 
   /**
-   * Load WhatsApp config from organization settings or environment variables
+   * Load WhatsApp config from organization settings
+   * NOTE: Tenants must configure their own WhatsApp - no fallback to platform (.env) credentials
    */
   async loadConfig(): Promise<WhatsAppConfig | null> {
     try {
@@ -61,28 +62,9 @@ export class WhatsAppService {
       const settings = (organization.settings as any) || {};
       this.config = settings.whatsapp || null;
 
-      // Fallback to environment variables if no org-level config
       if (!this.config || !this.config.isConfigured) {
-        const envAccessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-        const envPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-        const envBusinessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-
-        if (envAccessToken && envPhoneNumberId) {
-          console.info(`[WhatsApp] Using environment variables for Meta Cloud API`);
-          this.config = {
-            provider: 'meta',
-            phoneNumber: envPhoneNumberId,
-            accessToken: envAccessToken,
-            phoneNumberId: envPhoneNumberId,
-            businessAccountId: envBusinessAccountId,
-            isConfigured: true,
-          };
-          return this.config;
-        }
-      }
-
-      if (!this.config) {
-        console.info(`[WhatsApp] No WhatsApp config found for org: ${this.organizationId}`);
+        console.info(`[WhatsApp] No WhatsApp config for org: ${this.organizationId}. Configure in Settings > WhatsApp`);
+        return null;
       }
 
       return this.config;
@@ -831,10 +813,166 @@ export class WhatsAppService {
 }
 
 /**
- * Factory function to create WhatsApp service for an organization
+ * Factory function to create WhatsApp service for a TENANT/ORGANIZATION
+ * Uses organization settings for credentials
  */
 export function createWhatsAppService(organizationId: string): WhatsAppService {
   return new WhatsAppService(organizationId);
+}
+
+/**
+ * Platform-level WhatsApp Service
+ * Uses .env credentials for MyLeadX system messages (OTPs, notifications, etc.)
+ */
+export class PlatformWhatsAppService {
+  private config: WhatsAppConfig | null = null;
+
+  constructor() {
+    this.loadConfig();
+  }
+
+  /**
+   * Load platform WhatsApp config from environment variables
+   */
+  loadConfig(): WhatsAppConfig | null {
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+
+    if (accessToken && phoneNumberId) {
+      this.config = {
+        provider: 'meta',
+        phoneNumber: phoneNumberId,
+        accessToken,
+        phoneNumberId,
+        businessAccountId,
+        isConfigured: true,
+      };
+      return this.config;
+    }
+
+    console.warn('[PlatformWhatsApp] No platform WhatsApp credentials configured in .env');
+    this.config = null;
+    return null;
+  }
+
+  isConfigured(): boolean {
+    return !!this.config?.isConfigured;
+  }
+
+  /**
+   * Send a text message using platform credentials
+   */
+  async sendMessage(to: string, message: string): Promise<WhatsAppResponse> {
+    if (!this.config) {
+      return { success: false, error: 'Platform WhatsApp not configured' };
+    }
+
+    const phoneNumber = to.replace(/[^\d]/g, '');
+    const url = `https://graph.facebook.com/v18.0/${this.config.phoneNumberId}/messages`;
+
+    try {
+      const response = await axios.post(url, {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: phoneNumber,
+        type: 'text',
+        text: { body: message },
+      }, {
+        headers: {
+          'Authorization': `Bearer ${this.config.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      return {
+        success: true,
+        messageId: response.data.messages?.[0]?.id,
+        status: 'sent',
+        data: response.data,
+      };
+    } catch (error: any) {
+      console.error('[PlatformWhatsApp] Send error:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message,
+      };
+    }
+  }
+
+  /**
+   * Send OTP using platform credentials
+   */
+  async sendOTP(to: string, otp: string): Promise<WhatsAppResponse> {
+    const message = `Your MyLeadX verification code is: ${otp}\n\nThis code expires in 10 minutes. Do not share this code with anyone.`;
+    return this.sendMessage(to, message);
+  }
+
+  /**
+   * Send template message using platform credentials
+   */
+  async sendTemplate(to: string, templateName: string, templateParams: string[] = []): Promise<WhatsAppResponse> {
+    if (!this.config) {
+      return { success: false, error: 'Platform WhatsApp not configured' };
+    }
+
+    const phoneNumber = to.replace(/[^\d]/g, '');
+    const url = `https://graph.facebook.com/v18.0/${this.config.phoneNumberId}/messages`;
+
+    const components: any[] = [];
+    if (templateParams.length > 0) {
+      components.push({
+        type: 'body',
+        parameters: templateParams.map(p => ({ type: 'text', text: p })),
+      });
+    }
+
+    try {
+      const response = await axios.post(url, {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: phoneNumber,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: 'en' },
+          components: components.length > 0 ? components : undefined,
+        },
+      }, {
+        headers: {
+          'Authorization': `Bearer ${this.config.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      return {
+        success: true,
+        messageId: response.data.messages?.[0]?.id,
+        status: 'sent',
+        data: response.data,
+      };
+    } catch (error: any) {
+      console.error('[PlatformWhatsApp] Template send error:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message,
+      };
+    }
+  }
+}
+
+// Singleton instance for platform-level WhatsApp
+let platformWhatsAppInstance: PlatformWhatsAppService | null = null;
+
+/**
+ * Get or create the platform WhatsApp service (singleton)
+ * Uses .env credentials for MyLeadX system messages
+ */
+export function getPlatformWhatsAppService(): PlatformWhatsAppService {
+  if (!platformWhatsAppInstance) {
+    platformWhatsAppInstance = new PlatformWhatsAppService();
+  }
+  return platformWhatsAppInstance;
 }
 
 export default WhatsAppService;

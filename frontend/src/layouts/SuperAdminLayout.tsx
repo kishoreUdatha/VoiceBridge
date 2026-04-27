@@ -24,6 +24,7 @@ import {
   UserGroupIcon,
   BanknotesIcon,
   PhoneIcon,
+  Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
 interface NavItem {
@@ -56,6 +57,7 @@ const navigationSections: NavSection[] = [
   {
     title: 'Management',
     items: [
+      { name: 'Industries', href: '/super-admin/industries', icon: Squares2X2Icon },
       { name: 'Financial', href: '/super-admin/financial', icon: CurrencyDollarIcon },
       { name: 'Billing', href: '/super-admin/billing', icon: BanknotesIcon },
       { name: 'Phone Numbers', href: '/super-admin/phone-numbers', icon: PhoneIcon },

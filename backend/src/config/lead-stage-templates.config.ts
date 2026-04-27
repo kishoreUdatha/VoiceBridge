@@ -147,6 +147,103 @@ export const LEAD_STAGE_TEMPLATES: Record<OrganizationIndustry, IndustryLeadStag
     lostStage: { name: 'Abandoned', slug: 'abandoned', color: '#EF4444', journeyOrder: -1, icon: 'XCircleIcon', autoSyncStatus: 'LOST' },
   },
 
+  AUTOMOTIVE: {
+    label: 'Automotive',
+    description: 'Car dealers, showrooms, and service centers',
+    icon: 'TruckIcon',
+    color: '#F59E0B',
+    stages: [
+      { name: 'Inquiry', slug: 'inquiry', color: '#94A3B8', journeyOrder: 1, icon: 'PhoneIcon', isDefault: true },
+      { name: 'Test Drive Scheduled', slug: 'test-drive-scheduled', color: '#3B82F6', journeyOrder: 2, icon: 'CalendarIcon' },
+      { name: 'Test Drive Done', slug: 'test-drive-done', color: '#6366F1', journeyOrder: 3, icon: 'CheckCircleIcon' },
+      { name: 'Quotation', slug: 'quotation', color: '#8B5CF6', journeyOrder: 4, icon: 'DocumentTextIcon' },
+      { name: 'Negotiation', slug: 'negotiation', color: '#EAB308', journeyOrder: 5, icon: 'ScaleIcon' },
+      { name: 'Booking', slug: 'booking', color: '#22C55E', journeyOrder: 6, icon: 'CreditCardIcon' },
+      { name: 'Delivery', slug: 'delivery', color: '#10B981', journeyOrder: 7, icon: 'TruckIcon', autoSyncStatus: 'WON' },
+    ],
+    lostStage: { name: 'Lost', slug: 'lost', color: '#EF4444', journeyOrder: -1, icon: 'XCircleIcon', autoSyncStatus: 'LOST' },
+  },
+
+  IT_SERVICES: {
+    label: 'IT Services',
+    description: 'Software companies and IT consultants',
+    icon: 'ComputerDesktopIcon',
+    color: '#6366F1',
+    stages: [
+      { name: 'Lead', slug: 'lead', color: '#94A3B8', journeyOrder: 1, icon: 'UserPlusIcon', isDefault: true },
+      { name: 'Discovery', slug: 'discovery', color: '#3B82F6', journeyOrder: 2, icon: 'MagnifyingGlassIcon' },
+      { name: 'Proposal', slug: 'proposal', color: '#6366F1', journeyOrder: 3, icon: 'DocumentTextIcon' },
+      { name: 'Negotiation', slug: 'negotiation', color: '#8B5CF6', journeyOrder: 4, icon: 'ScaleIcon' },
+      { name: 'SOW Signed', slug: 'sow-signed', color: '#EAB308', journeyOrder: 5, icon: 'DocumentCheckIcon' },
+      { name: 'Won', slug: 'won', color: '#10B981', journeyOrder: 6, icon: 'TrophyIcon', autoSyncStatus: 'WON' },
+    ],
+    lostStage: { name: 'Lost', slug: 'lost', color: '#EF4444', journeyOrder: -1, icon: 'XCircleIcon', autoSyncStatus: 'LOST' },
+  },
+
+  CALL_CENTERS: {
+    label: 'Call Centers',
+    description: 'BPO and contact centers',
+    icon: 'PhoneIcon',
+    color: '#06B6D4',
+    stages: [
+      { name: 'New', slug: 'new', color: '#94A3B8', journeyOrder: 1, icon: 'SparklesIcon', isDefault: true },
+      { name: 'Contacted', slug: 'contacted', color: '#3B82F6', journeyOrder: 2, icon: 'PhoneIcon' },
+      { name: 'Interested', slug: 'interested', color: '#6366F1', journeyOrder: 3, icon: 'HandThumbUpIcon' },
+      { name: 'Qualified', slug: 'qualified', color: '#8B5CF6', journeyOrder: 4, icon: 'CheckCircleIcon' },
+      { name: 'Transferred', slug: 'transferred', color: '#EAB308', journeyOrder: 5, icon: 'ArrowRightIcon' },
+      { name: 'Converted', slug: 'converted', color: '#10B981', journeyOrder: 6, icon: 'TrophyIcon', autoSyncStatus: 'WON' },
+    ],
+    lostStage: { name: 'Not Interested', slug: 'not-interested', color: '#EF4444', journeyOrder: -1, icon: 'XCircleIcon', autoSyncStatus: 'LOST' },
+  },
+
+  TRAVEL: {
+    label: 'Travel & Hospitality',
+    description: 'Travel agents and hotels',
+    icon: 'GlobeAltIcon',
+    color: '#0EA5E9',
+    stages: [
+      { name: 'Inquiry', slug: 'inquiry', color: '#94A3B8', journeyOrder: 1, icon: 'PhoneIcon', isDefault: true },
+      { name: 'Itinerary Sent', slug: 'itinerary-sent', color: '#3B82F6', journeyOrder: 2, icon: 'DocumentTextIcon' },
+      { name: 'Quote Sent', slug: 'quote-sent', color: '#6366F1', journeyOrder: 3, icon: 'CurrencyRupeeIcon' },
+      { name: 'Negotiation', slug: 'negotiation', color: '#8B5CF6', journeyOrder: 4, icon: 'ScaleIcon' },
+      { name: 'Booked', slug: 'booked', color: '#22C55E', journeyOrder: 5, icon: 'CheckCircleIcon' },
+      { name: 'Trip Completed', slug: 'trip-completed', color: '#10B981', journeyOrder: 6, icon: 'GlobeAltIcon', autoSyncStatus: 'WON' },
+    ],
+    lostStage: { name: 'Cancelled', slug: 'cancelled', color: '#EF4444', journeyOrder: -1, icon: 'XCircleIcon', autoSyncStatus: 'LOST' },
+  },
+
+  FITNESS: {
+    label: 'Fitness & Wellness',
+    description: 'Gyms, studios, and wellness centers',
+    icon: 'HeartIcon',
+    color: '#EF4444',
+    stages: [
+      { name: 'Inquiry', slug: 'inquiry', color: '#94A3B8', journeyOrder: 1, icon: 'PhoneIcon', isDefault: true },
+      { name: 'Trial Scheduled', slug: 'trial-scheduled', color: '#3B82F6', journeyOrder: 2, icon: 'CalendarIcon' },
+      { name: 'Trial Done', slug: 'trial-done', color: '#6366F1', journeyOrder: 3, icon: 'CheckCircleIcon' },
+      { name: 'Offer Sent', slug: 'offer-sent', color: '#8B5CF6', journeyOrder: 4, icon: 'DocumentTextIcon' },
+      { name: 'Joined', slug: 'joined', color: '#22C55E', journeyOrder: 5, icon: 'UserPlusIcon' },
+      { name: 'Renewed', slug: 'renewed', color: '#10B981', journeyOrder: 6, icon: 'ArrowPathIcon', autoSyncStatus: 'WON' },
+    ],
+    lostStage: { name: 'Dropped', slug: 'dropped', color: '#EF4444', journeyOrder: -1, icon: 'XCircleIcon', autoSyncStatus: 'LOST' },
+  },
+
+  B2B_SALES: {
+    label: 'B2B Sales',
+    description: 'Enterprise and business sales',
+    icon: 'BuildingOffice2Icon',
+    color: '#F97316',
+    stages: [
+      { name: 'Lead', slug: 'lead', color: '#94A3B8', journeyOrder: 1, icon: 'UserPlusIcon', isDefault: true },
+      { name: 'Discovery', slug: 'discovery', color: '#3B82F6', journeyOrder: 2, icon: 'MagnifyingGlassIcon' },
+      { name: 'Demo', slug: 'demo', color: '#6366F1', journeyOrder: 3, icon: 'PresentationChartLineIcon' },
+      { name: 'Proposal', slug: 'proposal', color: '#8B5CF6', journeyOrder: 4, icon: 'DocumentTextIcon' },
+      { name: 'Negotiation', slug: 'negotiation', color: '#EAB308', journeyOrder: 5, icon: 'ScaleIcon' },
+      { name: 'Won', slug: 'won', color: '#10B981', journeyOrder: 6, icon: 'TrophyIcon', autoSyncStatus: 'WON' },
+    ],
+    lostStage: { name: 'Lost', slug: 'lost', color: '#EF4444', journeyOrder: -1, icon: 'XCircleIcon', autoSyncStatus: 'LOST' },
+  },
+
   GENERAL: {
     label: 'General',
     description: 'Generic sales pipeline for any business',

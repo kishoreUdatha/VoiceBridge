@@ -5,17 +5,13 @@
 export {
   Navigation,
   HeroSection,
-  FeaturesOverviewSection,
-  DifferentiatorsSection,
-  IndustriesSection,
   FeaturesSection,
-  HowItWorksSection,
+  ProductDemoSection,
+  IndustriesSection,
+  AISection,
+  IntegrationsSection,
   TestimonialsSection,
-  SecuritySection,
-  PricingPreviewSection,
-  MobileAppSection,
+  PricingSection,
   CTASection,
   Footer,
 } from './LandingComponents';
-
-export { DocumentationSection } from './DocumentationSection';

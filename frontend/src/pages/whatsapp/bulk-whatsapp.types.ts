@@ -41,3 +41,24 @@ export interface BulkWhatsAppFormData {
   campaignName: string;
   phoneInput: string;
 }
+
+export interface WhatsAppTemplateComponent {
+  type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS';
+  format?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+  text?: string;
+  example?: {
+    header_text?: string[];
+    body_text?: string[][];
+  };
+}
+
+export interface WhatsAppTemplate {
+  id: string;
+  name: string;
+  status: 'APPROVED' | 'PENDING' | 'REJECTED';
+  language: string;
+  category: string;
+  components: WhatsAppTemplateComponent[];
+}
+
+export type MessageMode = 'freeform' | 'template';

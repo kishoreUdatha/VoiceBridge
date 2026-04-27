@@ -118,19 +118,31 @@ async function findAgent(agentId: string): Promise<any> {
   if (agentId && agentId !== 'undefined') {
     agent = await prisma.voiceAgent.findUnique({ where: { id: agentId } });
     console.log(`[VoiceBot] Looking for agent with ID: ${agentId}, found: ${agent?.name || 'NOT FOUND'}`);
+
+    // Check if agent is published (only PUBLISHED agents can handle live calls)
+    if (agent && agent.status !== 'PUBLISHED') {
+      console.log(`[VoiceBot] Agent ${agent.name} is not published (status: ${agent.status}). Cannot handle live calls.`);
+      agent = null; // Reset to find a published agent
+    }
   } else {
-    console.log(`[VoiceBot] WARNING: No agentId provided! Falling back to first active agent.`);
+    console.log(`[VoiceBot] WARNING: No agentId provided! Falling back to first published agent.`);
   }
 
   if (!agent) {
-    agent = await prisma.voiceAgent.findFirst({ where: { isActive: true } });
-    console.log(`[VoiceBot] Using fallback agent: ${agent?.name || 'NONE'}`);
+    // Only find PUBLISHED agents for live calls
+    agent = await prisma.voiceAgent.findFirst({
+      where: {
+        isActive: true,
+        status: 'PUBLISHED'  // Only published agents can handle live calls
+      }
+    });
+    console.log(`[VoiceBot] Using fallback published agent: ${agent?.name || 'NONE'}`);
   }
 
   if (!agent) {
-    console.log('[VoiceBot] No agent found, using default greeting');
+    console.log('[VoiceBot] No published agent found. Please publish an agent to handle live calls.');
   } else {
-    console.log(`[VoiceBot] Agent loaded: ${agent.name}, language: ${agent.language}, voice: ${agent.voiceId}`);
+    console.log(`[VoiceBot] Published agent loaded: ${agent.name}, language: ${agent.language}, voice: ${agent.voiceId}`);
   }
 
   return agent;

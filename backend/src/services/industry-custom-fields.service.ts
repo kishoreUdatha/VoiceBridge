@@ -1,6 +1,7 @@
 /**
  * Industry Custom Fields Service
  * Handles industry-specific custom fields for leads
+ * Uses dynamic industry cache with config file fallback
  */
 
 import { prisma } from '../config/database';
@@ -13,28 +14,47 @@ import {
   IndustryFieldConfig,
   IndustryField,
 } from '../config/industry-fields.config';
+import { industryCacheService } from './industry-cache.service';
 import { NotFoundError, ValidationError } from '../utils/errors';
 
 export class IndustryCustomFieldsService {
   /**
    * Get field configuration for an organization's industry
+   * Uses dynamic industry cache with config file fallback
    */
   async getFieldConfigForOrganization(organizationId: string): Promise<IndustryFieldConfig> {
-    const org = await prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: { industry: true },
-    });
-
-    if (!org) {
-      throw new NotFoundError('Organization not found');
-    }
-
-    const industry = org.industry || 'GENERAL';
-    return getIndustryFieldConfig(industry);
+    // Use the cache service which handles fallback internally
+    return industryCacheService.getFieldConfigForOrganization(organizationId);
   }
 
   /**
    * Get field schema for a specific industry
+   * Checks dynamic industry first, falls back to config
+   */
+  async getFieldSchemaAsync(industrySlug: string): Promise<IndustryField[]> {
+    const fields = await industryCacheService.getFieldsForIndustry(industrySlug);
+    if (fields.length > 0) {
+      return fields.map((f) => ({
+        key: f.key,
+        label: f.label,
+        type: f.fieldType,
+        required: f.isRequired,
+        placeholder: f.placeholder,
+        options: f.options,
+        min: f.minValue,
+        max: f.maxValue,
+        unit: f.unit,
+        helpText: f.helpText,
+        gridSpan: f.gridSpan as 1 | 2,
+      }));
+    }
+    // Fallback for legacy callers
+    const industryKey = industrySlug.toUpperCase().replace(/-/g, '_') as OrganizationIndustry;
+    return getIndustryFields(industryKey);
+  }
+
+  /**
+   * Get field schema for a specific industry (sync version for backward compatibility)
    */
   getFieldSchema(industry: OrganizationIndustry): IndustryField[] {
     return getIndustryFields(industry);

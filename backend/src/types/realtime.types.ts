@@ -493,6 +493,7 @@ export interface RealtimeStartPayload {
     email?: string;
     phone?: string;
   };
+  testMode?: boolean; // Allow testing DRAFT agents from dashboard (bypasses PUBLISHED check)
 }
 
 export interface RealtimeAudioPayload {

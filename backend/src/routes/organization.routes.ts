@@ -1,11 +1,13 @@
 import { Router, Response } from 'express';
-import { body } from 'express-validator';
+import { body, param } from 'express-validator';
 import { prisma } from '../config/database';
 import { authenticate } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { validate } from '../middlewares/validate';
 import { ApiResponse } from '../utils/apiResponse';
 import { createWhatsAppService } from '../integrations/whatsapp.service';
+import { dynamicIndustryService } from '../services/dynamic-industry.service';
+import { industryCacheService } from '../services/industry-cache.service';
 
 // Validation rules
 const institutionValidation = [
@@ -31,6 +33,7 @@ const whatsappSettingsValidation = [
   body('accessToken').optional().trim().isLength({ max: 500 }).withMessage('Access token must be at most 500 characters'),
   body('businessAccountId').optional().trim().isLength({ max: 100 }).withMessage('Business account ID must be at most 100 characters'),
   body('phoneNumberId').optional().trim().isLength({ max: 100 }).withMessage('Phone number ID must be at most 100 characters'),
+  body('appSecret').optional().trim().isLength({ max: 100 }).withMessage('App secret must be at most 100 characters'),
 ];
 
 const router = Router();
@@ -463,30 +466,11 @@ router.get('/settings/whatsapp', async (req: TenantRequest, res: Response) => {
     }
 
     const settings = (organization.settings as any) || {};
-    let whatsapp = settings.whatsapp || {
+    const whatsapp = settings.whatsapp || {
       provider: 'meta',
       phoneNumber: '',
       isConfigured: false,
     };
-
-    // Check for environment variables if no org-level config
-    const envAccessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    const envPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    const envBusinessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-    const hasEnvConfig = !!(envAccessToken && envPhoneNumberId);
-
-    // If no org config but env vars exist, indicate that
-    if (!whatsapp.isConfigured && hasEnvConfig) {
-      whatsapp = {
-        ...whatsapp,
-        provider: 'meta',
-        phoneNumberId: envPhoneNumberId,
-        businessAccountId: envBusinessAccountId || '',
-        accessToken: envAccessToken,
-        isConfigured: true,
-        configuredViaEnv: true,
-      };
-    }
 
     // Don't send secrets to frontend - mask them
     const safeWhatsapp = {
@@ -494,7 +478,7 @@ router.get('/settings/whatsapp', async (req: TenantRequest, res: Response) => {
       apiKey: whatsapp.apiKey ? '••••••••' + whatsapp.apiKey.slice(-4) : '',
       apiSecret: whatsapp.apiSecret ? '••••••••' + whatsapp.apiSecret.slice(-4) : '',
       accessToken: whatsapp.accessToken ? '••••••••' + whatsapp.accessToken.slice(-4) : '',
-      hasEnvConfig,
+      appSecret: whatsapp.appSecret ? '••••••••' + whatsapp.appSecret.slice(-4) : '',
     };
 
     return ApiResponse.success(res, 'WhatsApp settings retrieved', safeWhatsapp);
@@ -549,6 +533,7 @@ router.post('/settings/whatsapp', validate(whatsappSettingsValidation), async (r
       accessToken,
       businessAccountId,
       phoneNumberId,
+      appSecret,
     } = req.body;
 
     // Get current organization
@@ -570,6 +555,7 @@ router.post('/settings/whatsapp', validate(whatsappSettingsValidation), async (r
       apiKey: apiKey && !apiKey.startsWith('••••') ? apiKey : currentWhatsapp.apiKey || '',
       apiSecret: apiSecret && !apiSecret.startsWith('••••') ? apiSecret : currentWhatsapp.apiSecret || '',
       accessToken: accessToken && !accessToken.startsWith('••••') ? accessToken : currentWhatsapp.accessToken || '',
+      appSecret: appSecret && !appSecret.startsWith('••••') ? appSecret : currentWhatsapp.appSecret || '',
       businessAccountId: businessAccountId || currentWhatsapp.businessAccountId || '',
       phoneNumberId: phoneNumberId || currentWhatsapp.phoneNumberId || '',
       isConfigured: !!(phoneNumber || currentWhatsapp.phoneNumber || phoneNumberId || currentWhatsapp.phoneNumberId || accessToken || currentWhatsapp.accessToken),
@@ -623,28 +609,10 @@ router.post('/settings/whatsapp/test', async (req: TenantRequest, res: Response)
     }
 
     const settings = (organization.settings as any) || {};
-    let whatsapp = settings.whatsapp || {};
+    const whatsapp = settings.whatsapp || {};
 
-    // Check for env variables if no org-level config
-    if (!whatsapp.isConfigured && !whatsapp.phoneNumberId && !whatsapp.accessToken) {
-      const envAccessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-      const envPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-      const envBusinessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-
-      if (envAccessToken && envPhoneNumberId) {
-        whatsapp = {
-          provider: 'meta',
-          phoneNumber: envPhoneNumberId,
-          accessToken: envAccessToken,
-          phoneNumberId: envPhoneNumberId,
-          businessAccountId: envBusinessAccountId,
-          isConfigured: true,
-        };
-      }
-    }
-
-    // For Meta API, phoneNumberId is sufficient (phoneNumber is optional)
-    const hasValidConfig = whatsapp.phoneNumber || whatsapp.phoneNumberId || whatsapp.accessToken;
+    // Tenant must configure their own WhatsApp - no fallback to platform credentials
+    const hasValidConfig = whatsapp.isConfigured && (whatsapp.phoneNumber || whatsapp.phoneNumberId) && whatsapp.accessToken;
 
     if (!hasValidConfig) {
       return ApiResponse.error(res, 'WhatsApp not configured. Please add credentials in Settings.', 400);
@@ -1165,5 +1133,278 @@ router.patch(
     }
   }
 );
+
+// ==================== DYNAMIC INDUSTRY MANAGEMENT ====================
+
+/**
+ * @swagger
+ * /api/organization/industry:
+ *   get:
+ *     summary: Get organization's industry configuration
+ *     tags: [Organization]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Industry configuration retrieved successfully
+ */
+router.get('/industry', async (req: TenantRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId;
+
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        id: true,
+        name: true,
+        industry: true,
+        industrySlug: true,
+        dynamicIndustryId: true,
+        dynamicIndustry: {
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            description: true,
+            icon: true,
+            color: true,
+            isSystem: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    if (!organization) {
+      return ApiResponse.error(res, 'Organization not found', 404);
+    }
+
+    // Get full industry config from cache
+    const industrySlug = organization.industrySlug || organization.industry?.toLowerCase().replace(/_/g, '-') || 'general';
+    const industryConfig = await industryCacheService.getIndustryConfig(industrySlug);
+
+    return ApiResponse.success(res, 'Industry configuration retrieved', {
+      industry: organization.dynamicIndustry || {
+        slug: industrySlug,
+        name: organization.industry || 'General',
+      },
+      legacyIndustry: organization.industry,
+      config: industryConfig,
+    });
+  } catch (error) {
+    console.error('Error fetching industry configuration:', error);
+    return ApiResponse.error(res, 'Failed to fetch industry configuration', 500);
+  }
+});
+
+/**
+ * @swagger
+ * /api/organization/industry:
+ *   put:
+ *     summary: Change organization's industry
+ *     tags: [Organization]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - industrySlug
+ *             properties:
+ *               industrySlug:
+ *                 type: string
+ *                 description: The slug of the new industry
+ *     responses:
+ *       200:
+ *         description: Industry changed successfully
+ */
+router.put('/industry', validate([
+  body('industrySlug').trim().notEmpty().withMessage('Industry slug is required'),
+]), async (req: TenantRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId;
+    const { industrySlug } = req.body;
+
+    // Apply the new industry
+    const result = await dynamicIndustryService.applyIndustryToOrganization(organizationId!, industrySlug);
+
+    // Get the full industry config
+    const industryConfig = await industryCacheService.getIndustryConfig(industrySlug);
+
+    console.log(`[Organization] Changed industry for org ${organizationId} to ${industrySlug}`);
+
+    return ApiResponse.success(res, 'Industry changed successfully', {
+      industry: result,
+      config: industryConfig,
+    });
+  } catch (error: any) {
+    console.error('Error changing industry:', error);
+    return ApiResponse.error(res, error.message || 'Failed to change industry', error.statusCode || 500);
+  }
+});
+
+/**
+ * @swagger
+ * /api/organization/industry/fields:
+ *   get:
+ *     summary: Get industry field templates for the organization
+ *     tags: [Organization]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Field templates retrieved successfully
+ */
+router.get('/industry/fields', async (req: TenantRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId;
+
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        industrySlug: true,
+        industry: true,
+      },
+    });
+
+    if (!organization) {
+      return ApiResponse.error(res, 'Organization not found', 404);
+    }
+
+    const industrySlug = organization.industrySlug || organization.industry?.toLowerCase().replace(/_/g, '-') || 'general';
+
+    // Get fields from cache (includes both industry templates)
+    const industryConfig = await industryCacheService.getIndustryConfig(industrySlug);
+
+    return ApiResponse.success(res, 'Field templates retrieved', {
+      industrySlug,
+      fields: industryConfig?.fields || [],
+    });
+  } catch (error) {
+    console.error('Error fetching field templates:', error);
+    return ApiResponse.error(res, 'Failed to fetch field templates', 500);
+  }
+});
+
+/**
+ * @swagger
+ * /api/organization/industry/stages:
+ *   get:
+ *     summary: Get industry stage templates for the organization
+ *     tags: [Organization]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Stage templates retrieved successfully
+ */
+router.get('/industry/stages', async (req: TenantRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId;
+
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        industrySlug: true,
+        industry: true,
+      },
+    });
+
+    if (!organization) {
+      return ApiResponse.error(res, 'Organization not found', 404);
+    }
+
+    const industrySlug = organization.industrySlug || organization.industry?.toLowerCase().replace(/_/g, '-') || 'general';
+
+    // Get stages from cache
+    const industryConfig = await industryCacheService.getIndustryConfig(industrySlug);
+
+    return ApiResponse.success(res, 'Stage templates retrieved', {
+      industrySlug,
+      stages: industryConfig?.stages || [],
+    });
+  } catch (error) {
+    console.error('Error fetching stage templates:', error);
+    return ApiResponse.error(res, 'Failed to fetch stage templates', 500);
+  }
+});
+
+/**
+ * @swagger
+ * /api/organization/industries:
+ *   get:
+ *     summary: Get list of available industries for selection
+ *     tags: [Organization]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Industries list retrieved successfully
+ */
+router.get('/industries', async (req: TenantRequest, res: Response) => {
+  try {
+    // Get all active industries for selection
+    const industries = await industryCacheService.getAllActiveIndustries();
+
+    const industryList = industries
+      .filter((ind) => ind.isActive)
+      .map((ind) => ({
+        slug: ind.slug,
+        name: ind.name,
+        description: ind.description,
+        icon: ind.icon,
+        color: ind.color,
+        isSystem: ind.isSystem,
+        fieldCount: ind.fields?.length || 0,
+        stageCount: ind.stages?.length || 0,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return ApiResponse.success(res, 'Industries retrieved', industryList);
+  } catch (error) {
+    console.error('Error fetching industries:', error);
+    return ApiResponse.error(res, 'Failed to fetch industries', 500);
+  }
+});
+
+/**
+ * @swagger
+ * /api/organization/industries/{slug}:
+ *   get:
+ *     summary: Get detailed industry information (preview before switching)
+ *     tags: [Organization]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Industry details retrieved successfully
+ */
+router.get('/industries/:slug', validate([
+  param('slug').trim().notEmpty().withMessage('Industry slug is required'),
+]), async (req: TenantRequest, res: Response) => {
+  try {
+    const { slug } = req.params;
+
+    const industryConfig = await industryCacheService.getIndustryConfig(slug);
+
+    if (!industryConfig) {
+      return ApiResponse.error(res, 'Industry not found', 404);
+    }
+
+    return ApiResponse.success(res, 'Industry details retrieved', industryConfig);
+  } catch (error) {
+    console.error('Error fetching industry details:', error);
+    return ApiResponse.error(res, 'Failed to fetch industry details', 500);
+  }
+});
 
 export default router;

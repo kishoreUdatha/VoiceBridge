@@ -17,10 +17,12 @@ router.use(tenantMiddleware);
 /**
  * GET /api/lead-pipeline/stages
  * Get pipeline stages for Kanban view
+ * Optional: ?leadId=xxx to get stages from that lead's specific pipeline
  */
 router.get('/stages', async (req: TenantRequest, res: Response) => {
   try {
-    const stages = await leadPipelineService.getPipelineStages(req.organizationId!);
+    const { leadId } = req.query;
+    const stages = await leadPipelineService.getPipelineStages(req.organizationId!, leadId as string);
     res.json({
       success: true,
       data: stages,

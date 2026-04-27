@@ -34,8 +34,28 @@ import {
   CalendarDaysIcon,
   FlagIcon,
   DocumentTextIcon,
+  EllipsisVerticalIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
-import { CheckBadgeIcon as CheckBadgeSolidIcon } from '@heroicons/react/24/solid';
+import { CheckBadgeIcon as CheckBadgeSolidIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/solid';
+
+// Helper to get relative time string
+const getRelativeTime = (date: string | Date) => {
+  const now = new Date();
+  const then = new Date(date);
+  const diffMs = now.getTime() - then.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+  if (diffMinutes < 1) return 'Just now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
 
 // Filter panel tab type
 type FilterTab = 'saved' | 'leadDetails' | 'campaign' | 'users' | 'source' | 'status' | 'stages' | 'tags' | 'date' | 'priority' | 'customFields';
@@ -129,6 +149,9 @@ export default function LeadsListPage() {
   const [tagFilter, setTagFilter] = useState(searchParams.get('tag') || '');
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchParamsRef = useRef(searchParams);
+
+  // Bulk selection state
+  const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
 
   // Advanced Filter Panel State
   const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -598,6 +621,45 @@ export default function LeadsListPage() {
 
   const activeFilterCount = getActiveFilterCount();
 
+  // Bulk selection handlers
+  const handleSelectAll = () => {
+    if (selectedLeads.size === leads.length) {
+      setSelectedLeads(new Set());
+    } else {
+      setSelectedLeads(new Set(leads.map(l => l.id)));
+    }
+  };
+
+  const handleSelectLead = (leadId: string) => {
+    const newSelected = new Set(selectedLeads);
+    if (newSelected.has(leadId)) {
+      newSelected.delete(leadId);
+    } else {
+      newSelected.add(leadId);
+    }
+    setSelectedLeads(newSelected);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedLeads.size === 0) return;
+    if (window.confirm(`Are you sure you want to delete ${selectedLeads.size} lead(s)?`)) {
+      try {
+        for (const id of selectedLeads) {
+          await dispatch(deleteLead(id)).unwrap();
+        }
+        setSelectedLeads(new Set());
+        showToast.success(`${selectedLeads.size} lead(s) deleted`);
+      } catch (error) {
+        showToast.error('Failed to delete some leads');
+      }
+    }
+  };
+
+  // Clear selection when leads change
+  useEffect(() => {
+    setSelectedLeads(new Set());
+  }, [page]);
+
   // Clear all filters
   const handleClearAllFilters = () => {
     // Reset local state
@@ -639,11 +701,46 @@ export default function LeadsListPage() {
 
   return (
     <div className="space-y-4">
+      {/* Bulk Action Bar - Shows when leads are selected */}
+      {selectedLeads.size > 0 && (
+        <div className="bg-purple-600 rounded-xl shadow-sm px-4 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-white text-sm font-medium">
+              {selectedLeads.size} lead{selectedLeads.size !== 1 ? 's' : ''} selected
+            </span>
+            <button
+              onClick={() => setSelectedLeads(new Set())}
+              className="text-purple-200 hover:text-white text-xs underline"
+            >
+              Clear selection
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <PermissionGate module="leads" action="delete">
+              <button
+                onClick={handleBulkDelete}
+                className="px-3 py-1.5 text-xs font-medium bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1.5"
+              >
+                <TrashIcon className="h-3.5 w-3.5" />
+                Delete Selected
+              </button>
+            </PermissionGate>
+          </div>
+        </div>
+      )}
+
       {/* Single Row Header: Title, Tabs, Search, Filters, Add Button */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 px-4 py-3">
         <div className="flex flex-wrap items-center gap-3">
-          {/* Title */}
-          <h1 className="text-lg font-bold text-slate-900 whitespace-nowrap">{t('leads:title')}</h1>
+          {/* Title with Count */}
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold text-slate-900 whitespace-nowrap">{t('leads:title')}</h1>
+            {total > 0 && (
+              <span className="px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600 rounded-full">
+                {total.toLocaleString()}
+              </span>
+            )}
+          </div>
 
           {/* Conversion Tabs */}
           <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
@@ -747,21 +844,29 @@ export default function LeadsListPage() {
           <table className="w-full text-xs">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider w-12">#</th>
+                <th className="px-2 py-2 text-center w-8">
+                  <input
+                    type="checkbox"
+                    checked={leads.length > 0 && selectedLeads.size === leads.length}
+                    onChange={handleSelectAll}
+                    className="w-3.5 h-3.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                  />
+                </th>
+                <th className="px-2 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider w-8">#</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{t('leads:table.lead')}</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{t('leads:table.contact')}</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{t('leads:table.source')}</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider w-20">Priority</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{t('leads:table.status')}</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Tags</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Last Activity</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{t('leads:table.assignedTo')}</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{t('leads:table.created')}</th>
-                <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{t('leads:table.actions')}</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider w-20">{t('leads:table.created')}</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider w-16">{t('leads:table.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-12">
+                  <td colSpan={10} className="text-center py-12">
                     <div className="flex flex-col items-center gap-3">
                       <span className="spinner spinner-lg"></span>
                       <p className="text-slate-500">{t('leads:loading')}</p>
@@ -770,7 +875,7 @@ export default function LeadsListPage() {
                 </tr>
               ) : leads.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-12">
+                  <td colSpan={10} className="text-center py-12">
                     <div className="empty-state">
                       <UserGroupIcon className="empty-state-icon" />
                       <p className="empty-state-title">{t('leads:empty.title')}</p>
@@ -793,8 +898,22 @@ export default function LeadsListPage() {
                   const serialNumber = (page - 1) * limit + index + 1;
 
                   return (
-                    <tr key={lead.id} className="group hover:bg-slate-50 border-b border-slate-100 last:border-0">
-                      <td className="px-3 py-2">
+                    <tr key={lead.id} className={`group border-b border-slate-100 last:border-0 transition-colors ${
+                      selectedLeads.has(lead.id)
+                        ? 'bg-purple-50'
+                        : lead.isConverted
+                        ? 'bg-emerald-50/30 hover:bg-emerald-50/60'
+                        : 'hover:bg-slate-50'
+                    }`}>
+                      <td className="px-2 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedLeads.has(lead.id)}
+                          onChange={() => handleSelectLead(lead.id)}
+                          className="w-3.5 h-3.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                        />
+                      </td>
+                      <td className="px-2 py-2">
                         <span className="text-xs font-medium text-slate-500">{serialNumber}</span>
                       </td>
                       <td className="px-3 py-2">
@@ -832,15 +951,75 @@ export default function LeadsListPage() {
                         </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div>
-                          <p className="text-xs text-slate-900">{lead.phone}</p>
-                          <p className="text-[10px] text-slate-500 truncate max-w-[150px]">{lead.email}</p>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(lead.phone || '');
+                                  showToast.success('Phone copied!');
+                                }}
+                                className="text-xs text-slate-900 hover:text-primary-600 hover:underline cursor-pointer"
+                                title="Click to copy"
+                              >
+                                {lead.phone}
+                              </button>
+                              {/* Quick Action Buttons */}
+                              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {lead.phone && (
+                                  <>
+                                    <a
+                                      href={`https://wa.me/${(lead.phone || '').replace(/[^0-9]/g, '')}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="p-1 rounded hover:bg-green-100 text-green-600 transition-colors"
+                                      title="WhatsApp"
+                                    >
+                                      <ChatBubbleLeftIcon className="w-3.5 h-3.5" />
+                                    </a>
+                                    <a
+                                      href={`tel:${lead.phone}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="p-1 rounded hover:bg-blue-100 text-blue-600 transition-colors"
+                                      title="Call"
+                                    >
+                                      <PhoneIcon className="w-3.5 h-3.5" />
+                                    </a>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            {lead.email && (
+                              <p
+                                className="text-[10px] text-slate-500 truncate max-w-[150px] cursor-help"
+                                title={lead.email}
+                              >
+                                {lead.email}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-3 py-2">
-                        <span className="text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                          {(lead.source || 'Unknown').replace('_', ' ')}
-                        </span>
+                        {lead.priority === 'HIGH' || lead.priority === 'hot' ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                            Hot
+                          </span>
+                        ) : lead.priority === 'MEDIUM' || lead.priority === 'warm' ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            Warm
+                          </span>
+                        ) : lead.priority === 'LOW' || lead.priority === 'cold' ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                            Cold
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         <span
@@ -851,25 +1030,18 @@ export default function LeadsListPage() {
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        {lead.tagAssignments && lead.tagAssignments.length > 0 ? (
-                          <div className="flex flex-wrap gap-1 max-w-[150px]">
-                            {lead.tagAssignments.slice(0, 2).map((ta: any) => (
-                              <span
-                                key={ta.tag.id}
-                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium text-white whitespace-nowrap"
-                                style={{ backgroundColor: ta.tag.color }}
-                              >
-                                {ta.tag.name}
-                              </span>
-                            ))}
-                            {lead.tagAssignments.length > 2 && (
-                              <span className="text-[9px] text-slate-500 whitespace-nowrap">
-                                +{lead.tagAssignments.length - 2} more
-                              </span>
-                            )}
+                        {lead.lastContactedAt ? (
+                          <div className="flex items-center gap-1.5">
+                            <ClockIcon className="w-3.5 h-3.5 text-slate-400" />
+                            <span
+                              className="text-[10px] text-slate-600 cursor-help"
+                              title={new Date(lead.lastContactedAt).toLocaleString()}
+                            >
+                              {getRelativeTime(lead.lastContactedAt)}
+                            </span>
                           </div>
                         ) : (
-                          <span className="text-[10px] text-slate-400 italic">No tags</span>
+                          <span className="text-[10px] text-slate-400 italic">No activity</span>
                         )}
                       </td>
                       <td className="px-3 py-2">
@@ -884,42 +1056,45 @@ export default function LeadsListPage() {
                             </span>
                           </div>
                         ) : (
-                          <span className="text-[10px] text-slate-400 italic">{t('leads:table.unassigned')}</span>
+                          <span className="text-[10px] text-amber-500 font-medium">Unassigned</span>
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        <span className="text-xs text-slate-500">
-                          {new Date(lead.createdAt).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                        <span
+                          className="text-xs text-slate-500 cursor-help"
+                          title={new Date(lead.createdAt).toLocaleString()}
+                        >
+                          {getRelativeTime(lead.createdAt)}
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="flex items-center justify-end gap-1">
-                          <Link
-                            to={`/leads/${lead.id}`}
-                            className="p-1.5 rounded text-slate-500 hover:text-primary-600 hover:bg-primary-50 transition-colors"
-                            title={t('leads:viewDetails')}
-                          >
-                            <EyeIcon className="h-4 w-4" />
-                          </Link>
-                          <a
-                            href={`tel:${lead.phone}`}
-                            className="p-1.5 rounded text-slate-500 hover:text-success-600 hover:bg-success-50 transition-colors"
-                            title={t('leads:call')}
-                          >
-                            <PhoneIcon className="h-4 w-4" />
-                          </a>
-                          <PermissionGate module="leads" action="delete">
+                        <div className="relative flex justify-center">
+                          <div className="group/dropdown">
                             <button
-                              onClick={() => handleDelete(lead.id)}
-                              className="p-1.5 rounded text-slate-500 hover:text-danger-600 hover:bg-danger-50 transition-colors"
-                              title={t('common:delete')}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
+                              title="Actions"
                             >
-                              <TrashIcon className="h-4 w-4" />
+                              <EllipsisVerticalIcon className="h-5 w-5" />
                             </button>
-                          </PermissionGate>
+                            <div className="absolute right-0 top-full mt-1 w-36 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50 opacity-0 invisible group-hover/dropdown:opacity-100 group-hover/dropdown:visible transition-all">
+                              <Link
+                                to={`/leads/${lead.id}`}
+                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                              >
+                                <EyeIcon className="h-4 w-4 text-slate-400" />
+                                View Details
+                              </Link>
+                              <PermissionGate module="leads" action="delete">
+                                <button
+                                  onClick={() => handleDelete(lead.id)}
+                                  className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left"
+                                >
+                                  <TrashIcon className="h-4 w-4" />
+                                  Delete
+                                </button>
+                              </PermissionGate>
+                            </div>
+                          </div>
                         </div>
                       </td>
                     </tr>

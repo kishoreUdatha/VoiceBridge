@@ -299,16 +299,29 @@ router.post('/call', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Phone number required' });
     }
 
-    // Get agent
+    // Get agent (only PUBLISHED agents can handle real calls)
     let agent = null;
     if (agentId) {
       agent = await prisma.voiceAgent.findUnique({ where: { id: agentId } });
+      // Verify agent is published
+      if (agent && agent.status !== 'PUBLISHED') {
+        console.log(`[VoiceBot] Agent ${agent.name} is not published (status: ${agent.status})`);
+        agent = null;
+      }
     }
     if (!agent) {
-      agent = await prisma.voiceAgent.findFirst({ where: { isActive: true } });
+      agent = await prisma.voiceAgent.findFirst({
+        where: {
+          isActive: true,
+          status: 'PUBLISHED'  // Only published agents can handle live calls
+        }
+      });
     }
     if (!agent) {
-      return res.status(400).json({ success: false, error: 'No active AI agent found' });
+      return res.status(400).json({
+        success: false,
+        error: 'No published voice agent found. Please publish an agent first.'
+      });
     }
 
     // Create call record

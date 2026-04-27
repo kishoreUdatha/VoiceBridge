@@ -13,9 +13,11 @@ import {
   TrashIcon,
   CodeBracketIcon,
   PhoneIcon,
+  CheckCircleIcon,
+  DocumentIcon,
 } from '@heroicons/react/24/outline';
 import { VoiceAgent } from '../voice-agents.types';
-import { formatDate } from '../voice-agents.constants';
+import { formatDate, industryLabels } from '../voice-agents.constants';
 
 interface AgentsTableProps {
   agents: VoiceAgent[];
@@ -71,6 +73,10 @@ export const AgentsTable: React.FC<AgentsTableProps> = ({
       <thead>
         <tr className="border-b border-gray-200">
           <th className="text-left py-3 text-sm font-medium text-gray-500">Name</th>
+          <th className="text-left py-3 text-sm font-medium text-gray-500">Status</th>
+          <th className="text-left py-3 text-sm font-medium text-gray-500">Industry</th>
+          <th className="text-left py-3 text-sm font-medium text-gray-500">Phone Number</th>
+          <th className="text-left py-3 text-sm font-medium text-gray-500">Calls</th>
           <th className="text-left py-3 text-sm font-medium text-gray-500">Created by</th>
           <th className="text-left py-3 text-sm font-medium text-gray-500">
             <span className="inline-flex items-center gap-1 cursor-pointer hover:text-gray-700">
@@ -89,13 +95,54 @@ export const AgentsTable: React.FC<AgentsTableProps> = ({
             key={agent.id}
             className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
             onClick={() => {
-              console.log('[AgentsTable] Clicking agent:', agent.id, agent.name);
-              console.log('[AgentsTable] Navigating to:', `/voice-ai/agents/${agent.id}`);
               navigate(`/voice-ai/agents/${agent.id}`);
             }}
           >
             <td className="py-4">
-              <span className="text-sm text-gray-900">{agent.name}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-900">{agent.name}</span>
+                {agent.language && (
+                  <span className="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 rounded">
+                    {agent.language}
+                  </span>
+                )}
+              </div>
+            </td>
+            <td className="py-4">
+              {agent.status === 'PUBLISHED' ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                  <CheckCircleIcon className="w-3 h-3" />
+                  Published
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
+                  <DocumentIcon className="w-3 h-3" />
+                  Draft
+                </span>
+              )}
+            </td>
+            <td className="py-4">
+              <span className="text-sm text-gray-600">
+                {industryLabels[agent.industry] || agent.industry}
+              </span>
+            </td>
+            <td className="py-4">
+              {agent.phoneNumbers && agent.phoneNumbers.length > 0 ? (
+                <div className="flex items-center gap-1">
+                  <PhoneIcon className="w-3.5 h-3.5 text-green-600" />
+                  <span className="text-sm text-gray-900 font-mono">
+                    {agent.phoneNumbers[0].displayNumber || agent.phoneNumbers[0].number}
+                  </span>
+                  {agent.phoneNumbers.length > 1 && (
+                    <span className="text-xs text-gray-400">+{agent.phoneNumbers.length - 1}</span>
+                  )}
+                </div>
+              ) : (
+                <span className="text-sm text-gray-400 italic">Not assigned</span>
+              )}
+            </td>
+            <td className="py-4">
+              <span className="text-sm text-gray-600">{agent._count?.sessions || 0}</span>
             </td>
             <td className="py-4">
               <span className="text-sm text-gray-600">

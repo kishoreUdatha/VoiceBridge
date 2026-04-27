@@ -10,6 +10,7 @@ import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { validate } from '../middlewares/validate';
 import { ApiResponse } from '../utils/apiResponse';
 import { leadStageService } from '../services/lead-stage.service';
+import { industryCacheService } from '../services/industry-cache.service';
 import { getIndustryOptions, LEAD_STAGE_TEMPLATES } from '../config/lead-stage-templates.config';
 import { OrganizationIndustry } from '@prisma/client';
 
@@ -20,10 +21,23 @@ router.use(authenticate);
 router.use(tenantMiddleware);
 
 // Validation rules
+// Note: industry validation now checks both enum and database
 const industryValidation = [
   body('industry')
-    .isIn(Object.keys(OrganizationIndustry))
-    .withMessage('Invalid industry type'),
+    .notEmpty()
+    .withMessage('Industry is required')
+    .custom(async (value) => {
+      // Check enum first (backward compatibility)
+      if (Object.keys(OrganizationIndustry).includes(value)) {
+        return true;
+      }
+      // Check database for dynamic industries
+      const exists = await industryCacheService.industryExists(value.toLowerCase().replace(/_/g, '-'));
+      if (!exists) {
+        throw new Error('Invalid industry type');
+      }
+      return true;
+    }),
   body('resetStages')
     .optional()
     .isBoolean()
@@ -73,25 +87,44 @@ router.get('/templates', async (req: TenantRequest, res: Response) => {
 /**
  * GET /api/lead-stages/templates/:industry
  * Get stages template for a specific industry (preview)
+ * Supports both enum keys and slugs for dynamic industries
  */
 router.get('/templates/:industry', async (req: TenantRequest, res: Response) => {
   try {
     const { industry } = req.params;
 
-    if (!Object.keys(OrganizationIndustry).includes(industry)) {
-      return ApiResponse.error(res, 'Invalid industry type', 400);
+    // Try enum first (backward compatibility)
+    if (Object.keys(OrganizationIndustry).includes(industry)) {
+      const config = LEAD_STAGE_TEMPLATES[industry as OrganizationIndustry];
+      return ApiResponse.success(res, 'Industry template retrieved', {
+        industry,
+        label: config.label,
+        description: config.description,
+        icon: config.icon,
+        color: config.color,
+        stages: config.stages,
+        lostStage: config.lostStage,
+      });
     }
 
-    const config = LEAD_STAGE_TEMPLATES[industry as OrganizationIndustry];
-    return ApiResponse.success(res, 'Industry template retrieved', {
-      industry,
-      label: config.label,
-      description: config.description,
-      icon: config.icon,
-      color: config.color,
-      stages: config.stages,
-      lostStage: config.lostStage,
-    });
+    // Try dynamic industry by slug
+    const slug = industry.toLowerCase().replace(/_/g, '-');
+    const cached = await industryCacheService.getIndustryConfig(slug);
+    if (cached) {
+      const stages = cached.stages.filter((s) => !s.isLostStage);
+      const lostStage = cached.stages.find((s) => s.isLostStage);
+      return ApiResponse.success(res, 'Industry template retrieved', {
+        industry: slug,
+        label: cached.name,
+        description: cached.description,
+        icon: cached.icon,
+        color: cached.color,
+        stages,
+        lostStage,
+      });
+    }
+
+    return ApiResponse.error(res, 'Invalid industry type', 400);
   } catch (error) {
     console.error('Error fetching industry template:', error);
     return ApiResponse.error(res, 'Failed to fetch industry template', 500);

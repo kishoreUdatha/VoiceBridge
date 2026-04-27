@@ -5,6 +5,7 @@ import { generateTokenPair, verifyRefreshToken } from '../utils/jwt';
 import { UnauthorizedError, NotFoundError, ConflictError, BadRequestError } from '../utils/errors';
 import { emailService } from '../integrations/email.service';
 import { workSessionService } from './work-session.service';
+import { industryCacheService } from './industry-cache.service';
 
 interface RegisterInput {
   organizationName: string;
@@ -385,6 +386,15 @@ export class AuthService {
     // Determine industry (default to GENERAL)
     const industry = (input.industry || 'GENERAL') as any;
 
+    // Convert industry key to slug format for dynamic industry lookup
+    const industrySlug = industry.toLowerCase().replace(/_/g, '-');
+
+    // Look up dynamic industry (may be null if not seeded yet)
+    const dynamicIndustry = await prisma.dynamicIndustry.findUnique({
+      where: { slug: industrySlug },
+      select: { id: true, slug: true },
+    });
+
     // Create organization, admin role, and user in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Parse team size to set maxUsers limit
@@ -402,6 +412,9 @@ export class AuthService {
           phone: input.phone,
           contactPerson: `${input.firstName} ${input.lastName}`,
           industry: industry,
+          // Link to dynamic industry system (for new organizations)
+          dynamicIndustryId: dynamicIndustry?.id || null,
+          industrySlug: dynamicIndustry?.slug || industrySlug,
           activePlanId: input.planId || 'starter',
           subscriptionStatus: 'TRIAL',
           trialEndsAt: trialEndsAt,
@@ -560,7 +573,7 @@ export class AuthService {
         role: 'admin',
         permissions,
         onboardingCompleted: false, // New organizations haven't completed onboarding
-        organizationIndustry: null, // Industry not set yet
+        organizationIndustry: industry, // Industry selected during registration
       },
       ...tokens,
       tenantUrl,

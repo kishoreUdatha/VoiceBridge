@@ -18,6 +18,7 @@ import voicebotRoutes, { initializeVoiceBotWebSocket } from './routes/voicebot.r
 import { initializeScheduledJobs } from './services/job-initializer.service';
 import { csrfTokenSetter, csrfProtection, csrfTokenEndpoint } from './middlewares/csrf';
 import { maintenanceMiddleware } from './middlewares/maintenance.middleware';
+import { industryCacheService } from './services/industry-cache.service';
 import fs from 'fs';
 import path from 'path';
 
@@ -310,6 +311,9 @@ async function gracefulShutdown(signal: string) {
 async function startServer() {
   try {
     await connectDatabase();
+
+    // Warm up industry cache for O(1) lookups
+    await industryCacheService.warmUp();
 
     // Initialize WebSocket for real-time updates
     websocketService.initialize(httpServer);

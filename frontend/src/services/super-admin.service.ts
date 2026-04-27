@@ -334,6 +334,169 @@ export const superAdminService = {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   },
+
+  // ==================== INDUSTRY MANAGEMENT ====================
+
+  // Get all industries
+  async getIndustries() {
+    const response = await api.get('/admin/industries');
+    return response.data;
+  },
+
+  // Get industry by slug
+  async getIndustry(slug: string) {
+    const response = await api.get(`/admin/industries/${slug}`);
+    return response.data;
+  },
+
+  // Create new industry
+  async createIndustry(data: {
+    slug: string;
+    name: string;
+    description?: string;
+    icon?: string;
+    color?: string;
+  }) {
+    const response = await api.post('/admin/industries', data);
+    return response.data;
+  },
+
+  // Update industry
+  async updateIndustry(slug: string, data: {
+    name?: string;
+    description?: string;
+    icon?: string;
+    color?: string;
+    isActive?: boolean;
+  }) {
+    const response = await api.put(`/admin/industries/${slug}`, data);
+    return response.data;
+  },
+
+  // Delete industry (only non-system)
+  async deleteIndustry(slug: string) {
+    const response = await api.delete(`/admin/industries/${slug}`);
+    return response.data;
+  },
+
+  // Get industry field templates
+  async getIndustryFields(slug: string) {
+    const response = await api.get(`/admin/industries/${slug}/fields`);
+    return response.data;
+  },
+
+  // Add field template
+  async addIndustryField(slug: string, data: {
+    key: string;
+    label: string;
+    fieldType: string;
+    isRequired?: boolean;
+    placeholder?: string;
+    helpText?: string;
+    options?: Array<{ value: string; label: string; color?: string }>;
+    minValue?: number;
+    maxValue?: number;
+    unit?: string;
+    groupName?: string;
+    gridSpan?: number;
+  }) {
+    const response = await api.post(`/admin/industries/${slug}/fields`, data);
+    return response.data;
+  },
+
+  // Update field template
+  async updateIndustryField(slug: string, fieldKey: string, data: {
+    label?: string;
+    fieldType?: string;
+    isRequired?: boolean;
+    placeholder?: string;
+    helpText?: string;
+    options?: Array<{ value: string; label: string; color?: string }>;
+    minValue?: number;
+    maxValue?: number;
+    unit?: string;
+    groupName?: string;
+    gridSpan?: number;
+  }) {
+    const response = await api.put(`/admin/industries/${slug}/fields/${fieldKey}`, data);
+    return response.data;
+  },
+
+  // Delete field template
+  async deleteIndustryField(slug: string, fieldKey: string) {
+    const response = await api.delete(`/admin/industries/${slug}/fields/${fieldKey}`);
+    return response.data;
+  },
+
+  // Reorder fields
+  async reorderIndustryFields(slug: string, fieldKeys: string[]) {
+    const response = await api.post(`/admin/industries/${slug}/fields/reorder`, { fieldKeys });
+    return response.data;
+  },
+
+  // Get industry stage templates
+  async getIndustryStages(slug: string) {
+    const response = await api.get(`/admin/industries/${slug}/stages`);
+    return response.data;
+  },
+
+  // Add stage template
+  async addIndustryStage(slug: string, data: {
+    name: string;
+    stageSlug: string;
+    color?: string;
+    icon?: string;
+    journeyOrder: number;
+    isDefault?: boolean;
+    isLostStage?: boolean;
+    autoSyncStatus?: string;
+  }) {
+    const response = await api.post(`/admin/industries/${slug}/stages`, data);
+    return response.data;
+  },
+
+  // Update stage template
+  async updateIndustryStage(slug: string, stageSlug: string, data: {
+    name?: string;
+    color?: string;
+    icon?: string;
+    journeyOrder?: number;
+    isDefault?: boolean;
+    autoSyncStatus?: string;
+  }) {
+    const response = await api.put(`/admin/industries/${slug}/stages/${stageSlug}`, data);
+    return response.data;
+  },
+
+  // Delete stage template
+  async deleteIndustryStage(slug: string, stageSlug: string) {
+    const response = await api.delete(`/admin/industries/${slug}/stages/${stageSlug}`);
+    return response.data;
+  },
+
+  // Export industry as JSON
+  async exportIndustry(slug: string) {
+    const response = await api.get(`/admin/industries/${slug}/export`);
+    return response.data;
+  },
+
+  // Import industry from JSON
+  async importIndustry(data: any) {
+    const response = await api.post('/admin/industries/import', data);
+    return response.data;
+  },
+
+  // Invalidate industry cache
+  async invalidateIndustryCache(slug?: string) {
+    const response = await api.post('/admin/industries/cache/invalidate', { slug });
+    return response.data;
+  },
+
+  // Get industry stats (for dashboard)
+  async getIndustryStats() {
+    const response = await api.get('/super-admin/industries/stats');
+    return response.data;
+  },
 };
 
 export default superAdminService;

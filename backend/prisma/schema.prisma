@@ -76,8 +76,13 @@ model Organization {
   // Language Settings
   preferredLanguage String? @default("te-IN") // Default language for transcription (te-IN, hi-IN, en-IN, etc.)
 
-  // Industry Configuration
+  // Industry Configuration (Legacy - kept for backward compatibility)
   industry OrganizationIndustry? @default(GENERAL)
+
+  // Dynamic Industry System
+  dynamicIndustryId String?
+  industrySlug      String? // Denormalized for fast lookup
+  dynamicIndustry   DynamicIndustry? @relation(fields: [dynamicIndustryId], references: [id])
 
   // White-Label / Branding Settings
   subdomain       String?  @unique // "abc-institute" for abc-institute.voicebridge.com
@@ -302,6 +307,7 @@ model Organization {
   // Promo Code Redemptions
   promoCodeRedemptions PromoCodeRedemption[]
 
+  @@index([industrySlug])
   @@map("organizations")
 }
 
@@ -2494,7 +2500,86 @@ enum OrganizationIndustry {
   FINANCE
   IT_RECRUITMENT
   ECOMMERCE
+  AUTOMOTIVE
+  IT_SERVICES
+  CALL_CENTERS
+  TRAVEL
+  FITNESS
+  B2B_SALES
   GENERAL
+}
+
+// =====================================================
+// Dynamic Industry System Models
+// =====================================================
+
+model DynamicIndustry {
+  id            String   @id @default(uuid())
+  slug          String   @unique // "real-estate", "custom-xyz"
+  name          String // "Real Estate"
+  description   String?  @db.Text
+  icon          String?
+  color         String   @default("#6B7280")
+  isSystem      Boolean  @default(false) // Built-in = cannot delete
+  isActive      Boolean  @default(true)
+  defaultLabels Json? // { "lead": "Buyer", "deal": "Booking" }
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  fieldTemplates DynamicIndustryFieldTemplate[]
+  stageTemplates DynamicIndustryStageTemplate[]
+  organizations  Organization[]
+
+  @@index([isSystem, isActive])
+  @@map("dynamic_industries")
+}
+
+model DynamicIndustryFieldTemplate {
+  id           String   @id @default(uuid())
+  industryId   String
+  key          String
+  label        String
+  fieldType    String // text, number, select, multiselect, date, boolean, currency, textarea
+  isRequired   Boolean  @default(false)
+  placeholder  String?
+  helpText     String?
+  options      Json? // [{ value, label, color? }]
+  minValue     Float?
+  maxValue     Float?
+  unit         String?
+  groupName    String?
+  displayOrder Int      @default(0)
+  gridSpan     Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  industry DynamicIndustry @relation(fields: [industryId], references: [id], onDelete: Cascade)
+
+  @@unique([industryId, key])
+  @@index([industryId, groupName])
+  @@map("dynamic_industry_field_templates")
+}
+
+model DynamicIndustryStageTemplate {
+  id             String   @id @default(uuid())
+  industryId     String
+  name           String
+  slug           String
+  color          String   @default("#6B7280")
+  icon           String?
+  journeyOrder   Int
+  isDefault      Boolean  @default(false)
+  isLostStage    Boolean  @default(false)
+  autoSyncStatus String? // "WON" or "LOST"
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  industry DynamicIndustry @relation(fields: [industryId], references: [id], onDelete: Cascade)
+
+  @@unique([industryId, slug])
+  @@index([industryId, journeyOrder])
+  @@map("dynamic_industry_stage_templates")
 }
 
 enum TaxonomyType {
@@ -2969,9 +3054,9 @@ model VoiceAgent {
   widgetColor    String  @default("#3B82F6")
   widgetPosition String  @default("bottom-right")
 
-  // Realtime Settings
-  realtimeEnabled Boolean @default(false)
-  webrtcEnabled   Boolean @default(false)
+  // Realtime Settings (enabled by default for voice testing)
+  realtimeEnabled Boolean @default(true)
+  webrtcEnabled   Boolean @default(true)
 
   // Lead Generation Settings
   autoCreateLeads    Boolean @default(true)
@@ -8272,6 +8357,13 @@ model MessageLog {
   externalId String? // Provider message ID
   error      String?
 
+  // Retry Configuration
+  retryCount    Int       @default(0) // Number of retry attempts made
+  maxRetries    Int       @default(3) // Maximum retry attempts allowed
+  nextRetryAt   DateTime? // When to attempt next retry
+  lastRetryAt   DateTime? // When last retry was attempted
+  retryErrors   Json?     @default("[]") // Array of error messages from each attempt
+
   // Timestamps
   sentAt      DateTime?
   deliveredAt DateTime?
@@ -8284,6 +8376,7 @@ model MessageLog {
   @@index([organizationId, createdAt])
   @@index([leadId])
   @@index([type, status])
+  @@index([status, nextRetryAt]) // For retry queue processing
   @@map("message_logs")
 }
 

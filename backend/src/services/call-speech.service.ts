@@ -149,8 +149,11 @@ class CallSpeechService {
     }
 
     try {
+      // Use agent's configured LLM model, fallback to env or default
+      const llmModel = agent.llmModel || process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini';
+
       const completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+        model: llmModel,
         messages,
         temperature: agent.temperature,
         max_tokens: 300,
@@ -216,7 +219,7 @@ If the person provides information before you ask, acknowledge it and skip that 
   }
 
   /**
-   * Extract qualification data from user message
+   * Extract qualification data from user message with validation
    */
   async extractQualification(userMessage: string, agent: any): Promise<any> {
     const questions = agent.questions as any[];
@@ -225,14 +228,34 @@ If the person provides information before you ask, acknowledge it and skip that 
     }
 
     try {
+      const llmModel = agent.llmModel || process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini';
+
+      // Build field descriptions for better extraction
+      const fieldDescriptions = questions.map((q: any) => {
+        let desc = `${q.field}: ${q.question}`;
+        if (q.type) desc += ` (type: ${q.type})`;
+        if (q.required) desc += ' [REQUIRED]';
+        return desc;
+      }).join('\n');
+
       const completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+        model: llmModel,
         messages: [
           {
             role: 'system',
-            content: `Extract qualification data from the user's message. Return JSON only.
-Fields to extract: ${questions.map((q: any) => q.field).join(', ')}
-If a field is not mentioned, don't include it.`,
+            content: `Extract qualification data from the user's message. Return valid JSON only.
+
+Fields to extract:
+${fieldDescriptions}
+
+Rules:
+- Only include fields that are explicitly mentioned or can be inferred from the message
+- For phone numbers: extract digits only, format as string (e.g., "9876543210")
+- For emails: ensure valid email format, lowercase
+- For names: capitalize properly
+- For dates: use ISO format (YYYY-MM-DD)
+- For numbers: use numeric type
+- If a field is not mentioned or unclear, DO NOT include it in the output`,
           },
           {
             role: 'user',
@@ -245,13 +268,83 @@ If a field is not mentioned, don't include it.`,
 
       const content = completion.choices[0]?.message?.content;
       if (content) {
-        return JSON.parse(content);
+        const extracted = JSON.parse(content);
+        return this.validateAndCleanQualification(extracted, questions);
       }
     } catch (error) {
       console.error('Extraction error:', error);
     }
 
     return {};
+  }
+
+  /**
+   * Validate and clean extracted qualification data
+   */
+  private validateAndCleanQualification(data: any, questions: any[]): any {
+    const cleaned: any = {};
+    const fieldTypes: Record<string, string> = {};
+
+    // Build field type map
+    for (const q of questions) {
+      fieldTypes[q.field] = q.type || 'text';
+    }
+
+    for (const [field, value] of Object.entries(data)) {
+      if (value === null || value === undefined || value === '') {
+        continue;
+      }
+
+      const fieldType = fieldTypes[field] || 'text';
+
+      switch (fieldType) {
+        case 'email':
+          // Validate email format
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          const emailStr = String(value).toLowerCase().trim();
+          if (emailRegex.test(emailStr)) {
+            cleaned[field] = emailStr;
+          }
+          break;
+
+        case 'phone':
+          // Clean phone number - keep only digits
+          const phoneStr = String(value).replace(/\D/g, '');
+          // Validate Indian phone (10 digits) or international
+          if (phoneStr.length >= 10 && phoneStr.length <= 15) {
+            cleaned[field] = phoneStr;
+          }
+          break;
+
+        case 'number':
+          const num = Number(value);
+          if (!isNaN(num)) {
+            cleaned[field] = num;
+          }
+          break;
+
+        case 'date':
+          // Try to parse as date
+          const date = new Date(String(value));
+          if (!isNaN(date.getTime())) {
+            cleaned[field] = date.toISOString().split('T')[0];
+          }
+          break;
+
+        case 'boolean':
+          cleaned[field] = Boolean(value);
+          break;
+
+        default:
+          // Text fields - just trim and sanitize
+          const textValue = String(value).trim();
+          if (textValue.length > 0 && textValue.length < 1000) {
+            cleaned[field] = textValue;
+          }
+      }
+    }
+
+    return cleaned;
   }
 
   /**

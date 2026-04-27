@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { customFieldsService, CustomField, FieldType } from '../services/custom-fields.service';
-import { CheckIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, DocumentTextIcon, PlusIcon } from '@heroicons/react/24/outline';
 
 interface CustomFieldsRendererProps {
   values: Record<string, any>;
@@ -54,7 +54,22 @@ export function CustomFieldsRenderer({
   }
 
   if (fields.length === 0) {
-    return null;
+    return (
+      <div className="text-center py-8 px-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+        <DocumentTextIcon className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+        <p className="text-sm text-slate-600 mb-2">No custom fields configured</p>
+        <p className="text-xs text-slate-500 mb-4">
+          Add custom fields to collect additional information about your leads
+        </p>
+        <a
+          href="/settings/custom-fields"
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+        >
+          <PlusIcon className="w-4 h-4" />
+          Add Custom Field
+        </a>
+      </div>
+    );
   }
 
   const baseInputClass =
@@ -233,7 +248,7 @@ export function CustomFieldsRenderer({
   };
 
   return (
-    <div className={`grid gap-4 ${compact ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-2'}`}>
+    <div className={`grid gap-4 ${compact ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
       {fields.map(renderField)}
     </div>
   );

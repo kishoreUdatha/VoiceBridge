@@ -577,14 +577,20 @@ router.post('/test-call', async (req: Request, res: Response) => {
       });
     }
 
-    // Get an active agent
+    // Get a published agent (only PUBLISHED agents can handle real calls)
     const agent = await prisma.voiceAgent.findFirst({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        status: 'PUBLISHED'  // Only published agents can handle live calls
+      },
       orderBy: { createdAt: 'desc' }
     });
 
     if (!agent) {
-      return res.status(400).json({ success: false, error: 'No active voice agent found' });
+      return res.status(400).json({
+        success: false,
+        error: 'No published voice agent found. Please publish an agent first to make calls.'
+      });
     }
 
     // Format phone number

@@ -1,20 +1,17 @@
 /**
  * Voicebot Transcription Service - Single Responsibility Principle
- * Handles speech-to-text using Sarvam, AI4Bharat (Indian languages) and OpenAI Whisper
+ *
+ * SIMPLIFIED STT CONFIGURATION:
+ * - Indian languages: Sarvam AI (best accuracy for Indian accents)
+ * - English/Other: OpenAI Whisper (reliable, universal fallback)
  */
 
 import OpenAI from 'openai';
 import { sarvamService, SARVAM_LANGUAGES } from '../integrations/sarvam.service';
-import { ai4bharatService, AI4BHARAT_LANGUAGES } from '../integrations/ai4bharat.service';
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
-
-// STT provider configuration
-const STT_PROVIDER = process.env.STT_PROVIDER || process.env.TTS_PROVIDER || process.env.VOICE_PROVIDER || 'auto';
-const USE_SARVAM = STT_PROVIDER === 'sarvam' || (STT_PROVIDER === 'auto' && sarvamService.isAvailable());
-const USE_AI4BHARAT = STT_PROVIDER === 'ai4bharat' || (STT_PROVIDER === 'auto' && ai4bharatService.isAvailable());
 
 // Language code normalization map
 const LANG_CODE_MAP: Record<string, string> = {
@@ -38,56 +35,43 @@ export function normalizeLanguageCode(lang?: string): string {
 export function isIndianLanguage(language?: string): boolean {
   if (!language) return false;
   const normalizedLang = normalizeLanguageCode(language);
-  // Check both Sarvam and AI4Bharat supported languages
-  const sarvamSupported = Object.keys(SARVAM_LANGUAGES).some(
+  // Check Sarvam supported languages
+  return Object.keys(SARVAM_LANGUAGES).some(
     lang => normalizedLang.startsWith(lang.split('-')[0]) || normalizedLang === lang
   );
-  const ai4bharatSupported = Object.keys(AI4BHARAT_LANGUAGES).some(
-    lang => normalizedLang.startsWith(lang.split('-')[0]) || normalizedLang === lang
-  );
-  return sarvamSupported || ai4bharatSupported;
 }
 
 /**
- * Transcribe audio using Sarvam, AI4Bharat (for Indian languages) or OpenAI Whisper
+ * Transcribe audio using Sarvam (Indian languages) or OpenAI Whisper
  * Supports multiple Indian languages: Hindi, Telugu, Tamil, Kannada, Malayalam, etc.
  *
- * Priority: Sarvam -> AI4Bharat -> OpenAI Whisper
+ * SIMPLIFIED PROVIDER SELECTION:
+ * 1. Indian languages -> Sarvam AI (best accuracy for Indian accents)
+ * 2. English/Other -> OpenAI Whisper (reliable, universal)
+ *
+ * Fallback: Always OpenAI Whisper if Sarvam fails
  */
 export async function transcribeAudio(wavBuffer: Buffer, language?: string): Promise<string> {
   const normalizedLang = language ? normalizeLanguageCode(language) : undefined;
   const isIndian = normalizedLang && isIndianLanguage(normalizedLang);
 
-  // Use Sarvam for Indian languages when available (primary)
-  if ((USE_SARVAM || isIndian) && sarvamService.isAvailable()) {
+  // ========================================
+  // PRIORITY 1: Indian Languages -> Sarvam AI
+  // ========================================
+  if (isIndian && sarvamService.isAvailable()) {
     try {
-      console.log(`[Transcription] Using Sarvam STT for language: ${normalizedLang || 'auto-detect'}`);
+      console.log(`[STT] Using Sarvam AI (Indian language): ${normalizedLang || 'auto-detect'}`);
       const result = await sarvamService.speechToText(wavBuffer, 8000, normalizedLang);
-      console.log(`[Transcription] Sarvam transcribed: "${result.text}" (detected: ${result.detectedLanguage})`);
+      console.log(`[STT] Sarvam transcribed: "${result.text}" (detected: ${result.detectedLanguage})`);
       return result.text || '';
     } catch (error) {
-      console.error('[Transcription] Sarvam STT error, falling back to AI4Bharat:', error);
-      // Fall through to AI4Bharat
+      console.error('[STT] Sarvam failed, falling back to OpenAI Whisper:', error);
     }
   }
 
-  // Use AI4Bharat for Indian languages (fallback or when Sarvam not available)
-  if ((USE_AI4BHARAT || isIndian) && ai4bharatService.isAvailable()) {
-    const langCode = normalizedLang as keyof typeof AI4BHARAT_LANGUAGES;
-    if (ai4bharatService.isLanguageSupported(langCode)) {
-      try {
-        console.log(`[Transcription] Using AI4Bharat STT for language: ${normalizedLang || 'auto-detect'}`);
-        const result = await ai4bharatService.transcribe(wavBuffer, langCode, 8000);
-        console.log(`[Transcription] AI4Bharat transcribed: "${result.text}"`);
-        return result.text || '';
-      } catch (error) {
-        console.error('[Transcription] AI4Bharat STT error, falling back to OpenAI:', error);
-        // Fall through to OpenAI
-      }
-    }
-  }
-
-  // Fallback to OpenAI Whisper
+  // ========================================
+  // FALLBACK: OpenAI Whisper (English & all fallbacks)
+  // ========================================
   return transcribeWithWhisper(wavBuffer, language);
 }
 
@@ -143,52 +127,22 @@ async function transcribeWithWhisper(wavBuffer: Buffer, language?: string): Prom
 }
 
 /**
- * Detect language from audio content
+ * Detect language from audio content using Sarvam
  */
 export async function detectLanguageFromAudio(wavBuffer: Buffer): Promise<string | null> {
-  // Try Sarvam first
   if (sarvamService.isAvailable()) {
     try {
       const result = await sarvamService.speechToText(wavBuffer, 8000);
       return result.detectedLanguage || null;
     } catch (error) {
-      console.error('[Transcription] Sarvam language detection error:', error);
+      console.error('[STT] Language detection error:', error);
     }
   }
-
-  // Try AI4Bharat as fallback
-  if (ai4bharatService.isAvailable()) {
-    try {
-      // AI4Bharat doesn't have auto-detect, but we can try Telugu as default for now
-      const result = await ai4bharatService.transcribe(wavBuffer, 'te-IN', 8000);
-      if (result.text && result.text.length > 0) {
-        return result.language || 'te-IN';
-      }
-    } catch (error) {
-      console.error('[Transcription] AI4Bharat language detection error:', error);
-    }
-  }
-
   return null;
-}
-
-/**
- * Transcribe using AI4Bharat directly
- */
-export async function transcribeWithAI4Bharat(
-  wavBuffer: Buffer,
-  language: keyof typeof AI4BHARAT_LANGUAGES
-): Promise<string> {
-  if (!ai4bharatService.isAvailable()) {
-    throw new Error('AI4Bharat service not available');
-  }
-  const result = await ai4bharatService.transcribe(wavBuffer, language, 8000);
-  return result.text || '';
 }
 
 export const voicebotTranscriptionService = {
   transcribeAudio,
-  transcribeWithAI4Bharat,
   normalizeLanguageCode,
   isIndianLanguage,
   detectLanguageFromAudio,

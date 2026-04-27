@@ -7,6 +7,7 @@ import { Router, Response } from 'express';
 import { authenticate, authorize } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { industryCustomFieldsService } from '../services/industry-custom-fields.service';
+import { industryCacheService } from '../services/industry-cache.service';
 import { getIndustryFieldConfig, getIndustryFields } from '../config/industry-fields.config';
 import { OrganizationIndustry } from '@prisma/client';
 import { ApiResponse } from '../utils/apiResponse';
@@ -41,21 +42,50 @@ router.get('/schema', async (req: TenantRequest, res: Response) => {
 /**
  * GET /api/industry-fields/industries/:industry/fields
  * Get field schema for a specific industry (useful for previewing)
+ * Supports both enum keys and slugs for dynamic industries
  */
 router.get('/industries/:industry/fields', async (req: TenantRequest, res: Response) => {
   try {
     const { industry } = req.params;
 
-    // Validate industry
+    // Try enum first (backward compatibility)
     const validIndustries = Object.values(OrganizationIndustry);
-    if (!validIndustries.includes(industry as OrganizationIndustry)) {
-      return ApiResponse.error(res, 'Invalid industry', 400);
+    if (validIndustries.includes(industry as OrganizationIndustry)) {
+      const config = getIndustryFieldConfig(industry as OrganizationIndustry);
+      const fields = getIndustryFields(industry as OrganizationIndustry);
+      return ApiResponse.success(res, 'Industry fields retrieved successfully', { config, fields });
     }
 
-    const config = getIndustryFieldConfig(industry as OrganizationIndustry);
-    const fields = getIndustryFields(industry as OrganizationIndustry);
+    // Try dynamic industry by slug
+    const slug = industry.toLowerCase().replace(/_/g, '-');
+    const cached = await industryCacheService.getIndustryConfig(slug);
+    if (cached) {
+      const config = {
+        industry: slug,
+        label: cached.name,
+        icon: cached.icon,
+        color: cached.color,
+        fields: cached.fields.map((f) => ({
+          key: f.key,
+          label: f.label,
+          type: f.fieldType,
+          required: f.isRequired,
+          placeholder: f.placeholder,
+          options: f.options,
+          min: f.minValue,
+          max: f.maxValue,
+          unit: f.unit,
+          helpText: f.helpText,
+          gridSpan: f.gridSpan,
+        })),
+      };
+      return ApiResponse.success(res, 'Industry fields retrieved successfully', {
+        config,
+        fields: config.fields,
+      });
+    }
 
-    return ApiResponse.success(res, 'Industry fields retrieved successfully', { config, fields });
+    return ApiResponse.error(res, 'Invalid industry', 400);
   } catch (error) {
     console.error('Error getting industry fields:', error);
     return ApiResponse.error(res, 'Failed to get industry fields', 500);
@@ -225,6 +255,7 @@ router.get('/analytics/:fieldKey', async (req: TenantRequest, res: Response) => 
 /**
  * POST /api/industry-fields/validate
  * Validate custom fields against industry schema
+ * Supports both enum keys and slugs for dynamic industries
  */
 router.post('/validate', async (req: TenantRequest, res: Response) => {
   try {
@@ -234,11 +265,21 @@ router.post('/validate', async (req: TenantRequest, res: Response) => {
     let targetIndustry: OrganizationIndustry;
 
     if (industry) {
+      // Try enum first
       const validIndustries = Object.values(OrganizationIndustry);
-      if (!validIndustries.includes(industry)) {
-        return ApiResponse.error(res, 'Invalid industry', 400);
+      if (validIndustries.includes(industry)) {
+        targetIndustry = industry;
+      } else {
+        // Try dynamic industry
+        const slug = industry.toLowerCase().replace(/_/g, '-');
+        const exists = await industryCacheService.industryExists(slug);
+        if (!exists) {
+          return ApiResponse.error(res, 'Invalid industry', 400);
+        }
+        // For dynamic industries, use GENERAL validation with custom schema
+        // A more complete implementation would build validation rules from cached fields
+        targetIndustry = OrganizationIndustry.GENERAL;
       }
-      targetIndustry = industry;
     } else if (organizationId) {
       const config = await industryCustomFieldsService.getFieldConfigForOrganization(organizationId);
       targetIndustry = config.industry;

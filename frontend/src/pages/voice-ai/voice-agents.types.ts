@@ -8,14 +8,21 @@ export interface VoiceAgent {
   name: string;
   industry: string;
   isActive: boolean;
+  status: 'DRAFT' | 'PUBLISHED';
   voiceId: string;
   widgetColor: string;
+  language?: string;
   createdAt: string;
   createdBy?: {
     id: string;
     firstName: string;
     lastName: string;
   };
+  phoneNumbers?: {
+    id: string;
+    number: string;
+    displayNumber?: string;
+  }[];
   _count: {
     sessions: number;
   };

@@ -1,0 +1,51 @@
+MyLeadX Demo Video - Narration Script
+=====================================
+
+[Login Page] (4s)
+Welcome to MyLeadX, your AI-powered CRM solution.
+
+[Dashboard] (4s)
+The dashboard gives you a complete overview of your sales performance.
+
+[Leads Management] (4s)
+Manage all your leads with powerful filtering and bulk actions.
+
+[Sales Pipeline] (4s)
+Visualize your sales pipeline with drag and drop stages.
+
+[Analytics Dashboard] (4s)
+Get deep insights with our analytics dashboard.
+
+[User Management] (4s)
+Manage user accounts and team members.
+
+[Roles & Permissions] (4s)
+Define custom roles with specific permissions.
+
+[Voice AI Agents] (4s)
+Meet our AI Voice Agents that call leads in 10 plus languages.
+
+[Outbound Calls] (4s)
+Launch outbound calling campaigns with AI agents.
+
+[Telecaller Dashboard] (4s)
+Telecallers get a dedicated app for making calls.
+
+[Call History] (4s)
+Access complete call history with recordings and transcripts.
+
+[Campaigns] (4s)
+Create and manage marketing campaigns.
+
+[Reports] (4s)
+Generate detailed reports on sales operations.
+
+[Settings] (4s)
+Customize MyLeadX to fit your business needs.
+
+[Subscription] (4s)
+Manage your subscription and billing.
+
+[API Keys] (4s)
+Integrate with your tools using our API.
+

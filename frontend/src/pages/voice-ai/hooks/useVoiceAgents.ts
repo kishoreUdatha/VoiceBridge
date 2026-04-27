@@ -16,11 +16,13 @@ interface UseVoiceAgentsReturn {
   copiedId: string | null;
   filterCreator: boolean;
   filterArchived: boolean;
+  filterStatus: 'ALL' | 'DRAFT' | 'PUBLISHED';
   filteredAgents: VoiceAgent[];
   setSearchQuery: (query: string) => void;
   setOpenMenuId: (id: string | null) => void;
   setFilterCreator: (value: boolean) => void;
   setFilterArchived: (value: boolean) => void;
+  setFilterStatus: (value: 'ALL' | 'DRAFT' | 'PUBLISHED') => void;
   fetchAgents: () => Promise<void>;
   toggleAgent: (agentId: string, isActive: boolean) => Promise<void>;
   deleteAgent: (agentId: string, name: string) => Promise<void>;
@@ -35,6 +37,7 @@ export function useVoiceAgents(): UseVoiceAgentsReturn {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [filterCreator, setFilterCreator] = useState(false);
   const [filterArchived, setFilterArchived] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'DRAFT' | 'PUBLISHED'>('ALL');
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -102,9 +105,15 @@ export function useVoiceAgents(): UseVoiceAgentsReturn {
     }
   }, []);
 
-  const filteredAgents = agents.filter(agent =>
-    agent.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAgents = agents.filter(agent => {
+    // Search filter
+    const matchesSearch = agent.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // Status filter
+    const matchesStatus = filterStatus === 'ALL' || agent.status === filterStatus;
+
+    return matchesSearch && matchesStatus;
+  });
 
   return {
     agents,
@@ -114,11 +123,13 @@ export function useVoiceAgents(): UseVoiceAgentsReturn {
     copiedId,
     filterCreator,
     filterArchived,
+    filterStatus,
     filteredAgents,
     setSearchQuery,
     setOpenMenuId,
     setFilterCreator,
     setFilterArchived,
+    setFilterStatus,
     fetchAgents,
     toggleAgent,
     deleteAgent,

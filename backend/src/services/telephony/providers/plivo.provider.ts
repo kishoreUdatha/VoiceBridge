@@ -1,6 +1,6 @@
 /**
  * Plivo Telephony Provider
- * Adapter for Plivo Voice API
+ * Adapter for Plivo Voice API with AI conversation support
  */
 
 import * as plivo from 'plivo';
@@ -9,10 +9,13 @@ import {
   ITelephonyProvider,
   TelephonyProviderType,
   MakeCallParams,
+  AICallParams,
   CallResult,
   CallStatus,
   EndCallResult,
   ProviderConfig,
+  SpeechInputResult,
+  XMLGeneratorParams,
 } from '../telephony.types';
 
 export class PlivoProvider implements ITelephonyProvider {
@@ -187,7 +190,7 @@ export class PlivoProvider implements ITelephonyProvider {
   }
 
   /**
-   * Generate Plivo XML response for call handling
+   * Generate Plivo XML response for call handling (legacy)
    */
   generateAnswerXml(params: {
     sayText?: string;
@@ -195,24 +198,263 @@ export class PlivoProvider implements ITelephonyProvider {
     gatherInput?: boolean;
     gatherAction?: string;
   }): string {
+    return this.generateXML(params);
+  }
+
+  // ==================== AI METHODS ====================
+
+  /**
+   * Make an AI-powered outbound call
+   */
+  async makeAICall(params: AICallParams): Promise<CallResult> {
+    const baseUrl = config.baseUrl || process.env.API_BASE_URL || 'http://localhost:3001';
+
+    // Use AI-specific answer URL that triggers the voice bot flow
+    const answerUrl = `${baseUrl}/api/telephony/voice/ai-answer/${params.agentId}`;
+    const statusCallback = `${baseUrl}/api/telephony/voice/status`;
+
+    return this.makeCall({
+      ...params,
+      answerUrl,
+      statusCallback,
+      customData: {
+        ...params.customData,
+        agentId: params.agentId,
+        leadId: params.leadId,
+        isAICall: true,
+      },
+    });
+  }
+
+  /**
+   * Parse speech/transcription webhook data from Plivo
+   */
+  parseSpeechWebhook(body: any): SpeechInputResult {
+    return {
+      text: body.Speech || body.TranscriptionText || '',
+      confidence: parseFloat(body.Confidence || '0.9'),
+      language: body.Language || 'en-IN',
+      isFinal: body.IsFinal !== 'false',
+    };
+  }
+
+  /**
+   * Generate Plivo XML response
+   */
+  generateXML(params: XMLGeneratorParams): string {
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n';
 
-    if (params.sayText) {
-      xml += `  <Speak voice="Polly.Aditi" language="en-IN">${params.sayText}</Speak>\n`;
-    }
-
+    // Play audio URL first if provided
     if (params.playUrl) {
       xml += `  <Play>${params.playUrl}</Play>\n`;
     }
 
-    if (params.gatherInput && params.gatherAction) {
-      xml += `  <GetDigits action="${params.gatherAction}" method="POST" timeout="10" retries="1">\n`;
-      xml += `    <Speak>Please enter your response</Speak>\n`;
+    // Speak text
+    if (params.sayText) {
+      const voice = params.speechLanguage?.startsWith('hi') ? 'Polly.Aditi' : 'Polly.Aditi';
+      xml += `  <Speak voice="${voice}" language="${params.speechLanguage || 'en-IN'}">${this.escapeXml(params.sayText)}</Speak>\n`;
+    }
+
+    // GetInput for speech recognition (Plivo's speech-to-text)
+    if (params.speechInput && params.speechAction) {
+      xml += `  <GetInput action="${params.speechAction}" method="POST" `;
+      xml += `inputType="speech" executionTimeout="${params.gatherTimeout || 5}" `;
+      xml += `language="${params.speechLanguage || 'en-IN'}" log="true">\n`;
+      xml += `  </GetInput>\n`;
+    }
+
+    // GetDigits for DTMF input
+    if (params.gatherInput && params.gatherAction && !params.speechInput) {
+      xml += `  <GetDigits action="${params.gatherAction}" method="POST" timeout="${params.gatherTimeout || 10}" retries="1">\n`;
       xml += `  </GetDigits>\n`;
+    }
+
+    // Stream for bidirectional audio (Plivo Stream)
+    if (params.streamUrl) {
+      xml += `  <Stream bidirectional="true" keepCallAlive="true">${params.streamUrl}</Stream>\n`;
+    }
+
+    // Dial to transfer
+    if (params.dialNumber) {
+      const fromNumber = config.plivo.phoneNumber || '';
+      xml += `  <Dial callerId="${fromNumber}">\n`;
+      xml += `    <Number>${params.dialNumber}</Number>\n`;
+      xml += `  </Dial>\n`;
+    }
+
+    // Hangup
+    if (params.hangup) {
+      xml += `  <Hangup/>\n`;
     }
 
     xml += '</Response>';
     return xml;
+  }
+
+  /**
+   * Generate XML for AI conversation response
+   */
+  generateAIResponseXML(params: {
+    responseText: string;
+    voiceId?: string;
+    language?: string;
+    callId: string;
+    baseUrl: string;
+    shouldEnd?: boolean;
+    shouldTransfer?: boolean;
+    transferTo?: string;
+    playAudioUrl?: string;
+  }): string {
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n';
+
+    // Play pre-generated audio or use TTS
+    if (params.playAudioUrl) {
+      xml += `  <Play>${params.playAudioUrl}</Play>\n`;
+    } else if (params.responseText) {
+      const voice = this.mapVoiceId(params.voiceId, params.language);
+      xml += `  <Speak voice="${voice}" language="${params.language || 'en-IN'}">${this.escapeXml(params.responseText)}</Speak>\n`;
+    }
+
+    // Handle transfer
+    if (params.shouldTransfer && params.transferTo) {
+      const voice = this.mapVoiceId(params.voiceId, params.language);
+      xml += `  <Speak voice="${voice}">Please hold while I transfer you.</Speak>\n`;
+      const fromNumber = config.plivo.phoneNumber || '';
+      xml += `  <Dial callerId="${fromNumber}" timeout="30">\n`;
+      xml += `    <Number>${params.transferTo}</Number>\n`;
+      xml += `  </Dial>\n`;
+    }
+
+    // Handle end
+    if (params.shouldEnd) {
+      xml += `  <Hangup/>\n`;
+    } else if (!params.shouldTransfer) {
+      // Continue conversation - gather next speech input
+      const speechAction = `${params.baseUrl}/api/telephony/voice/speech/${params.callId}`;
+      xml += `  <GetInput action="${speechAction}" method="POST" `;
+      xml += `inputType="speech dtmf" executionTimeout="5" `;
+      xml += `language="${params.language || 'en-IN'}" log="true">\n`;
+      xml += `  </GetInput>\n`;
+      // Fallback if no input
+      const voice = this.mapVoiceId(params.voiceId, params.language);
+      xml += `  <Speak voice="${voice}">I didn't hear anything. Are you still there?</Speak>\n`;
+      xml += `  <Redirect method="POST">${speechAction}</Redirect>\n`;
+    }
+
+    xml += '</Response>';
+    return xml;
+  }
+
+  /**
+   * Generate XML for gathering speech input
+   */
+  generateGatherSpeechXML(params: {
+    promptText?: string;
+    promptAudioUrl?: string;
+    callId: string;
+    baseUrl: string;
+    language?: string;
+    voiceId?: string;
+    timeout?: number;
+  }): string {
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n';
+
+    const speechAction = `${params.baseUrl}/api/telephony/voice/speech/${params.callId}`;
+    const voice = this.mapVoiceId(params.voiceId, params.language);
+
+    xml += `  <GetInput action="${speechAction}" method="POST" `;
+    xml += `inputType="speech dtmf" executionTimeout="${params.timeout || 5}" `;
+    xml += `language="${params.language || 'en-IN'}" log="true">\n`;
+
+    if (params.promptAudioUrl) {
+      xml += `    <Play>${params.promptAudioUrl}</Play>\n`;
+    } else if (params.promptText) {
+      xml += `    <Speak voice="${voice}" language="${params.language || 'en-IN'}">${this.escapeXml(params.promptText)}</Speak>\n`;
+    }
+
+    xml += `  </GetInput>\n`;
+    xml += '</Response>';
+    return xml;
+  }
+
+  /**
+   * Generate XML for bidirectional audio streaming (for realtime AI)
+   */
+  generateStreamXML(params: {
+    streamUrl: string;
+    callId: string;
+    greeting?: string;
+    voiceId?: string;
+    language?: string;
+  }): string {
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n';
+
+    // Say greeting if provided
+    if (params.greeting) {
+      const voice = this.mapVoiceId(params.voiceId, params.language);
+      xml += `  <Speak voice="${voice}" language="${params.language || 'en-IN'}">${this.escapeXml(params.greeting)}</Speak>\n`;
+    }
+
+    // Start bidirectional stream (Plivo Stream API)
+    xml += `  <Stream bidirectional="true" keepCallAlive="true" `;
+    xml += `contentType="audio/x-l16;rate=8000" audioTrack="both">${params.streamUrl}</Stream>\n`;
+
+    xml += '</Response>';
+    return xml;
+  }
+
+  /**
+   * Get webhook URLs for Plivo
+   */
+  getWebhookUrls(baseUrl: string, callId: string): {
+    answer: string;
+    status: string;
+    speech: string;
+    stream: string;
+    recording: string;
+  } {
+    return {
+      answer: `${baseUrl}/api/telephony/voice/answer/${callId}`,
+      status: `${baseUrl}/api/telephony/voice/status`,
+      speech: `${baseUrl}/api/telephony/voice/speech/${callId}`,
+      stream: `${baseUrl}/api/telephony/voice/stream/${callId}`,
+      recording: `${baseUrl}/api/telephony/voice/recording`,
+    };
+  }
+
+  /**
+   * Map voice ID to Plivo-compatible voice
+   */
+  private mapVoiceId(voiceId?: string, language?: string): string {
+    // Plivo supports Polly voices
+    if (voiceId?.startsWith('Polly.')) {
+      return voiceId;
+    }
+
+    // Map language to appropriate Polly voice
+    const voiceMap: Record<string, string> = {
+      'hi-IN': 'Polly.Aditi',
+      'en-IN': 'Polly.Aditi',
+      'en-US': 'Polly.Joanna',
+      'te-IN': 'Polly.Aditi',
+      'ta-IN': 'Polly.Aditi',
+      'kn-IN': 'Polly.Aditi',
+      'ml-IN': 'Polly.Aditi',
+    };
+
+    return voiceMap[language || 'en-IN'] || 'Polly.Aditi';
+  }
+
+  /**
+   * Escape XML special characters
+   */
+  private escapeXml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
   }
 }
 

@@ -29,6 +29,15 @@ import {
   PaintBrushIcon,
   CreditCardIcon,
   WalletIcon,
+  MicrophoneIcon,
+  CurrencyRupeeIcon,
+  MapPinIcon,
+  BanknotesIcon,
+  ClockIcon,
+  SparklesIcon,
+  Cog6ToothIcon,
+  InboxIcon,
+  GlobeAltIcon,
 } from '@heroicons/react/24/outline';
 
 interface SettingItem {
@@ -50,22 +59,26 @@ interface SettingCategory {
 const settingsCategories: SettingCategory[] = [
   {
     id: 'calling',
-    name: 'Calling',
+    name: 'Calling & Voice',
     icon: PhoneIcon,
     color: 'text-teal-600 bg-teal-50',
     items: [
-      { id: 'phone-numbers-calling', name: 'Phone Numbers', description: 'Assign numbers to telecallers', icon: PhoneIcon, path: '/settings/telecaller-numbers' },
-      { id: 'voice-minutes', name: 'Voice Minutes', description: 'Call credits & usage', icon: PhoneIcon, path: '/settings/voice-minutes' },
+      { id: 'phone-numbers', name: 'Phone Numbers', description: 'Manage phone numbers', icon: PhoneIcon, path: '/settings/phone-numbers' },
+      { id: 'telecaller-numbers', name: 'Telecaller Numbers', description: 'Assign to telecallers', icon: PhoneIcon, path: '/settings/telecaller-numbers' },
+      { id: 'voice-minutes', name: 'Voice Minutes', description: 'Call credits & usage', icon: ClockIcon, path: '/settings/voice-minutes' },
+      { id: 'ai-scripts', name: 'AI Voice Scripts', description: 'AI call scripts', icon: MicrophoneIcon, path: '/settings/ai-scripts' },
     ],
   },
   {
     id: 'billing',
-    name: 'Billing & Subscription',
+    name: 'Billing & Payments',
     icon: CreditCardIcon,
     color: 'text-emerald-600 bg-emerald-50',
     items: [
       { id: 'billing-dashboard', name: 'Billing Dashboard', description: 'Plans & invoices', icon: CreditCardIcon, path: '/settings/billing' },
-      { id: 'wallet', name: 'Wallet & Top-up', description: 'Manage balance', icon: WalletIcon, path: '/settings/billing' },
+      { id: 'razorpay', name: 'Razorpay', description: 'Payment gateway', icon: CurrencyRupeeIcon, path: '/settings/razorpay' },
+      { id: 'payment-categories', name: 'Payment Categories', description: 'Payment types', icon: BanknotesIcon, path: '/settings/payment-categories' },
+      { id: 'commission', name: 'Commission', description: 'Sales commission', icon: WalletIcon, path: '/settings/commission' },
     ],
   },
   {
@@ -92,6 +105,8 @@ const settingsCategories: SettingCategory[] = [
       { id: 'sources', name: 'Lead Sources', description: 'Source tracking', icon: TagIcon, path: '/settings/lead-sources' },
       { id: 'custom-fields', name: 'Custom Fields', description: 'Extra lead fields', icon: DocumentTextIcon, path: '/settings/custom-contact-property' },
       { id: 'auto-assign', name: 'Auto Assignment', description: 'Assignment rules', icon: UsersIcon, path: '/settings/auto-assign' },
+      { id: 'lead-routing', name: 'Lead Routing', description: 'Visual rule builder', icon: MapPinIcon, path: '/settings/lead-routing' },
+      { id: 'lead-management', name: 'Lead Management', description: 'Lead settings', icon: Cog6ToothIcon, path: '/settings/lead-management' },
     ],
   },
   {
@@ -107,13 +122,16 @@ const settingsCategories: SettingCategory[] = [
   {
     id: 'automation',
     name: 'Automation',
-    icon: ChartBarIcon,
+    icon: SparklesIcon,
     color: 'text-amber-600 bg-amber-50',
     items: [
+      { id: 'post-call', name: 'Post-Call Messaging', description: 'Auto follow-up after calls', icon: ChatBubbleLeftRightIcon, path: '/settings/post-call-messaging' },
+      { id: 'email-sequences', name: 'Email Sequences', description: 'Drip campaigns', icon: EnvelopeIcon, path: '/settings/email-sequences' },
       { id: 'reports', name: 'Auto Reports', description: 'Scheduled reports', icon: ChartBarIcon, path: '/settings/automatic-reports' },
       { id: 'retry', name: 'Retry Settings', description: 'Call/message retries', icon: ArrowPathIcon, path: '/settings/retry-settings' },
       { id: 'workflow', name: 'Workflows', description: 'Automation rules', icon: CubeIcon, path: '/settings/workflows' },
       { id: 'followup', name: 'Follow-up Rules', description: 'Reminder settings', icon: CalendarIcon, path: '/settings/follow-up-config' },
+      { id: 'assignment-schedules', name: 'Assignment Schedules', description: 'Time-based rules', icon: ClockIcon, path: '/settings/assignment-schedules' },
     ],
   },
   {
@@ -123,8 +141,11 @@ const settingsCategories: SettingCategory[] = [
     color: 'text-cyan-600 bg-cyan-50',
     items: [
       { id: 'whatsapp', name: 'WhatsApp', description: 'Business API', icon: ChatBubbleLeftRightIcon, path: '/settings/whatsapp' },
-      { id: 'email', name: 'Email Templates', description: 'Email builder', icon: EnvelopeIcon, path: '/settings/email-templates' },
+      { id: 'whatsapp-templates', name: 'WhatsApp Templates', description: 'Message templates', icon: DocumentTextIcon, path: '/settings/whatsapp-templates' },
+      { id: 'email', name: 'Email Settings', description: 'SMTP config', icon: EnvelopeIcon, path: '/settings/email' },
+      { id: 'email-templates', name: 'Email Templates', description: 'Email builder', icon: DocumentTextIcon, path: '/settings/email-templates' },
       { id: 'sms', name: 'SMS', description: 'SMS gateway', icon: ChatBubbleLeftRightIcon, path: '/settings/sms' },
+      { id: 'notification-channels', name: 'Notification Channels', description: 'Channel config', icon: BellIcon, path: '/settings/notifications' },
     ],
   },
   {
@@ -133,10 +154,12 @@ const settingsCategories: SettingCategory[] = [
     icon: BuildingOfficeIcon,
     color: 'text-indigo-600 bg-indigo-50',
     items: [
+      { id: 'institution', name: 'Institution', description: 'Company details', icon: BuildingOfficeIcon, path: '/settings/institution' },
+      { id: 'industry', name: 'Industry', description: 'Industry settings', icon: GlobeAltIcon, path: '/settings/industry' },
       { id: 'branding', name: 'Branding', description: 'Logo, colors, name', icon: PaintBrushIcon, path: '/settings/branding' },
-      { id: 'branches', name: 'Branches', description: 'Branch locations', icon: BuildingOfficeIcon, path: '/settings/branches' },
+      { id: 'branches', name: 'Branches', description: 'Branch locations', icon: MapPinIcon, path: '/settings/branches' },
       { id: 'roles', name: 'Roles & Permissions', description: 'Access control', icon: ShieldCheckIcon, path: '/roles' },
-      { id: 'labels', name: 'Custom Labels', description: 'Field naming', icon: TagIcon, path: '/settings/tenant-labels' },
+      { id: 'labels', name: 'Custom Labels', description: 'Field naming', icon: TagIcon, path: '/settings/crm-customization' },
     ],
   },
   {
@@ -147,6 +170,8 @@ const settingsCategories: SettingCategory[] = [
     items: [
       { id: 'all', name: 'All Integrations', description: 'Third-party apps', icon: LinkIcon, path: '/settings/integrations' },
       { id: 'calendar', name: 'Calendar Sync', description: 'Google/Outlook', icon: CalendarIcon, path: '/settings/calendar' },
+      { id: 'crm-integration', name: 'CRM Integration', description: 'External CRMs', icon: InboxIcon, path: '/settings/crm-integration' },
+      { id: 'advanced', name: 'Advanced', description: 'API & webhooks', icon: Cog6ToothIcon, path: '/settings/integrations-advanced' },
     ],
   },
 ];

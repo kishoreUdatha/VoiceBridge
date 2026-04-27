@@ -21,6 +21,7 @@ interface VoiceAgent {
   name: string;
   industry: string;
   isActive: boolean;
+  status: 'DRAFT' | 'PUBLISHED';
   language?: string;
 }
 
@@ -72,10 +73,13 @@ export const MakeSingleCallPage: React.FC = () => {
       setLoading(true);
       const response = await api.get('/voice-ai/agents');
       if (response.data.success) {
-        const activeAgents = response.data.data.filter((a: VoiceAgent) => a.isActive);
-        setAgents(activeAgents);
-        if (activeAgents.length > 0) {
-          setFormData(prev => ({ ...prev, agentId: activeAgents[0].id }));
+        // Only show PUBLISHED and active agents for outbound calls
+        const publishedAgents = response.data.data.filter(
+          (a: VoiceAgent) => a.isActive && a.status === 'PUBLISHED'
+        );
+        setAgents(publishedAgents);
+        if (publishedAgents.length > 0) {
+          setFormData(prev => ({ ...prev, agentId: publishedAgents[0].id }));
         }
       }
     } catch (err: any) {
@@ -192,13 +196,14 @@ export const MakeSingleCallPage: React.FC = () => {
                 {agents.length === 0 ? (
                   <div className="border border-dashed border-gray-300 rounded p-4 text-center">
                     <CpuChipIcon className="h-6 w-6 text-gray-300 mx-auto mb-1" />
-                    <p className="text-xs text-gray-500 mb-2">No active agents</p>
+                    <p className="text-xs text-gray-500 mb-1">No published agents</p>
+                    <p className="text-[10px] text-gray-400 mb-2">Only published agents can make outbound calls</p>
                     <button
                       type="button"
-                      onClick={() => navigate('/voice-ai/create')}
+                      onClick={() => navigate('/voice-ai')}
                       className="text-xs font-medium text-primary-600 hover:text-primary-700"
                     >
-                      Create an agent
+                      Go to AI Voice Agents
                     </button>
                   </div>
                 ) : (
@@ -367,7 +372,7 @@ export const MakeSingleCallPage: React.FC = () => {
                 <div className="flex items-center gap-1.5">
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-green-100 text-green-700 text-[10px] font-medium">
                     <span className="w-1 h-1 bg-green-500 rounded-full mr-1"></span>
-                    Active
+                    Published
                   </span>
                   {selectedAgent.language && (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px]">

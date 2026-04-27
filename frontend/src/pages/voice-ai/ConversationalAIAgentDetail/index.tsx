@@ -11,6 +11,7 @@ import {
   Volume2,
   Loader2,
   ChevronRight,
+  ChevronLeft,
   Plus,
   ExternalLink,
   Wand2,
@@ -34,6 +35,7 @@ import { ConversationalAIAgent, Voice, TabId, TABS, DEFAULT_VOICES, CONVERSATION
 import { VoiceSelectionPanel } from './components/VoiceSelectionPanel';
 import { LanguageSelectionPanel } from './components/LanguageSelectionPanel';
 import { VoiceSettingsPanel } from './components/VoiceSettingsPanel';
+import { PhoneNumberAssignPanel } from './components/PhoneNumberAssignPanel';
 import { WorkflowBuilder } from './components/WorkflowBuilder';
 import { AnalysisTab } from './components/AnalysisTab';
 import { TestsTab } from './components/TestsTab';
@@ -55,6 +57,7 @@ export function ConversationalAIAgentDetail() {
   const [voicePanelMode, setVoicePanelMode] = useState<'primary' | 'additional'>('primary');
   const [isLanguagePanelOpen, setIsLanguagePanelOpen] = useState(false);
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
+  const [isPhoneNumberPanelOpen, setIsPhoneNumberPanelOpen] = useState(false);
 
   // Editable fields
   const [systemPrompt, setSystemPrompt] = useState('');
@@ -162,6 +165,7 @@ export function ConversationalAIAgentDetail() {
   // Advanced state
   const [llmProvider, setLlmProvider] = useState('openai');
   const [llmModel, setLlmModel] = useState('gpt-4o-mini');
+  const [isLlmPanelOpen, setIsLlmPanelOpen] = useState(false);
   const [temperature, setTemperature] = useState(70);
   const [maxResponseLength, setMaxResponseLength] = useState(500);
   const [timeoutValue, setTimeoutValue] = useState(30);
@@ -313,6 +317,18 @@ export function ConversationalAIAgentDetail() {
     };
     fetchAgentPhoneNumbers();
   }, [agentId]);
+
+  // Unassign phone number from agent
+  const handleUnassignPhoneNumber = async (phoneNumberId: string) => {
+    try {
+      await api.post(`/phone-numbers/${phoneNumberId}/unassign`);
+      setAgentPhoneNumbers(prev => prev.filter(n => n.id !== phoneNumberId));
+      toast.success('Phone number unassigned successfully');
+    } catch (error: any) {
+      console.error('Failed to unassign phone number:', error);
+      toast.error(error.response?.data?.message || 'Failed to unassign phone number');
+    }
+  };
 
   // Fetch tool connection status
   const fetchToolConnectionStatus = useCallback(async () => {
@@ -1053,6 +1069,13 @@ export function ConversationalAIAgentDetail() {
       {/* Header with Agent Name and Real-Time Status */}
       <div className="px-4 pt-3 pb-1 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/voice-ai')}
+            className="p-1.5 -ml-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Back to agents"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-600" />
+          </button>
           <h1 className="text-sm font-semibold text-gray-900">{agent.name}</h1>
           {/* Call Direction Badge */}
           <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
@@ -1162,25 +1185,18 @@ export function ConversationalAIAgentDetail() {
       </div>
 
       {/* Content */}
-      <main className="px-4 py-5">
-        <div className={`grid grid-cols-1 ${activeTab === 'agent' ? 'lg:grid-cols-3' : ''} gap-8`}>
+      <main className="px-4 py-3 h-[calc(100vh-8rem)] overflow-hidden">
+        <div className={`grid grid-cols-1 ${activeTab === 'agent' ? 'lg:grid-cols-3' : ''} gap-6 h-full`}>
           {/* Main Content - Left Side */}
           <div className={`${activeTab === 'agent' ? 'lg:col-span-2' : ''}`}>
             {activeTab === 'agent' && (
               <>
-                {/* Agent Header */}
-                <div className="mb-5">
-                  <h1 className="text-sm font-semibold text-gray-900">Agent</h1>
-                </div>
-
                 {/* System Prompt Section */}
-                <div className="mb-5">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="mb-3">
+                  <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-1.5">
-                      <h2 className="text-xs font-medium text-gray-900 underline underline-offset-2 decoration-gray-300">
-                        System prompt
-                      </h2>
-                      <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
+                      <h3 className="text-xs font-semibold text-gray-900">System prompt</h3>
+                      <ExternalLink className="w-3 h-3 text-gray-400" />
                     </div>
                     <button className="p-1 hover:bg-gray-100 rounded transition-colors">
                       <Wand2 className="w-3.5 h-3.5 text-gray-400" />
@@ -1188,7 +1204,7 @@ export function ConversationalAIAgentDetail() {
                   </div>
 
                   <div className="relative border border-gray-200 rounded-lg">
-                    <div className="absolute top-2 right-2 flex items-center gap-1">
+                    <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
                       <button className="p-0.5 hover:bg-gray-100 rounded">
                         <Maximize2 className="w-3.5 h-3.5 text-gray-400" />
                       </button>
@@ -1196,8 +1212,8 @@ export function ConversationalAIAgentDetail() {
                     <textarea
                       value={systemPrompt}
                       onChange={(e) => handleSystemPromptChange(e.target.value)}
-                      rows={6}
-                      className="w-full px-3 py-2.5 pr-8 bg-transparent border-0 focus:outline-none focus:ring-0 resize-none text-sm text-gray-900"
+                      rows={10}
+                      className="w-full px-3 py-2 pr-8 bg-transparent border-0 focus:outline-none focus:ring-0 resize-none text-sm text-gray-900"
                       placeholder="### Personality&#10;You are..."
                     />
                     <div className="flex items-center justify-between px-3 py-2 border-t border-gray-100 bg-gray-50/50">
@@ -1230,15 +1246,13 @@ export function ConversationalAIAgentDetail() {
                 </div>
 
                 {/* First Message Section */}
-                <div className="mb-5">
-                  <h2 className="text-xs font-medium text-gray-900 mb-1">First message</h2>
-                  <p className="text-sm text-gray-500 mb-2">
-                    The first message the agent will say. If empty, the agent will wait for the user to start the conversation.{' '}
-                    <a href="#" className="text-gray-900 underline underline-offset-2 inline-flex items-center gap-0.5">
-                      Disclosure Requirements
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-xs font-semibold text-gray-900">First message</h3>
+                    <a href="#" className="text-xs text-gray-400 inline-flex items-center gap-0.5 hover:text-gray-600">
                       <ExternalLink className="w-3 h-3" />
                     </a>
-                  </p>
+                  </div>
 
                   <div className="relative border border-gray-200 rounded-lg">
                     <div className="absolute top-2 right-2">
@@ -3468,10 +3482,10 @@ export function ConversationalAIAgentDetail() {
 
           {/* Right Sidebar - Only for Agent tab */}
           {activeTab === 'agent' && (
-            <div className="space-y-5">
+            <div className="space-y-3">
               {/* Voices Section */}
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center justify-between mb-0.5">
                   <h3 className="text-xs font-semibold text-gray-900">Voices</h3>
                   <button
                     onClick={() => setIsVoiceSettingsOpen(true)}
@@ -3480,9 +3494,6 @@ export function ConversationalAIAgentDetail() {
                     <Settings className="w-3.5 h-3.5 text-gray-400" />
                   </button>
                 </div>
-                <p className="text-sm text-gray-500 mb-2">
-                  Select the voices you want to use for the agent.
-                </p>
 
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
                   {/* Primary Voice */}
@@ -3564,10 +3575,6 @@ export function ConversationalAIAgentDetail() {
               {/* Language Section */}
               <div>
                 <h3 className="text-xs font-semibold text-gray-900 mb-1">Language</h3>
-                <p className="text-sm text-gray-500 mb-2">
-                  Choose the default and additional languages the agent will communicate in.
-                </p>
-
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
                   {/* Primary Language */}
                   <button
@@ -3636,65 +3643,148 @@ export function ConversationalAIAgentDetail() {
               {/* Phone Numbers Section */}
               <div>
                 <h3 className="text-xs font-semibold text-gray-900 mb-1">Phone Numbers</h3>
-                <p className="text-sm text-gray-500 mb-2">
-                  Numbers assigned to this agent for calls.
-                </p>
-
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
                   {agentPhoneNumbers.length === 0 ? (
-                    <div className="px-3 py-4 text-center">
-                      <Phone className="w-5 h-5 text-gray-300 mx-auto mb-1" />
-                      <p className="text-xs text-gray-500">No numbers assigned</p>
-                      <a
-                        href="/numbers-shop"
-                        className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                      >
-                        Assign a number
-                      </a>
-                    </div>
+                    <button
+                      onClick={() => setIsPhoneNumberPanelOpen(true)}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 hover:bg-gray-50 transition-colors text-left"
+                    >
+                      <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                        <Plus className="w-3 h-3 text-gray-400" />
+                      </div>
+                      <span className="text-sm text-gray-500">Assign a number</span>
+                    </button>
                   ) : (
                     agentPhoneNumbers.map((num) => (
                       <div
                         key={num.id}
-                        className="flex items-center gap-2 px-2.5 py-2 border-b border-gray-100 last:border-b-0"
+                        className="flex items-center gap-2 px-2.5 py-2 border-b border-gray-100 last:border-b-0 group"
                       >
                         <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
                           <Phone className="w-3 h-3 text-green-600" />
                         </div>
-                        <span className="text-sm font-mono text-gray-900">
+                        <span className="text-sm font-mono text-gray-900 flex-1">
                           {num.displayNumber || num.number}
                         </span>
+                        <button
+                          onClick={() => handleUnassignPhoneNumber(num.id)}
+                          className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-100 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
+                          title="Unassign number"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
                       </div>
                     ))
                   )}
 
-                  {/* Manage Numbers Link */}
-                  <a
-                    href="/numbers-shop"
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 hover:bg-gray-50 transition-colors text-left border-t border-gray-100"
-                  >
-                    <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
-                      <Settings className="w-3 h-3 text-gray-400" />
-                    </div>
-                    <span className="text-sm text-gray-500">Manage numbers</span>
-                    <ChevronRight className="w-3 h-3 text-gray-400 ml-auto" />
-                  </a>
+                  {/* Manage Numbers Link - only show when numbers exist */}
+                  {agentPhoneNumbers.length > 0 && (
+                    <button
+                      onClick={() => setIsPhoneNumberPanelOpen(true)}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 hover:bg-gray-50 transition-colors text-left border-t border-gray-100"
+                    >
+                      <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                        <Settings className="w-3 h-3 text-gray-400" />
+                      </div>
+                      <span className="text-sm text-gray-500">Manage numbers</span>
+                      <ChevronRight className="w-3 h-3 text-gray-400 ml-auto" />
+                    </button>
+                  )}
                 </div>
               </div>
 
               {/* LLM Section */}
               <div>
                 <h3 className="text-xs font-semibold text-gray-900 mb-1">LLM</h3>
-                <p className="text-sm text-gray-500 mb-2">
-                  Select which provider and model to use for the LLM.
-                </p>
+                {!isLlmPanelOpen ? (
+                  <button
+                    onClick={() => setIsLlmPanelOpen(true)}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-gray-900">
+                        {llmModel === 'gpt-4o' ? 'GPT-4o' :
+                         llmModel === 'gpt-4o-mini' ? 'GPT-4o Mini' :
+                         llmModel === 'gpt-4-turbo' ? 'GPT-4 Turbo' :
+                         llmModel === 'gemini-1.5-pro' ? 'Gemini 1.5 Pro' :
+                         llmModel === 'gemini-1.5-flash' ? 'Gemini 1.5 Flash' :
+                         llmModel === 'gemini-2.5-flash' ? 'Gemini 2.5 Flash' :
+                         llmModel === 'claude-3-sonnet' ? 'Claude 3 Sonnet' :
+                         llmModel === 'claude-3-haiku' ? 'Claude 3 Haiku' :
+                         llmModel}
+                      </span>
+                      <span className="text-xs text-gray-500 ml-1">({llmProvider})</span>
+                    </div>
+                    <ChevronRight className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                  </button>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg p-3 space-y-3">
+                    {/* Provider Selection */}
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Provider</label>
+                      <select
+                        value={llmProvider}
+                        onChange={(e) => {
+                          const provider = e.target.value;
+                          setLlmProvider(provider);
+                          const defaultModels: Record<string, string> = {
+                            openai: 'gpt-4o-mini',
+                            google: 'gemini-1.5-flash',
+                            anthropic: 'claude-3-haiku',
+                          };
+                          setLlmModel(defaultModels[provider] || 'gpt-4o-mini');
+                          saveAgentConfig({ llmProvider: provider, llmModel: defaultModels[provider] || 'gpt-4o-mini' });
+                        }}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="openai">OpenAI</option>
+                        <option value="google">Google</option>
+                        <option value="anthropic">Anthropic</option>
+                      </select>
+                    </div>
 
-                <button className="w-full flex items-center gap-2 px-2.5 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-gray-900">Gemini 2.5 Flash</span>
+                    {/* Model Selection */}
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Model</label>
+                      <select
+                        value={llmModel}
+                        onChange={(e) => {
+                          setLlmModel(e.target.value);
+                          saveAgentConfig({ llmModel: e.target.value });
+                        }}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      >
+                        {llmProvider === 'openai' && (
+                          <>
+                            <option value="gpt-4o">GPT-4o (Best)</option>
+                            <option value="gpt-4o-mini">GPT-4o Mini (Fast)</option>
+                            <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                          </>
+                        )}
+                        {llmProvider === 'google' && (
+                          <>
+                            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Latest)</option>
+                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                          </>
+                        )}
+                        {llmProvider === 'anthropic' && (
+                          <>
+                            <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                            <option value="claude-3-haiku">Claude 3 Haiku (Fast)</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+
+                    <button
+                      onClick={() => setIsLlmPanelOpen(false)}
+                      className="w-full py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      Done
+                    </button>
                   </div>
-                  <ChevronRight className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                </button>
+                )}
               </div>
             </div>
           )}
@@ -3736,6 +3826,21 @@ export function ConversationalAIAgentDetail() {
       <VoiceSettingsPanel
         isOpen={isVoiceSettingsOpen}
         onClose={() => setIsVoiceSettingsOpen(false)}
+      />
+
+      {/* Phone Number Assignment Panel */}
+      <PhoneNumberAssignPanel
+        isOpen={isPhoneNumberPanelOpen}
+        onClose={() => setIsPhoneNumberPanelOpen(false)}
+        agentId={agentId || ''}
+        agentName={agent?.name || 'Agent'}
+        assignedNumbers={agentPhoneNumbers}
+        onNumberAssigned={(num) => {
+          setAgentPhoneNumbers(prev => [...prev, { id: num.id, number: num.number, displayNumber: num.displayNumber }]);
+        }}
+        onNumberUnassigned={(numberId) => {
+          setAgentPhoneNumbers(prev => prev.filter(n => n.id !== numberId));
+        }}
       />
     </div>
 

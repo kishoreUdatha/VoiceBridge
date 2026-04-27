@@ -316,6 +316,8 @@ export class TenantReportsService extends BaseTenantService {
       activeUsers,
       totalLeads,
       totalRevenue,
+      byIndustry,
+      byDynamicIndustry,
     ] = await Promise.all([
       this.prisma.organization.count(),
       this.prisma.organization.count({ where: { isActive: true } }),
@@ -326,12 +328,33 @@ export class TenantReportsService extends BaseTenantService {
         where: { status: 'COMPLETED' },
         _sum: { amount: true },
       }),
+      // Organizations by legacy industry enum
+      this.prisma.organization.groupBy({
+        by: ['industry'],
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
+      }),
+      // Organizations by dynamic industry (new system)
+      this.prisma.organization.groupBy({
+        by: ['industrySlug'],
+        where: { industrySlug: { not: null } },
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
+      }),
     ]);
 
     return {
       organizations: {
         total: totalOrganizations,
         active: activeOrganizations,
+        byIndustry: byIndustry.map(item => ({
+          industry: item.industry || 'GENERAL',
+          count: item._count.id,
+        })),
+        byDynamicIndustry: byDynamicIndustry.map(item => ({
+          industrySlug: item.industrySlug || 'general',
+          count: item._count.id,
+        })),
       },
       users: {
         total: totalUsers,
@@ -342,6 +365,91 @@ export class TenantReportsService extends BaseTenantService {
       },
       revenue: {
         total: totalRevenue._sum.amount || 0,
+      },
+    };
+  }
+
+  /**
+   * SUPER ADMIN ONLY: Industry-wise detailed report
+   */
+  async getIndustryReport(req: AuthenticatedRequest) {
+    const ctx = this.getTenantContext(req);
+
+    if (!ctx.isSuperAdmin) {
+      throw new Error('Super admin access required');
+    }
+
+    // Get all dynamic industries with their organization counts
+    const industries = await this.prisma.dynamicIndustry.findMany({
+      where: { isActive: true },
+      include: {
+        _count: {
+          select: { organizations: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    // Get lead counts per industry
+    const industryStats = await Promise.all(
+      industries.map(async (industry) => {
+        const orgIds = await this.prisma.organization.findMany({
+          where: { dynamicIndustryId: industry.id },
+          select: { id: true },
+        });
+        const orgIdList = orgIds.map(o => o.id);
+
+        if (orgIdList.length === 0) {
+          return {
+            industryId: industry.id,
+            slug: industry.slug,
+            name: industry.name,
+            icon: industry.icon,
+            color: industry.color,
+            organizationCount: 0,
+            totalLeads: 0,
+            totalUsers: 0,
+            totalRevenue: 0,
+          };
+        }
+
+        const [leadCount, userCount, revenue] = await Promise.all([
+          this.prisma.lead.count({
+            where: { organizationId: { in: orgIdList } },
+          }),
+          this.prisma.user.count({
+            where: { organizationId: { in: orgIdList }, isActive: true },
+          }),
+          this.prisma.payment.aggregate({
+            where: { organizationId: { in: orgIdList }, status: 'COMPLETED' },
+            _sum: { amount: true },
+          }),
+        ]);
+
+        return {
+          industryId: industry.id,
+          slug: industry.slug,
+          name: industry.name,
+          icon: industry.icon,
+          color: industry.color,
+          organizationCount: industry._count.organizations,
+          totalLeads: leadCount,
+          totalUsers: userCount,
+          totalRevenue: revenue._sum.amount || 0,
+        };
+      })
+    );
+
+    // Sort by organization count descending
+    industryStats.sort((a, b) => b.organizationCount - a.organizationCount);
+
+    return {
+      industries: industryStats,
+      summary: {
+        totalIndustries: industries.length,
+        totalOrganizations: industryStats.reduce((sum, i) => sum + i.organizationCount, 0),
+        totalLeads: industryStats.reduce((sum, i) => sum + i.totalLeads, 0),
+        totalRevenue: industryStats.reduce((sum, i) => sum + i.totalRevenue, 0),
       },
     };
   }

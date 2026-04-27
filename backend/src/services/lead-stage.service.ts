@@ -6,19 +6,65 @@
 import { prisma } from '../config/database';
 import { OrganizationIndustry, LeadStage, Prisma } from '@prisma/client';
 import { LEAD_STAGE_TEMPLATES, getStageTemplatesForIndustry, LeadStageTemplate } from '../config/lead-stage-templates.config';
+import { industryCacheService } from './industry-cache.service';
 import { NotFoundError } from '../utils/errors';
+import { CachedIndustryStage, toIndustrySlug } from '../types/industry.types';
 
 export class LeadStageService {
   /**
+   * Get stage templates from dynamic industry or fallback to config
+   * Priority: Dynamic Industry -> Config File -> Empty array
+   */
+  private async getStageTemplates(
+    organizationId: string
+  ): Promise<LeadStageTemplate[]> {
+    // First try to get from organization's dynamic industry
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { industrySlug: true, industry: true },
+    });
+
+    if (!org) {
+      return [];
+    }
+
+    // Try dynamic industry cache first
+    if (org.industrySlug) {
+      const stages = await industryCacheService.getStagesForIndustry(org.industrySlug);
+      if (stages.length > 0) {
+        return stages.map((s: CachedIndustryStage) => ({
+          name: s.name,
+          slug: s.slug,
+          color: s.color,
+          journeyOrder: s.journeyOrder,
+          icon: s.icon || 'CheckCircleIcon',
+          autoSyncStatus: s.autoSyncStatus as 'WON' | 'LOST' | undefined,
+          isDefault: s.isDefault,
+        }));
+      }
+    }
+
+    // Fallback to config file
+    const industry = org.industry || OrganizationIndustry.GENERAL;
+    return getStageTemplatesForIndustry(industry);
+  }
+  /**
    * Create lead stages from industry template
    * This will replace existing system stages with new ones from the template
+   * Uses dynamic industry if available, falls back to config file
    */
   async createStagesFromTemplate(
     organizationId: string,
     industry: OrganizationIndustry,
     replaceExisting: boolean = false
   ): Promise<LeadStage[]> {
-    const templates = getStageTemplatesForIndustry(industry);
+    // Try to get templates from dynamic industry, fallback to config
+    let templates = await this.getStageTemplates(organizationId);
+
+    // If no templates found from dynamic industry, use config fallback
+    if (templates.length === 0) {
+      templates = getStageTemplatesForIndustry(industry);
+    }
 
     // Use transaction to ensure atomicity
     return prisma.$transaction(async (tx) => {
@@ -189,20 +235,35 @@ export class LeadStageService {
 
   /**
    * Set organization's industry and create default stages
+   * Updates both the legacy industry enum and new industrySlug
    */
   async setOrganizationIndustry(
     organizationId: string,
     industry: OrganizationIndustry,
     resetStages: boolean = false
   ): Promise<{ organization: any; stages: LeadStage[] }> {
-    // Update organization industry
+    // Generate slug from industry key
+    const industrySlug = toIndustrySlug(industry);
+
+    // Check if dynamic industry exists for this slug
+    const dynamicIndustry = await prisma.dynamicIndustry.findUnique({
+      where: { slug: industrySlug },
+      select: { id: true },
+    });
+
+    // Update organization industry (both legacy enum and new fields)
     const organization = await prisma.organization.update({
       where: { id: organizationId },
-      data: { industry },
+      data: {
+        industry,
+        industrySlug,
+        dynamicIndustryId: dynamicIndustry?.id || null,
+      },
       select: {
         id: true,
         name: true,
         industry: true,
+        industrySlug: true,
       },
     });
 

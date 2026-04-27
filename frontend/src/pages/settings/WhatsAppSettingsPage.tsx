@@ -11,9 +11,32 @@ import {
   BoltIcon,
   GlobeAltIcon,
   ArrowLeftIcon,
+  ClockIcon,
+  ExclamationCircleIcon,
 } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
+
+interface FailedMessage {
+  id: string;
+  to: string;
+  content: string;
+  error: string;
+  retryCount: number;
+  maxRetries: number;
+  nextRetryAt: string | null;
+  lastRetryAt: string | null;
+  createdAt: string;
+  canRetry: boolean;
+  lead?: { firstName: string; lastName: string; phone: string };
+}
+
+interface RetryStats {
+  pending: number;
+  retrying: number;
+  failed: number;
+  successfulRetries: number;
+}
 
 interface WhatsAppConfig {
   provider: 'exotel' | 'meta' | 'gupshup' | 'wati' | '360dialog';
@@ -24,6 +47,7 @@ interface WhatsAppConfig {
   accessToken?: string;
   businessAccountId?: string;
   phoneNumberId?: string;
+  appSecret?: string;
   configuredViaEnv?: boolean;
   hasEnvConfig?: boolean;
 }
@@ -82,7 +106,8 @@ const SETUP_GUIDES: Record<string, {
     fields: [
       { key: 'accessToken', label: 'Access Token', placeholder: 'EAAGxxxxxxx...', type: 'password', hint: 'Found in App Dashboard > WhatsApp > API Setup' },
       { key: 'phoneNumberId', label: 'Phone Number ID', placeholder: '1234567890123456', hint: 'The ID of your WhatsApp business phone number' },
-      { key: 'businessAccountId', label: 'Business Account ID', placeholder: '9876543210123456', hint: 'Optional - Your WhatsApp Business Account ID' },
+      { key: 'businessAccountId', label: 'Business Account ID', placeholder: '9876543210123456', hint: 'Required for Templates - Found in Meta Business Suite > WhatsApp Manager' },
+      { key: 'appSecret', label: 'App Secret', placeholder: 'Your Meta App Secret', type: 'password', hint: 'Found in App Settings > Basic > App Secret (for webhook security)' },
     ],
   },
   '360dialog': {
@@ -151,11 +176,24 @@ export default function WhatsAppSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showSecrets, setShowSecrets] = useState(false);
-  const [activeTab, setActiveTab] = useState<'setup' | 'compare'>('setup');
+  const [activeTab, setActiveTab] = useState<'setup' | 'compare' | 'failed'>('setup');
+  const [failedMessages, setFailedMessages] = useState<FailedMessage[]>([]);
+  const [retryStats, setRetryStats] = useState<RetryStats | null>(null);
+  const [loadingFailed, setLoadingFailed] = useState(false);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchConfig();
+    // Fetch retry stats on initial load to show badge count
+    fetchRetryStats();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'failed') {
+      fetchFailedMessages();
+      fetchRetryStats();
+    }
+  }, [activeTab]);
 
   const fetchConfig = async () => {
     try {
@@ -168,6 +206,58 @@ export default function WhatsAppSettingsPage() {
       console.error('Failed to fetch WhatsApp config:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFailedMessages = async () => {
+    try {
+      setLoadingFailed(true);
+      const response = await api.get('/whatsapp/failed');
+      if (response.data.success && response.data.data) {
+        setFailedMessages(response.data.data);
+      } else {
+        setFailedMessages([]);
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch failed messages:', error);
+      setFailedMessages([]);
+    } finally {
+      setLoadingFailed(false);
+    }
+  };
+
+  const fetchRetryStats = async () => {
+    try {
+      const response = await api.get('/whatsapp/retry/stats');
+      if (response.data.success && response.data.data) {
+        setRetryStats(response.data.data);
+      } else {
+        // Set default stats if API returns no data
+        setRetryStats({ pending: 0, retrying: 0, failed: 0, successfulRetries: 0 });
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch retry stats:', error);
+      // Set default stats on error
+      setRetryStats({ pending: 0, retrying: 0, failed: 0, successfulRetries: 0 });
+    }
+  };
+
+  const handleManualRetry = async (messageId: string) => {
+    try {
+      setRetryingId(messageId);
+      const response = await api.post(`/whatsapp/retry/${messageId}`);
+      if (response.data.success) {
+        setTestResult({ success: true, message: 'Message sent successfully!' });
+        // Refresh the list
+        fetchFailedMessages();
+        fetchRetryStats();
+      } else {
+        setTestResult({ success: false, message: response.data.error || 'Retry failed' });
+      }
+    } catch (error: any) {
+      setTestResult({ success: false, message: error.response?.data?.message || 'Retry failed' });
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -298,6 +388,19 @@ export default function WhatsAppSettingsPage() {
           }`}
         >
           Compare
+        </button>
+        <button
+          onClick={() => setActiveTab('failed')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+            activeTab === 'failed' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Failed Messages
+          {retryStats && retryStats.pending > 0 && (
+            <span className="px-1.5 py-0.5 text-xs bg-red-100 text-red-600 rounded-full font-semibold">
+              {retryStats.pending}
+            </span>
+          )}
         </button>
       </div>
 
@@ -448,6 +551,151 @@ export default function WhatsAppSettingsPage() {
               </tr>
             </tbody>
           </table>
+        </div>
+      )}
+
+      {activeTab === 'failed' && (
+        <div className="space-y-4">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <ClockIcon className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{retryStats?.pending ?? 0}</p>
+                  <p className="text-xs text-gray-500">Pending Retry</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <ArrowPathIcon className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{retryStats?.retrying ?? 0}</p>
+                  <p className="text-xs text-gray-500">Retrying Now</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+                  <XCircleIcon className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{retryStats?.failed ?? 0}</p>
+                  <p className="text-xs text-gray-500">Permanently Failed</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                  <CheckCircleSolidIcon className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{retryStats?.successfulRetries ?? 0}</p>
+                  <p className="text-xs text-gray-500">Recovered</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Failed Messages List */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-900">Failed Messages</h2>
+              <button
+                onClick={() => { fetchFailedMessages(); fetchRetryStats(); }}
+                className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+              >
+                <ArrowPathIcon className="w-3.5 h-3.5" />
+                Refresh
+              </button>
+            </div>
+
+            {loadingFailed ? (
+              <div className="flex items-center justify-center py-12">
+                <ArrowPathIcon className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : failedMessages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                <CheckCircleSolidIcon className="w-12 h-12 text-green-200 mb-3" />
+                <p className="text-sm font-medium">No failed messages</p>
+                <p className="text-xs text-gray-400">All messages are being delivered successfully</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {failedMessages.map((msg) => (
+                  <div key={msg.id} className="p-4 hover:bg-gray-50">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium text-gray-900">{msg.to}</span>
+                          {msg.lead && (
+                            <span className="text-xs text-gray-500">
+                              ({msg.lead.firstName} {msg.lead.lastName})
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 truncate mb-2">{msg.content}</p>
+                        <div className="flex items-center gap-4 text-xs text-gray-500">
+                          <span className="flex items-center gap-1">
+                            <ExclamationCircleIcon className="w-3.5 h-3.5 text-red-500" />
+                            {msg.error}
+                          </span>
+                          <span>Retries: {msg.retryCount}/{msg.maxRetries}</span>
+                          {msg.nextRetryAt && (
+                            <span className="flex items-center gap-1">
+                              <ClockIcon className="w-3.5 h-3.5" />
+                              Next: {new Date(msg.nextRetryAt).toLocaleTimeString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {msg.canRetry ? (
+                          <button
+                            onClick={() => handleManualRetry(msg.id)}
+                            disabled={retryingId === msg.id}
+                            className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1"
+                          >
+                            {retryingId === msg.id ? (
+                              <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <ArrowPathIcon className="w-3.5 h-3.5" />
+                            )}
+                            Retry Now
+                          </button>
+                        ) : (
+                          <span className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-500 rounded-lg">
+                            Max Retries Reached
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Info Box */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div className="flex gap-3">
+              <ExclamationTriangleIcon className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-blue-800">
+                <p className="font-medium mb-1">Automatic Retry System</p>
+                <p className="text-blue-700">
+                  Failed messages are automatically retried up to 3 times with increasing delays (1 min, 5 min, 15 min).
+                  The retry processor runs every minute to check for messages due for retry.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

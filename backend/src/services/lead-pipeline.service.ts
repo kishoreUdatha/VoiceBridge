@@ -300,11 +300,45 @@ export class LeadPipelineService {
 
   /**
    * Get pipeline stages for an organization's leads
-   * First tries default pipeline, then falls back to any active LEAD pipeline
+   * If leadId is provided, returns stages from that lead's specific pipeline
+   * Otherwise, uses default pipeline or falls back to any active LEAD pipeline
    */
-  async getPipelineStages(organizationId: string) {
-    // First try to get the default pipeline
-    let pipeline = await this.getDefaultPipeline(organizationId);
+  async getPipelineStages(organizationId: string, leadId?: string) {
+    let pipeline = null;
+
+    // If leadId provided, get stages from that lead's pipeline
+    if (leadId) {
+      const lead = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { pipelineStageId: true },
+      });
+
+      if (lead?.pipelineStageId) {
+        const stage = await prisma.pipelineStage.findUnique({
+          where: { id: lead.pipelineStageId },
+          include: {
+            pipeline: {
+              include: {
+                stages: {
+                  where: { isActive: true },
+                  orderBy: { order: 'asc' },
+                },
+              },
+            },
+          },
+        });
+
+        if (stage?.pipeline) {
+          pipeline = stage.pipeline;
+          console.log(`[LeadPipeline] Using lead's pipeline "${pipeline.name}" for lead ${leadId}`);
+        }
+      }
+    }
+
+    // Fallback: try default pipeline
+    if (!pipeline) {
+      pipeline = await this.getDefaultPipeline(organizationId);
+    }
 
     // If no default, get the first active LEAD pipeline
     if (!pipeline) {

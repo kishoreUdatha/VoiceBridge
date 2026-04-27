@@ -593,69 +593,72 @@ const LeadPipelinePage: React.FC = () => {
                 <p className="text-xs text-gray-400 mt-1">Assign tags to leads to see distribution here</p>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {tagCategories.map((category) => (
-                  <div key={category.name} className="flex items-center gap-8">
-                    {/* Left: Donut Chart */}
-                    <div className="flex-shrink-0">
-                      <div className="h-48 w-48" style={{ minWidth: 192, minHeight: 192 }}>
-                        <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
-                          <PieChart>
-                            <Pie
-                              data={category.tags.filter(t => t.count > 0).length > 0
-                                ? category.tags.filter(t => t.count > 0)
-                                : [{ name: 'No Data', count: 1, color: '#E5E7EB' }]
+                  <div key={category.name} className="flex flex-col items-center p-3 bg-gray-50 rounded-lg">
+                    {/* Top: Donut Chart */}
+                    <div className="h-28 w-28" style={{ minWidth: 112, minHeight: 112 }}>
+                      <ResponsiveContainer width="100%" height="100%" minWidth={80} minHeight={80}>
+                        <PieChart>
+                          <Pie
+                            data={category.tags.filter(t => t.count > 0).length > 0
+                              ? category.tags.filter(t => t.count > 0)
+                              : [{ name: 'No Data', count: 1, color: '#E5E7EB' }]
+                            }
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={30}
+                            outerRadius={48}
+                            paddingAngle={2}
+                            dataKey="count"
+                            onClick={(data) => {
+                              if (data && data.id && data.name !== 'No Data') {
+                                navigate(`/leads?tag=${data.id}`);
                               }
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={50}
-                              outerRadius={80}
-                              paddingAngle={2}
-                              dataKey="count"
-                              onClick={(data) => {
-                                if (data && data.id && data.name !== 'No Data') {
-                                  navigate(`/leads?tag=${data.id}`);
-                                }
-                              }}
-                              style={{ cursor: 'pointer' }}
-                            >
-                              {category.tags.filter(t => t.count > 0).length > 0
-                                ? category.tags.filter(t => t.count > 0).map((tag) => (
-                                    <Cell
-                                      key={`cell-${tag.id}`}
-                                      fill={tag.color}
-                                      className="cursor-pointer hover:opacity-80 transition-opacity"
-                                    />
-                                  ))
-                                : <Cell fill="#E5E7EB" />
-                              }
-                            </Pie>
-                            <Tooltip
-                              formatter={(value: number, name: string) => [`${value} leads`, name]}
-                              contentStyle={{ fontSize: 11, borderRadius: 6 }}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <p className="text-sm font-medium text-gray-800 text-center mt-2">{category.name} ({category.total})</p>
+                            }}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            {category.tags.filter(t => t.count > 0).length > 0
+                              ? category.tags.filter(t => t.count > 0).map((tag) => (
+                                  <Cell
+                                    key={`cell-${tag.id}`}
+                                    fill={tag.color}
+                                    className="cursor-pointer hover:opacity-80 transition-opacity"
+                                  />
+                                ))
+                              : <Cell fill="#E5E7EB" />
+                            }
+                          </Pie>
+                          <Tooltip
+                            formatter={(value: number, name: string) => [`${value} leads`, name]}
+                            contentStyle={{ fontSize: 11, borderRadius: 6 }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
 
-                    {/* Right: Legend with numbers - Clickable */}
-                    <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-2">
-                      {category.tags.map((tag) => (
+                    {/* Category Title */}
+                    <p className="text-xs font-semibold text-gray-700 text-center mt-1 mb-2">{category.name} ({category.total})</p>
+
+                    {/* Bottom: Legend with numbers - Clickable */}
+                    <div className="w-full space-y-0.5">
+                      {category.tags.slice(0, 4).map((tag) => (
                         <Link
                           key={tag.id}
                           to={`/leads?tag=${tag.id}`}
-                          className="flex items-center gap-2 text-sm text-gray-700 hover:text-indigo-600 hover:bg-indigo-50 rounded px-2 py-1.5 transition-colors cursor-pointer"
+                          className="flex items-center gap-1.5 text-[11px] text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded px-1.5 py-0.5 transition-colors cursor-pointer"
                         >
                           <span
-                            className="w-3 h-3 rounded-sm flex-shrink-0"
+                            className="w-2 h-2 rounded-sm flex-shrink-0"
                             style={{ backgroundColor: tag.color }}
                           />
-                          <span className="truncate">{tag.name}</span>
-                          <span className="text-gray-500 ml-auto">({tag.count})</span>
+                          <span className="truncate flex-1">{tag.name}</span>
+                          <span className="text-gray-400">({tag.count})</span>
                         </Link>
                       ))}
+                      {category.tags.length > 4 && (
+                        <p className="text-[10px] text-gray-400 text-center pt-1">+{category.tags.length - 4} more</p>
+                      )}
                     </div>
                   </div>
                 ))}

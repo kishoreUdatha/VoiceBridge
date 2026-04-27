@@ -1,372 +1,89 @@
 /**
  * Public Documentation Page
- * Accessible without login
+ * Professional design with screenshots
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BookOpen,
   Play,
   ChevronRight,
-  ChevronDown,
   Users,
   Phone,
   MessageSquare,
   BarChart3,
   Upload,
   Bot,
-  Headphones,
-  FileText,
+  Settings,
   Zap,
   ArrowRight,
   Home,
   Menu,
   X,
+  CheckCircle2,
+  ExternalLink,
+  Search,
 } from 'lucide-react';
-
-interface GuideStep {
-  title: string;
-  description: string;
-}
-
-interface Guide {
-  id: string;
-  icon: React.FC<{ className?: string }>;
-  title: string;
-  description: string;
-  color: string;
-  steps: GuideStep[];
-}
-
-const GUIDES: Guide[] = [
-  {
-    id: 'getting-started',
-    icon: Play,
-    title: 'Getting Started',
-    description: 'Set up your account and make your first AI call in minutes',
-    color: 'violet',
-    steps: [
-      {
-        title: 'Step 1: Create Your Account',
-        description: 'Sign up with your business email. You\'ll get a 14-day free trial with full access to all features. No credit card required.',
-      },
-      {
-        title: 'Step 2: Set Up Your Organization',
-        description: 'Enter your company name, select your industry (Education, Real Estate, Insurance, etc.), and configure your business settings.',
-      },
-      {
-        title: 'Step 3: Add Team Members',
-        description: 'Invite your sales team, managers, and telecallers. Assign roles like Admin, Manager, Telecaller, or Field Sales to control access.',
-      },
-      {
-        title: 'Step 4: Import Your Leads',
-        description: 'Upload leads via CSV, connect your forms, or sync from Facebook/Google ads. Your leads appear instantly in the dashboard.',
-      },
-      {
-        title: 'Step 5: Create Your First AI Agent',
-        description: 'Choose from pre-built templates or create a custom AI voice agent. Configure the script, voice, and call flow.',
-      },
-    ],
-  },
-  {
-    id: 'lead-management',
-    icon: Users,
-    title: 'Lead Management',
-    description: 'Organize, track, and convert your leads efficiently',
-    color: 'blue',
-    steps: [
-      {
-        title: 'Importing Leads',
-        description: 'Go to Leads → Bulk Upload. Download the CSV template, fill in your data, and upload. Duplicate leads are automatically detected and merged.',
-      },
-      {
-        title: 'Lead Stages & Pipeline',
-        description: 'Track leads through customizable stages: Inquiry → Interested → Visit Scheduled → Documents → Payment → Converted. Drag and drop to move leads.',
-      },
-      {
-        title: 'Lead Assignment',
-        description: 'Auto-assign leads to telecallers using round-robin or weighted distribution. Set assignment schedules for different times and days.',
-      },
-      {
-        title: 'Lead Scoring',
-        description: 'AI automatically scores leads based on engagement, qualification, and intent. Focus on hot leads with the highest conversion potential.',
-      },
-      {
-        title: 'Activity Timeline',
-        description: 'View complete lead history: calls made, emails sent, WhatsApp messages, stage changes, notes added, and who did what and when.',
-      },
-    ],
-  },
-  {
-    id: 'ai-voice',
-    icon: Bot,
-    title: 'AI Voice Agents',
-    description: 'Create intelligent voice agents that convert leads 24/7',
-    color: 'purple',
-    steps: [
-      {
-        title: 'Creating an AI Agent',
-        description: 'Go to Voice AI → New Agent. Choose from templates like Education Counselor, Real Estate Agent, or Insurance Advisor.',
-      },
-      {
-        title: 'Configuring the Script',
-        description: 'Customize the greeting, qualification questions, objection handling, and closing script. Add dynamic variables like {{lead.name}}.',
-      },
-      {
-        title: 'Voice & Language Settings',
-        description: 'Select from 25+ voices in English, Hindi, Telugu, and other Indian languages. Adjust speaking speed, pitch, and tone.',
-      },
-      {
-        title: 'Call Flow Builder',
-        description: 'Create visual call flows with conditions, branching logic, and transfers. Route calls to humans when needed.',
-      },
-      {
-        title: 'Launching Campaigns',
-        description: 'Upload contacts or select from your leads. Set calling hours, max attempts, and retry intervals. Monitor progress in real-time.',
-      },
-    ],
-  },
-  {
-    id: 'telecaller',
-    icon: Headphones,
-    title: 'Telecaller App',
-    description: 'Dedicated interface for your calling team',
-    color: 'cyan',
-    steps: [
-      {
-        title: 'Telecaller Dashboard',
-        description: 'Telecallers see their assigned leads, pending follow-ups, and today\'s targets. The smart queue prioritizes hot leads.',
-      },
-      {
-        title: 'Making Calls',
-        description: 'Click to call directly from the browser. See lead details, previous notes, and suggested talking points during the call.',
-      },
-      {
-        title: 'Logging Outcomes',
-        description: 'After each call, log the outcome: Interested, Callback Requested, Not Interested, Wrong Number, etc. Add notes and schedule follow-ups.',
-      },
-      {
-        title: 'Follow-up Management',
-        description: 'Never miss a follow-up. Get reminders for scheduled callbacks. View all pending follow-ups in one place.',
-      },
-      {
-        title: 'Performance Tracking',
-        description: 'Track your own performance: calls made, talk time, conversions, and compare with team averages.',
-      },
-    ],
-  },
-  {
-    id: 'campaigns',
-    icon: MessageSquare,
-    title: 'WhatsApp & SMS Campaigns',
-    description: 'Reach leads on their preferred channels',
-    color: 'green',
-    steps: [
-      {
-        title: 'WhatsApp Templates',
-        description: 'Create pre-approved WhatsApp templates for welcome messages, follow-ups, payment reminders, and document collection.',
-      },
-      {
-        title: 'Bulk Messaging',
-        description: 'Select recipients from your leads list. Personalize messages with variables and schedule for optimal delivery times.',
-      },
-      {
-        title: 'SMS Campaigns',
-        description: 'Send instant SMS notifications with delivery tracking. Use for urgent communications, OTPs, or reminders.',
-      },
-      {
-        title: 'Email Sequences',
-        description: 'Create automated email drip campaigns with triggers like "7 days after inquiry" to nurture leads automatically.',
-      },
-      {
-        title: 'Campaign Analytics',
-        description: 'Track delivery rates, open rates, click rates, and conversions. A/B test different messages.',
-      },
-    ],
-  },
-  {
-    id: 'analytics',
-    icon: BarChart3,
-    title: 'Analytics & Reports',
-    description: 'Data-driven insights to improve conversions',
-    color: 'orange',
-    steps: [
-      {
-        title: 'Dashboard Overview',
-        description: 'See key metrics: total leads, conversion rate, revenue pipeline, calls made today, and team performance.',
-      },
-      {
-        title: 'Conversion Funnel',
-        description: 'Visualize your lead funnel from inquiry to conversion. Identify bottlenecks where leads drop off.',
-      },
-      {
-        title: 'Agent Performance',
-        description: 'Compare telecaller performance: calls made, talk time, conversion rate, average handling time.',
-      },
-      {
-        title: 'Lead Source Analysis',
-        description: 'Track which sources bring the best leads: Facebook ads, Google ads, website forms, referrals.',
-      },
-      {
-        title: 'Export Reports',
-        description: 'Download detailed reports in Excel or PDF. Schedule automated reports daily, weekly, or monthly.',
-      },
-    ],
-  },
-  {
-    id: 'call-monitoring',
-    icon: Phone,
-    title: 'Call Monitoring',
-    description: 'Listen, whisper, and barge into live calls',
-    color: 'rose',
-    steps: [
-      {
-        title: 'Live Call Dashboard',
-        description: 'View all active calls in real-time. See which agents are on calls, call duration, and customer details.',
-      },
-      {
-        title: 'Listen Mode',
-        description: 'Silently listen to any active call without the agent or customer knowing. Perfect for quality monitoring.',
-      },
-      {
-        title: 'Whisper Mode',
-        description: 'Speak to your agent during a call without the customer hearing. Guide agents through difficult conversations.',
-      },
-      {
-        title: 'Barge Mode',
-        description: 'Join the call as a three-way conference. Take over when needed for escalations or closing deals.',
-      },
-      {
-        title: 'Call Recordings',
-        description: 'All calls are automatically recorded. Listen to past calls for training, quality assurance, or compliance.',
-      },
-    ],
-  },
-  {
-    id: 'integrations',
-    icon: Zap,
-    title: 'Integrations & API',
-    description: 'Connect with your existing tools',
-    color: 'indigo',
-    steps: [
-      {
-        title: 'Ad Platform Integration',
-        description: 'Connect Facebook, Instagram, LinkedIn, Google Ads. Leads from ads are automatically imported with UTM tracking.',
-      },
-      {
-        title: 'CRM Integration',
-        description: 'Sync with Salesforce, HubSpot, or Zoho CRM. Two-way sync ensures your data is always up to date.',
-      },
-      {
-        title: 'Webhooks',
-        description: 'Set up webhooks to receive real-time notifications when leads are created or calls are completed.',
-      },
-      {
-        title: 'REST API',
-        description: 'Full API access for custom integrations. Create leads, trigger calls, send messages programmatically.',
-      },
-      {
-        title: 'Zapier & Make',
-        description: 'Connect to 5000+ apps via Zapier or Make. Automate workflows easily.',
-      },
-    ],
-  },
-];
-
-const colorClasses: Record<string, { bg: string; border: string; icon: string }> = {
-  violet: { bg: 'bg-violet-50', border: 'border-violet-200', icon: 'bg-violet-600' },
-  blue: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'bg-blue-600' },
-  purple: { bg: 'bg-purple-50', border: 'border-purple-200', icon: 'bg-purple-600' },
-  cyan: { bg: 'bg-cyan-50', border: 'border-cyan-200', icon: 'bg-cyan-600' },
-  green: { bg: 'bg-green-50', border: 'border-green-200', icon: 'bg-green-600' },
-  orange: { bg: 'bg-orange-50', border: 'border-orange-200', icon: 'bg-orange-600' },
-  rose: { bg: 'bg-rose-50', border: 'border-rose-200', icon: 'bg-rose-600' },
-  indigo: { bg: 'bg-indigo-50', border: 'border-indigo-200', icon: 'bg-indigo-600' },
-};
-
-const GuideCard: React.FC<{ guide: Guide }> = ({ guide }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const Icon = guide.icon;
-  const colors = colorClasses[guide.color] || colorClasses.violet;
-
-  return (
-    <div className={`rounded-2xl border ${colors.border} ${colors.bg} overflow-hidden transition-all duration-300`}>
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full p-6 flex items-center justify-between hover:bg-white/50 transition-colors"
-      >
-        <div className="flex items-center gap-4">
-          <div className={`w-12 h-12 ${colors.icon} rounded-xl flex items-center justify-center`}>
-            <Icon className="w-6 h-6 text-white" />
-          </div>
-          <div className="text-left">
-            <h3 className="text-lg font-bold text-slate-900">{guide.title}</h3>
-            <p className="text-sm text-slate-600">{guide.description}</p>
-          </div>
-        </div>
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isExpanded ? colors.icon : 'bg-slate-200'} transition-colors`}>
-          {isExpanded ? (
-            <ChevronDown className="w-5 h-5 text-white" />
-          ) : (
-            <ChevronRight className="w-5 h-5 text-slate-600" />
-          )}
-        </div>
-      </button>
-
-      {isExpanded && (
-        <div className="px-6 pb-6 space-y-4">
-          {guide.steps.map((step, index) => (
-            <div key={index} className="bg-white rounded-xl p-5 border border-slate-100">
-              <div className="flex items-start gap-4">
-                <div className={`w-8 h-8 ${colors.icon} rounded-lg flex items-center justify-center flex-shrink-0 text-white text-sm font-bold`}>
-                  {index + 1}
-                </div>
-                <div>
-                  <h4 className="font-semibold text-slate-900 mb-2">{step.title}</h4>
-                  <p className="text-slate-600 text-sm leading-relaxed">{step.description}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 export default function DocsPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('getting-started');
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, []);
+
+  const sections = [
+    { id: 'getting-started', title: 'Getting Started', icon: Play },
+    { id: 'lead-management', title: 'Lead Management', icon: Users },
+    { id: 'ai-calling', title: 'AI Voice Calling', icon: Bot },
+    { id: 'campaigns', title: 'Campaigns', icon: MessageSquare },
+    { id: 'analytics', title: 'Analytics & Reports', icon: BarChart3 },
+    { id: 'integrations', title: 'Integrations', icon: Zap },
+    { id: 'settings', title: 'Settings', icon: Settings },
+  ];
+
+  const scrollToSection = (id: string) => {
+    setActiveSection(id);
+    const element = document.getElementById(id);
+    if (element) {
+      const offset = 100;
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+      window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+    }
+    setMobileMenuOpen(false);
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-6">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex justify-between items-center h-16">
-            <Link to="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl flex items-center justify-center">
-                <Phone className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-slate-900">MyLeadX</span>
-            </Link>
+            <div className="flex items-center gap-8">
+              <Link to="/" className="flex items-center gap-2">
+                <img src="/logo.png" alt="MyLeadX" className="w-8 h-8 rounded-lg" />
+                <span className="text-xl font-bold text-gray-900">MyLeadX</span>
+              </Link>
+              <span className="hidden sm:block text-gray-300">|</span>
+              <span className="hidden sm:block text-sm font-medium text-gray-600">Documentation</span>
+            </div>
 
             <div className="hidden md:flex items-center gap-6">
-              <Link to="/" className="text-sm font-medium text-slate-600 hover:text-violet-600 flex items-center gap-1">
+              <Link to="/" className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1">
                 <Home className="w-4 h-4" />
                 Home
               </Link>
-              <Link to="/pricing" className="text-sm font-medium text-slate-600 hover:text-violet-600">
+              <Link to="/pricing" className="text-sm text-gray-600 hover:text-gray-900">
                 Pricing
-              </Link>
-              <Link to="/login" className="text-sm font-medium text-slate-600 hover:text-violet-600">
-                Sign In
               </Link>
               <Link
                 to="/register"
-                className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:shadow-lg transition-all"
+                className="bg-violet-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-violet-700 transition-colors"
               >
-                Start Free Trial
+                Get Started
               </Link>
             </div>
 
@@ -374,103 +91,487 @@ export default function DocsPage() {
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
-
-          {mobileMenuOpen && (
-            <div className="md:hidden py-4 border-t border-slate-100">
-              <div className="flex flex-col gap-3">
-                <Link to="/" className="text-base font-medium text-slate-700 py-2">Home</Link>
-                <Link to="/pricing" className="text-base font-medium text-slate-700 py-2">Pricing</Link>
-                <Link to="/login" className="text-base font-medium text-slate-700 py-2">Sign In</Link>
-                <Link to="/register" className="bg-violet-600 text-white text-center py-3 rounded-full font-semibold mt-2">
-                  Start Free Trial
-                </Link>
-              </div>
-            </div>
-          )}
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="pt-24 pb-12 bg-gradient-to-b from-violet-50 to-slate-50">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <div className="inline-flex items-center gap-2 bg-violet-100 text-violet-700 px-4 py-2 rounded-full text-sm font-semibold mb-6">
-            <BookOpen className="w-4 h-4" />
-            Documentation
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setMobileMenuOpen(false)}>
+          <div className="absolute right-0 top-16 bottom-0 w-72 bg-white shadow-xl overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-4">
+              <h3 className="font-semibold text-gray-900 mb-4">Documentation</h3>
+              <nav className="space-y-1">
+                {sections.map((section) => (
+                  <button
+                    key={section.id}
+                    onClick={() => scrollToSection(section.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm transition-colors ${
+                      activeSection === section.id
+                        ? 'bg-violet-50 text-violet-700'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <section.icon className="w-4 h-4" />
+                    {section.title}
+                  </button>
+                ))}
+              </nav>
+            </div>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
-            Learn How to Use MyLeadX
-          </h1>
-          <p className="text-xl text-slate-600 max-w-2xl mx-auto">
-            Step-by-step guides to help you get started and master all features
-          </p>
         </div>
-      </section>
+      )}
 
-      {/* Quick Links */}
-      <section className="py-12 bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { icon: Play, title: 'Getting Started', color: 'violet' },
-              { icon: Users, title: 'Lead Management', color: 'blue' },
-              { icon: Bot, title: 'AI Voice Agents', color: 'purple' },
-              { icon: BarChart3, title: 'Analytics', color: 'orange' },
-            ].map((item) => (
-              <a
-                key={item.title}
-                href={`#${item.title.toLowerCase().replace(' ', '-')}`}
-                className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors"
-              >
-                <div className={`w-10 h-10 bg-${item.color}-100 rounded-lg flex items-center justify-center`}>
-                  <item.icon className={`w-5 h-5 text-${item.color}-600`} />
+      <div className="pt-16 flex">
+        {/* Sidebar */}
+        <aside className="hidden lg:block w-64 fixed left-0 top-16 bottom-0 border-r border-gray-200 overflow-y-auto">
+          <div className="p-6">
+            <div className="relative mb-6">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search docs..."
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              />
+            </div>
+            <nav className="space-y-1">
+              {sections.map((section) => (
+                <button
+                  key={section.id}
+                  onClick={() => scrollToSection(section.id)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm transition-colors ${
+                    activeSection === section.id
+                      ? 'bg-violet-50 text-violet-700 font-medium'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  <section.icon className="w-4 h-4" />
+                  {section.title}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 lg:ml-64">
+          <div className="max-w-4xl mx-auto px-6 py-12">
+
+            {/* Getting Started */}
+            <section id="getting-started" className="mb-16 scroll-mt-24">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
+                  <Play className="w-5 h-5 text-violet-600" />
                 </div>
-                <span className="font-medium text-slate-900">{item.title}</span>
-              </a>
-            ))}
-          </div>
-        </div>
-      </section>
+                <h1 className="text-3xl font-bold text-gray-900">Getting Started</h1>
+              </div>
+              <p className="text-lg text-gray-600 mb-8">
+                Welcome to MyLeadX! Follow these steps to set up your account and start converting leads with AI.
+              </p>
 
-      {/* Guides */}
-      <section className="py-16">
-        <div className="max-w-4xl mx-auto px-6">
-          <h2 className="text-2xl font-bold text-slate-900 mb-8">Feature Guides</h2>
-          <div className="space-y-4">
-            {GUIDES.map((guide) => (
-              <GuideCard key={guide.id} guide={guide} />
-            ))}
-          </div>
-        </div>
-      </section>
+              {/* Step 1 */}
+              <div className="mb-10">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
+                  <h3 className="text-xl font-semibold text-gray-900">Create Your Account</h3>
+                </div>
+                <p className="text-gray-600 mb-4 ml-11">
+                  Sign up with your business email to get a 14-day free trial. No credit card required.
+                </p>
+                <div className="ml-11 bg-gray-100 rounded-xl p-4 mb-4">
+                  <div className="aspect-video bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+                        <Users className="w-8 h-8 text-violet-600" />
+                      </div>
+                      <p className="text-gray-500 text-sm">Registration Screen</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="ml-11 flex items-center gap-2 text-sm text-gray-500">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  <span>Takes less than 2 minutes</span>
+                </div>
+              </div>
 
-      {/* CTA */}
-      <section className="py-16 bg-gradient-to-br from-violet-600 to-indigo-600">
-        <div className="max-w-4xl mx-auto px-6 text-center text-white">
-          <h2 className="text-3xl font-bold mb-4">Ready to Get Started?</h2>
-          <p className="text-violet-200 mb-8">
-            Create your free account and start converting leads with AI today.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              to="/register"
-              className="bg-white text-violet-600 px-8 py-4 rounded-full font-semibold hover:bg-violet-50 transition-colors flex items-center gap-2"
-            >
-              Start Free Trial
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-            <Link
-              to="/login"
-              className="border-2 border-white/30 text-white px-8 py-4 rounded-full font-semibold hover:bg-white/10 transition-colors"
-            >
-              Sign In
-            </Link>
+              {/* Step 2 */}
+              <div className="mb-10">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
+                  <h3 className="text-xl font-semibold text-gray-900">Set Up Your Organization</h3>
+                </div>
+                <p className="text-gray-600 mb-4 ml-11">
+                  Enter your company details and select your industry. This helps us customize the platform for your business.
+                </p>
+                <div className="ml-11 bg-gray-100 rounded-xl p-4 mb-4">
+                  <div className="aspect-video bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+                        <Settings className="w-8 h-8 text-violet-600" />
+                      </div>
+                      <p className="text-gray-500 text-sm">Organization Setup</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="mb-10">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                  <h3 className="text-xl font-semibold text-gray-900">Import Your Leads</h3>
+                </div>
+                <p className="text-gray-600 mb-4 ml-11">
+                  Upload your leads via CSV, connect your web forms, or sync from Facebook/Google Ads.
+                </p>
+                <div className="ml-11 bg-gray-100 rounded-xl p-4 mb-4">
+                  <div className="aspect-video bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+                        <Upload className="w-8 h-8 text-violet-600" />
+                      </div>
+                      <p className="text-gray-500 text-sm">Lead Import Screen</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="ml-11 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-blue-800 text-sm">
+                    <strong>Tip:</strong> Download our CSV template to ensure your data imports correctly.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div className="mb-10">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</span>
+                  <h3 className="text-xl font-semibold text-gray-900">Create Your First AI Agent</h3>
+                </div>
+                <p className="text-gray-600 mb-4 ml-11">
+                  Choose from pre-built templates or create a custom AI voice agent for your business.
+                </p>
+                <div className="ml-11 bg-gray-100 rounded-xl p-4">
+                  <div className="aspect-video bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+                        <Bot className="w-8 h-8 text-violet-600" />
+                      </div>
+                      <p className="text-gray-500 text-sm">AI Agent Builder</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Lead Management */}
+            <section id="lead-management" className="mb-16 scroll-mt-24">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Users className="w-5 h-5 text-blue-600" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-900">Lead Management</h2>
+              </div>
+              <p className="text-lg text-gray-600 mb-8">
+                Organize, track, and convert your leads efficiently with our powerful CRM features.
+              </p>
+
+              <div className="space-y-8">
+                <div className="border border-gray-200 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Lead Dashboard</h3>
+                  <p className="text-gray-600 mb-4">
+                    View all your leads in one place. Filter by status, source, assigned agent, or date range.
+                  </p>
+                  <div className="bg-gray-100 rounded-xl p-4">
+                    <div className="aspect-video bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+                          <Users className="w-8 h-8 text-blue-600" />
+                        </div>
+                        <p className="text-gray-500 text-sm">Lead Dashboard View</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-gray-200 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Lead Stages & Pipeline</h3>
+                  <p className="text-gray-600 mb-4">
+                    Track leads through customizable stages: New → Contacted → Interested → Demo → Negotiation → Won/Lost
+                  </p>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {['New', 'Contacted', 'Interested', 'Demo', 'Negotiation', 'Won'].map((stage, i) => (
+                      <span key={stage} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm flex items-center gap-1">
+                        {stage}
+                        {i < 5 && <ChevronRight className="w-3 h-3" />}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border border-gray-200 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Bulk Import</h3>
+                  <p className="text-gray-600 mb-4">
+                    Import thousands of leads at once using our CSV template. Duplicate detection included.
+                  </p>
+                  <div className="bg-gray-100 rounded-xl p-4">
+                    <div className="aspect-video bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+                          <Upload className="w-8 h-8 text-blue-600" />
+                        </div>
+                        <p className="text-gray-500 text-sm">Bulk Import Screen</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* AI Voice Calling */}
+            <section id="ai-calling" className="mb-16 scroll-mt-24">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <Bot className="w-5 h-5 text-purple-600" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-900">AI Voice Calling</h2>
+              </div>
+              <p className="text-lg text-gray-600 mb-8">
+                Create intelligent AI agents that make calls, qualify leads, and book appointments 24/7.
+              </p>
+
+              <div className="space-y-8">
+                <div className="border border-gray-200 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Create AI Agent</h3>
+                  <p className="text-gray-600 mb-4">
+                    Build your AI calling agent with our visual builder. Choose voice, language, and conversation flow.
+                  </p>
+                  <div className="bg-gray-100 rounded-xl p-4">
+                    <div className="aspect-video bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+                          <Bot className="w-8 h-8 text-purple-600" />
+                        </div>
+                        <p className="text-gray-500 text-sm">AI Agent Builder</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-gray-200 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Voice & Language Options</h3>
+                  <p className="text-gray-600 mb-4">
+                    Choose from 25+ natural voices in English, Hindi, Telugu, Tamil, and more Indian languages.
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {['English', 'Hindi', 'Telugu', 'Tamil', 'Kannada', 'Malayalam', 'Marathi', 'Bengali'].map((lang) => (
+                      <div key={lang} className="bg-purple-50 text-purple-700 px-3 py-2 rounded-lg text-sm text-center">
+                        {lang}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border border-gray-200 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Call Campaigns</h3>
+                  <p className="text-gray-600 mb-4">
+                    Launch automated calling campaigns. Set calling hours, retry rules, and daily limits.
+                  </p>
+                  <div className="bg-gray-100 rounded-xl p-4">
+                    <div className="aspect-video bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+                          <Phone className="w-8 h-8 text-purple-600" />
+                        </div>
+                        <p className="text-gray-500 text-sm">Campaign Dashboard</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Campaigns */}
+            <section id="campaigns" className="mb-16 scroll-mt-24">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5 text-green-600" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-900">Campaigns</h2>
+              </div>
+              <p className="text-lg text-gray-600 mb-8">
+                Reach your leads through WhatsApp, SMS, and Email campaigns.
+              </p>
+
+              <div className="grid sm:grid-cols-3 gap-6">
+                <div className="border border-gray-200 rounded-xl p-6 text-center">
+                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <MessageSquare className="w-6 h-6 text-green-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">WhatsApp</h3>
+                  <p className="text-gray-600 text-sm">Send templates, media, and bulk messages</p>
+                </div>
+                <div className="border border-gray-200 rounded-xl p-6 text-center">
+                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <MessageSquare className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">SMS</h3>
+                  <p className="text-gray-600 text-sm">Instant SMS delivery with tracking</p>
+                </div>
+                <div className="border border-gray-200 rounded-xl p-6 text-center">
+                  <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <MessageSquare className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Email</h3>
+                  <p className="text-gray-600 text-sm">Automated sequences and templates</p>
+                </div>
+              </div>
+            </section>
+
+            {/* Analytics */}
+            <section id="analytics" className="mb-16 scroll-mt-24">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <BarChart3 className="w-5 h-5 text-orange-600" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-900">Analytics & Reports</h2>
+              </div>
+              <p className="text-lg text-gray-600 mb-8">
+                Track performance, measure conversions, and make data-driven decisions.
+              </p>
+
+              <div className="border border-gray-200 rounded-xl p-6 mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Dashboard Overview</h3>
+                <p className="text-gray-600 mb-4">
+                  View key metrics at a glance: total leads, calls made, conversion rate, and revenue.
+                </p>
+                <div className="bg-gray-100 rounded-xl p-4">
+                  <div className="aspect-video bg-gradient-to-br from-orange-100 to-orange-200 rounded-lg flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+                        <BarChart3 className="w-8 h-8 text-orange-600" />
+                      </div>
+                      <p className="text-gray-500 text-sm">Analytics Dashboard</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-6">
+                <div className="border border-gray-200 rounded-xl p-6">
+                  <h3 className="font-semibold text-gray-900 mb-2">Agent Performance</h3>
+                  <p className="text-gray-600 text-sm">Compare telecaller metrics: calls, talk time, conversions</p>
+                </div>
+                <div className="border border-gray-200 rounded-xl p-6">
+                  <h3 className="font-semibold text-gray-900 mb-2">Lead Source Analysis</h3>
+                  <p className="text-gray-600 text-sm">Track which sources bring the best leads</p>
+                </div>
+                <div className="border border-gray-200 rounded-xl p-6">
+                  <h3 className="font-semibold text-gray-900 mb-2">Conversion Funnel</h3>
+                  <p className="text-gray-600 text-sm">Visualize your pipeline and identify bottlenecks</p>
+                </div>
+                <div className="border border-gray-200 rounded-xl p-6">
+                  <h3 className="font-semibold text-gray-900 mb-2">Export Reports</h3>
+                  <p className="text-gray-600 text-sm">Download Excel/PDF reports or schedule automated emails</p>
+                </div>
+              </div>
+            </section>
+
+            {/* Integrations */}
+            <section id="integrations" className="mb-16 scroll-mt-24">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-indigo-600" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-900">Integrations</h2>
+              </div>
+              <p className="text-lg text-gray-600 mb-8">
+                Connect MyLeadX with your favorite tools and platforms.
+              </p>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  { name: 'Facebook Ads', desc: 'Auto-import leads' },
+                  { name: 'Google Ads', desc: 'Sync lead forms' },
+                  { name: 'WhatsApp Business', desc: 'Send messages' },
+                  { name: 'Zapier', desc: '5000+ apps' },
+                  { name: 'Google Sheets', desc: 'Two-way sync' },
+                  { name: 'REST API', desc: 'Custom integrations' },
+                ].map((item) => (
+                  <div key={item.name} className="border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <Zap className="w-5 h-5 text-gray-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-gray-900">{item.name}</h4>
+                      <p className="text-sm text-gray-500">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Settings */}
+            <section id="settings" className="mb-16 scroll-mt-24">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <Settings className="w-5 h-5 text-gray-600" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-900">Settings</h2>
+              </div>
+              <p className="text-lg text-gray-600 mb-8">
+                Configure your account, team, and preferences.
+              </p>
+
+              <div className="space-y-4">
+                {[
+                  { title: 'Team Management', desc: 'Add users, assign roles, set permissions' },
+                  { title: 'Phone Numbers', desc: 'Buy and manage your calling numbers' },
+                  { title: 'Lead Stages', desc: 'Customize your pipeline stages' },
+                  { title: 'Notifications', desc: 'Configure email and push notifications' },
+                  { title: 'API Keys', desc: 'Generate keys for integrations' },
+                  { title: 'Billing', desc: 'Manage subscription and invoices' },
+                ].map((item) => (
+                  <div key={item.title} className="border border-gray-200 rounded-xl p-4 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer">
+                    <div>
+                      <h4 className="font-medium text-gray-900">{item.title}</h4>
+                      <p className="text-sm text-gray-500">{item.desc}</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* CTA */}
+            <section className="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-2xl p-8 text-center text-white">
+              <h2 className="text-2xl font-bold mb-3">Need Help?</h2>
+              <p className="text-violet-200 mb-6">
+                Our support team is here to assist you.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a
+                  href="mailto:support@myleadx.ai"
+                  className="bg-white text-violet-600 px-6 py-3 rounded-lg font-medium hover:bg-violet-50 transition-colors flex items-center gap-2"
+                >
+                  Contact Support
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+                <Link
+                  to="/register"
+                  className="border border-white/30 text-white px-6 py-3 rounded-lg font-medium hover:bg-white/10 transition-colors flex items-center gap-2"
+                >
+                  Start Free Trial
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </section>
+
           </div>
-        </div>
-      </section>
+        </main>
+      </div>
 
       {/* Footer */}
-      <footer className="bg-slate-900 text-slate-400 py-8">
-        <div className="max-w-7xl mx-auto px-6 text-center">
+      <footer className="lg:ml-64 border-t border-gray-200 py-8">
+        <div className="max-w-4xl mx-auto px-6 text-center text-gray-500 text-sm">
           <p>&copy; {new Date().getFullYear()} MyLeadX. All rights reserved.</p>
         </div>
       </footer>

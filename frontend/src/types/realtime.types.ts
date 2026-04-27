@@ -32,6 +32,7 @@ export interface RealtimeStartPayload {
     email?: string;
     phone?: string;
   };
+  testMode?: boolean; // Allow testing DRAFT agents from dashboard
 }
 
 export interface RealtimeAudioPayload {
@@ -148,6 +149,8 @@ export interface RealtimeVoiceWidgetProps {
     email?: string;
     phone?: string;
   };
+  /** Enable test mode to bypass publish/mode checks (for dashboard testing) */
+  testMode?: boolean;
 }
 
 export interface VoiceVisualizerProps {

@@ -62,6 +62,7 @@ export function RealtimeVoiceWidget({
   theme = {},
   visitorInfo,
   startExpanded = false,
+  testMode = false,
 }: RealtimeVoiceWidgetProps & { startExpanded?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(startExpanded);
   const [selectedMode, setSelectedMode] = useState<VoiceSessionMode>(defaultMode);
@@ -88,6 +89,7 @@ export function RealtimeVoiceWidget({
   } = useRealtimeVoice({
     agentId,
     mode: selectedMode,
+    testMode,
     onSessionEnd: (result: RealtimeEndedPayload) => {
       onSessionEnd?.(result);
     },

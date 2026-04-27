@@ -2,6 +2,7 @@ import { jobQueueService } from './job-queue.service';
 import { apifySchedulerService } from './apify-scheduler.service';
 import { leadLifecycleService } from './lead-lifecycle.service';
 import { assignmentScheduleService } from './assignmentSchedule.service';
+import { messageRetryService } from './message-retry.service';
 
 /**
  * Job Initializer Service
@@ -43,6 +44,9 @@ class JobInitializerService {
 
       // 7. Start the assignment schedule checker (runs every 5 minutes)
       this.startAssignmentScheduleChecker();
+
+      // 8. Start the message retry processor (runs every minute)
+      this.startMessageRetryProcessor();
 
       this.initialized = true;
       console.log('[JobInitializer] All scheduled jobs initialized successfully');
@@ -200,6 +204,15 @@ class JobInitializerService {
     }, 60000);
 
     console.log('[JobInitializer] Assignment schedule checker started (runs every 5 minutes)');
+  }
+
+  /**
+   * Start the message retry processor
+   * Retries failed WhatsApp/SMS messages with exponential backoff
+   */
+  private startMessageRetryProcessor(): void {
+    messageRetryService.start();
+    console.log('[JobInitializer] Message retry processor started (runs every minute)');
   }
 
   /**

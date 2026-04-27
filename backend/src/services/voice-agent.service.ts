@@ -66,6 +66,16 @@ export async function getAgents(organizationId: string) {
           lastName: true,
         },
       },
+      phoneNumbers: {
+        select: {
+          id: true,
+          number: true,
+          displayNumber: true,
+        },
+        where: {
+          status: 'ASSIGNED',
+        },
+      },
       _count: {
         select: { sessions: true },
       },

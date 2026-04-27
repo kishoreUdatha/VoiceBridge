@@ -1,0 +1,120 @@
+1
+00:00:00,000 --> 00:00:03,500
+Welcome to MyLeadX, your AI-powered CRM solution. Let's explore all the powerful features.
+
+2
+00:00:04,000 --> 00:00:07,500
+This is your dashboard. Get a complete overview of sales performance, leads, calls, and team activity at a glance.
+
+3
+00:00:08,000 --> 00:00:11,500
+The leads management page. Filter, search, and take bulk actions on all your leads from one central location.
+
+4
+00:00:12,000 --> 00:00:15,500
+Easily create new leads with custom fields. Capture all the information you need for effective follow-up.
+
+5
+00:00:16,000 --> 00:00:19,500
+Visualize your sales pipeline with our Kanban board. Drag and drop leads through different stages.
+
+6
+00:00:20,000 --> 00:00:23,500
+Meet our Voice AI Agents. These intelligent agents can call leads automatically in multiple languages.
+
+7
+00:00:24,000 --> 00:00:27,500
+Choose your agent type. Create AI voice bots, conversational agents, or IVR systems.
+
+8
+00:00:28,000 --> 00:00:31,500
+The Voice Agent Builder. Design your agent's conversation flow, voice, and language settings.
+
+9
+00:00:32,000 --> 00:00:35,500
+Our Conversational AI wizard. Create natural-sounding AI agents that can qualify leads and book meetings.
+
+10
+00:00:36,000 --> 00:00:39,500
+The outbound calls dashboard. Launch and monitor AI calling campaigns in real-time.
+
+11
+00:00:40,000 --> 00:00:43,500
+Make single calls directly from the platform. Enter a number and let AI handle the conversation.
+
+12
+00:00:44,000 --> 00:00:47,500
+Create calling campaigns. Upload lead lists, set schedules, and let AI agents make thousands of calls.
+
+13
+00:00:48,000 --> 00:00:51,500
+The Telecaller dashboard. Your human agents get scripts, click-to-call, and instant lead updates.
+
+14
+00:00:52,000 --> 00:00:55,500
+The call queue. Telecallers see their assigned leads and can start calling with one click.
+
+15
+00:00:56,000 --> 00:00:59,500
+Complete call history. Every call is recorded, transcribed, and analyzed automatically.
+
+16
+00:01:00,000 --> 00:01:03,500
+Live call monitoring. Listen to ongoing calls and provide real-time coaching to your team.
+
+17
+00:01:04,000 --> 00:01:07,500
+The analytics dashboard. Track conversion rates, revenue, call metrics, and team performance.
+
+18
+00:01:08,000 --> 00:01:11,500
+Advanced analytics with AI insights. Identify patterns, predict outcomes, and optimize your process.
+
+19
+00:01:12,000 --> 00:01:15,500
+Your conversion funnel. See exactly where leads drop off and identify optimization opportunities.
+
+20
+00:01:16,000 --> 00:01:19,500
+AI agent performance metrics. See how each voice agent is performing across campaigns.
+
+21
+00:01:20,000 --> 00:01:23,500
+Telecaller performance analytics. Track calls made, conversions, and average call duration.
+
+22
+00:01:24,000 --> 00:01:27,500
+The reports section. Generate detailed reports on every aspect of your sales operations.
+
+23
+00:01:28,000 --> 00:01:31,500
+User performance reports. See individual team member metrics and identify top performers.
+
+24
+00:01:32,000 --> 00:01:35,500
+AI usage reports. Track your voice minutes, AI calls, and usage across features.
+
+25
+00:01:36,000 --> 00:01:39,500
+AI Lead Scoring. Our AI analyzes leads and assigns priority scores based on conversion likelihood.
+
+26
+00:01:40,000 --> 00:01:43,500
+The customer journey view. See every interaction a lead has had with your business.
+
+27
+00:01:44,000 --> 00:01:47,500
+Predictive analytics. AI forecasts revenue, identifies at-risk deals, and recommends actions.
+
+28
+00:01:48,000 --> 00:01:51,500
+Campaign management. Create and track marketing campaigns across multiple channels.
+
+29
+00:01:52,000 --> 00:01:55,500
+The workflow builder. Automate repetitive tasks with visual drag-and-drop workflows.
+
+30
+00:01:56,000 --> 00:01:59,500
+Settings and configuration. Customize MyLeadX to match your business processes perfectly.
+

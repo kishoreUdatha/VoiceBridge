@@ -246,12 +246,42 @@ export const config = {
     apiKey: process.env.APIFY_API_KEY,
   },
 
-  // Voice AI settings
+  // Voice AI settings - Simplified Configuration
   voiceAi: {
+    // LLM for conversation
     chatModel: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
-    sttModel: process.env.OPENAI_STT_MODEL || 'whisper-1',
-    ttsModel: process.env.TTS_MODEL || 'tts-1-hd',
+
+    // Sample rate for telephony
     sampleRateTelephony: parseInt(process.env.AUDIO_SAMPLE_RATE || '8000', 10),
+
+    // ===========================================
+    // TTS (Text-to-Speech) Provider Configuration
+    // ===========================================
+    // Options: 'sarvam' | 'elevenlabs' | 'openai' | 'auto'
+    // 'auto' = Sarvam for Indian languages, ElevenLabs/OpenAI for English
+    ttsProvider: process.env.TTS_PROVIDER || 'auto',
+
+    // TTS Models per provider
+    ttsOpenAiModel: process.env.TTS_MODEL || 'tts-1-hd',        // OpenAI: tts-1, tts-1-hd
+    ttsOpenAiVoice: process.env.TTS_VOICE || 'shimmer',         // OpenAI voices
+    ttsElevenLabsModel: 'eleven_multilingual_v2',               // Best ElevenLabs model
+    ttsSarvamModel: 'bulbul:v3',                                // Sarvam model
+
+    // ===========================================
+    // STT (Speech-to-Text) Provider Configuration
+    // ===========================================
+    // Options: 'sarvam' | 'openai' | 'auto'
+    // 'auto' = Sarvam for Indian languages, OpenAI Whisper for English
+    sttProvider: process.env.STT_PROVIDER || 'auto',
+
+    // STT Models
+    sttOpenAiModel: process.env.OPENAI_STT_MODEL || 'whisper-1',
+    sttSarvamModel: 'saaras:v3',
+
+    // ===========================================
+    // Indian Languages (use Sarvam)
+    // ===========================================
+    indianLanguages: ['hi-IN', 'te-IN', 'ta-IN', 'kn-IN', 'ml-IN', 'mr-IN', 'bn-IN', 'gu-IN', 'pa-IN', 'or-IN', 'as-IN', 'en-IN'],
   },
 
   // CORS - supports single URL or comma-separated list via CORS_ORIGINS

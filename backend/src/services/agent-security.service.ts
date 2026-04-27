@@ -5,6 +5,13 @@
 
 import { prisma } from '../config/database';
 import { VoiceAgent } from '@prisma/client';
+import OpenAI from 'openai';
+import { config } from '../config';
+
+// OpenAI client for moderation API
+const openai = config.openai?.apiKey
+  ? new OpenAI({ apiKey: config.openai.apiKey })
+  : null;
 
 // In-memory rate limiting store (in production, use Redis)
 const rateLimitStore: Map<string, { count: number; resetAt: Date }> = new Map();
@@ -86,6 +93,7 @@ class AgentSecurityService {
 
   /**
    * Check if content passes content filtering
+   * Uses OpenAI Moderation API for accurate detection, with regex fallback
    */
   async checkContent(
     agent: VoiceAgent,
@@ -98,10 +106,74 @@ class AgentSecurityService {
     const categories = (agent.contentFilterCategories as string[]) || [];
     const lowerContent = content.toLowerCase();
 
-    // Simple keyword-based filtering (in production, use ML-based moderation)
-    const profanityPatterns = /\b(fuck|shit|damn|ass|bitch|bastard)\b/i;
-    const violencePatterns = /\b(kill|murder|attack|bomb|shoot|stab)\b/i;
-    const hatePatterns = /\b(hate|racist|sexist|homophobic|slur)\b/i;
+    // First, try OpenAI Moderation API for accurate ML-based filtering
+    if (openai) {
+      try {
+        const moderation = await openai.moderations.create({
+          input: content,
+        });
+
+        const result = moderation.results[0];
+        if (result.flagged) {
+          // Map OpenAI categories to our categories
+          const flaggedCategories: string[] = [];
+
+          if (result.categories.sexual || result.categories['sexual/minors']) {
+            flaggedCategories.push('sexual');
+          }
+          if (result.categories.hate || result.categories['hate/threatening']) {
+            if (categories.includes('hate_speech')) {
+              return {
+                allowed: false,
+                error: 'Content contains hate speech',
+                errorCode: 'CONTENT_BLOCKED',
+              };
+            }
+            flaggedCategories.push('hate');
+          }
+          if (result.categories.violence || result.categories['violence/graphic']) {
+            if (categories.includes('violence')) {
+              return {
+                allowed: false,
+                error: 'Content contains violent language',
+                errorCode: 'CONTENT_BLOCKED',
+              };
+            }
+            flaggedCategories.push('violence');
+          }
+          if (result.categories.harassment || result.categories['harassment/threatening']) {
+            if (categories.includes('harassment') || categories.includes('profanity')) {
+              return {
+                allowed: false,
+                error: 'Content contains harassment or inappropriate language',
+                errorCode: 'CONTENT_BLOCKED',
+              };
+            }
+            flaggedCategories.push('harassment');
+          }
+          if (result.categories['self-harm'] || result.categories['self-harm/intent'] || result.categories['self-harm/instructions']) {
+            flaggedCategories.push('self-harm');
+          }
+
+          // Log the flagged content for review
+          console.log(`[AgentSecurity] Content flagged by OpenAI moderation:`, {
+            agentId: agent.id,
+            categories: flaggedCategories,
+            contentPreview: content.substring(0, 50),
+          });
+        }
+
+        return { allowed: true };
+      } catch (error) {
+        console.error('[AgentSecurity] OpenAI moderation API error, falling back to regex:', error);
+        // Fall through to regex-based filtering
+      }
+    }
+
+    // Fallback: Simple keyword-based filtering
+    const profanityPatterns = /\b(fuck|shit|damn|ass|bitch|bastard|crap|hell)\b/i;
+    const violencePatterns = /\b(kill|murder|attack|bomb|shoot|stab|hurt|destroy|die)\b/i;
+    const hatePatterns = /\b(hate|racist|sexist|homophobic|slur|discrimination)\b/i;
 
     if (categories.includes('profanity') && profanityPatterns.test(lowerContent)) {
       return {

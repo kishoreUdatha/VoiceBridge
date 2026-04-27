@@ -16,3 +16,5 @@ export { default as CompliancePage } from './CompliancePage';
 export { default as SystemPage } from './SystemPage';
 export { default as BillingPage } from './BillingPage';
 export { default as PhoneNumbersPage } from './PhoneNumbersPage';
+export { default as IndustriesPage } from './IndustriesPage';
+export { default as IndustryDetailPage } from './IndustryDetailPage';

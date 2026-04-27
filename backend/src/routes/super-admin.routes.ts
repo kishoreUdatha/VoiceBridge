@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { body, param, query } from 'express-validator';
 import jwt from 'jsonwebtoken';
 import { superAdminService } from '../services/super-admin.service';
+import { tenantReportsService } from '../services/tenant-reports.service';
 import { config } from '../config';
 import { validate } from '../middlewares/validate';
 import { prisma } from '../config/database';
@@ -993,6 +994,102 @@ router.get('/phone-numbers/provider-usage', verifySuperAdmin, async (req: Reques
   try {
     const data = await superAdminService.getProviderUsageByTenant();
     res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================
+// Industry Reports (Cross-tenant by industry)
+// ============================================
+
+/**
+ * GET /super-admin/reports/platform
+ * Platform-wide report including industry breakdown
+ */
+router.get('/reports/platform', verifySuperAdmin, async (req: Request, res: Response) => {
+  try {
+    // Create a mock request with super admin context
+    const mockReq = {
+      user: { isSuperAdmin: true },
+    } as any;
+    const data = await tenantReportsService.getPlatformReport(mockReq);
+    res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * GET /super-admin/reports/by-industry
+ * Detailed report broken down by industry
+ */
+router.get('/reports/by-industry', verifySuperAdmin, async (req: Request, res: Response) => {
+  try {
+    // Create a mock request with super admin context
+    const mockReq = {
+      user: { isSuperAdmin: true },
+    } as any;
+    const data = await tenantReportsService.getIndustryReport(mockReq);
+    res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * GET /super-admin/industries/stats
+ * Quick stats for each industry
+ */
+router.get('/industries/stats', verifySuperAdmin, async (req: Request, res: Response) => {
+  try {
+    // Get all dynamic industries with organization counts
+    const industries = await prisma.dynamicIndustry.findMany({
+      where: { isActive: true },
+      include: {
+        _count: {
+          select: { organizations: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    // Get lead counts per industry
+    const industryStats = await Promise.all(
+      industries.map(async (industry) => {
+        const orgIds = await prisma.organization.findMany({
+          where: { dynamicIndustryId: industry.id },
+          select: { id: true },
+        });
+        const orgIdList = orgIds.map(o => o.id);
+
+        const leadCount = orgIdList.length > 0
+          ? await prisma.lead.count({ where: { organizationId: { in: orgIdList } } })
+          : 0;
+
+        return {
+          slug: industry.slug,
+          name: industry.name,
+          icon: industry.icon,
+          color: industry.color,
+          organizationCount: industry._count.organizations,
+          leadCount,
+        };
+      })
+    );
+
+    // Sort by organization count descending
+    industryStats.sort((a, b) => b.organizationCount - a.organizationCount);
+
+    res.json({
+      success: true,
+      data: {
+        industries: industryStats,
+        totalIndustries: industries.length,
+        totalOrganizations: industryStats.reduce((sum, i) => sum + i.organizationCount, 0),
+        totalLeads: industryStats.reduce((sum, i) => sum + i.leadCount, 0),
+      },
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -68,27 +68,37 @@ export function IndustryJourneyTracker({
   const { progressStages, lostStage } = separateStages(stages);
 
   // Get current stage info
-  const currentStage = stages.find((s) => s.id === currentStageId);
+  // For converted leads without a stage ID, assume they are at the final (won) stage
+  const wonStage = progressStages.find((s) => isWonStage(s));
+  const effectiveStageId = currentStageId || (isConverted && wonStage ? wonStage.id : null);
+  const currentStage = stages.find((s) => s.id === effectiveStageId);
   const currentStep = currentStage
     ? progressStages.findIndex((s) => s.id === currentStage.id) + 1
-    : 0;
+    : (isConverted ? progressStages.length : 0); // Converted leads show full progress
   const isCurrentlyLost = currentStage && isLostStage(currentStage);
 
   // Calculate progress percentage
   const progressPercentage = progressStages.length > 0
     ? Math.round((currentStep / progressStages.length) * 100)
-    : 0;
+    : (isConverted ? 100 : 0);
 
   // Get industry icon
   const IndustryIcon = iconMap[config.icon] || BuildingOfficeIcon;
 
   const handleStageClick = async (stage: LeadStage) => {
-    if (isUpdating || stage.id === currentStageId) return;
+    if (isUpdating || stage.id === effectiveStageId || isConverted) return;
 
     const targetStep = progressStages.findIndex((s) => s.id === stage.id) + 1;
 
-    if (currentStage && isWonStage(currentStage) && targetStep < currentStep) {
-      toast.error(`Cannot move back from ${config.wonLabel} status`);
+    // Prevent backward movement in Journey Tracker - only forward allowed
+    if (targetStep < currentStep) {
+      toast.error('Cannot move backward. Use the dropdown to change to a previous stage.');
+      return;
+    }
+
+    // Prevent moving back from won status
+    if (currentStage && isWonStage(currentStage)) {
+      toast.error(`Cannot change stage after ${config.wonLabel}`);
       return;
     }
 
@@ -207,9 +217,11 @@ export function IndustryJourneyTracker({
             {/* Stage Circles */}
             <div className="relative flex items-start justify-between">
               {progressStages.map((stage, index) => {
-                const isCompleted = index + 1 < currentStep;
-                const isCurrent = stage.id === currentStageId;
-                const isClickable = !isUpdating && index + 1 <= currentStep + 1;
+                const isCompleted = index + 1 < currentStep || (isConverted && index + 1 <= progressStages.length);
+                const isCurrent = stage.id === effectiveStageId;
+                // Only allow clicking on forward stages (not current or past) and only if not won
+                const isNextStage = index + 1 === currentStep + 1;
+                const isClickable = !isUpdating && isNextStage && !(currentStage && isWonStage(currentStage));
                 const isWon = isWonStage(stage);
                 const isHovered = hoveredStage === stage.id;
 
@@ -288,9 +300,9 @@ export function IndustryJourneyTracker({
                       </span>
 
                       {/* Hover Tooltip */}
-                      {isHovered && (
+                      {isHovered && isClickable && (
                         <div className="absolute mt-1 px-2 py-1 bg-slate-800 text-white text-[10px] rounded shadow-lg whitespace-nowrap z-20">
-                          Click to move to this stage
+                          Click to advance to this stage
                         </div>
                       )}
                     </div>

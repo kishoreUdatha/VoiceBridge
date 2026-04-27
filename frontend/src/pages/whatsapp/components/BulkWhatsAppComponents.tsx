@@ -15,12 +15,16 @@ import {
   VideoCameraIcon,
   MusicalNoteIcon,
   DocumentIcon,
+  ExclamationTriangleIcon,
+  ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
 import {
   Recipient,
   MediaFile,
   RecipientStats,
   MediaType,
+  MessageMode,
+  WhatsAppTemplate,
 } from '../bulk-whatsapp.types';
 import {
   STATUS_CONFIG,
@@ -253,6 +257,227 @@ export const CampaignNameInput: React.FC<CampaignNameInputProps> = ({
     />
   </div>
 );
+
+// Message Mode Selector
+interface MessageModeSelectorProps {
+  messageMode: MessageMode;
+  setMessageMode: (mode: MessageMode) => void;
+  onLoadTemplates: () => void;
+  loadingTemplates: boolean;
+}
+
+export const MessageModeSelector: React.FC<MessageModeSelectorProps> = ({
+  messageMode,
+  setMessageMode,
+  onLoadTemplates,
+  loadingTemplates,
+}) => (
+  <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+    <label className="block text-sm font-medium text-gray-700 mb-3">Message Type</label>
+    <div className="flex gap-3">
+      <button
+        onClick={() => setMessageMode('freeform')}
+        className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+          messageMode === 'freeform'
+            ? 'border-green-500 bg-green-50 text-green-700'
+            : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
+        }`}
+      >
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+        <span className="text-sm font-medium">Free-form Message</span>
+        <span className="text-xs opacity-75">Only within 24hr window</span>
+      </button>
+      <button
+        onClick={() => {
+          setMessageMode('template');
+          onLoadTemplates();
+        }}
+        className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+          messageMode === 'template'
+            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+            : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
+        }`}
+      >
+        {loadingTemplates ? (
+          <ArrowPathIcon className="w-6 h-6 animate-spin" />
+        ) : (
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        )}
+        <span className="text-sm font-medium">Template Message</span>
+        <span className="text-xs opacity-75">Anytime (Recommended)</span>
+      </button>
+    </div>
+    {messageMode === 'freeform' && (
+      <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+        <p className="text-xs text-amber-700">
+          <strong>Note:</strong> Free-form messages can only be sent within 24 hours of customer's last reply.
+          Use templates for contacts who haven't messaged recently.
+        </p>
+      </div>
+    )}
+  </div>
+);
+
+// Template Selector
+interface TemplateSelectorProps {
+  templates: WhatsAppTemplate[];
+  selectedTemplate: WhatsAppTemplate | null;
+  setSelectedTemplate: (template: WhatsAppTemplate | null) => void;
+  templateParams: string[];
+  setTemplateParams: (params: string[]) => void;
+  loadingTemplates: boolean;
+  templateError: string | null;
+}
+
+// Helper to extract template parameters from component text
+const extractTemplateVariables = (template: WhatsAppTemplate): number => {
+  let count = 0;
+  template.components.forEach((component) => {
+    if (component.text) {
+      const matches = component.text.match(/\{\{\d+\}\}/g);
+      if (matches) {
+        count = Math.max(count, ...matches.map(m => parseInt(m.replace(/[{}]/g, ''))));
+      }
+    }
+  });
+  return count;
+};
+
+// Helper to get template preview text
+const getTemplatePreview = (template: WhatsAppTemplate): string => {
+  const bodyComponent = template.components.find(c => c.type === 'BODY');
+  return bodyComponent?.text || 'No preview available';
+};
+
+export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
+  templates,
+  selectedTemplate,
+  setSelectedTemplate,
+  templateParams,
+  setTemplateParams,
+  loadingTemplates,
+  templateError,
+}) => {
+  const paramCount = selectedTemplate ? extractTemplateVariables(selectedTemplate) : 0;
+
+  // Initialize params array when template changes
+  React.useEffect(() => {
+    if (selectedTemplate) {
+      const count = extractTemplateVariables(selectedTemplate);
+      if (templateParams.length !== count) {
+        setTemplateParams(Array(count).fill(''));
+      }
+    }
+  }, [selectedTemplate]);
+
+  if (loadingTemplates) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+        <div className="flex items-center justify-center py-8">
+          <ArrowPathIcon className="w-6 h-6 animate-spin text-gray-400 mr-2" />
+          <span className="text-gray-500">Loading templates...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+      <label className="block text-sm font-medium text-gray-700 mb-2">Select Template</label>
+
+      {templateError ? (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm text-red-700 font-medium">Failed to load templates</p>
+              <p className="text-xs text-red-600 mt-1">{templateError}</p>
+              {templateError.includes('Settings') && (
+                <a
+                  href="/settings/whatsapp"
+                  className="inline-flex items-center gap-1 mt-2 text-xs text-red-700 hover:text-red-800 font-medium underline"
+                >
+                  Go to WhatsApp Settings
+                  <ArrowTopRightOnSquareIcon className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : templates.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <DocumentIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
+          <p className="text-sm">No approved templates found</p>
+          <p className="text-xs mt-1">Create templates in Meta Business Suite</p>
+        </div>
+      ) : (
+        <>
+          <select
+            value={selectedTemplate?.name || ''}
+            onChange={(e) => {
+              const template = templates.find(t => t.name === e.target.value) || null;
+              setSelectedTemplate(template);
+            }}
+            className="w-full h-10 px-3 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            <option value="">Select a template...</option>
+            {templates.map((template) => (
+              <option key={template.id} value={template.name}>
+                {template.name} ({template.language})
+              </option>
+            ))}
+          </select>
+
+          {selectedTemplate && (
+            <div className="mt-4 space-y-4">
+              {/* Template Preview */}
+              <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-xs text-gray-500 font-medium mb-2">PREVIEW</p>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                  {getTemplatePreview(selectedTemplate)}
+                </p>
+              </div>
+
+              {/* Template Parameters */}
+              {paramCount > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 font-medium mb-2">
+                    TEMPLATE VARIABLES ({paramCount})
+                  </p>
+                  <div className="space-y-2">
+                    {Array.from({ length: paramCount }, (_, i) => (
+                      <div key={i}>
+                        <label className="block text-xs text-gray-500 mb-1">
+                          Variable {`{{${i + 1}}}`}
+                          <span className="text-gray-400 ml-2">(use {'{name}'} for recipient name)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={templateParams[i] || ''}
+                          onChange={(e) => {
+                            const newParams = [...templateParams];
+                            newParams[i] = e.target.value;
+                            setTemplateParams(newParams);
+                          }}
+                          placeholder={`Value for {{${i + 1}}}`}
+                          className="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
 
 // Message Composer
 interface MessageComposerProps {
