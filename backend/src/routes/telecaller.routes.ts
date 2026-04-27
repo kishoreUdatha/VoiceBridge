@@ -2264,8 +2264,8 @@ router.get('/dashboard-stats', async (req: TenantRequest, res: Response) => {
       },
     });
 
-    // Total pending follow-ups = FollowUp table + leads needing attention + callback requests
-    const totalPendingFollowUps = pendingFollowUps + leadsNeedingFollowUp + pendingCallbacksCount;
+    // Total pending follow-ups = FollowUp table + callback requests (NOT leads in active stages)
+    const totalPendingFollowUps = pendingFollowUps + pendingCallbacksCount;
 
     // Get follow-up details for display (scheduled follow-ups + leads needing attention)
     const pendingFollowUpDetails = await prisma.followUp.findMany({
