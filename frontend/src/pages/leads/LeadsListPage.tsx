@@ -153,6 +153,16 @@ export default function LeadsListPage() {
   // Bulk selection state
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
 
+  // Delete confirmation modal state
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    leadId: string | null;
+    leadName: string;
+    isBulk: boolean;
+    count: number;
+  }>({ isOpen: false, leadId: null, leadName: '', isBulk: false, count: 0 });
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Advanced Filter Panel State
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filterTab, setFilterTab] = useState<FilterTab>('leadDetails');
@@ -583,14 +593,55 @@ export default function LeadsListPage() {
     setSearchParams(params);
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm(t('leads:confirm.delete'))) {
-      try {
-        await dispatch(deleteLead(id)).unwrap();
-        showToast.success('leads.deleted');
-      } catch (error) {
-        showToast.error('error.delete');
+  // Open delete confirmation modal for single lead
+  const openDeleteModal = (id: string, firstName: string, lastName?: string) => {
+    setDeleteModal({
+      isOpen: true,
+      leadId: id,
+      leadName: `${firstName} ${lastName || ''}`.trim(),
+      isBulk: false,
+      count: 1,
+    });
+  };
+
+  // Open delete confirmation modal for bulk delete
+  const openBulkDeleteModal = () => {
+    if (selectedLeads.size === 0) return;
+    setDeleteModal({
+      isOpen: true,
+      leadId: null,
+      leadName: '',
+      isBulk: true,
+      count: selectedLeads.size,
+    });
+  };
+
+  // Close delete modal
+  const closeDeleteModal = () => {
+    setDeleteModal({ isOpen: false, leadId: null, leadName: '', isBulk: false, count: 0 });
+  };
+
+  // Confirm delete action
+  const confirmDelete = async () => {
+    setIsDeleting(true);
+    try {
+      if (deleteModal.isBulk) {
+        // Bulk delete
+        for (const id of selectedLeads) {
+          await dispatch(deleteLead(id)).unwrap();
+        }
+        showToast.success(`${selectedLeads.size} lead(s) deleted`);
+        setSelectedLeads(new Set());
+      } else if (deleteModal.leadId) {
+        // Single delete
+        await dispatch(deleteLead(deleteModal.leadId)).unwrap();
+        showToast.success('Lead deleted');
       }
+      closeDeleteModal();
+    } catch (error) {
+      showToast.error('Failed to delete');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -640,20 +691,6 @@ export default function LeadsListPage() {
     setSelectedLeads(newSelected);
   };
 
-  const handleBulkDelete = async () => {
-    if (selectedLeads.size === 0) return;
-    if (window.confirm(`Are you sure you want to delete ${selectedLeads.size} lead(s)?`)) {
-      try {
-        for (const id of selectedLeads) {
-          await dispatch(deleteLead(id)).unwrap();
-        }
-        setSelectedLeads(new Set());
-        showToast.success(`${selectedLeads.size} lead(s) deleted`);
-      } catch (error) {
-        showToast.error('Failed to delete some leads');
-      }
-    }
-  };
 
   // Clear selection when leads change
   useEffect(() => {
@@ -718,7 +755,7 @@ export default function LeadsListPage() {
           <div className="flex items-center gap-2">
             <PermissionGate module="leads" action="delete">
               <button
-                onClick={handleBulkDelete}
+                onClick={openBulkDeleteModal}
                 className="px-3 py-1.5 text-xs font-medium bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1.5"
               >
                 <TrashIcon className="h-3.5 w-3.5" />
@@ -1086,7 +1123,7 @@ export default function LeadsListPage() {
                               </Link>
                               <PermissionGate module="leads" action="delete">
                                 <button
-                                  onClick={() => handleDelete(lead.id)}
+                                  onClick={() => openDeleteModal(lead.id, lead.firstName, lead.lastName)}
                                   className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left"
                                 >
                                   <TrashIcon className="h-4 w-4" />
@@ -1686,6 +1723,78 @@ export default function LeadsListPage() {
                       Apply
                     </button>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal.isOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 transition-opacity"
+            onClick={closeDeleteModal}
+          />
+
+          {/* Modal */}
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 transform transition-all">
+              {/* Icon */}
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 mb-4">
+                <TrashIcon className="h-6 w-6 text-red-600" />
+              </div>
+
+              {/* Content */}
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                  {deleteModal.isBulk ? 'Delete Selected Leads' : 'Delete Lead'}
+                </h3>
+                <p className="text-sm text-slate-600 mb-6">
+                  {deleteModal.isBulk ? (
+                    <>
+                      Are you sure you want to delete <span className="font-semibold text-red-600">{deleteModal.count} lead(s)</span>?
+                      This action cannot be undone.
+                    </>
+                  ) : (
+                    <>
+                      Are you sure you want to delete <span className="font-semibold text-red-600">{deleteModal.leadName}</span>?
+                      This action cannot be undone.
+                    </>
+                  )}
+                </p>
+
+                {/* Actions */}
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    onClick={closeDeleteModal}
+                    disabled={isDeleting}
+                    className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    disabled={isDeleting}
+                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <TrashIcon className="h-4 w-4" />
+                        Delete {deleteModal.isBulk ? `${deleteModal.count} Lead(s)` : 'Lead'}
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
