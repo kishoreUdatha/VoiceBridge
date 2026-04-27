@@ -1397,14 +1397,14 @@ export const OutboundCallsPage: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 bg-gradient-to-br from-primary-100 to-primary-200 rounded-full flex items-center justify-center flex-shrink-0">
                           <span className="text-[10px] font-bold text-primary-700">
-                            {(call.contactName || call.lead?.firstName || call.phoneNumber || '?').charAt(0).toUpperCase()}
+                            {(call.contactName || call.lead?.firstName || call.phoneNumber || call.lead?.phone || '?').charAt(0).toUpperCase()}
                           </span>
                         </div>
                         <div>
                           <p className="text-xs font-semibold text-gray-900 group-hover:text-primary-700">
-                            {call.contactName || (call.lead?.firstName ? `${call.lead.firstName} ${call.lead.lastName || ''}`.trim() : call.phoneNumber)}
+                            {call.contactName || (call.lead?.firstName ? `${call.lead.firstName} ${call.lead.lastName || ''}`.trim() : (call.phoneNumber || call.lead?.phone || '-'))}
                           </p>
-                          <p className="text-[10px] text-gray-400">{call.phoneNumber}</p>
+                          <p className="text-[10px] text-gray-400">{call.phoneNumber || call.lead?.phone || '-'}</p>
                         </div>
                       </div>
                     </td>
