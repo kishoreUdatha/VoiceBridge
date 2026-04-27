@@ -1189,14 +1189,9 @@ export const OutboundCallsPage: React.FC = () => {
         <div className="px-5 py-4 bg-white border-b border-gray-100">
           {/* Title Row */}
           <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-3">
-              <h2 className="text-base font-semibold text-gray-800">
-                {isTelecaller ? 'My Calls' : (isTeamManager ? 'Team Calls' : 'Telecaller Calls')}
-              </h2>
-              <span className="px-2.5 py-1 text-xs font-medium text-primary-700 bg-primary-50 rounded-full">
-                {telecallerCallsTotal} calls
-              </span>
-            </div>
+            <h2 className="text-base font-semibold text-gray-800">
+              {isTelecaller ? 'My Calls' : (isTeamManager ? 'Team Calls' : 'Telecaller Calls')}
+            </h2>
             <button
               onClick={exportToCSV}
               disabled={exporting || telecallerCalls.length === 0}
@@ -1221,27 +1216,41 @@ export const OutboundCallsPage: React.FC = () => {
               />
             </div>
 
-            {/* Date Tabs */}
-            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-              {[
-                { value: '', label: 'All' },
-                { value: 'today', label: 'Today' },
-                { value: 'last7days', label: '7D' },
-                { value: 'thismonth', label: 'Month' },
-              ].map((preset) => (
-                <button
-                  key={preset.value}
-                  onClick={() => applyDatePreset(preset.value)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                    tcFilterDatePreset === preset.value || (preset.value === '' && !tcFilterDatePreset)
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
+            {/* Date Filter Dropdown */}
+            <select
+              value={tcFilterDatePreset}
+              onChange={(e) => applyDatePreset(e.target.value)}
+              className={`text-xs border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500 cursor-pointer ${
+                tcFilterDatePreset ? 'border-primary-300 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600'
+              }`}
+            >
+              <option value="">All Time</option>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="lastweek">Last Week</option>
+              <option value="lastmonth">Last Month</option>
+              <option value="custom">Custom Date</option>
+            </select>
+
+            {/* Custom Date Range - only show when custom is selected */}
+            {tcFilterDatePreset === 'custom' && (
+              <>
+                <input
+                  type="date"
+                  value={tcFilterDateFrom}
+                  onChange={(e) => setTcFilterDateFrom(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  placeholder="From"
+                />
+                <input
+                  type="date"
+                  value={tcFilterDateTo}
+                  onChange={(e) => setTcFilterDateTo(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  placeholder="To"
+                />
+              </>
+            )}
 
             {/* All Dropdown Filters in Single Line */}
             {canViewAllCalls && (
@@ -1330,7 +1339,7 @@ export const OutboundCallsPage: React.FC = () => {
             </select>
 
             {/* Clear Filters */}
-            {(tcFilterTelecaller || tcFilterOutcome || tcFilterCallType || tcFilterDuration || tcFilterSearch || tcFilterBranch || tcFilterReportingTo) && (
+            {(tcFilterTelecaller || tcFilterOutcome || tcFilterCallType || tcFilterDuration || tcFilterSearch || tcFilterBranch || tcFilterReportingTo || tcFilterDatePreset) && (
               <button
                 onClick={clearTcFilters}
                 className="text-xs text-red-500 hover:text-red-600"
