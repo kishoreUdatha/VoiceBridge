@@ -2463,7 +2463,7 @@ router.get('/dashboard-stats', async (req: TenantRequest, res: Response) => {
         interestRate: yesterdayInterestRate,
         avgDuration: Math.round(yesterdayAvgDuration._avg.duration || 0),
       },
-      // Pending follow-up details for display
+      // Pending follow-up details for display (only explicit follow-ups, not leads in active stages)
       pendingFollowUpsList: [
         // Scheduled follow-ups from FollowUp table
         ...pendingFollowUpDetails.map(f => ({
@@ -2484,16 +2484,6 @@ router.get('/dashboard-stats', async (req: TenantRequest, res: Response) => {
           scheduledAt: cb.scheduledAt,
           notes: cb.notes,
           type: 'scheduled' as const,
-        })),
-        // Leads needing attention (no scheduled follow-up)
-        ...leadsNeedingAttention.map(l => ({
-          id: l.id,
-          leadId: l.id,
-          leadName: `${l.firstName} ${l.lastName || ''}`.trim(),
-          phone: l.phone,
-          scheduledAt: l.nextFollowUpAt,
-          notes: l.stage?.name ? `Stage: ${l.stage.name}` : null,
-          type: 'needs_attention' as const,
         })),
       ],
       // Assigned data breakdown (for transparency)
