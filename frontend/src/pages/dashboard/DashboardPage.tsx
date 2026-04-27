@@ -654,9 +654,15 @@ function TelecallerDashboard({ user, getGreeting, currentTime, lastRefresh, setL
                         )}
                       </div>
                       <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold shadow-sm ${
-                        followUp.type === 'scheduled' ? 'bg-gradient-to-r from-emerald-400 to-green-500 text-white' : 'bg-gradient-to-r from-red-400 to-rose-500 text-white'
+                        followUp.type === 'scheduled'
+                          ? (followUp.scheduledAt && new Date(followUp.scheduledAt) < new Date()
+                              ? 'bg-gradient-to-r from-red-400 to-rose-500 text-white'
+                              : 'bg-gradient-to-r from-emerald-400 to-green-500 text-white')
+                          : 'bg-gradient-to-r from-amber-400 to-orange-500 text-white'
                       }`}>
-                        {followUp.type === 'scheduled' ? 'Scheduled' : 'Overdue'}
+                        {followUp.type === 'scheduled'
+                          ? (followUp.scheduledAt && new Date(followUp.scheduledAt) < new Date() ? 'Overdue' : 'Scheduled')
+                          : 'Pending'}
                       </span>
                     </div>
                     {followUp.scheduledAt && (
