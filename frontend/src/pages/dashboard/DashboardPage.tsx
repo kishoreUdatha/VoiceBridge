@@ -1729,33 +1729,25 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
 
   const fetchFollowUpStats = async () => {
     try {
-      // Use the followup-reports/summary endpoint for accurate stats
+      // Get summary for total counts (includes ALL follow-ups, no date range limit)
       const summaryRes = await api.get('/followup-reports/summary').catch(() => ({ data: { data: { summary: null } } }));
       const summary = summaryRes.data?.data?.summary;
 
-      if (summary) {
-        setFollowUpStats({
-          total: (summary.pending || 0) + (summary.overdue || 0),
-          overdue: summary.overdue || 0,
-          today: summary.pending || 0,
-          upcoming: 0,
-          completed: summary.completed || 0,
-        });
-      }
-
-      // Also get the schedule for more detailed breakdown
+      // Get schedule for today's breakdown
       const scheduleRes = await api.get('/followup-reports/schedule').catch(() => ({ data: { data: { schedule: null } } }));
       const schedule = scheduleRes.data?.data?.schedule;
 
-      if (schedule) {
-        setFollowUpStats(prev => ({
-          ...prev,
-          today: schedule.today?.length || 0,
-          upcoming: (schedule.tomorrow?.length || 0) + (schedule.thisWeek?.length || 0),
-          overdue: schedule.overdueCount || prev.overdue,
-          total: (schedule.today?.length || 0) + (schedule.tomorrow?.length || 0) + (schedule.thisWeek?.length || 0) + (schedule.overdueCount || 0),
-        }));
-      }
+      const todayCount = schedule?.today?.length || 0;
+      const allPending = summary?.pending || 0;  // All future follow-ups
+      const allOverdue = summary?.overdue || 0;  // All overdue follow-ups
+
+      setFollowUpStats({
+        total: allPending + allOverdue,          // ALL pending + ALL overdue
+        overdue: allOverdue,                      // ALL overdue
+        today: todayCount,                        // Today's follow-ups
+        upcoming: Math.max(0, allPending - todayCount),  // All future excluding today
+        completed: summary?.completed || 0,
+      });
     } catch (error) {
       console.error('Failed to fetch follow-up stats:', error);
     }
