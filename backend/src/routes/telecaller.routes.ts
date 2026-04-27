@@ -1083,6 +1083,7 @@ router.get('/all-calls', async (req: TenantRequest, res: Response) => {
       telecallerId,
       leadId,
       branchId,
+      reportingTo,
       dateFrom,
       dateTo,
       outcome,
@@ -1164,6 +1165,14 @@ router.get('/all-calls', async (req: TenantRequest, res: Response) => {
       baseWhereClause.telecaller = {
         ...baseWhereClause.telecaller,
         branchId: branchId as string,
+      };
+    }
+
+    // Filter by reporting to (manager) - get calls from telecallers reporting to specified manager
+    if (reportingTo) {
+      baseWhereClause.telecaller = {
+        ...baseWhereClause.telecaller,
+        managerId: reportingTo as string,
       };
     }
 
