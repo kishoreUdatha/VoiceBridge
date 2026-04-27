@@ -1184,386 +1184,382 @@ export const OutboundCallsPage: React.FC = () => {
 
       {/* Telecaller Calls Table */}
       {activeTab === 'telecaller-calls' && (
-      <div className="card">
-        <div className="card-header py-3">
-          {/* Header Row */}
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-3">
-              <h2 className="text-sm font-semibold text-gray-900">
+      <div className="card overflow-hidden">
+        {/* Compact Header with Filters */}
+        <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200 px-4 py-3">
+          {/* Top Row: Title + Export */}
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-gray-900">
                 {isTelecaller ? 'My Calls' : (isTeamManager ? 'Team Calls' : 'Telecaller Calls')}
               </h2>
-              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-                {telecallerCallsTotal} calls
-              </span>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-white border border-gray-200 rounded-full shadow-sm">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                <span className="text-[11px] font-semibold text-gray-700">{telecallerCallsTotal}</span>
+              </div>
             </div>
             <button
               onClick={exportToCSV}
               disabled={exporting || telecallerCalls.length === 0}
-              className="btn btn-outline btn-sm flex items-center gap-1.5 text-xs disabled:opacity-50 hover:bg-gray-50"
-              title="Export to CSV"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 hover:shadow transition-all disabled:opacity-50"
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
-              {exporting ? 'Exporting...' : 'Export CSV'}
+              {exporting ? 'Exporting...' : 'Export'}
             </button>
           </div>
 
-          {/* Quick Date Filters */}
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Quick:</span>
-            <div className="flex gap-1">
+          {/* Filter Bar - Single Row with Horizontal Scroll */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-gray-300">
+            {/* Search */}
+            <div className="relative flex-shrink-0">
+              <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={tcFilterSearch}
+                onChange={(e) => setTcFilterSearch(e.target.value)}
+                className="w-36 pl-8 pr-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white shadow-sm"
+              />
+            </div>
+
+            {/* Quick Date Pills */}
+            <div className="flex items-center gap-1 flex-shrink-0 bg-white rounded-lg border border-gray-200 p-0.5 shadow-sm">
               {[
                 { value: 'today', label: 'Today' },
-                { value: 'yesterday', label: 'Yesterday' },
-                { value: 'last7days', label: '7 Days' },
-                { value: 'thismonth', label: 'This Month' },
+                { value: 'yesterday', label: 'Yest' },
+                { value: 'last7days', label: '7D' },
+                { value: 'thismonth', label: 'Month' },
               ].map((preset) => (
                 <button
                   key={preset.value}
                   onClick={() => applyDatePreset(tcFilterDatePreset === preset.value ? '' : preset.value)}
-                  className={`px-2.5 py-1 text-[11px] font-medium rounded-full transition-all ${
+                  className={`px-2 py-1 text-[10px] font-semibold rounded-md transition-all ${
                     tcFilterDatePreset === preset.value
                       ? 'bg-primary-600 text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   {preset.label}
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Main Filters Row */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Search */}
-            <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search name or phone..."
-                value={tcFilterSearch}
-                onChange={(e) => setTcFilterSearch(e.target.value)}
-                className="w-48 pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-gray-50"
-              />
-            </div>
 
             {/* Divider */}
-            <div className="h-6 w-px bg-gray-200" />
+            <div className="h-5 w-px bg-gray-300 flex-shrink-0" />
 
-            {/* Telecaller Filter */}
+            {/* Filters */}
             {canViewAllCalls && (
               <select
                 value={tcFilterTelecaller}
                 onChange={(e) => setTcFilterTelecaller(e.target.value)}
-                className={`text-xs border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white ${
-                  tcFilterTelecaller ? 'border-primary-500 bg-primary-50' : 'border-gray-200'
+                className={`flex-shrink-0 text-[11px] border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm ${
+                  tcFilterTelecaller ? 'border-primary-400 bg-primary-50 text-primary-700 font-medium' : 'border-gray-200 bg-white text-gray-600'
                 }`}
               >
-                <option value="">{isTeamManager ? 'All Team' : 'All Telecallers'}</option>
+                <option value="">Telecaller</option>
                 {telecallers.map((tc) => (
-                  <option key={tc.id} value={tc.id}>{tc.firstName} {tc.lastName}</option>
+                  <option key={tc.id} value={tc.id}>{tc.firstName}</option>
                 ))}
               </select>
             )}
 
-            {/* Branch Filter */}
             {isFullAdmin && branches.length > 0 && (
               <select
                 value={tcFilterBranch}
                 onChange={(e) => setTcFilterBranch(e.target.value)}
-                className={`text-xs border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white ${
-                  tcFilterBranch ? 'border-primary-500 bg-primary-50' : 'border-gray-200'
+                className={`flex-shrink-0 text-[11px] border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm ${
+                  tcFilterBranch ? 'border-primary-400 bg-primary-50 text-primary-700 font-medium' : 'border-gray-200 bg-white text-gray-600'
                 }`}
               >
-                <option value="">All Branches</option>
+                <option value="">Branch</option>
                 {branches.map((branch) => (
                   <option key={branch.id} value={branch.id}>{branch.name}</option>
                 ))}
               </select>
             )}
 
-            {/* Manager Filter */}
             {isFullAdmin && managers.length > 0 && (
               <select
                 value={tcFilterReportingTo}
                 onChange={(e) => setTcFilterReportingTo(e.target.value)}
-                className={`text-xs border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white ${
-                  tcFilterReportingTo ? 'border-primary-500 bg-primary-50' : 'border-gray-200'
+                className={`flex-shrink-0 text-[11px] border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm ${
+                  tcFilterReportingTo ? 'border-primary-400 bg-primary-50 text-primary-700 font-medium' : 'border-gray-200 bg-white text-gray-600'
                 }`}
               >
-                <option value="">All Managers</option>
+                <option value="">Manager</option>
                 {managers.map((manager) => (
-                  <option key={manager.id} value={manager.id}>{manager.firstName} {manager.lastName}</option>
+                  <option key={manager.id} value={manager.id}>{manager.firstName}</option>
                 ))}
               </select>
             )}
 
-            {/* Outcome Filter */}
             <select
               value={tcFilterOutcome}
               onChange={(e) => setTcFilterOutcome(e.target.value)}
-              className={`text-xs border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white ${
-                tcFilterOutcome ? 'border-primary-500 bg-primary-50' : 'border-gray-200'
+              className={`flex-shrink-0 text-[11px] border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm ${
+                tcFilterOutcome ? 'border-primary-400 bg-primary-50 text-primary-700 font-medium' : 'border-gray-200 bg-white text-gray-600'
               }`}
             >
-              <option value="">All Outcomes</option>
+              <option value="">Outcome</option>
               <option value="INTERESTED">Interested</option>
               <option value="NOT_INTERESTED">Not Interested</option>
               <option value="CALLBACK_REQUESTED">Callback</option>
               <option value="NO_ANSWER">No Answer</option>
               <option value="CONVERTED">Converted</option>
-              <option value="PENDING">Pending</option>
             </select>
 
-            {/* Type Filter */}
             <select
               value={tcFilterCallType}
               onChange={(e) => setTcFilterCallType(e.target.value)}
-              className={`text-xs border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white ${
-                tcFilterCallType ? 'border-primary-500 bg-primary-50' : 'border-gray-200'
+              className={`flex-shrink-0 text-[11px] border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm ${
+                tcFilterCallType ? 'border-primary-400 bg-primary-50 text-primary-700 font-medium' : 'border-gray-200 bg-white text-gray-600'
               }`}
             >
-              <option value="">All Types</option>
+              <option value="">Type</option>
               <option value="OUTBOUND">Outbound</option>
               <option value="INBOUND">Inbound</option>
             </select>
 
-            {/* Duration Filter */}
             <select
               value={tcFilterDuration}
               onChange={(e) => setTcFilterDuration(e.target.value)}
-              className={`text-xs border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white ${
-                tcFilterDuration ? 'border-primary-500 bg-primary-50' : 'border-gray-200'
+              className={`flex-shrink-0 text-[11px] border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm ${
+                tcFilterDuration ? 'border-primary-400 bg-primary-50 text-primary-700 font-medium' : 'border-gray-200 bg-white text-gray-600'
               }`}
             >
-              <option value="">All Durations</option>
-              <option value="short">&lt; 30s</option>
-              <option value="medium">30s - 2min</option>
-              <option value="long">&gt; 2min</option>
+              <option value="">Duration</option>
+              <option value="short">&lt;30s</option>
+              <option value="medium">30s-2m</option>
+              <option value="long">&gt;2m</option>
             </select>
 
-            {/* Custom Date Range */}
-            {tcFilterDatePreset === 'custom' && (
-              <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg border border-gray-200">
-                <input
-                  type="date"
-                  value={tcFilterDateFrom}
-                  onChange={(e) => setTcFilterDateFrom(e.target.value)}
-                  className="text-xs border-0 bg-transparent focus:outline-none focus:ring-0 w-28"
-                />
-                <span className="text-gray-400 text-xs">to</span>
-                <input
-                  type="date"
-                  value={tcFilterDateTo}
-                  onChange={(e) => setTcFilterDateTo(e.target.value)}
-                  className="text-xs border-0 bg-transparent focus:outline-none focus:ring-0 w-28"
-                />
-              </div>
+            {/* Clear All - Only show when filters active */}
+            {(tcFilterTelecaller || tcFilterOutcome || tcFilterCallType || tcFilterDuration || tcFilterSearch || tcFilterDatePreset || tcFilterBranch || tcFilterReportingTo) && (
+              <button
+                onClick={clearTcFilters}
+                className="flex-shrink-0 flex items-center gap-1 px-2 py-1.5 text-[11px] font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <XMarkIcon className="h-3.5 w-3.5" />
+                Clear
+              </button>
             )}
-
-            {/* More Date Options */}
-            <select
-              value={tcFilterDatePreset === 'custom' ? 'custom' : ''}
-              onChange={(e) => applyDatePreset(e.target.value)}
-              className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
-            >
-              <option value="">More Dates</option>
-              <option value="lastweek">Previous Week</option>
-              <option value="lastmonth">Last Month</option>
-              <option value="custom">Custom Range</option>
-            </select>
           </div>
 
-          {/* Active Filters Display */}
+          {/* Active Filters - Compact chips */}
           {(tcFilterTelecaller || tcFilterOutcome || tcFilterCallType || tcFilterDuration || tcFilterSearch || tcFilterDatePreset || tcFilterBranch || tcFilterReportingTo) && (
-            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
-              <span className="text-[10px] text-gray-500 font-medium">Active:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {tcFilterSearch && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-[11px] font-medium rounded-full">
-                    Search: "{tcFilterSearch}"
-                    <button onClick={() => setTcFilterSearch('')} className="hover:text-blue-900">
-                      <XMarkIcon className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {tcFilterTelecaller && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 text-[11px] font-medium rounded-full">
-                    {telecallers.find(t => t.id === tcFilterTelecaller)?.firstName || 'Telecaller'}
-                    <button onClick={() => setTcFilterTelecaller('')} className="hover:text-purple-900">
-                      <XMarkIcon className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {tcFilterBranch && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[11px] font-medium rounded-full">
-                    {branches.find(b => b.id === tcFilterBranch)?.name || 'Branch'}
-                    <button onClick={() => setTcFilterBranch('')} className="hover:text-indigo-900">
-                      <XMarkIcon className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {tcFilterReportingTo && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-100 text-teal-700 text-[11px] font-medium rounded-full">
-                    Manager: {managers.find(m => m.id === tcFilterReportingTo)?.firstName || ''}
-                    <button onClick={() => setTcFilterReportingTo('')} className="hover:text-teal-900">
-                      <XMarkIcon className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {tcFilterOutcome && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-[11px] font-medium rounded-full">
-                    {outcomeLabels[tcFilterOutcome] || tcFilterOutcome}
-                    <button onClick={() => setTcFilterOutcome('')} className="hover:text-green-900">
-                      <XMarkIcon className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {tcFilterCallType && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-sky-100 text-sky-700 text-[11px] font-medium rounded-full">
-                    {tcFilterCallType === 'INBOUND' ? 'Inbound' : 'Outbound'}
-                    <button onClick={() => setTcFilterCallType('')} className="hover:text-sky-900">
-                      <XMarkIcon className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {tcFilterDuration && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-[11px] font-medium rounded-full">
-                    {tcFilterDuration === 'short' ? '< 30s' : tcFilterDuration === 'medium' ? '30s-2min' : '> 2min'}
-                    <button onClick={() => setTcFilterDuration('')} className="hover:text-amber-900">
-                      <XMarkIcon className="h-3 w-3" />
-                    </button>
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              {tcFilterSearch && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500 text-white text-[10px] font-medium rounded-full shadow-sm">
+                  "{tcFilterSearch}"
+                  <button onClick={() => setTcFilterSearch('')} className="hover:bg-blue-600 rounded-full p-0.5">
+                    <XMarkIcon className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              )}
+              {tcFilterTelecaller && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500 text-white text-[10px] font-medium rounded-full shadow-sm">
+                  {telecallers.find(t => t.id === tcFilterTelecaller)?.firstName}
+                  <button onClick={() => setTcFilterTelecaller('')} className="hover:bg-purple-600 rounded-full p-0.5">
+                    <XMarkIcon className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              )}
+              {tcFilterBranch && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-500 text-white text-[10px] font-medium rounded-full shadow-sm">
+                  {branches.find(b => b.id === tcFilterBranch)?.name}
+                  <button onClick={() => setTcFilterBranch('')} className="hover:bg-indigo-600 rounded-full p-0.5">
+                    <XMarkIcon className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              )}
+              {tcFilterReportingTo && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-500 text-white text-[10px] font-medium rounded-full shadow-sm">
+                  {managers.find(m => m.id === tcFilterReportingTo)?.firstName}
+                  <button onClick={() => setTcFilterReportingTo('')} className="hover:bg-teal-600 rounded-full p-0.5">
+                    <XMarkIcon className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              )}
+              {tcFilterOutcome && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500 text-white text-[10px] font-medium rounded-full shadow-sm">
+                  {outcomeLabels[tcFilterOutcome] || tcFilterOutcome}
+                  <button onClick={() => setTcFilterOutcome('')} className="hover:bg-green-600 rounded-full p-0.5">
+                    <XMarkIcon className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              )}
+              {tcFilterCallType && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-sky-500 text-white text-[10px] font-medium rounded-full shadow-sm">
+                  {tcFilterCallType === 'INBOUND' ? 'In' : 'Out'}
+                  <button onClick={() => setTcFilterCallType('')} className="hover:bg-sky-600 rounded-full p-0.5">
+                    <XMarkIcon className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              )}
+              {tcFilterDuration && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500 text-white text-[10px] font-medium rounded-full shadow-sm">
+                  {tcFilterDuration === 'short' ? '<30s' : tcFilterDuration === 'medium' ? '30s-2m' : '>2m'}
+                  <button onClick={() => setTcFilterDuration('')} className="hover:bg-amber-600 rounded-full p-0.5">
+                    <XMarkIcon className="h-2.5 w-2.5" />
+                  </button>
                   </span>
                 )}
                 {tcFilterDatePreset && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-[11px] font-medium rounded-full">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-500 text-white text-[10px] font-medium rounded-full shadow-sm">
                     {tcFilterDatePreset === 'today' ? 'Today' :
-                     tcFilterDatePreset === 'yesterday' ? 'Yesterday' :
-                     tcFilterDatePreset === 'last7days' ? 'Last 7 Days' :
-                     tcFilterDatePreset === 'thismonth' ? 'This Month' :
-                     tcFilterDatePreset === 'lastmonth' ? 'Last Month' :
-                     tcFilterDatePreset === 'lastweek' ? 'Last Week' :
-                     `${tcFilterDateFrom} - ${tcFilterDateTo}`}
-                    <button onClick={() => { setTcFilterDatePreset(''); setTcFilterDateFrom(''); setTcFilterDateTo(''); }} className="hover:text-orange-900">
-                      <XMarkIcon className="h-3 w-3" />
+                     tcFilterDatePreset === 'yesterday' ? 'Yest' :
+                     tcFilterDatePreset === 'last7days' ? '7D' :
+                     tcFilterDatePreset === 'thismonth' ? 'Month' :
+                     tcFilterDatePreset === 'lastmonth' ? 'Last M' :
+                     tcFilterDatePreset === 'lastweek' ? 'Last W' : 'Custom'}
+                    <button onClick={() => { setTcFilterDatePreset(''); setTcFilterDateFrom(''); setTcFilterDateTo(''); }} className="hover:bg-orange-600 rounded-full p-0.5">
+                      <XMarkIcon className="h-2.5 w-2.5" />
                     </button>
                   </span>
                 )}
-                {/* Clear All Button */}
-                <button
-                  onClick={clearTcFilters}
-                  className="text-[11px] text-red-600 hover:text-red-800 font-medium flex items-center gap-0.5 ml-2"
-                >
-                  <XMarkIcon className="h-3.5 w-3.5" />
-                  Clear All
-                </button>
               </div>
-            </div>
           )}
         </div>
+
+        {/* Table with improved styling */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Contact</th>
-                {/* Show telecaller column for admins, managers, team leads */}
+          <table className="min-w-full">
+            <thead>
+              <tr className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200">
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">Contact</th>
                 {canViewAllCalls && (
-                  <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Telecaller</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">Telecaller</th>
                 )}
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Type</th>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Duration</th>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Outcome</th>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">AI Analysis</th>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-3 py-2 text-right text-[10px] font-medium text-gray-500 uppercase">Actions</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">Type</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">Duration</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">Outcome</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">AI</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">Date</th>
+                <th className="px-4 py-3 text-right text-[10px] font-bold text-gray-600 uppercase tracking-wider"></th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-100">
               {tcLoading ? (
                 <tr>
-                  <td colSpan={canViewAllCalls ? 9 : 8} className="px-4 py-6 text-center text-gray-500">
-                    <p className="text-xs">Loading...</p>
+                  <td colSpan={canViewAllCalls ? 9 : 8} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                      <p className="text-xs text-gray-500">Loading calls...</p>
+                    </div>
                   </td>
                 </tr>
               ) : telecallerCalls.length === 0 ? (
                 <tr>
-                  <td colSpan={canViewAllCalls ? 9 : 8} className="px-4 py-6 text-center text-gray-500">
-                    <UserGroupIcon className="h-6 w-6 mx-auto text-gray-300 mb-1" />
-                    <p className="text-xs">{isTelecaller ? 'No calls found' : (isTeamManager ? 'No team calls found' : 'No telecaller calls found')}</p>
+                  <td colSpan={canViewAllCalls ? 9 : 8} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                        <PhoneIcon className="h-6 w-6 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-600">No calls found</p>
+                      <p className="text-xs text-gray-400">Try adjusting your filters</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
-                telecallerCalls.map((call) => (
-                  <tr key={call.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => viewTelecallerCallSummary(call.id)}>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <p className="text-xs font-medium text-gray-900">
-                        {call.contactName || (call.lead?.firstName ? `${call.lead.firstName} ${call.lead.lastName || ''}`.trim() : call.phoneNumber)}
-                      </p>
-                      <p className="text-[10px] text-gray-500">{call.phoneNumber}</p>
+                telecallerCalls.map((call, index) => (
+                  <tr
+                    key={call.id}
+                    className={`group cursor-pointer transition-all duration-150 ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'
+                    } hover:bg-primary-50/50 hover:shadow-sm`}
+                    onClick={() => viewTelecallerCallSummary(call.id)}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-gradient-to-br from-primary-100 to-primary-200 rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="text-[10px] font-bold text-primary-700">
+                            {(call.contactName || call.lead?.firstName || call.phoneNumber || '?').charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-900 group-hover:text-primary-700">
+                            {call.contactName || (call.lead?.firstName ? `${call.lead.firstName} ${call.lead.lastName || ''}`.trim() : call.phoneNumber)}
+                          </p>
+                          <p className="text-[10px] text-gray-400">{call.phoneNumber}</p>
+                        </div>
+                      </div>
                     </td>
-                    {/* Show telecaller column for admins, managers, team leads */}
                     {canViewAllCalls && (
-                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-600">
-                        {call.telecaller ? `${call.telecaller.firstName} ${call.telecaller.lastName}` : '-'}
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-gray-700 font-medium">
+                          {call.telecaller ? `${call.telecaller.firstName} ${call.telecaller.lastName?.charAt(0) || ''}` : '-'}
+                        </span>
                       </td>
                     )}
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                         call.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
                         call.status === 'FAILED' ? 'bg-red-100 text-red-700' :
                         call.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
+                        'bg-gray-100 text-gray-600'
                       }`}>
-                        {statusLabels[call.status] || call.status}
+                        {call.status === 'COMPLETED' ? '✓' : call.status === 'FAILED' ? '✗' : '●'} {statusLabels[call.status] || call.status}
                       </span>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                        call.callType === 'INBOUND' ? 'bg-teal-100 text-teal-700' : 'bg-sky-100 text-sky-700'
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        call.callType === 'INBOUND' ? 'bg-teal-50 text-teal-700 border border-teal-200' : 'bg-sky-50 text-sky-700 border border-sky-200'
                       }`}>
-                        {call.callType === 'INBOUND' ? '↙ Inbound' : '↗ Outbound'}
+                        {call.callType === 'INBOUND' ? '↙' : '↗'} {call.callType === 'INBOUND' ? 'In' : 'Out'}
                       </span>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-600">
-                      {call.duration ? formatDuration(call.duration) : '-'}
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">
+                        {call.duration ? formatDuration(call.duration) : '--:--'}
+                      </span>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
+                    <td className="px-4 py-3">
                       {call.outcome ? (
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                           call.outcome === 'INTERESTED' || call.outcome === 'CONVERTED' || call.outcome === 'CONNECTED'
-                            ? 'bg-green-100 text-green-700'
+                            ? 'bg-green-100 text-green-700 border border-green-200'
                             : call.outcome === 'NOT_INTERESTED'
-                            ? 'bg-red-100 text-red-700'
+                            ? 'bg-red-100 text-red-700 border border-red-200'
                             : call.outcome === 'NO_ANSWER'
-                            ? 'bg-yellow-100 text-yellow-700'
-                            : 'bg-gray-100 text-gray-700'
+                            ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                            : call.outcome === 'CALLBACK_REQUESTED'
+                            ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                            : 'bg-gray-100 text-gray-600'
                         }`}>
                           {outcomeLabels[call.outcome] || call.outcome}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400">Pending</span>
+                        <span className="text-[10px] text-gray-400 italic">Pending</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
+                    <td className="px-4 py-3">
                       {call.aiAnalyzed ? (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700">
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          call.sentiment === 'positive' ? 'bg-green-100 text-green-700' :
+                          call.sentiment === 'negative' ? 'bg-red-100 text-red-700' :
+                          'bg-purple-100 text-purple-700'
+                        }`}>
                           <CpuChipIcon className="h-3 w-3" />
-                          {call.sentiment || 'Analyzed'}
+                          {call.sentiment || '✓'}
                         </span>
                       ) : (
-                        <span className="text-[10px] text-gray-400">-</span>
+                        <span className="text-[10px] text-gray-300">—</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-500">
-                      {formatDate(call.createdAt)}
+                    <td className="px-4 py-3">
+                      <div className="text-right">
+                        <p className="text-[11px] font-medium text-gray-700">{new Date(call.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</p>
+                        <p className="text-[10px] text-gray-400">{new Date(call.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-right">
+                    <td className="px-4 py-3 text-right">
                       <button
                         onClick={(e) => { e.stopPropagation(); viewTelecallerCallSummary(call.id); }}
-                        className="text-primary-600 hover:text-primary-800 flex items-center gap-0.5 text-xs ml-auto"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-primary-600 bg-primary-50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary-100"
                       >
-                        <ArrowRightIcon className="h-3.5 w-3.5" />
                         View
+                        <ArrowRightIcon className="h-3 w-3" />
                       </button>
                     </td>
                   </tr>
