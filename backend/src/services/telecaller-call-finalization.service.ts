@@ -21,6 +21,7 @@ import { ai4bharatService } from '../integrations/ai4bharat.service';
 import { deepgramService, DiarizedTranscript } from '../integrations/deepgram.service';
 import { leadLifecycleService } from './lead-lifecycle.service';
 import { leadScoringService } from './lead-scoring.service';
+import { leadPipelineService } from './lead-pipeline.service';
 import {
   analyzeCallEnhanced,
   generateCoachingSuggestions,
@@ -2469,8 +2470,20 @@ ${call.summary}
       const phone = rawRecord.phone || qualification.phone || call.phoneNumber;
       const email = rawRecord.email || qualification.email;
       const name = qualification.name || `${rawRecord.firstName || ''} ${rawRecord.lastName || ''}`.trim();
-      const firstName = rawRecord.firstName || name.split(' ')[0] || 'Lead';
-      const lastName = rawRecord.lastName || name.split(' ').slice(1).join(' ') || '';
+      let firstName = rawRecord.firstName || name.split(' ')[0] || 'Lead';
+      let lastName = rawRecord.lastName || name.split(' ').slice(1).join(' ') || '';
+
+      // Clean duplicate names (e.g., "POLA TANISHQ SARAN" + "TANISHQ SARAN" -> just firstName)
+      if (firstName && lastName) {
+        const firstNameUpper = firstName.toUpperCase().trim();
+        const lastNameUpper = lastName.toUpperCase().trim();
+        if (firstNameUpper.includes(lastNameUpper) || firstNameUpper.endsWith(lastNameUpper)) {
+          lastName = ''; // lastName is duplicate, remove it
+        } else if (lastNameUpper.includes(firstNameUpper) && lastNameUpper.length > firstNameUpper.length) {
+          firstName = lastName; // lastName has full name, use it
+          lastName = '';
+        }
+      }
 
       // Check if lead with this phone already exists
       const existingLead = await prisma.lead.findFirst({
@@ -2517,6 +2530,10 @@ ${call.summary}
         return;
       }
 
+      // Get default pipeline and entry stage for unified pipeline system
+      const defaultPipeline = await leadPipelineService.getDefaultPipeline(organizationId);
+      const entryStage = defaultPipeline ? await leadPipelineService.getEntryStage(defaultPipeline.id) : null;
+
       // Create new lead - goes to UNASSIGNED POOL for manager to assign
       const lead = await prisma.lead.create({
         data: {
@@ -2529,6 +2546,10 @@ ${call.summary}
           source: rawRecord.bulkImport?.source || 'BULK_UPLOAD',
           sourceDetails: `Qualified by Telecaller: ${call.telecaller?.firstName} ${call.telecaller?.lastName}`,
           priority: outcome === 'CONVERTED' ? 'HIGH' : (outcome === 'INTERESTED' ? 'HIGH' : 'MEDIUM'),
+          // Assign to pipeline stage (unified system)
+          pipelineStageId: entryStage?.id || undefined,
+          pipelineEnteredAt: entryStage ? new Date() : undefined,
+          pipelineDaysInStage: entryStage ? 0 : undefined,
           customFields: {
             ...customData,
             ...qualification,
@@ -2546,6 +2567,21 @@ ${call.summary}
           lastContactedAt: new Date(),
         },
       });
+
+      // Create pipeline record for tracking (if pipeline stage was assigned)
+      if (entryStage && defaultPipeline) {
+        await prisma.pipelineRecord.create({
+          data: {
+            pipelineId: defaultPipeline.id,
+            stageId: entryStage.id,
+            entityType: 'LEAD',
+            entityId: lead.id,
+            enteredStageAt: new Date(),
+            daysInStage: 0,
+            totalDaysInPipeline: 0,
+          },
+        });
+      }
 
       // Link call to new lead
       await prisma.telecallerCall.update({
