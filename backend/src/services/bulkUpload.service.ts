@@ -173,15 +173,20 @@ export class BulkUploadService {
 
   // Map raw data to lead format
   private mapToLeads(data: Record<string, unknown>[]): ParsedLead[] {
+    // Separate mappings for first name only vs full name columns
+    const firstNameOnlyAliases = [
+      'first_name', 'firstname', 'first name', 'given name', 'given_name'
+    ];
+    const fullNameAliases = [
+      'name', 'student name', 'student_name', 'full name', 'fullname', 'full_name',
+      'candidate name', 'candidate_name', 'applicant name', 'applicant_name',
+      'lead name', 'lead_name', 'customer name', 'customer_name', 'person name',
+      'contact name', 'contact_name', 'naam', 'student', 'candidate', 'applicant',
+      'person', 'user', 'user_name', 'username', 'stu_name', 'stuname'
+    ];
+
     const columnMappings: Record<string, string[]> = {
-      firstName: [
-        'first_name', 'firstname', 'first name', 'name', 'student name', 'student_name',
-        'full name', 'fullname', 'full_name', 'candidate name', 'candidate_name',
-        'applicant name', 'applicant_name', 'lead name', 'lead_name', 'customer name',
-        'customer_name', 'person name', 'contact name', 'contact_name', 'naam',
-        'student', 'candidate', 'applicant', 'person', 'user', 'user_name', 'username',
-        'stu_name', 'stuname'
-      ],
+      firstName: [...firstNameOnlyAliases, ...fullNameAliases],
       lastName: ['last_name', 'lastname', 'last name', 'surname', 'family name', 'family_name'],
       email: [
         'email', 'email_address', 'email address', 'e-mail', 'e_mail', 'mail',
@@ -269,6 +274,7 @@ export class BulkUploadService {
 
       const customFields: Record<string, unknown> = {};
       const usedKeys = new Set<string>();
+      let nameSourceIsFullName = false;
 
       // Map standard fields by header name
       for (const [field, aliases] of Object.entries(columnMappings)) {
@@ -279,6 +285,10 @@ export class BulkUploadService {
           if (key && row[key]) {
             (lead as unknown as Record<string, unknown>)[field] = String(row[key]).trim();
             usedKeys.add(key);
+            // Track if firstName came from a full name column
+            if (field === 'firstName' && fullNameAliases.includes(alias.toLowerCase())) {
+              nameSourceIsFullName = true;
+            }
             break;
           }
         }
@@ -308,6 +318,32 @@ export class BulkUploadService {
         if (nameValue) {
           lead.firstName = String(nameValue).trim();
           usedKeys.add(detectedColumns.nameColumn);
+          nameSourceIsFullName = true; // Detected columns are usually full names
+        }
+      }
+
+      // FIX: Handle duplicate name issue when full name contains lastName
+      // If firstName came from a "full name" column and lastName is set,
+      // check if lastName is already part of firstName (duplicate data entry)
+      if (nameSourceIsFullName && lead.lastName && lead.firstName) {
+        const firstNameUpper = lead.firstName.toUpperCase();
+        const lastNameUpper = lead.lastName.toUpperCase();
+
+        // Check if lastName is already contained in firstName (duplicate entry)
+        if (firstNameUpper.includes(lastNameUpper) || firstNameUpper.endsWith(lastNameUpper)) {
+          // Clear lastName to avoid duplication like "SHAIK SHABBEER ALI SHABBEER ALI"
+          lead.lastName = undefined;
+        }
+      }
+
+      // If we have a full name but no lastName, try to split intelligently
+      if (nameSourceIsFullName && lead.firstName && !lead.lastName) {
+        const nameParts = lead.firstName.trim().split(/\s+/);
+        if (nameParts.length >= 2) {
+          // Keep first part(s) as firstName, last part as lastName
+          // For names like "SHAIK SHABBEER ALI", keep "SHAIK SHABBEER" as first, "ALI" as last
+          lead.lastName = nameParts.pop();
+          lead.firstName = nameParts.join(' ');
         }
       }
 

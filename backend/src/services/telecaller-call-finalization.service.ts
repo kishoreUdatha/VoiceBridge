@@ -2553,16 +2553,26 @@ ${call.summary}
         data: { leadId: lead.id },
       });
 
-      // DO NOT assign to telecaller - leave unassigned for manager to assign to counselor
-      // Manager will see this in "Unassigned Leads" and assign to appropriate counselor
+      // Assign lead to the telecaller who qualified it (same person who was assigned the raw import record)
+      // This ensures continuity - the telecaller already has context from the call
+      if (call.telecallerId) {
+        await prisma.leadAssignment.create({
+          data: {
+            leadId: lead.id,
+            assignedToId: call.telecallerId,
+            assignedById: call.telecallerId, // Self-assigned through qualification
+            isActive: true,
+          },
+        });
+      }
 
-      // Create initial note with AI summary - helps counselor understand context
+      // Create initial note with AI summary
       if (summary) {
         await prisma.leadNote.create({
           data: {
             leadId: lead.id,
             userId: call.telecallerId,
-            content: `**Lead Qualified by Telecaller - Waiting for Counselor Assignment**
+            content: `**Lead Qualified and Assigned**
 
 **Call Summary:**
 ${summary}
@@ -2570,9 +2580,7 @@ ${summary}
 **Customer Sentiment:** ${sentiment}
 **Outcome:** ${outcome}
 **Qualified by:** ${call.telecaller?.firstName} ${call.telecaller?.lastName}
-**Call Date:** ${new Date().toLocaleDateString()}
-
-⚠️ **Action Required:** Manager needs to assign this lead to a counselor for follow-up.`,
+**Call Date:** ${new Date().toLocaleDateString()}`,
             isPinned: true,
           },
         });

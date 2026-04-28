@@ -58,6 +58,18 @@ react {
 def enableProguardInReleaseBuilds = true
 
 /**
+ * Load signing credentials from local.properties (gitignored)
+ * This keeps sensitive data out of version control
+ */
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+/**
  * The preferred build flavor of JavaScriptCore (JSC)
  *
  * For example, to use the international variant, you can use:
@@ -105,13 +117,17 @@ android {
             keyPassword 'android'
         }
         release {
-            // For production, configure these from environment or local.properties
-            // Generate keystore: keytool -genkeypair -v -storetype PKCS12 -keystore release.keystore -alias release -keyalg RSA -keysize 2048 -validity 10000
-            if (project.hasProperty('RELEASE_STORE_FILE')) {
-                storeFile file(RELEASE_STORE_FILE)
-                storePassword RELEASE_STORE_PASSWORD
-                keyAlias RELEASE_KEY_ALIAS
-                keyPassword RELEASE_KEY_PASSWORD
+            // Load from local.properties (secure, gitignored)
+            def releaseStoreFile = localProperties.getProperty('RELEASE_STORE_FILE')
+            def releaseStorePassword = localProperties.getProperty('RELEASE_STORE_PASSWORD')
+            def releaseKeyAlias = localProperties.getProperty('RELEASE_KEY_ALIAS')
+            def releaseKeyPassword = localProperties.getProperty('RELEASE_KEY_PASSWORD')
+
+            if (releaseStoreFile != null) {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
             }
         }
     }
@@ -122,7 +138,8 @@ android {
             versionNameSuffix "-debug"
         }
         release {
-            signingConfig project.hasProperty('RELEASE_STORE_FILE') ? signingConfigs.release : signingConfigs.debug
+            def hasReleaseConfig = localProperties.getProperty('RELEASE_STORE_FILE') != null
+            signingConfig hasReleaseConfig ? signingConfigs.release : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             shrinkResources enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"

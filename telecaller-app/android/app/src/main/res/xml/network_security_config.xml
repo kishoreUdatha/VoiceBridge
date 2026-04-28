@@ -1,21 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Production server - allow HTTP for testing -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">13.206.154.118</domain>
-    </domain-config>
-
-    <!-- Development: Allow cleartext for localhost -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">10.0.2.2</domain>
-        <domain includeSubdomains="true">192.168.0.0/16</domain>
-    </domain-config>
-
-    <!-- Base config: trust system CAs -->
+    <!-- Production: HTTPS only, no cleartext traffic -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+
+    <!-- Development only: Allow cleartext for local testing (debug builds) -->
+    <!-- These are automatically ignored in release builds -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
 </network-security-config>
