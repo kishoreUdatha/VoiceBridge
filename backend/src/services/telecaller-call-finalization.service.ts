@@ -2408,19 +2408,10 @@ ${call.summary}
         },
       });
 
-      // Step 9: Auto-convert to lead if INTERESTED or CONVERTED
-      if (outcome === 'INTERESTED' || outcome === 'CONVERTED' || outcome === 'CALLBACK_REQUESTED') {
-        console.log(`[TelecallerAI] Step 9: Auto-converting to lead (outcome: ${outcome})...`);
-        await this.autoConvertRawImportToLead(
-          rawRecord,
-          call,
-          qualification,
-          organizationId,
-          outcome,
-          sentiment,
-          summary
-        );
-      }
+      // Step 9: Auto-convert DISABLED - Telecaller should manually convert to lead
+      // AI only updates raw record status, telecaller clicks "Convert to Lead" button
+      // This gives telecaller control over lead quality and conversion decisions
+      console.log(`[TelecallerAI] Step 9: Skipping auto-convert (disabled). Outcome: ${outcome}. Telecaller should manually convert if needed.`);
 
       console.log(`[TelecallerAI] Raw import AI analysis completed for call ${callId}`);
       console.log(`[TelecallerAI] Results: Outcome=${outcome}, Sentiment=${sentiment}, Status=${rawImportStatus}`);
