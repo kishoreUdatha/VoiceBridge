@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Linking,
+  Alert,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import telecallerService, { TelecallerCall } from '../services/telecaller.service';
@@ -117,6 +119,32 @@ export default function CallHistoryScreen() {
     return OUTCOME_STYLES[outcome || ''] || { color: '#3b82f6', bg: '#dbeafe', label: 'Pending' };
   };
 
+  const handleCallAgain = (phoneNumber: string, contactName?: string) => {
+    Alert.alert(
+      'Call Again',
+      `Call ${contactName || phoneNumber}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Call',
+          onPress: () => {
+            // Open phone dialer
+            Linking.openURL(`tel:${phoneNumber}`).catch(() => {
+              Alert.alert('Error', 'Unable to open phone dialer');
+            });
+          },
+        },
+        {
+          text: 'Log Call',
+          onPress: () => {
+            // Navigate to NewCallScreen with phone number pre-filled
+            navigation.navigate('NewCall', { phoneNumber, contactName });
+          },
+        },
+      ]
+    );
+  };
+
   const renderCallItem = ({ item }: { item: TelecallerCall }) => {
     const outcomeStyle = getOutcomeStyle(item.outcome);
     return (
@@ -147,6 +175,17 @@ export default function CallHistoryScreen() {
         {item.notes && (
           <Text style={styles.callNotes} numberOfLines={2}>{item.notes}</Text>
         )}
+        {/* Call Again Button */}
+        <TouchableOpacity
+          style={styles.callAgainButton}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleCallAgain(item.phoneNumber, item.contactName);
+          }}
+        >
+          <Text style={styles.callAgainIcon}>📞</Text>
+          <Text style={styles.callAgainText}>Call Again</Text>
+        </TouchableOpacity>
       </TouchableOpacity>
     );
   };
@@ -362,5 +401,24 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginTop: 8,
     fontStyle: 'italic',
+  },
+  callAgainButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10b981',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  callAgainIcon: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  callAgainText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

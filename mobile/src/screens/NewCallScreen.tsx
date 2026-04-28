@@ -37,9 +37,13 @@ export default function NewCallScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const lead = route.params?.lead;
+  const initialPhone = route.params?.phoneNumber;
+  const initialName = route.params?.contactName;
 
-  const [phoneNumber, setPhoneNumber] = useState(lead?.phone || '');
-  const [contactName, setContactName] = useState(lead ? `${lead.firstName} ${lead.lastName || ''}`.trim() : '');
+  const [phoneNumber, setPhoneNumber] = useState(lead?.phone || initialPhone || '');
+  const [contactName, setContactName] = useState(
+    lead ? `${lead.firstName} ${lead.lastName || ''}`.trim() : (initialName || '')
+  );
   const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
   const [duration, setDuration] = useState<number>(60);
   const [customDuration, setCustomDuration] = useState('');
