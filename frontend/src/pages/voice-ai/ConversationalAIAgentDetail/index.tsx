@@ -177,6 +177,8 @@ export function ConversationalAIAgentDetail() {
   const [debugMode, setDebugMode] = useState(false);
   const [logLevel, setLogLevel] = useState('info');
   const [logConversations, setLogConversations] = useState(true);
+  const [realtimeEnabled, setRealtimeEnabled] = useState(false);
+  const [webrtcEnabled, setWebrtcEnabled] = useState(false);
 
   // Publish state
   const [publishStatus, setPublishStatus] = useState<PublishStatusType>('DRAFT');
@@ -484,6 +486,8 @@ export function ConversationalAIAgentDetail() {
       if (agentData.debugMode !== undefined) setDebugMode(agentData.debugMode);
       if (agentData.logLevel !== undefined) setLogLevel(agentData.logLevel);
       if (agentData.logConversations !== undefined) setLogConversations(agentData.logConversations);
+      if (agentData.realtimeEnabled !== undefined) setRealtimeEnabled(agentData.realtimeEnabled);
+      if (agentData.webrtcEnabled !== undefined) setWebrtcEnabled(agentData.webrtcEnabled);
 
       // Publish status
       if (agentData.status) setPublishStatus(agentData.status);
@@ -2973,6 +2977,60 @@ export function ConversationalAIAgentDetail() {
                         </div>
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Realtime Voice Settings */}
+                <div className="mb-6 p-4 border border-gray-200 rounded-xl">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Realtime Voice</h3>
+                  <p className="text-sm text-gray-500 mb-4">Enable real-time voice streaming for WebRTC-based testing and calls.</p>
+                  <div className="space-y-4">
+                    {/* Realtime Mode Toggle */}
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Enable Realtime Mode</p>
+                        <p className="text-xs text-gray-500">Allow WebRTC voice testing directly in browser</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newValue = !realtimeEnabled;
+                          setRealtimeEnabled(newValue);
+                          saveAgentConfig({ realtimeEnabled: newValue });
+                        }}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${
+                          realtimeEnabled ? 'bg-green-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                            realtimeEnabled ? 'translate-x-5' : ''
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    {/* WebRTC Toggle */}
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Enable WebRTC</p>
+                        <p className="text-xs text-gray-500">Use WebRTC for lower latency audio streaming</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newValue = !webrtcEnabled;
+                          setWebrtcEnabled(newValue);
+                          saveAgentConfig({ webrtcEnabled: newValue });
+                        }}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${
+                          webrtcEnabled ? 'bg-green-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                            webrtcEnabled ? 'translate-x-5' : ''
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
