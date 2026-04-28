@@ -161,10 +161,68 @@ async function fixDuplicateNames() {
   console.log(`\nFixed ${fixedCount} duplicate names`);
 }
 
+// Migrate leads to pipeline stages
+async function migrateLeadsToPipeline() {
+  console.log('\n\nMigrating leads to pipeline...\n');
+
+  // Get all organizations
+  const organizations = await prisma.organization.findMany({
+    where: { isActive: true },
+  });
+
+  for (const org of organizations) {
+    console.log(`Processing organization: ${org.name}`);
+
+    // Get default pipeline
+    const pipeline = await prisma.pipeline.findFirst({
+      where: {
+        organizationId: org.id,
+        entityType: 'LEAD',
+        isDefault: true,
+        isActive: true,
+      },
+      include: {
+        stages: {
+          where: { isActive: true },
+          orderBy: { order: 'asc' },
+        },
+      },
+    });
+
+    if (!pipeline) {
+      console.log(`  No default pipeline found for ${org.name}. Run: npx ts-node prisma/seed-pipeline.ts`);
+      continue;
+    }
+
+    // Get entry stage
+    const entryStage = pipeline.stages.find(s => s.stageType === 'entry') || pipeline.stages[0];
+    if (!entryStage) {
+      console.log(`  Pipeline has no stages for ${org.name}`);
+      continue;
+    }
+
+    // Find leads without pipeline stage
+    const result = await prisma.lead.updateMany({
+      where: {
+        organizationId: org.id,
+        pipelineStageId: null,
+      },
+      data: {
+        pipelineStageId: entryStage.id,
+        pipelineEnteredAt: new Date(),
+        pipelineDaysInStage: 0,
+      },
+    });
+
+    console.log(`  Migrated ${result.count} leads to "${entryStage.name}" stage`);
+  }
+}
+
 async function main() {
   try {
     await fixUnassignedLeads();
     await fixDuplicateNames();
+    await migrateLeadsToPipeline();
   } catch (error) {
     console.error('Script failed:', error);
     process.exit(1);
