@@ -1203,12 +1203,12 @@ router.get(
       prisma.outboundCall.findMany({
         where: {
           OR: [
-            { leadId },
+            { existingLeadId: leadId },
             ...(leadPhone ? [{ phoneNumber: leadPhone }] : []),
           ],
         },
         include: {
-          lead: {
+          existingLead: {
             select: { id: true, firstName: true, lastName: true, phone: true },
           },
           agent: {
@@ -1230,7 +1230,7 @@ router.get(
         ...call,
         callSource: 'ai_agent' as const,
         callerName: call.agent?.name || 'AI Agent',
-        outcome: call.callOutcome,
+        lead: call.existingLead,
       })),
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
