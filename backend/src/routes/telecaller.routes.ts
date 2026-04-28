@@ -1629,7 +1629,7 @@ router.post('/calls', async (req: TenantRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const userRole = req.user!.roleSlug;
-    const { leadId, phoneNumber, contactName, callType } = req.body;
+    const { leadId, phoneNumber, contactName, callType, status, outcome, duration, notes, callDirection } = req.body;
 
     console.log(`[Telecaller/Calls] POST /calls - User: ${req.user!.email}, Role: ${userRole}, LeadId: ${leadId}, Phone: ${phoneNumber}`);
 
@@ -1638,11 +1638,45 @@ router.post('/calls', async (req: TenantRequest, res: Response) => {
       return ApiResponse.error(res, 'Phone number is required', 400);
     }
 
+    // Duplicate prevention: Check if a call with same phone was logged in last 2 minutes
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const existingCall = await prisma.telecallerCall.findFirst({
+      where: {
+        telecallerId: userId,
+        phoneNumber,
+        createdAt: { gte: twoMinutesAgo },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existingCall) {
+      console.log(`[Telecaller/Calls] Duplicate call detected for ${phoneNumber}, returning existing call ${existingCall.id}`);
+      // If the existing call is INITIATED and new request has COMPLETED status, update it
+      if (existingCall.status === 'INITIATED' && status === 'COMPLETED') {
+        const updatedCall = await prisma.telecallerCall.update({
+          where: { id: existingCall.id },
+          data: {
+            status: 'COMPLETED',
+            outcome: outcome || null,
+            duration: duration || null,
+            notes: notes || null,
+            endedAt: new Date(),
+          },
+        });
+        return ApiResponse.success(res, 'Call updated', updatedCall, 200);
+      }
+      // Otherwise return existing call to prevent duplicate
+      return ApiResponse.success(res, 'Call already logged', existingCall, 200);
+    }
+
     // Validate callType if provided
     const validCallTypes = ['OUTBOUND', 'INBOUND'];
-    const normalizedCallType = callType && validCallTypes.includes(callType.toUpperCase())
+    const normalizedCallType = callType && validCallTypes.includes(callType?.toUpperCase?.())
       ? callType.toUpperCase()
-      : 'OUTBOUND';
+      : callDirection?.toUpperCase() || 'OUTBOUND';
+
+    // Determine status - use provided status or default to INITIATED
+    const callStatus = status === 'COMPLETED' ? 'COMPLETED' : 'INITIATED';
 
     // Create call record
     console.log(`[Telecaller/Calls] Creating call record for user ${userId}...`);
@@ -1653,9 +1687,13 @@ router.post('/calls', async (req: TenantRequest, res: Response) => {
         leadId: leadId || null,
         phoneNumber,
         contactName: contactName || null,
-        status: 'INITIATED',
+        status: callStatus,
+        outcome: callStatus === 'COMPLETED' ? (outcome || null) : null,
+        duration: callStatus === 'COMPLETED' ? (duration || null) : null,
+        notes: notes || null,
         callType: normalizedCallType,
         startedAt: new Date(),
+        endedAt: callStatus === 'COMPLETED' ? new Date() : null,
       },
     });
     console.log(`[Telecaller/Calls] Call created successfully: ${call.id}`);
