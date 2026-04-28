@@ -7,17 +7,22 @@ services:
   redis:
     image: redis:7-alpine
     container_name: myleadx-redis
-    restart: always
-    command: redis-server --appendonly yes
+    restart: unless-stopped
+    command: redis-server --appendonly yes --daemonize no
     volumes:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     networks:
       - myleadx-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   backend:
     build:
@@ -82,7 +87,7 @@ services:
       CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY:?CREDENTIALS_ENCRYPTION_KEY is required}
     depends_on:
       redis:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "8080:8080"
     volumes:
