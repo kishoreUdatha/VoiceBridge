@@ -154,6 +154,18 @@ export class AdmissionController {
       next(error);
     }
   }
+
+  /**
+   * Backfill commissions for existing admissions
+   */
+  async backfillCommissions(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await admissionService.backfillCommissions(req.organizationId!);
+      ApiResponse.success(res, 'Commission backfill completed', result);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const admissionController = new AdmissionController();

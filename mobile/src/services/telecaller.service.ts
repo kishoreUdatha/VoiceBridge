@@ -1,4 +1,14 @@
 import api from './api';
+import * as Crypto from 'expo-crypto';
+
+// Generate unique request ID to prevent duplicates
+const generateRequestId = async (): Promise<string> => {
+  const randomBytes = await Crypto.getRandomBytesAsync(16);
+  const hex = Array.from(new Uint8Array(randomBytes))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  return `${hex}-${Date.now()}`;
+};
 
 export interface TelecallerCall {
   id: string;
@@ -51,8 +61,14 @@ export const telecallerService = {
     offset?: number;
   }) => api.get<{ data: { calls: TelecallerCall[]; total: number } }>('/telecaller/calls', { params }),
 
-  // Log a new call
-  logCall: (data: CallLogData) => api.post<{ data: TelecallerCall }>('/telecaller/calls', data),
+  // Log a new call with idempotency key to prevent duplicates
+  logCall: async (data: CallLogData) => {
+    const requestId = await generateRequestId();
+    return api.post<{ data: TelecallerCall; message?: string }>('/telecaller/calls', {
+      ...data,
+      requestId, // Unique ID prevents duplicate submissions
+    });
+  },
 
   // Update call outcome
   updateCall: (callId: string, data: { outcome?: string; notes?: string; duration?: number }) =>

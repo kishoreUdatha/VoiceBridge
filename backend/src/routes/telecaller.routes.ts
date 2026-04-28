@@ -13,6 +13,79 @@ import { calendarService } from '../services/calendar.service';
 import { workSessionService } from '../services/work-session.service';
 import { uploadRecordingToS3, getPlayableRecordingUrl } from '../services/s3.service';
 import { leadPipelineService } from '../services/lead-pipeline.service';
+import Redis from 'ioredis';
+
+// ============================================================================
+// IDEMPOTENCY KEY SUPPORT - Prevents duplicate call submissions from mobile
+// ============================================================================
+// Redis client for idempotency (with fallback to in-memory)
+let idempotencyRedis: Redis | null = null;
+const idempotencyMemoryStore = new Map<string, { callId: string; expiresAt: number }>();
+const IDEMPOTENCY_TTL_SECONDS = 3600; // 1 hour
+
+// Initialize Redis for idempotency
+function initIdempotencyRedis() {
+  const redisUrl = process.env.REDIS_URL;
+  if (redisUrl && !idempotencyRedis) {
+    try {
+      idempotencyRedis = new Redis(redisUrl, {
+        maxRetriesPerRequest: 3,
+        retryStrategy: (times) => (times > 3 ? null : Math.min(times * 100, 3000)),
+        lazyConnect: true,
+      });
+      idempotencyRedis.connect().catch(() => {
+        console.warn('[Idempotency] Redis connection failed, using memory fallback');
+        idempotencyRedis = null;
+      });
+    } catch {
+      console.warn('[Idempotency] Redis init failed, using memory fallback');
+    }
+  }
+}
+initIdempotencyRedis();
+
+// Check if requestId was already processed
+async function checkIdempotencyKey(requestId: string): Promise<string | null> {
+  if (idempotencyRedis) {
+    try {
+      const existing = await idempotencyRedis.get(`idempotency:call:${requestId}`);
+      return existing;
+    } catch {
+      // Fallback to memory
+    }
+  }
+  // Memory fallback
+  const entry = idempotencyMemoryStore.get(requestId);
+  if (entry && entry.expiresAt > Date.now()) {
+    return entry.callId;
+  }
+  return null;
+}
+
+// Store requestId after successful call creation
+async function storeIdempotencyKey(requestId: string, callId: string): Promise<void> {
+  if (idempotencyRedis) {
+    try {
+      await idempotencyRedis.setex(`idempotency:call:${requestId}`, IDEMPOTENCY_TTL_SECONDS, callId);
+      return;
+    } catch {
+      // Fallback to memory
+    }
+  }
+  // Memory fallback
+  idempotencyMemoryStore.set(requestId, {
+    callId,
+    expiresAt: Date.now() + IDEMPOTENCY_TTL_SECONDS * 1000,
+  });
+  // Cleanup old entries periodically
+  if (idempotencyMemoryStore.size > 1000) {
+    const now = Date.now();
+    for (const [key, value] of idempotencyMemoryStore.entries()) {
+      if (value.expiresAt < now) idempotencyMemoryStore.delete(key);
+    }
+  }
+}
+// ============================================================================
 
 // Helper to save buffer to temp file for AI processing
 function saveTempFile(buffer: Buffer, ext: string): string {
@@ -1629,17 +1702,37 @@ router.post('/calls', async (req: TenantRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const userRole = req.user!.roleSlug;
-    const { leadId, phoneNumber, contactName, callType, status, outcome, duration, notes, callDirection } = req.body;
+    const { leadId, phoneNumber, contactName, callType, status, outcome, duration, notes, callDirection, requestId } = req.body;
 
-    console.log(`[Telecaller/Calls] POST /calls - User: ${req.user!.email}, Role: ${userRole}, LeadId: ${leadId}, Phone: ${phoneNumber}`);
+    console.log(`[Telecaller/Calls] POST /calls - User: ${req.user!.email}, Role: ${userRole}, LeadId: ${leadId}, Phone: ${phoneNumber}, RequestId: ${requestId || 'none'}`);
 
     if (!phoneNumber) {
       console.log(`[Telecaller/Calls] ERROR: Phone number is required`);
       return ApiResponse.error(res, 'Phone number is required', 400);
     }
 
-    // Duplicate prevention: Check for any call to same phone in last 5 minutes
-    // This prevents: user logging same call twice by mistake
+    // ========================================================================
+    // IDEMPOTENCY CHECK - Permanent duplicate prevention using unique requestId
+    // ========================================================================
+    // If requestId is provided (from mobile app), check if already processed
+    if (requestId) {
+      const existingCallId = await checkIdempotencyKey(requestId);
+      if (existingCallId) {
+        console.log(`[Telecaller/Calls] Idempotency hit: requestId ${requestId} already processed, returning call ${existingCallId}`);
+        const existingCall = await prisma.telecallerCall.findUnique({
+          where: { id: existingCallId },
+        });
+        if (existingCall) {
+          return ApiResponse.success(res, 'Call already logged (duplicate request)', existingCall, 200);
+        }
+        // Call was deleted? Allow new creation
+      }
+    }
+
+    // ========================================================================
+    // FALLBACK: Time-based duplicate prevention (for requests without requestId)
+    // ========================================================================
+    // This catches duplicates from web or old mobile versions without requestId
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     const recentCall = await prisma.telecallerCall.findFirst({
       where: {
@@ -1664,6 +1757,10 @@ router.post('/calls', async (req: TenantRequest, res: Response) => {
             endedAt: new Date(),
           },
         });
+        // Store idempotency key for this update too
+        if (requestId) {
+          await storeIdempotencyKey(requestId, updatedCall.id);
+        }
         return ApiResponse.success(res, 'Call updated', updatedCall, 200);
       }
       // Otherwise return existing - prevent duplicate
@@ -1699,6 +1796,12 @@ router.post('/calls', async (req: TenantRequest, res: Response) => {
       },
     });
     console.log(`[Telecaller/Calls] Call created successfully: ${call.id}`);
+
+    // Store idempotency key to prevent duplicate submissions
+    if (requestId) {
+      await storeIdempotencyKey(requestId, call.id);
+      console.log(`[Telecaller/Calls] Stored idempotency key: ${requestId} -> ${call.id}`);
+    }
 
     // Log activity on lead if exists
     if (leadId) {

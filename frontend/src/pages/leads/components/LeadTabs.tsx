@@ -1008,6 +1008,27 @@ export function CallsTab({ callLogs, loading, phone, onLogCallClick }: CallsTabP
               };
               const colors = statusColors[call.status as keyof typeof statusColors] || { bg: 'bg-gradient-to-br from-slate-500 to-gray-600', ring: 'ring-slate-100' };
 
+              // Format duration in a user-friendly way
+              const formatDuration = (seconds: number | null | undefined) => {
+                if (!seconds || seconds === 0) return null;
+                if (seconds < 60) return `${seconds}s`;
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}m ${secs}s`;
+              };
+
+              // Filter out internal/technical notes (like Raw Import Record UUIDs)
+              const isUserFriendlyNote = (note: string | null | undefined) => {
+                if (!note) return false;
+                // Hide notes that are just internal references
+                if (note.startsWith('Raw Import Record:')) return false;
+                if (note.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) return false;
+                return true;
+              };
+
+              const duration = formatDuration(call.duration);
+              const showNotes = isUserFriendlyNote(call.notes);
+
               return (
                 <div key={call.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
                   {/* Call Header */}
@@ -1017,16 +1038,22 @@ export function CallsTab({ callLogs, loading, phone, onLogCallClick }: CallsTabP
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-slate-900">Call - {call.status}</span>
+                        <span className="font-semibold text-slate-900">
+                          {call.status === 'COMPLETED' ? 'Completed Call' :
+                           call.status === 'MISSED' ? 'Missed Call' :
+                           call.status === 'NO_ANSWER' ? 'No Answer' :
+                           call.status === 'INITIATED' ? 'Call Started' :
+                           call.status === 'IN_PROGRESS' ? 'In Progress' : call.status}
+                        </span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                           call.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
                           call.status === 'MISSED' || call.status === 'NO_ANSWER' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
                         }`}>
-                          {call.direction}
+                          {call.direction === 'OUTBOUND' ? 'Outgoing' : call.direction === 'INBOUND' ? 'Incoming' : call.direction}
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        {formatDateTime(call.createdAt)} • Duration: <span className="font-medium text-slate-700">{call.duration || 0}s</span>
+                        {formatDateTime(call.createdAt)}{duration && <> • <span className="font-medium text-slate-700">{duration}</span></>}
                       </p>
                     </div>
                     {call.recordingUrl && (
@@ -1038,7 +1065,7 @@ export function CallsTab({ callLogs, loading, phone, onLogCallClick }: CallsTabP
 
                   {/* Call Content */}
                   <div className="p-4 space-y-3">
-                    {call.notes && (
+                    {showNotes && (
                       <p className="text-sm text-slate-600 bg-slate-50 rounded-lg p-3 border-l-4 border-slate-300">{call.notes}</p>
                     )}
 
@@ -1060,6 +1087,11 @@ export function CallsTab({ callLogs, loading, phone, onLogCallClick }: CallsTabP
 
                     {englishTranscript && (
                       <TranscriptChat transcript={englishTranscript} title="English Translation" />
+                    )}
+
+                    {/* Show a minimal message if call has no content */}
+                    {!showNotes && !anyCall.summary && !call.transcript && !englishTranscript && (
+                      <p className="text-sm text-slate-400 italic">No call details available</p>
                     )}
                   </div>
                 </div>
