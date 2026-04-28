@@ -27,6 +27,7 @@
     "test:auto-assign": "ts-node scripts/test-auto-assign.ts",
     "test:lead-all": "ts-node scripts/run-lead-tests.ts all",
     "test:lead-all:cleanup": "ts-node scripts/run-lead-tests.ts all --cleanup",
+    "fix:unassigned-leads": "ts-node scripts/fix-unassigned-leads.ts",
     "prod:build": "npm run typecheck && npm run build",
     "prod:deploy": "npm run prisma:migrate:deploy && npm run start:prod"
   },

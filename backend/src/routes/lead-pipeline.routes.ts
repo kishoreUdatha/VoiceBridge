@@ -7,6 +7,7 @@ import { Router, Response, NextFunction } from 'express';
 import { authenticate } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { leadPipelineService } from '../services/lead-pipeline.service';
+import { prisma } from '../config/database';
 
 const router = Router();
 
@@ -208,23 +209,26 @@ router.post('/migrate-leads', async (req: TenantRequest, res: Response) => {
     // Get default pipeline
     const pipeline = await leadPipelineService.getDefaultPipeline(organizationId);
     if (!pipeline) {
-      return res.status(400).json({
-        success: false,
-        message: 'No default pipeline found. Please create a pipeline first.',
+      // Return success with 0 migrated - no pipeline is not an error
+      return res.json({
+        success: true,
+        message: 'No default pipeline configured. Skipping migration.',
+        data: { migratedCount: 0, skipped: true },
       });
     }
 
     // Get entry stage
     const entryStage = pipeline.stages.find(s => s.stageType === 'entry') || pipeline.stages[0];
     if (!entryStage) {
-      return res.status(400).json({
-        success: false,
-        message: 'Pipeline has no stages. Please add stages first.',
+      // Return success with 0 migrated - no stages is not an error for auto-migration
+      return res.json({
+        success: true,
+        message: 'Pipeline has no stages configured. Skipping migration.',
+        data: { migratedCount: 0, skipped: true },
       });
     }
 
     // Find all leads without pipelineStageId
-    const { prisma } = await import('../config/database');
     const leadsToMigrate = await prisma.lead.findMany({
       where: {
         organizationId,
