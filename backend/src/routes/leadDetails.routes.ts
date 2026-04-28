@@ -1158,7 +1158,7 @@ router.put(
 
 // ==================== CALL LOGS ====================
 
-// Get call logs for a lead
+// Get call logs for a lead (includes both telecaller calls and AI outbound calls)
 router.get(
   '/:leadId/calls',
   validate([param('leadId').isUUID().withMessage('Invalid lead ID')]),
@@ -1171,17 +1171,52 @@ router.get(
       return res.status(404).json({ success: false, message: 'Lead not found' });
     }
 
-    const calls = await prisma.telecallerCall.findMany({
-      where: { leadId },
-      include: {
-        lead: {
-          select: { id: true, firstName: true, lastName: true, phone: true },
+    // Fetch both telecaller calls AND AI outbound calls
+    const [telecallerCalls, outboundCalls] = await Promise.all([
+      // Manual telecaller calls
+      prisma.telecallerCall.findMany({
+        where: { leadId },
+        include: {
+          lead: {
+            select: { id: true, firstName: true, lastName: true, phone: true },
+          },
+          telecaller: {
+            select: { id: true, firstName: true, lastName: true },
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      }),
+      // AI voice agent outbound calls
+      prisma.outboundCall.findMany({
+        where: { leadId },
+        include: {
+          lead: {
+            select: { id: true, firstName: true, lastName: true, phone: true },
+          },
+          agent: {
+            select: { id: true, name: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
 
-    res.json({ success: true, data: calls });
+    // Combine and normalize both call types
+    const allCalls = [
+      ...telecallerCalls.map(call => ({
+        ...call,
+        callSource: 'telecaller' as const,
+        callerName: call.telecaller ? `${call.telecaller.firstName} ${call.telecaller.lastName}` : null,
+      })),
+      ...outboundCalls.map(call => ({
+        ...call,
+        callSource: 'ai_agent' as const,
+        callerName: call.agent?.name || 'AI Agent',
+        outcome: call.callOutcome,
+      })),
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    res.json({ success: true, data: allCalls });
   })
 );
 
