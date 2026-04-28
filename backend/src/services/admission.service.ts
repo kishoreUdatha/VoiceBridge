@@ -1107,6 +1107,78 @@ export class AdmissionService {
 
     return { processed, created, skipped };
   }
+
+  /**
+   * Backfill payment records for admissions that have paidAmount > 0 but no payment records
+   * This creates a single payment record for the full paid amount
+   */
+  async backfillPayments(organizationId: string): Promise<{ processed: number; created: number; skipped: number }> {
+    // Find all admissions with paidAmount > 0
+    const admissionsWithPaidAmount = await prisma.admission.findMany({
+      where: {
+        organizationId,
+        status: 'ACTIVE',
+        paidAmount: { gt: 0 },
+      },
+    });
+
+    let processed = 0;
+    let created = 0;
+    let skipped = 0;
+
+    for (const admission of admissionsWithPaidAmount) {
+      processed++;
+
+      // Check if payment records already exist
+      const existingPayments = await prisma.admissionPayment.findFirst({
+        where: { admissionId: admission.id },
+      });
+
+      if (existingPayments) {
+        skipped++;
+        continue;
+      }
+
+      // Create a backfill payment record
+      try {
+        await prisma.admissionPayment.create({
+          data: {
+            admissionId: admission.id,
+            paymentNumber: 1,
+            amount: Number(admission.paidAmount),
+            paymentType: 'FEE',
+            paymentMode: 'ONLINE',
+            paidAt: admission.closedAt || admission.createdAt,
+            notes: 'Payment record created via backfill (pre-existing payment)',
+          },
+        });
+
+        // Also create generic Payment record
+        await prisma.payment.create({
+          data: {
+            organizationId,
+            leadId: admission.leadId,
+            admissionId: admission.id,
+            amount: Number(admission.paidAmount),
+            paymentMethod: 'ONLINE',
+            paymentType: 'FEE',
+            description: 'Backfilled payment record',
+            status: 'COMPLETED',
+            paidAt: admission.closedAt || admission.createdAt,
+            createdById: admission.closedById,
+          },
+        });
+
+        created++;
+        console.log(`[AdmissionService] Backfilled payment for admission ${admission.admissionNumber}`);
+      } catch (error) {
+        console.error(`[AdmissionService] Failed to backfill payment for admission ${admission.id}:`, error);
+        skipped++;
+      }
+    }
+
+    return { processed, created, skipped };
+  }
 }
 
 export const admissionService = new AdmissionService();

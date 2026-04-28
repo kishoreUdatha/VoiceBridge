@@ -166,6 +166,18 @@ export class AdmissionController {
       next(error);
     }
   }
+
+  /**
+   * Backfill payment records for paid admissions
+   */
+  async backfillPayments(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await admissionService.backfillPayments(req.organizationId!);
+      ApiResponse.success(res, 'Payment backfill completed', result);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const admissionController = new AdmissionController();
