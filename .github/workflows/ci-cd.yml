@@ -289,6 +289,10 @@ jobs:
             docker exec myleadx-backend npx prisma migrate deploy || echo "Migration skipped"
 
             echo ""
+            echo "Step 7.1: Fixing duplicate names (one-time)..."
+            docker exec myleadx-backend npx ts-node scripts/fix-duplicate-names-once.ts || echo "Fix script skipped"
+
+            echo ""
             echo "Step 8: Final cleanup..."
             docker image prune -f
             docker builder prune -f || true
