@@ -15,6 +15,16 @@ import { uploadRecordingToS3, getPlayableRecordingUrl } from '../services/s3.ser
 import { leadPipelineService } from '../services/lead-pipeline.service';
 import Redis from 'ioredis';
 
+// Stage names that count as a converted lead. Shared across team-dashboard-stats
+// (web) and team-stats (mobile) so manager dashboards agree on the conversion
+// count regardless of which client they're using.
+const CONVERSION_STAGE_NAMES = [
+  'Admitted', 'ADMITTED',
+  'Enrolled', 'ENROLLED',
+  'Won', 'WON',
+  'Converted', 'CONVERTED',
+];
+
 // ============================================================================
 // IDEMPOTENCY KEY SUPPORT - Prevents duplicate call submissions from mobile
 // ============================================================================
@@ -784,15 +794,18 @@ router.post('/assigned-data/:id/recording', upload.single('recording'), async (r
       });
     }
 
-    // If no callId provided or call not found, look for the most recent INITIATED call
-    // for this phone number by this telecaller (within last 30 minutes)
+    // If no callId provided or call not found, look for the most recent call tied
+    // to this raw import record. We match by `notes` containing the raw record id
+    // (set when the call is started) and ignore status — the status may already be
+    // COMPLETED if /assigned-data/:id/status fired before the recording upload, and
+    // requiring INITIATED here would miss that row and create a duplicate.
     if (!call) {
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
       call = await prisma.telecallerCall.findFirst({
         where: {
           telecallerId: userId,
           phoneNumber: record.phone,
-          status: 'INITIATED',
+          notes: { contains: id },
           createdAt: { gte: thirtyMinutesAgo },
         },
         orderBy: { createdAt: 'desc' },
@@ -2818,7 +2831,7 @@ router.get('/team-dashboard-stats', async (req: TenantRequest, res: Response) =>
             assignments: { some: { assignedToId: member.id, isActive: true } },
             OR: [
               { isConverted: true },
-              { stage: { name: { in: ['Admitted', 'ADMITTED', 'Enrolled', 'ENROLLED', 'Won', 'WON'] } } },
+              { stage: { name: { in: CONVERSION_STAGE_NAMES } } },
             ],
           },
         });
@@ -2832,7 +2845,7 @@ router.get('/team-dashboard-stats', async (req: TenantRequest, res: Response) =>
           },
         });
 
-        // Calculate conversion rate based on total leads assigned
+        // Total leads assigned (used for the team-wide aggregate conversion rate)
         const totalLeads = await prisma.lead.count({
           where: {
             organizationId,
@@ -2852,6 +2865,7 @@ router.get('/team-dashboard-stats', async (req: TenantRequest, res: Response) =>
           interested,
           converted,
           conversionRate,
+          totalLeads,
         };
       })
     );
@@ -2863,8 +2877,11 @@ router.get('/team-dashboard-stats', async (req: TenantRequest, res: Response) =>
     const totalInterested = teamMemberStats.reduce((sum, m) => sum + m.interested, 0);
     const totalConverted = teamMemberStats.reduce((sum, m) => sum + m.converted, 0);
     const callsToday = teamMemberStats.reduce((sum, m) => sum + m.callsToday, 0);
-    const avgConversionRate = teamSize > 0
-      ? Math.round((teamMemberStats.reduce((sum, m) => sum + m.conversionRate, 0) / teamSize) * 10) / 10
+    // Aggregate conversion rate (sum / sum). Avg-of-avgs gives a different number
+    // than mobile's /team-stats; aggregate keeps both clients in agreement.
+    const totalTeamLeads = teamMemberStats.reduce((sum, m) => sum + m.totalLeads, 0);
+    const avgConversionRate = totalTeamLeads > 0
+      ? Math.round((totalConverted / totalTeamLeads) * 100 * 10) / 10
       : 0;
 
     ApiResponse.success(res, 'Team dashboard stats retrieved', {
@@ -2983,13 +3000,16 @@ router.get('/team-stats', async (req: TenantRequest, res: Response) => {
           assignments: { some: { assignedToId: { in: teamMemberIds }, isActive: true } },
           OR: [
             { isConverted: true },
-            { stage: { name: { in: ['Admitted', 'ADMITTED', 'Enrolled', 'ENROLLED', 'Won', 'WON', 'Converted', 'CONVERTED'] } } },
+            { stage: { name: { in: CONVERSION_STAGE_NAMES } } },
           ],
         },
       }),
     ]);
 
-    const teamConversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
+    // Match web's 1-decimal rounding so the same value renders on both clients.
+    const teamConversionRate = totalLeads > 0
+      ? Math.round((convertedLeads / totalLeads) * 100 * 10) / 10
+      : 0;
 
     ApiResponse.success(res, 'Team stats retrieved', {
       totalMembers,

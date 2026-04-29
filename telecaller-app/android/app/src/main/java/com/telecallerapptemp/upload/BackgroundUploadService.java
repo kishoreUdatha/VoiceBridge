@@ -140,6 +140,10 @@ public class BackgroundUploadService extends Service {
             .setType(MultipartBody.FORM)
             .addFormDataPart("recording", "call_" + callId + "_recording.m4a", fileBody);
 
+        if (callId != null && !callId.isEmpty()) {
+            builder.addFormDataPart("callId", callId);
+        }
+
         if (duration > 0) {
             builder.addFormDataPart("duration", String.valueOf(duration));
         }
