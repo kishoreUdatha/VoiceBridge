@@ -45,8 +45,7 @@
 # ============================================
 # Application Classes
 # ============================================
--keep class com.crmleads.telecaller.** { *; }
--keep class com.telecallerapptemp.** { *; }
+-keep class ai.myleadx.app.** { *; }
 
 # ============================================
 # Notifee

@@ -8,6 +8,7 @@ interface OutcomeButtonProps {
   outcome: CallOutcome;
   label: string;
   icon: string;
+  color?: string; // Custom color from API
   selected?: boolean;
   onPress: (outcome: CallOutcome) => void;
   style?: ViewStyle;
@@ -17,11 +18,13 @@ const OutcomeButton: React.FC<OutcomeButtonProps> = ({
   outcome,
   label,
   icon,
+  color: customColor,
   selected = false,
   onPress,
   style,
 }) => {
-  const color = getOutcomeColor(outcome);
+  // Use custom color if provided, otherwise fall back to default
+  const color = customColor || getOutcomeColor(outcome);
 
   return (
     <TouchableOpacity

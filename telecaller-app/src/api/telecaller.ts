@@ -546,7 +546,38 @@ export const telecallerApi = {
       throw new Error(getErrorMessage(error));
     }
   },
+
+  // ==================== CALL OUTCOMES ====================
+
+  /**
+   * Get custom call outcomes for the organization
+   * Returns outcomes configured by admin for selection after calls
+   */
+  getCallOutcomes: async (): Promise<CustomCallOutcome[]> => {
+    try {
+      const response = await api.get<ApiResponse<{ outcomes: CustomCallOutcome[] }>>(
+        '/call-outcomes/telecaller-app'
+      );
+      return response.data.data.outcomes;
+    } catch (error) {
+      console.error('[TelecallerAPI] Error fetching call outcomes:', error);
+      throw new Error(getErrorMessage(error));
+    }
+  },
 };
+
+// Type for custom call outcomes
+export interface CustomCallOutcome {
+  id: string;
+  slug: string;
+  name: string;
+  icon: string;
+  color: string;
+  notePrompt: string | null;
+  requiresFollowUp: boolean;
+  requiresSubOption: boolean;
+  subOptions: string[];
+}
 
 // Type for qualified leads tracking
 export interface QualifiedLead {

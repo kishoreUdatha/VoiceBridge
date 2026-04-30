@@ -23,7 +23,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { RootStackParamList, Lead } from '../types';
 import { followUpApi, FollowUp, FollowUpStats, FollowUpStatus } from '../api/telecaller';
-import { formatRelativeTime, formatDate, formatTime } from '../utils/formatters';
+import { formatRelativeTime, formatDate, formatTime, getDisplayName, getNameInitials } from '../utils/formatters';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -115,7 +115,7 @@ const FollowUpsScreen: React.FC = () => {
 
     const lead: Lead = {
       id: followUp.leadId,
-      name: `${followUp.lead.firstName} ${followUp.lead.lastName || ''}`.trim(),
+      name: getDisplayName(followUp.lead.firstName, followUp.lead.lastName),
       phone: followUp.lead.phone,
       email: followUp.lead.email,
       company: followUp.lead.company,
@@ -279,12 +279,12 @@ const FollowUpsScreen: React.FC = () => {
         <View style={styles.contactInfo}>
           <View style={styles.contactAvatar}>
             <Text style={styles.avatarText}>
-              {item.lead?.firstName?.charAt(0) || '?'}
+              {getNameInitials(item.lead?.firstName, item.lead?.lastName)}
             </Text>
           </View>
           <View style={styles.contactDetails}>
             <Text style={styles.contactName}>
-              {item.lead ? `${item.lead.firstName} ${item.lead.lastName || ''}`.trim() : 'Unknown Contact'}
+              {item.lead ? getDisplayName(item.lead.firstName, item.lead.lastName) : 'Unknown Contact'}
             </Text>
             <Text style={styles.contactPhone}>{item.lead?.phone || 'No phone'}</Text>
             {item.lead?.company && (
@@ -376,7 +376,7 @@ const FollowUpsScreen: React.FC = () => {
 
           {selectedFollowUp && (
             <Text style={styles.modalSubtitle}>
-              {selectedFollowUp.lead?.firstName} {selectedFollowUp.lead?.lastName || ''}
+              {getDisplayName(selectedFollowUp.lead?.firstName, selectedFollowUp.lead?.lastName)}
             </Text>
           )}
 

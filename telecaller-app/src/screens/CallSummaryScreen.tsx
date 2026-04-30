@@ -12,7 +12,7 @@ import {
 import { useRoute, RouteProp } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { telecallerApi, CallAnalysis } from '../api/telecaller';
-import { formatDuration, formatDateTime } from '../utils/formatters';
+import { formatDuration, formatDateTime, getDisplayName, getNameInitials } from '../utils/formatters';
 import { RootStackParamList } from '../types';
 import ConversationTranscript from '../components/ConversationTranscript';
 import TimedTranscript, { TimedTurn } from '../components/TimedTranscript';
@@ -317,7 +317,7 @@ const CallSummaryScreen: React.FC = () => {
   const fullName =
     itemToText(q.fullName) ||
     itemToText(q.name) ||
-    [itemToText(q.firstName), itemToText(q.lastName)].filter(Boolean).join(' ').trim();
+    getDisplayName(itemToText(q.firstName), itemToText(q.lastName));
   pushIfString('Full Name', fullName, 'account');
   pushIfString('Phone', q.phone, 'phone');
   pushIfString('Email', q.email, 'email');
@@ -370,12 +370,12 @@ const CallSummaryScreen: React.FC = () => {
         <View style={styles.contactHeader}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
-            {(a.lead?.firstName?.[0] || a.contactName?.[0] || a.phoneNumber?.[0] || '?').toUpperCase()}
+            {a.lead ? getNameInitials(a.lead.firstName, a.lead.lastName) : (a.contactName?.[0] || a.phoneNumber?.[0] || '?').toUpperCase()}
           </Text>
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.contactName}>
-            {a.lead ? `${a.lead.firstName} ${a.lead.lastName || ''}`.trim() : a.contactName || 'Unknown'}
+            {a.lead ? getDisplayName(a.lead.firstName, a.lead.lastName) : a.contactName || 'Unknown'}
           </Text>
           <View style={styles.contactRow}>
             <Icon name="phone" size={12} color="#6B7280" />

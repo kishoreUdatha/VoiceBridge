@@ -27,7 +27,7 @@ import { telecallerApi } from '../api/telecaller';
 import { requestCallPermissions } from '../utils/permissions';
 import CallTimer from '../components/CallTimer';
 import RecordingIndicator from '../components/RecordingIndicator';
-import { formatPhoneNumber } from '../utils/formatters';
+import { formatPhoneNumber, getDisplayName, getNameInitials } from '../utils/formatters';
 import { useAccessibilityRecording, promptEnableAccessibility } from '../hooks/useAccessibilityRecording';
 import { backgroundUploadService } from '../services/backgroundUpload';
 
@@ -675,10 +675,10 @@ const CallAssignedDataScreen: React.FC = () => {
       <View style={styles.contactInfo}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
-            {(data.firstName || '?').charAt(0).toUpperCase()}
+            {getNameInitials(data.firstName, data.lastName)}
           </Text>
         </View>
-        <Text style={styles.name}>{data.firstName} {data.lastName || ''}</Text>
+        <Text style={styles.name}>{getDisplayName(data.firstName, data.lastName)}</Text>
         <Text style={styles.phone}>{formatPhoneNumber(data.phone)}</Text>
       </View>
 

@@ -1,78 +1,21 @@
 {
   "project_info": {
-    "project_number": "YOUR_PROJECT_NUMBER",
-    "project_id": "voicebridge-telecaller",
-    "storage_bucket": "voicebridge-telecaller.appspot.com"
+    "project_number": "124404409415",
+    "project_id": "myleadx-c458a",
+    "storage_bucket": "myleadx-c458a.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "mobilesdk_app_id": "1:124404409415:android:bba45b35fa4fa66c7efd62",
         "android_client_info": {
-          "package_name": "com.crmleads.telecaller"
+          "package_name": "ai.myleadx.app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "YOUR_API_KEY_HERE"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000001",
-        "android_client_info": {
-          "package_name": "com.crmleads.telecaller.dev"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "YOUR_API_KEY_HERE"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000002",
-        "android_client_info": {
-          "package_name": "com.crmleads.telecaller.dev.debug"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "YOUR_API_KEY_HERE"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000003",
-        "android_client_info": {
-          "package_name": "com.crmleads.telecaller.debug"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "YOUR_API_KEY_HERE"
+          "current_key": "AIzaSyARK3XQ-cPDVDh4adomGBBGeiriXdq5EWo"
         }
       ],
       "services": {

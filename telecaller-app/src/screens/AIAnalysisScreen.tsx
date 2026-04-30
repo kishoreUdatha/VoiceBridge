@@ -14,7 +14,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { RootStackParamList } from '../types';
 import { telecallerApi, CallAnalysis } from '../api/telecaller';
-import { formatDuration } from '../utils/formatters';
+import { formatDuration, getDisplayName } from '../utils/formatters';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'AIAnalysis'>;
 type AIAnalysisRouteProp = RouteProp<RootStackParamList, 'AIAnalysis'>;
@@ -282,7 +282,7 @@ const AIAnalysisScreen: React.FC = () => {
               <Icon name="account" size={20} color="#6B7280" />
               <Text style={styles.detailLabel}>Lead</Text>
               <Text style={styles.detailValue}>
-                {analysis.lead.firstName} {analysis.lead.lastName}
+                {getDisplayName(analysis.lead.firstName, analysis.lead.lastName)}
               </Text>
             </View>
           )}

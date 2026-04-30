@@ -1,4 +1,4 @@
-package com.telecallerapptemp.calllog;
+package ai.myleadx.app.calllog;
 
 import android.content.ContentResolver;
 import android.database.Cursor;

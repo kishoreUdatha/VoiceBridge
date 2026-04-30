@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+  <!-- Android Adaptive Icon Foreground (108x108 with safe zone 66x66 centered) -->
+  <defs>
+    <linearGradient id="mGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF"/>
+      <stop offset="100%" style="stop-color:#F3F4F6"/>
+    </linearGradient>
+    <linearGradient id="xGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10B981"/>
+      <stop offset="100%" style="stop-color:#059669"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Centered M letter (within safe zone) -->
+  <g fill="url(#mGrad)">
+    <!-- Left bar -->
+    <rect x="24" y="30" width="12" height="48" rx="2"/>
+    <!-- Right bar -->
+    <rect x="72" y="30" width="12" height="48" rx="2"/>
+    <!-- Left diagonal -->
+    <polygon points="36,30 54,54 54,42 42,30"/>
+    <!-- Right diagonal -->
+    <polygon points="72,30 54,54 54,42 66,30"/>
+    <!-- Center connector -->
+    <polygon points="48,42 54,52 60,42 60,54 54,64 48,54"/>
+  </g>
+
+  <!-- X badge -->
+  <g transform="translate(68, 18)">
+    <circle cx="12" cy="12" r="12" fill="url(#xGrad)"/>
+    <path d="M7 7 L17 17 M17 7 L7 17" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+</svg>

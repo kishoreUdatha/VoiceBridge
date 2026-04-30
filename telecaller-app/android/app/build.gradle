@@ -87,13 +87,13 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.crmleads.telecaller"
+    namespace "ai.myleadx.app"
 
     buildFeatures {
         buildConfig true
     }
     defaultConfig {
-        applicationId "com.crmleads.telecaller"
+        applicationId "ai.myleadx.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -103,7 +103,7 @@ android {
         multiDexEnabled true
 
         // Build config field for environment
-        resValue "string", "build_config_package", "com.crmleads.telecaller"
+        resValue "string", "build_config_package", "ai.myleadx.app"
 
         // BuildConfig fields for React Native
         buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", "false"

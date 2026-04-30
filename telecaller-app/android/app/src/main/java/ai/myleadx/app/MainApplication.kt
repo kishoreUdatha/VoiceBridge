@@ -1,7 +1,7 @@
-package com.telecallerapptemp
+package ai.myleadx.app
 
 import android.app.Application
-import com.crmleads.telecaller.BuildConfig
+import ai.myleadx.app.BuildConfig
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactNativeHost
@@ -9,12 +9,12 @@ import com.facebook.react.ReactPackage
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
-import com.telecallerapptemp.callrecording.CallRecordingPackage
-import com.telecallerapptemp.calllog.CallLogPackage
-import com.telecallerapptemp.accessibility.AccessibilityPackage
-import com.telecallerapptemp.audioplayer.AudioPlayerPackage
-import com.telecallerapptemp.storage.StoragePermissionPackage
-import com.telecallerapptemp.upload.BackgroundUploadPackage
+import ai.myleadx.app.callrecording.CallRecordingPackage
+import ai.myleadx.app.calllog.CallLogPackage
+import ai.myleadx.app.accessibility.AccessibilityPackage
+import ai.myleadx.app.audioplayer.AudioPlayerPackage
+import ai.myleadx.app.storage.StoragePermissionPackage
+import ai.myleadx.app.upload.BackgroundUploadPackage
 
 class MainApplication : Application(), ReactApplication {
 

@@ -63,16 +63,22 @@ const App: React.FC = () => {
         const notificationsInitialized = await notificationService.init();
         console.log('[App] Notifications initialized:', notificationsInitialized);
 
-        // Schedule nightly recording cleanup at 11 PM IST
+        // Schedule hourly recording cleanup with server reporting
         try {
           const { NativeModules } = require('react-native');
           const { CallRecording } = NativeModules;
-          if (CallRecording && CallRecording.scheduleNightlyCleanup) {
-            const result = await CallRecording.scheduleNightlyCleanup();
-            console.log('[App] Nightly cleanup scheduled:', result);
+          const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+
+          // Get API URL and auth token for cleanup reporting
+          const apiUrl = await AsyncStorage.getItem('apiUrl') || '';
+          const authToken = await AsyncStorage.getItem('authToken') || '';
+
+          if (CallRecording && CallRecording.scheduleHourlyCleanup) {
+            const result = await CallRecording.scheduleHourlyCleanup(apiUrl, authToken);
+            console.log('[App] Hourly cleanup scheduled:', result);
           }
         } catch (cleanupError) {
-          console.log('[App] Could not schedule nightly cleanup:', cleanupError);
+          console.log('[App] Could not schedule hourly cleanup:', cleanupError);
         }
 
         servicesInitialized.current = true;

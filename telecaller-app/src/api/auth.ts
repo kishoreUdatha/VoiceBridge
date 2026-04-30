@@ -1,6 +1,6 @@
 import api, { getErrorMessage } from './index';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DeviceEventEmitter } from 'react-native';
+import { DeviceEventEmitter, NativeModules } from 'react-native';
 import {
   LoginCredentials,
   AuthResponse,
@@ -8,6 +8,7 @@ import {
   STORAGE_KEYS,
   ApiResponse,
 } from '../types';
+import { API_URL } from '../config';
 
 export const authApi = {
   /**
@@ -43,6 +44,22 @@ export const authApi = {
       await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
       await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken || '');
       await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
+
+      // Store API URL for background workers (recording cleanup)
+      const baseUrl = API_URL.replace('/api', ''); // Remove /api suffix for base URL
+      await AsyncStorage.setItem('apiUrl', baseUrl);
+      await AsyncStorage.setItem('authToken', token);
+
+      // Schedule hourly recording cleanup with server reporting
+      try {
+        const { CallRecording } = NativeModules;
+        if (CallRecording && CallRecording.scheduleHourlyCleanup) {
+          await CallRecording.scheduleHourlyCleanup(baseUrl, token);
+          console.log('[Auth] Scheduled hourly recording cleanup');
+        }
+      } catch (cleanupError) {
+        console.log('[Auth] Could not schedule recording cleanup:', cleanupError);
+      }
 
       if (credentials.rememberMe) {
         await AsyncStorage.setItem(STORAGE_KEYS.REMEMBER_ME, 'true');

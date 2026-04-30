@@ -1,4 +1,4 @@
-package com.telecallerapptemp.accessibility;
+package ai.myleadx.app.upload;
 
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.NativeModule;
@@ -9,11 +9,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class AccessibilityPackage implements ReactPackage {
+public class BackgroundUploadPackage implements ReactPackage {
+
     @Override
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
         List<NativeModule> modules = new ArrayList<>();
-        modules.add(new AccessibilityModule(reactContext));
+        modules.add(new BackgroundUploadModule(reactContext));
         return modules;
     }
 

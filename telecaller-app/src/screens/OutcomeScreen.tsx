@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,38 +18,22 @@ import { useCallRecording } from '../hooks/useCallRecording';
 import OutcomeButton from '../components/OutcomeButton';
 import { formatDuration } from '../utils/formatters';
 import { RootStackParamList, CallOutcome } from '../types';
+import { telecallerApi, CustomCallOutcome } from '../api/telecaller';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Outcome'>;
 type OutcomeRouteProp = RouteProp<RootStackParamList, 'Outcome'>;
 
-interface OutcomeOption {
-  outcome: CallOutcome;
-  label: string;
-  icon: string;
-}
-
-const OUTCOME_OPTIONS: OutcomeOption[] = [
-  { outcome: 'INTERESTED', label: 'Interested', icon: 'thumb-up' },
-  { outcome: 'NOT_INTERESTED', label: 'Not Interested', icon: 'thumb-down' },
-  { outcome: 'CALLBACK', label: 'Callback', icon: 'phone-return' },
-  { outcome: 'CONVERTED', label: 'Converted', icon: 'check-circle' },
-  { outcome: 'NO_ANSWER', label: 'No Answer', icon: 'phone-missed' },
-  { outcome: 'BUSY', label: 'Busy', icon: 'phone-lock' },
-  { outcome: 'WRONG_NUMBER', label: 'Wrong Number', icon: 'phone-cancel' },
-  { outcome: 'VOICEMAIL', label: 'Voicemail', icon: 'voicemail' },
+// Fallback outcomes in case API fails
+const FALLBACK_OUTCOMES: CustomCallOutcome[] = [
+  { id: '1', slug: 'interested', name: 'Interested', icon: 'thumb-up', color: '#10B981', notePrompt: 'What are they interested in?', requiresFollowUp: true, requiresSubOption: false, subOptions: [] },
+  { id: '2', slug: 'not_interested', name: 'Not Interested', icon: 'thumb-down', color: '#EF4444', notePrompt: 'Why are they not interested?', requiresFollowUp: false, requiresSubOption: false, subOptions: [] },
+  { id: '3', slug: 'callback', name: 'Callback', icon: 'phone-return', color: '#F59E0B', notePrompt: 'When is convenient for them?', requiresFollowUp: true, requiresSubOption: false, subOptions: [] },
+  { id: '4', slug: 'converted', name: 'Converted', icon: 'check-circle', color: '#22C55E', notePrompt: 'What convinced them?', requiresFollowUp: false, requiresSubOption: false, subOptions: [] },
+  { id: '5', slug: 'no_answer', name: 'No Answer', icon: 'phone-missed', color: '#6B7280', notePrompt: 'How many attempts?', requiresFollowUp: true, requiresSubOption: false, subOptions: [] },
+  { id: '6', slug: 'busy', name: 'Busy', icon: 'phone-lock', color: '#F97316', notePrompt: 'Did they say when to call back?', requiresFollowUp: true, requiresSubOption: false, subOptions: [] },
+  { id: '7', slug: 'wrong_number', name: 'Wrong Number', icon: 'phone-cancel', color: '#DC2626', notePrompt: 'Any correct number provided?', requiresFollowUp: false, requiresSubOption: false, subOptions: [] },
+  { id: '8', slug: 'voicemail', name: 'Voicemail', icon: 'voicemail', color: '#8B5CF6', notePrompt: 'What message did you leave?', requiresFollowUp: true, requiresSubOption: false, subOptions: [] },
 ];
-
-// Outcome-specific reason prompts
-const OUTCOME_REASON_PROMPTS: Record<CallOutcome, string> = {
-  INTERESTED: 'What are they interested in? Any specific requirements?',
-  NOT_INTERESTED: 'Why are they not interested? (e.g., budget, timing, already have solution)',
-  CALLBACK: 'Why are they requesting callback? When is convenient for them?',
-  CONVERTED: 'What convinced them? Any special terms discussed?',
-  NO_ANSWER: 'How many attempts? Best time to reach them?',
-  BUSY: 'Did they say when to call back?',
-  WRONG_NUMBER: 'Any additional info? (e.g., correct number if provided)',
-  VOICEMAIL: 'What message did you leave?',
-};
 
 const OutcomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -58,7 +42,13 @@ const OutcomeScreen: React.FC = () => {
 
   const { submitOutcome, callDuration } = useCallRecording();
 
-  const [selectedOutcome, setSelectedOutcome] = useState<CallOutcome | null>(null);
+  // Outcomes state
+  const [outcomes, setOutcomes] = useState<CustomCallOutcome[]>(FALLBACK_OUTCOMES);
+  const [isLoadingOutcomes, setIsLoadingOutcomes] = useState(true);
+
+  // Selection state
+  const [selectedOutcome, setSelectedOutcome] = useState<CustomCallOutcome | null>(null);
+  const [selectedSubOption, setSelectedSubOption] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [alternatePhone, setAlternatePhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,10 +58,32 @@ const OutcomeScreen: React.FC = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  const handleOutcomeSelect = useCallback((outcome: CallOutcome) => {
+  // Fetch outcomes from API on mount
+  useEffect(() => {
+    const fetchOutcomes = async () => {
+      try {
+        setIsLoadingOutcomes(true);
+        const fetchedOutcomes = await telecallerApi.getCallOutcomes();
+        if (fetchedOutcomes && fetchedOutcomes.length > 0) {
+          setOutcomes(fetchedOutcomes);
+        }
+      } catch (error) {
+        console.log('[OutcomeScreen] Failed to fetch outcomes, using fallback:', error);
+        // Keep using fallback outcomes
+      } finally {
+        setIsLoadingOutcomes(false);
+      }
+    };
+
+    fetchOutcomes();
+  }, []);
+
+  const handleOutcomeSelect = useCallback((outcome: CustomCallOutcome) => {
     setSelectedOutcome(outcome);
-    // Set default callback time to next business hour if selecting callback
-    if (outcome === 'CALLBACK') {
+    setSelectedSubOption(null); // Reset sub-option when changing outcome
+
+    // Set default callback time if outcome requires follow-up
+    if (outcome.requiresFollowUp || outcome.slug === 'callback') {
       const now = new Date();
       const nextHour = new Date(now);
       nextHour.setHours(now.getHours() + 1, 0, 0, 0);
@@ -135,17 +147,39 @@ const OutcomeScreen: React.FC = () => {
     });
   };
 
+  // Map slug to CallOutcome type for API compatibility
+  const getCallOutcomeFromSlug = (slug: string): CallOutcome => {
+    const mapping: Record<string, CallOutcome> = {
+      'interested': 'INTERESTED',
+      'not_interested': 'NOT_INTERESTED',
+      'callback': 'CALLBACK',
+      'converted': 'CONVERTED',
+      'no_answer': 'NO_ANSWER',
+      'busy': 'BUSY',
+      'wrong_number': 'WRONG_NUMBER',
+      'voicemail': 'VOICEMAIL',
+    };
+    return mapping[slug] || slug.toUpperCase() as CallOutcome;
+  };
+
   const handleSubmit = useCallback(async () => {
     if (!selectedOutcome) {
       Alert.alert('Select Outcome', 'Please select a call outcome before saving.');
       return;
     }
 
-    // Validate callback date is in the future
-    if (selectedOutcome === 'CALLBACK') {
+    // Validate sub-option if required
+    if (selectedOutcome.requiresSubOption && selectedOutcome.subOptions.length > 0 && !selectedSubOption) {
+      Alert.alert('Select Option', `Please select a ${selectedOutcome.name} option.`);
+      return;
+    }
+
+    // Validate callback date is in the future for outcomes requiring follow-up
+    const showFollowUpScheduler = selectedOutcome.requiresFollowUp || selectedOutcome.slug === 'callback';
+    if (showFollowUpScheduler) {
       const now = new Date();
       if (callbackDate <= now) {
-        Alert.alert('Invalid Time', 'Please select a future date and time for the callback.');
+        Alert.alert('Invalid Time', 'Please select a future date and time for the follow-up.');
         return;
       }
     }
@@ -153,17 +187,27 @@ const OutcomeScreen: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Include callback date in notes if CALLBACK selected
+      // Build notes with sub-option and callback info
       let finalNotes = notes.trim();
-      if (selectedOutcome === 'CALLBACK') {
-        const callbackInfo = `Callback scheduled: ${formatCallbackDate(callbackDate)} at ${formatCallbackTime(callbackDate)}`;
+
+      // Add sub-option to notes
+      if (selectedSubOption) {
+        const subOptionInfo = `Selected: ${selectedSubOption}`;
+        finalNotes = finalNotes ? `${subOptionInfo}\n\n${finalNotes}` : subOptionInfo;
+      }
+
+      // Add callback date to notes if follow-up is scheduled
+      if (showFollowUpScheduler) {
+        const callbackInfo = `Follow-up scheduled: ${formatCallbackDate(callbackDate)} at ${formatCallbackTime(callbackDate)}`;
         finalNotes = finalNotes ? `${callbackInfo}\n\n${finalNotes}` : callbackInfo;
       }
 
+      const outcomeForApi = getCallOutcomeFromSlug(selectedOutcome.slug);
+
       const success = await submitOutcome(
-        selectedOutcome,
+        outcomeForApi,
         finalNotes || undefined,
-        selectedOutcome === 'CALLBACK' ? callbackDate.toISOString() : undefined,
+        showFollowUpScheduler ? callbackDate.toISOString() : undefined,
         alternatePhone.trim() || undefined
       );
 
@@ -176,7 +220,7 @@ const OutcomeScreen: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedOutcome, notes, callbackDate, submitOutcome, navigation]);
+  }, [selectedOutcome, selectedSubOption, notes, callbackDate, submitOutcome, navigation, alternatePhone]);
 
   const handleSkip = useCallback(() => {
     Alert.alert(
@@ -197,6 +241,9 @@ const OutcomeScreen: React.FC = () => {
       ]
     );
   }, [navigation]);
+
+  // Determine if we should show the follow-up scheduler
+  const showFollowUpScheduler = selectedOutcome && (selectedOutcome.requiresFollowUp || selectedOutcome.slug === 'callback');
 
   return (
     <View style={styles.container}>
@@ -259,24 +306,63 @@ const OutcomeScreen: React.FC = () => {
 
         {/* Outcome Selection */}
         <Text style={styles.sectionTitle}>Select Outcome</Text>
-        <View style={styles.outcomeGrid}>
-          {OUTCOME_OPTIONS.map((option) => (
-            <OutcomeButton
-              key={option.outcome}
-              outcome={option.outcome}
-              label={option.label}
-              icon={option.icon}
-              selected={selectedOutcome === option.outcome}
-              onPress={handleOutcomeSelect}
-            />
-          ))}
-        </View>
+        {isLoadingOutcomes ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#3B82F6" />
+            <Text style={styles.loadingText}>Loading outcomes...</Text>
+          </View>
+        ) : (
+          <View style={styles.outcomeGrid}>
+            {outcomes.map((outcome) => (
+              <OutcomeButton
+                key={outcome.id}
+                outcome={outcome.slug.toUpperCase() as CallOutcome}
+                label={outcome.name}
+                icon={outcome.icon}
+                color={outcome.color}
+                selected={selectedOutcome?.id === outcome.id}
+                onPress={() => handleOutcomeSelect(outcome)}
+              />
+            ))}
+          </View>
+        )}
 
-        {/* Callback Scheduler - Only show when CALLBACK is selected */}
-        {selectedOutcome === 'CALLBACK' && (
+        {/* Sub-options selection (e.g., NEET, EAMCET, JEE) */}
+        {selectedOutcome?.requiresSubOption && selectedOutcome.subOptions.length > 0 && (
+          <View style={styles.subOptionsSection}>
+            <Text style={styles.sectionTitle}>
+              <Icon name="format-list-bulleted" size={18} color="#8B5CF6" /> Select {selectedOutcome.name} Type
+            </Text>
+            <View style={styles.subOptionsGrid}>
+              {selectedOutcome.subOptions.map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  style={[
+                    styles.subOptionButton,
+                    selectedSubOption === option && styles.subOptionButtonSelected,
+                  ]}
+                  onPress={() => setSelectedSubOption(option)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.subOptionText,
+                      selectedSubOption === option && styles.subOptionTextSelected,
+                    ]}
+                  >
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Follow-up Scheduler - Show when outcome requires follow-up */}
+        {showFollowUpScheduler && (
           <View style={styles.callbackSection}>
             <Text style={styles.sectionTitle}>
-              <Icon name="calendar-clock" size={18} color="#3B82F6" /> Schedule Callback
+              <Icon name="calendar-clock" size={18} color="#3B82F6" /> Schedule Follow-up
             </Text>
             <View style={styles.callbackCard}>
               {/* Date Picker */}
@@ -345,9 +431,8 @@ const OutcomeScreen: React.FC = () => {
           <TextInput
             style={styles.notesInput}
             placeholder={
-              selectedOutcome
-                ? OUTCOME_REASON_PROMPTS[selectedOutcome]
-                : 'Select an outcome above to see what details to capture...'
+              selectedOutcome?.notePrompt ||
+              'Select an outcome above to see what details to capture...'
             }
             placeholderTextColor={selectedOutcome ? '#6B7280' : '#9CA3AF'}
             value={notes}
@@ -424,6 +509,17 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 32,
   },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+  },
+  loadingText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#6B7280',
+  },
   summaryCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -462,6 +558,36 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     marginHorizontal: -4,
     marginBottom: 24,
+  },
+  // Sub-options styles
+  subOptionsSection: {
+    marginBottom: 24,
+  },
+  subOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -4,
+  },
+  subOptionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    margin: 4,
+  },
+  subOptionButtonSelected: {
+    backgroundColor: '#8B5CF6',
+    borderColor: '#8B5CF6',
+  },
+  subOptionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#4B5563',
+  },
+  subOptionTextSelected: {
+    color: '#FFFFFF',
   },
   notesContainer: {
     backgroundColor: '#F9FAFB',

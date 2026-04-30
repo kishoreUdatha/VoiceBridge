@@ -1,4 +1,4 @@
-package com.telecallerapptemp.callrecording;
+package ai.myleadx.app.callrecording;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -20,7 +20,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
 
-import com.crmleads.telecaller.R;
+import ai.myleadx.app.R;
 
 import android.database.Cursor;
 import android.provider.CallLog;

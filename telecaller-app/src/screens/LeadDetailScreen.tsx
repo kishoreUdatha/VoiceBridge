@@ -24,6 +24,7 @@ import { fetchLeadById, updateLeadStatus } from '../store/slices/leadsSlice';
 import { fetchCallHistory } from '../store/slices/callsSlice';
 import leadDetailsApi, { LeadNote, LeadTask, FollowUp, LeadActivity, CallLog } from '../api/leadDetails';
 import stagesApi, { LeadStage } from '../api/stages';
+import { getDisplayName, getNameInitials } from '../utils/formatters';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -627,12 +628,12 @@ const LeadDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                   <View style={styles.noteHeader}>
                     <View style={styles.noteAvatar}>
                       <Text style={styles.noteAvatarText}>
-                        {note.user?.firstName?.[0] || 'U'}
+                        {getNameInitials(note.user?.firstName, note.user?.lastName)}
                       </Text>
                     </View>
                     <View style={styles.noteInfo}>
                       <Text style={styles.noteAuthor}>
-                        {note.user ? `${note.user.firstName} ${note.user.lastName || ''}`.trim() : 'You'}
+                        {note.user ? getDisplayName(note.user.firstName, note.user.lastName) : 'You'}
                       </Text>
                       <Text style={styles.noteTime}>{formatDateTime(note.createdAt)}</Text>
                     </View>

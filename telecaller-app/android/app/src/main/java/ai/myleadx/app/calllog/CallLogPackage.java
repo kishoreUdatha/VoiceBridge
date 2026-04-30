@@ -1,4 +1,4 @@
-package com.telecallerapptemp.calllog;
+package ai.myleadx.app.calllog;
 
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.NativeModule;

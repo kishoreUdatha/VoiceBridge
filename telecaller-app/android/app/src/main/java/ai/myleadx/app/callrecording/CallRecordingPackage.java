@@ -1,4 +1,4 @@
-package com.telecallerapptemp.upload;
+package ai.myleadx.app.callrecording;
 
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.NativeModule;
@@ -9,12 +9,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class BackgroundUploadPackage implements ReactPackage {
+public class CallRecordingPackage implements ReactPackage {
 
     @Override
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
         List<NativeModule> modules = new ArrayList<>();
-        modules.add(new BackgroundUploadModule(reactContext));
+        modules.add(new CallRecordingModule(reactContext));
         return modules;
     }
 

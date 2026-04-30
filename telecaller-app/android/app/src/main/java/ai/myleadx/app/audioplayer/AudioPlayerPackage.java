@@ -1,4 +1,4 @@
-package com.telecallerapptemp.audioplayer;
+package ai.myleadx.app.audioplayer;
 
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.NativeModule;

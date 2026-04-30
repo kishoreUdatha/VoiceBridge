@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { telecallerApi } from '../api/telecaller';
 import { AssignedData, AssignedDataStats, RootStackParamList, STORAGE_KEYS, isTeamLeadOrAbove } from '../types';
 import DateRangeFilter, { DateRangeType } from '../components/DateRangeFilter';
+import { getDisplayName, getNameInitials } from '../utils/formatters';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -243,7 +244,7 @@ const AssignedDataScreen: React.FC = () => {
 
   const renderItem = ({ item }: { item: AssignedData }) => {
     const config = STATUS_CONFIG[item.status] || STATUS_CONFIG.ASSIGNED;
-    const name = `${item.firstName} ${item.lastName || ''}`.trim();
+    const name = getDisplayName(item.firstName, item.lastName);
 
     return (
       <View style={styles.card}>
@@ -253,7 +254,7 @@ const AssignedDataScreen: React.FC = () => {
           activeOpacity={0.7}
         >
           <View style={[styles.avatar, { backgroundColor: config.color }]}>
-            <Text style={styles.avatarText}>{(item.firstName || '?').charAt(0)}</Text>
+            <Text style={styles.avatarText}>{getNameInitials(item.firstName, item.lastName)}</Text>
           </View>
           <View style={styles.cardInfo}>
             <Text style={styles.cardName} numberOfLines={1}>{name}</Text>
