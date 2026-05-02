@@ -1,4 +1,4 @@
-import api, { getErrorMessage } from './index';
+import api, { getErrorMessage, startProactiveTokenRefresh, stopProactiveTokenRefresh } from './index';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DeviceEventEmitter, NativeModules } from 'react-native';
 import {
@@ -9,6 +9,7 @@ import {
   ApiResponse,
 } from '../types';
 import { API_URL } from '../config';
+import { notificationService } from '../services';
 
 export const authApi = {
   /**
@@ -65,6 +66,22 @@ export const authApi = {
         await AsyncStorage.setItem(STORAGE_KEYS.REMEMBER_ME, 'true');
       }
 
+      // Start proactive token refresh to prevent auto-logout
+      startProactiveTokenRefresh();
+
+      // Register FCM token for push notifications after successful login
+      // Pass the auth token directly to avoid race condition with AsyncStorage
+      try {
+        const registered = await notificationService.forceRegisterToken(token);
+        if (registered) {
+          console.log('[Auth] FCM token registered after login');
+        } else {
+          console.log('[Auth] FCM token registration skipped (no Firebase)');
+        }
+      } catch (fcmError) {
+        console.log('[Auth] Could not register FCM token:', fcmError);
+      }
+
       return { user, token, refreshToken: refreshToken || '' };
     } catch (error) {
       throw new Error(getErrorMessage(error));
@@ -77,6 +94,9 @@ export const authApi = {
   logout: async (): Promise<void> => {
     console.log('[AuthAPI] Starting logout...');
     try {
+      // Stop proactive token refresh
+      stopProactiveTokenRefresh();
+
       // Optionally call backend logout endpoint
       await api.post('/auth/logout').catch(() => {
         console.log('[AuthAPI] Backend logout call failed (ignored)');

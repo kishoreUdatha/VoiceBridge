@@ -508,10 +508,15 @@ export function ConversationalAIAgentDetail() {
 
   // Save agent configuration to backend and broadcast to other users
   const saveAgentConfig = async (updates: Record<string, any>, broadcast = true) => {
-    if (!agentId) return;
+    if (!agentId) {
+      console.error('[saveAgentConfig] No agentId, skipping save');
+      return;
+    }
 
+    console.log('[saveAgentConfig] Saving updates:', updates, 'for agent:', agentId);
     try {
-      await api.put(`/voice-ai/agents/${agentId}`, updates);
+      const response = await api.put(`/voice-ai/agents/${agentId}`, updates);
+      console.log('[saveAgentConfig] Save successful:', response.data);
       toast.success('Changes saved');
 
       // Broadcast each field update to other users via WebSocket
@@ -2918,122 +2923,180 @@ export function ConversationalAIAgentDetail() {
             )}
 
             {activeTab === 'advanced' && (
-              <div>
+              <div className="max-w-4xl">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center justify-between mb-4">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">Advanced Settings</h2>
-                    <p className="text-sm text-gray-500 mt-1">Fine-tune your agent's behavior with advanced configuration options.</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button className="px-4 py-2 text-sm border border-gray-300 rounded-full hover:bg-gray-50 transition-colors">
-                      Reset to Defaults
-                    </button>
-                    <button className="px-4 py-2 text-sm bg-gray-900 text-white rounded-full hover:bg-gray-800 transition-colors">
-                      Save Changes
-                    </button>
+                    <p className="text-sm text-gray-500">Configure agent behavior and capabilities</p>
                   </div>
                 </div>
 
-                {/* Call Direction Setting */}
-                <div className="mb-6 p-4 border border-gray-200 rounded-xl">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Agent Direction</h3>
-                  <p className="text-sm text-gray-500 mb-4">Configure whether this agent handles inbound calls, outbound calls, or both.</p>
-                  <div className="flex gap-3">
+                {/* Quick Settings Row */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  {/* Realtime Toggle */}
+                  <div className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${realtimeEnabled ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}
+                    onClick={() => { console.log('[RealtimeToggle] Clicked, current:', realtimeEnabled); const v = !realtimeEnabled; setRealtimeEnabled(v); saveAgentConfig({ realtimeEnabled: v }); }}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-gray-600">Realtime</span>
+                      <div className={`w-8 h-4 rounded-full ${realtimeEnabled ? 'bg-green-500' : 'bg-gray-300'}`}>
+                        <div className={`w-3 h-3 mt-0.5 ml-0.5 bg-white rounded-full transition-transform ${realtimeEnabled ? 'translate-x-4' : ''}`} />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-gray-500">WebRTC testing</p>
+                  </div>
+                  {/* WebRTC Toggle */}
+                  <div className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${webrtcEnabled ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
+                    onClick={() => { const v = !webrtcEnabled; setWebrtcEnabled(v); saveAgentConfig({ webrtcEnabled: v }); }}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-gray-600">WebRTC</span>
+                      <div className={`w-8 h-4 rounded-full ${webrtcEnabled ? 'bg-blue-500' : 'bg-gray-300'}`}>
+                        <div className={`w-3 h-3 mt-0.5 ml-0.5 bg-white rounded-full transition-transform ${webrtcEnabled ? 'translate-x-4' : ''}`} />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-gray-500">Low latency</p>
+                  </div>
+                  {/* Debug Toggle */}
+                  <div className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${debugMode ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:border-gray-300'}`}
+                    onClick={() => { const v = !debugMode; setDebugMode(v); saveAgentConfig({ debugMode: v }); }}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-gray-600">Debug</span>
+                      <div className={`w-8 h-4 rounded-full ${debugMode ? 'bg-amber-500' : 'bg-gray-300'}`}>
+                        <div className={`w-3 h-3 mt-0.5 ml-0.5 bg-white rounded-full transition-transform ${debugMode ? 'translate-x-4' : ''}`} />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-gray-500">Verbose logs</p>
+                  </div>
+                  {/* Log Conversations Toggle */}
+                  <div className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${logConversations ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'}`}
+                    onClick={() => { const v = !logConversations; setLogConversations(v); saveAgentConfig({ logConversations: v }); }}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-gray-600">Log Chats</span>
+                      <div className={`w-8 h-4 rounded-full ${logConversations ? 'bg-purple-500' : 'bg-gray-300'}`}>
+                        <div className={`w-3 h-3 mt-0.5 ml-0.5 bg-white rounded-full transition-transform ${logConversations ? 'translate-x-4' : ''}`} />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-gray-500">Store transcripts</p>
+                  </div>
+                </div>
+
+                {/* Call Direction */}
+                <div className="mb-4 p-3 border border-gray-200 rounded-xl">
+                  <h3 className="text-xs font-semibold text-gray-700 mb-2">Call Direction</h3>
+                  <div className="flex gap-2">
                     {(['INBOUND', 'OUTBOUND', 'HYBRID'] as const).map((direction) => (
                       <button
                         key={direction}
-                        onClick={() => {
-                          setAgent({ ...agent, callDirection: direction });
-                          saveAgentConfig({ callDirection: direction });
-                        }}
-                        className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
+                        onClick={() => { setAgent({ ...agent, callDirection: direction }); saveAgentConfig({ callDirection: direction }); }}
+                        className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                           agent.callDirection === direction
-                            ? direction === 'INBOUND'
-                              ? 'border-green-500 bg-green-50'
-                              : direction === 'OUTBOUND'
-                              ? 'border-blue-500 bg-blue-50'
-                              : 'border-purple-500 bg-purple-50'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'bg-gray-900 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                       >
-                        <div className="text-center">
-                          <div className={`text-sm font-semibold ${
-                            agent.callDirection === direction
-                              ? direction === 'INBOUND'
-                                ? 'text-green-700'
-                                : direction === 'OUTBOUND'
-                                ? 'text-blue-700'
-                                : 'text-purple-700'
-                              : 'text-gray-700'
-                          }`}>
-                            {direction}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {direction === 'INBOUND' && 'Receives calls via widget'}
-                            {direction === 'OUTBOUND' && 'Makes calls via campaigns'}
-                            {direction === 'HYBRID' && 'Both inbound & outbound'}
-                          </div>
-                        </div>
+                        {direction}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Realtime Voice Settings */}
-                <div className="mb-6 p-4 border border-gray-200 rounded-xl">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Realtime Voice</h3>
-                  <p className="text-sm text-gray-500 mb-4">Enable real-time voice streaming for WebRTC-based testing and calls.</p>
-                  <div className="space-y-4">
-                    {/* Realtime Mode Toggle */}
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">Enable Realtime Mode</p>
-                        <p className="text-xs text-gray-500">Allow WebRTC voice testing directly in browser</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const newValue = !realtimeEnabled;
-                          setRealtimeEnabled(newValue);
-                          saveAgentConfig({ realtimeEnabled: newValue });
-                        }}
-                        className={`relative w-11 h-6 rounded-full transition-colors ${
-                          realtimeEnabled ? 'bg-green-500' : 'bg-gray-300'
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                            realtimeEnabled ? 'translate-x-5' : ''
-                          }`}
-                        />
-                      </button>
+                {/* Model & Parameters - Compact Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  {/* AI Provider */}
+                  <div className="p-3 border border-gray-200 rounded-xl">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-2">AI Provider</h3>
+                    <div className="grid grid-cols-4 gap-1">
+                      {[
+                        { id: 'openai', name: 'OpenAI', icon: '🤖' },
+                        { id: 'anthropic', name: 'Claude', icon: '🧠' },
+                        { id: 'google', name: 'Google', icon: '🔮' },
+                        { id: 'groq', name: 'Groq', icon: '⚡' },
+                      ].map((p) => (
+                        <button key={p.id}
+                          onClick={() => {
+                            setLlmProvider(p.id);
+                            const models: Record<string, string> = { openai: 'gpt-4o-mini', anthropic: 'claude-3-sonnet-20240229', google: 'gemini-pro', groq: 'llama-3.1-70b-versatile' };
+                            setLlmModel(models[p.id]);
+                            saveAgentConfig({ llmProvider: p.id, llmModel: models[p.id] });
+                          }}
+                          className={`p-2 rounded-lg text-center transition-all ${llmProvider === p.id ? 'bg-blue-100 ring-2 ring-blue-500' : 'bg-gray-50 hover:bg-gray-100'}`}
+                        >
+                          <span className="text-lg">{p.icon}</span>
+                          <span className="text-[10px] block text-gray-600">{p.name}</span>
+                        </button>
+                      ))}
                     </div>
-                    {/* WebRTC Toggle */}
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">Enable WebRTC</p>
-                        <p className="text-xs text-gray-500">Use WebRTC for lower latency audio streaming</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const newValue = !webrtcEnabled;
-                          setWebrtcEnabled(newValue);
-                          saveAgentConfig({ webrtcEnabled: newValue });
-                        }}
-                        className={`relative w-11 h-6 rounded-full transition-colors ${
-                          webrtcEnabled ? 'bg-green-500' : 'bg-gray-300'
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                            webrtcEnabled ? 'translate-x-5' : ''
-                          }`}
-                        />
-                      </button>
-                    </div>
+                  </div>
+
+                  {/* Model Selection */}
+                  <div className="p-3 border border-gray-200 rounded-xl">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-2">Model</h3>
+                    <select
+                      value={llmModel}
+                      onChange={(e) => { setLlmModel(e.target.value); saveAgentConfig({ llmModel: e.target.value }); }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                    >
+                      {llmProvider === 'openai' && (
+                        <><option value="gpt-4o">GPT-4o</option><option value="gpt-4o-mini">GPT-4o Mini</option><option value="gpt-4-turbo">GPT-4 Turbo</option></>
+                      )}
+                      {llmProvider === 'anthropic' && (
+                        <><option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option><option value="claude-3-haiku-20240307">Claude 3 Haiku</option></>
+                      )}
+                      {llmProvider === 'google' && (
+                        <><option value="gemini-1.5-pro">Gemini 1.5 Pro</option><option value="gemini-1.5-flash">Gemini 1.5 Flash</option></>
+                      )}
+                      {llmProvider === 'groq' && (
+                        <><option value="llama-3.1-70b-versatile">Llama 3.1 70B</option><option value="llama-3.1-8b-instant">Llama 3.1 8B</option></>
+                      )}
+                    </select>
                   </div>
                 </div>
 
+                {/* Parameters Row */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <div className="p-3 border border-gray-200 rounded-xl">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs text-gray-600">Temperature</span>
+                      <span className="text-xs font-semibold">{(temperature / 100).toFixed(1)}</span>
+                    </div>
+                    <input type="range" min="0" max="100" value={temperature} onChange={(e) => handleTemperatureChange(Number(e.target.value))} className="w-full h-1.5 bg-gray-200 rounded-lg" />
+                  </div>
+                  <div className="p-3 border border-gray-200 rounded-xl">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs text-gray-600">Top P</span>
+                      <span className="text-xs font-semibold">{(topP / 100).toFixed(2)}</span>
+                    </div>
+                    <input type="range" min="0" max="100" value={topP} onChange={(e) => handleTopPChange(Number(e.target.value))} className="w-full h-1.5 bg-gray-200 rounded-lg" />
+                  </div>
+                  <div className="p-3 border border-gray-200 rounded-xl">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs text-gray-600">Log Level</span>
+                    </div>
+                    <select value={logLevel} onChange={(e) => { setLogLevel(e.target.value); saveAgentConfig({ logLevel: e.target.value }); }} className="w-full px-2 py-1 text-xs border border-gray-300 rounded-lg">
+                      <option value="debug">Debug</option>
+                      <option value="info">Info</option>
+                      <option value="warn">Warn</option>
+                      <option value="error">Error</option>
+                    </select>
+                  </div>
+                  <div className="p-3 border border-gray-200 rounded-xl">
+                    <span className="text-xs text-gray-600 block mb-1">Agent ID</span>
+                    <button onClick={() => { navigator.clipboard.writeText(agent?.id || ''); toast.success('Copied!'); }} className="text-xs text-blue-600 hover:underline truncate block w-full text-left">
+                      {agent?.id?.slice(0, 8)}... Copy
+                    </button>
+                  </div>
+                </div>
+
+                {/* Export/Import */}
+                <div className="flex gap-2">
+                  <button className="flex-1 px-3 py-2 text-xs border border-gray-300 rounded-lg hover:bg-gray-50">Export JSON</button>
+                  <button className="flex-1 px-3 py-2 text-xs border border-gray-300 rounded-lg hover:bg-gray-50">Import JSON</button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'advanced-old-hidden' && (
+              <div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Left Column */}
                   <div className="space-y-6">

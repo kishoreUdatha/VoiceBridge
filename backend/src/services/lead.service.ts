@@ -395,7 +395,7 @@ export class LeadService {
     }
     // Admin/SuperAdmin sees all leads (no filter)
 
-    // Build search condition separately
+    // Build search condition separately - search across multiple fields
     let searchCondition: Prisma.LeadWhereInput | null = null;
     if (filter.search) {
       searchCondition = {
@@ -404,6 +404,12 @@ export class LeadService {
           { lastName: { contains: filter.search, mode: 'insensitive' } },
           { email: { contains: filter.search, mode: 'insensitive' } },
           { phone: { contains: filter.search } },
+          { companyName: { contains: filter.search, mode: 'insensitive' } },
+          { notes: { contains: filter.search, mode: 'insensitive' } },
+          { city: { contains: filter.search, mode: 'insensitive' } },
+          { state: { contains: filter.search, mode: 'insensitive' } },
+          { fatherName: { contains: filter.search, mode: 'insensitive' } },
+          { motherName: { contains: filter.search, mode: 'insensitive' } },
         ],
       };
     }
@@ -1023,7 +1029,7 @@ export class LeadService {
     };
   }
 
-  async getStats(organizationId: string, assignedToId?: string) {
+  async getStats(organizationId: string, userRole?: string, userId?: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -1034,41 +1040,82 @@ export class LeadService {
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
 
-    // Base where clause - if assignedToId is provided, filter by assignment
-    const baseWhere = assignedToId
-      ? {
+    // Build role-based where clause (same logic as findAll)
+    const normalizedRole = userRole?.toLowerCase().replace('_', '');
+    let baseWhere: Prisma.LeadWhereInput = { organizationId };
+
+    if (normalizedRole === 'admin' || normalizedRole === 'owner') {
+      // Admin/Owner: see all leads
+      baseWhere = { organizationId };
+    } else if (normalizedRole === 'manager' && userId) {
+      // Manager: see leads assigned to their hierarchy
+      const teamLeads = await prisma.user.findMany({
+        where: { organizationId, managerId: userId, role: { slug: 'team_lead' }, isActive: true },
+        select: { id: true },
+      });
+      const teamLeadIds = teamLeads.map((tl) => tl.id);
+      const allTeamMembers = await prisma.user.findMany({
+        where: {
           organizationId,
-          assignments: {
-            some: {
-              assignedToId,
-              isActive: true,
-            },
-          },
-        }
-      : { organizationId };
+          OR: [{ managerId: { in: teamLeadIds } }, { managerId: userId }],
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const allMemberIds = [userId, ...teamLeadIds, ...allTeamMembers.map((m) => m.id)];
+      baseWhere = {
+        organizationId,
+        assignments: { some: { assignedToId: { in: allMemberIds }, isActive: true } },
+      };
+    } else if (normalizedRole === 'teamlead' && userId) {
+      // Team Lead: see unassigned + their team's leads
+      const teamMembers = await prisma.user.findMany({
+        where: { organizationId, managerId: userId, isActive: true },
+        select: { id: true },
+      });
+      const memberIds = [userId, ...teamMembers.map((m) => m.id)];
+      baseWhere = {
+        organizationId,
+        OR: [
+          { assignments: { none: { isActive: true } } },
+          { assignments: { some: { assignedToId: { in: memberIds }, isActive: true } } },
+        ],
+      };
+    } else if (userId) {
+      // Telecaller/Counselor: see only their assigned leads
+      baseWhere = {
+        organizationId,
+        assignments: { some: { assignedToId: userId, isActive: true } },
+      };
+    }
 
     const [
       total,
-      byPipelineStage,
-      byLegacyStage,
+      convertedCount,
+      byLeadStage,
+      byPipelineStageOnly,
       bySource,
       todayCount,
       thisWeekCount,
       thisMonthCount,
+      leadStages,
       pipelineStages,
-      legacyStages,
     ] = await Promise.all([
       prisma.lead.count({ where: baseWhere }),
-      // New pipeline system - pipelineStageId
-      prisma.lead.groupBy({
-        by: ['pipelineStageId'],
-        where: { ...baseWhere, pipelineStageId: { not: null } },
-        _count: true,
+      // Converted leads - completed admission journey (isConverted=true)
+      prisma.lead.count({
+        where: { ...baseWhere, isConverted: true },
       }),
-      // Legacy system - stageId (for backwards compatibility)
+      // Primary: Use stageId (actual lead/admission stage) when available
       prisma.lead.groupBy({
         by: ['stageId'],
-        where: { ...baseWhere, pipelineStageId: null, stageId: { not: null } },
+        where: { ...baseWhere, stageId: { not: null } },
+        _count: true,
+      }),
+      // Fallback: Use pipelineStageId only for leads without stageId
+      prisma.lead.groupBy({
+        by: ['pipelineStageId'],
+        where: { ...baseWhere, stageId: null, pipelineStageId: { not: null } },
         _count: true,
       }),
       prisma.lead.groupBy({
@@ -1094,47 +1141,47 @@ export class LeadService {
           createdAt: { gte: monthStart },
         },
       }),
-      // Get pipeline stages for the organization
+      // Get lead stages (actual admission stages)
+      prisma.leadStage.findMany({
+        where: { organizationId },
+        select: { id: true, name: true },
+      }),
+      // Get pipeline stages (fallback)
       prisma.pipelineStage.findMany({
         where: {
           pipeline: { organizationId },
         },
         select: { id: true, name: true },
       }),
-      // Get legacy stages
-      prisma.leadStage.findMany({
-        where: { organizationId },
-        select: { id: true, name: true },
-      }),
     ]);
 
-    // Map pipeline stage IDs to names
+    // Map lead stage IDs to names (primary - actual admission stages)
+    const leadStageMap = leadStages.reduce((acc, stage) => {
+      acc[stage.id] = stage.name;
+      return acc;
+    }, {} as Record<string, string>);
+
+    // Map pipeline stage IDs to names (fallback)
     const pipelineStageMap = pipelineStages.reduce((acc, stage) => {
       acc[stage.id] = stage.name;
       return acc;
     }, {} as Record<string, string>);
 
-    // Map legacy stage IDs to names
-    const legacyStageMap = legacyStages.reduce((acc, stage) => {
-      acc[stage.id] = stage.name;
-      return acc;
-    }, {} as Record<string, string>);
-
-    // Combine both pipeline and legacy stage counts
+    // Combine stage counts - prefer lead stages over pipeline stages
     const byStatus: Record<string, number> = {};
 
-    // Add pipeline stage counts
-    byPipelineStage.forEach((item) => {
-      if (item.pipelineStageId) {
-        const stageName = pipelineStageMap[item.pipelineStageId] || 'Unknown';
+    // Add lead stage counts (primary - actual admission stages)
+    byLeadStage.forEach((item) => {
+      if (item.stageId) {
+        const stageName = leadStageMap[item.stageId] || 'Unknown';
         byStatus[stageName] = (byStatus[stageName] || 0) + item._count;
       }
     });
 
-    // Add legacy stage counts
-    byLegacyStage.forEach((item) => {
-      if (item.stageId) {
-        const stageName = legacyStageMap[item.stageId] || 'Unknown';
+    // Add pipeline stage counts only for leads without stageId (fallback)
+    byPipelineStageOnly.forEach((item) => {
+      if (item.pipelineStageId) {
+        const stageName = pipelineStageMap[item.pipelineStageId] || 'Unknown';
         byStatus[stageName] = (byStatus[stageName] || 0) + item._count;
       }
     });
@@ -1146,8 +1193,13 @@ export class LeadService {
       byStatus['Unassigned'] = unassignedCount;
     }
 
+    // Calculate conversion rate
+    const conversionRate = total > 0 ? Math.round((convertedCount / total) * 100 * 10) / 10 : 0;
+
     return {
       total,
+      converted: convertedCount,
+      conversionRate,
       byStatus,
       bySource: bySource.reduce((acc, item) => {
         acc[item.source] = item._count;

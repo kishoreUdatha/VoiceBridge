@@ -7,6 +7,7 @@ import { logout } from '../store/slices/authSlice';
 import { usePermission } from '../hooks/usePermission';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import VoiceMinutesIndicator from '../components/VoiceMinutesIndicator';
+import GlobalSearch from '../components/GlobalSearch';
 import { workSessionService, WorkSession, TeamWorkStatus } from '../services/work-session.service';
 import FloatingChatButton from '../components/FloatingChatButton';
 import {
@@ -775,14 +776,11 @@ export default function DashboardLayout() {
         }`}
       >
         <div className="flex h-full flex-col">
-          {/* Logo */}
+          {/* Organization Name */}
           <div className="flex h-14 items-center justify-between px-3 border-b border-slate-800">
-            <div className="flex items-center gap-2.5 pl-2.5">
-              <img src="/logo.png" alt="MyLeadX" className="w-8 h-8 rounded-lg" />
-              <span className="text-xl font-bold bg-gradient-to-r from-primary-400 to-primary-300 bg-clip-text text-transparent">
-                MyLeadX
-              </span>
-            </div>
+            <span className="text-lg font-bold text-white truncate max-w-[160px] uppercase tracking-wide" title={user?.organizationName || 'MyLeadX'}>
+              {user?.organizationName || 'MyLeadX'}
+            </span>
             <button
               onClick={() => setSidebarOpen(false)}
               className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
@@ -918,26 +916,24 @@ export default function DashboardLayout() {
         sidebarCollapsed ? 'lg:w-16' : 'lg:w-60'
       }`}>
         <div className="flex min-h-0 flex-1 flex-col bg-slate-900">
-          {/* Logo - Clickable to toggle collapse */}
+          {/* Organization Name - Clickable to toggle collapse */}
           <div
             className="flex h-14 items-center justify-between px-2 border-b border-slate-800 cursor-pointer hover:bg-slate-800/50 transition-colors"
             onClick={toggleSidebar}
           >
-            <div className="flex items-center gap-2.5 pl-2.5">
-              <img
-                src="/logo.png"
-                alt="MyLeadX"
-                className="w-8 h-8 rounded-lg flex-shrink-0"
-              />
-              {!sidebarCollapsed && (
-                <span className="text-lg font-bold text-white whitespace-nowrap">MyLeadX</span>
-              )}
-            </div>
-            {!sidebarCollapsed && (
-              <ChevronLeftIcon className="w-4 h-4 text-slate-400" />
-            )}
-            {sidebarCollapsed && (
-              <ChevronRightIcon className="w-4 h-4 text-slate-400 absolute right-3" />
+            {sidebarCollapsed ? (
+              <div className="w-full flex justify-center">
+                <span className="text-lg font-bold text-white uppercase">
+                  {(user?.organizationName || 'MX').substring(0, 2).toUpperCase()}
+                </span>
+              </div>
+            ) : (
+              <>
+                <span className="text-lg font-bold text-white truncate uppercase tracking-wide pl-2.5" title={user?.organizationName || 'MyLeadX'}>
+                  {user?.organizationName || 'MyLeadX'}
+                </span>
+                <ChevronLeftIcon className="w-4 h-4 text-slate-400 flex-shrink-0" />
+              </>
             )}
           </div>
 
@@ -1172,6 +1168,9 @@ export default function DashboardLayout() {
 
             {/* Spacer for desktop */}
             <div className="hidden lg:block" />
+
+            {/* Global Search */}
+            {!isTelecallerDashboard && <GlobalSearch />}
 
             {/* Right side actions */}
             <div className="flex items-center gap-2">

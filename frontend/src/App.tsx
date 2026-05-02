@@ -87,6 +87,7 @@ import EmailSettingsPage from './pages/settings/EmailSettingsPage';
 import RazorpaySettingsPage from './pages/settings/RazorpaySettingsPage';
 import IndustrySettingsPage from './pages/settings/IndustrySettingsPage';
 import LeadManagementSettingsPage from './pages/settings/LeadManagementSettingsPage';
+import CallOutcomesSettingsPage from './pages/settings/CallOutcomesSettingsPage';
 import { BillingDashboardPage, WalletTransactionsPage } from './pages/billing';
 import {
   ReportsPage,
@@ -198,6 +199,9 @@ import { VisualRuleBuilderPage } from './pages/lead-routing';
 import { ActivityFeedPage } from './pages/collaboration';
 import { CommissionDashboardPage } from './pages/commissions';
 import CommissionSettingsPage from './pages/settings/CommissionSettingsPage';
+import RecordingCleanupLogsPage from './pages/settings/RecordingCleanupLogsPage';
+import AppointmentReminderSettingsPage from './pages/settings/AppointmentReminderSettingsPage';
+import CrmAutomationSettingsPage from './pages/settings/CrmAutomationSettingsPage';
 import { UnifiedInboxPage } from './pages/unified-inbox';
 import { PredictiveAnalyticsDashboard } from './pages/predictive-analytics';
 import { CustomerHealthDashboard } from './pages/customer-health';
@@ -559,6 +563,7 @@ function App() {
         <Route path="settings/pipelines" element={<PipelineSettingsPage />} />
         <Route path="settings/tags" element={<TagManagementPage />} />
         <Route path="settings/lead-sources" element={<LeadSourcesSettingsPage />} />
+        <Route path="settings/call-outcomes" element={<CallOutcomesSettingsPage />} />
         <Route path="settings/follow-up-config" element={<FollowUpConfigPage />} />
         <Route path="settings/custom-fields" element={<CustomFieldsConfigPage />} />
         <Route path="settings/email-templates" element={<EmailTemplateBuilderPage />} />
@@ -766,6 +771,15 @@ function App() {
         {/* Commission Tracking */}
         <Route path="commissions" element={<CommissionDashboardPage />} />
         <Route path="settings/commission" element={<CommissionSettingsPage />} />
+
+        {/* Appointment Reminders */}
+        <Route path="settings/appointment-reminders" element={<AppointmentReminderSettingsPage />} />
+
+        {/* Smart Automations */}
+        <Route path="settings/automations" element={<CrmAutomationSettingsPage />} />
+
+        {/* Recording Cleanup Logs */}
+        <Route path="settings/recording-cleanup" element={<RecordingCleanupLogsPage />} />
 
         {/* Unified Inbox */}
         <Route path="unified-inbox" element={<UnifiedInboxPage />} />

@@ -19,6 +19,7 @@ import {
 import api from '../../services/api';
 import { RootState, AppDispatch } from '../../store';
 import { fetchBranches } from '../../store/slices/branchSlice';
+import { useCallOutcomes } from '../../hooks/useCallOutcomes';
 
 interface Campaign {
   id: string;
@@ -103,10 +104,12 @@ const campaignStatusColors: Record<string, { bg: string; text: string; label: st
   CANCELLED: { bg: 'bg-red-100', text: 'text-red-700', label: 'Cancelled' },
 };
 
-const outcomeLabels: Record<string, string> = {
+// Note: outcomeLabels is now dynamic - see useCallOutcomes hook usage in component
+const defaultOutcomeLabels: Record<string, string> = {
   INTERESTED: 'Interested',
   NOT_INTERESTED: 'Not Interested',
   CALLBACK_REQUESTED: 'Callback',
+  CALLBACK: 'Callback',
   CONVERTED: 'Converted',
   NO_ANSWER: 'No Answer',
   BUSY: 'Busy',
@@ -128,6 +131,9 @@ export const OutboundCallsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
   const { branches } = useSelector((state: RootState) => state.branches);
+
+  // Use custom call outcomes for dynamic labels and colors
+  const { getOutcomeLabel, getOutcomeBadgeClasses } = useCallOutcomes();
 
   // Role-based access:
   // - super_admin, admin: see ALL calls
@@ -1171,7 +1177,7 @@ export const OutboundCallsPage: React.FC = () => {
                             ? 'bg-red-100 text-red-700'
                             : 'bg-gray-100 text-gray-700'
                         }`}>
-                          {outcomeLabels[call.outcome] || call.outcome}
+                          {getOutcomeLabel(call.outcome) || call.outcome}
                         </span>
                       ) : (
                         <span className="text-xs text-gray-400">-</span>
@@ -1460,7 +1466,7 @@ export const OutboundCallsPage: React.FC = () => {
                             ? 'bg-blue-100 text-blue-700 border border-blue-200'
                             : 'bg-gray-100 text-gray-600'
                         }`}>
-                          {outcomeLabels[call.outcome] || call.outcome}
+                          {getOutcomeLabel(call.outcome) || call.outcome}
                         </span>
                       ) : (
                         <span className="text-[10px] text-gray-400 italic">Pending</span>

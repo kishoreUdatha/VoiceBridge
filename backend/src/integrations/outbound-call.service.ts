@@ -38,8 +38,8 @@ class OutboundCallService {
     return campaignManagementService.getCampaign(campaignId);
   }
 
-  async listCampaigns(organizationId: string) {
-    return campaignManagementService.listCampaigns(organizationId);
+  async listCampaigns(organizationId: string, search?: string, limit?: number) {
+    return campaignManagementService.listCampaigns(organizationId, search, limit);
   }
 
   async startCampaign(campaignId: string) {

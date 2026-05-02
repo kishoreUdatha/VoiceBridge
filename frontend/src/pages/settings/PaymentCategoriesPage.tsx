@@ -259,7 +259,7 @@ export default function PaymentCategoriesPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-6xl">
       <div className="mb-6">
         <div className="flex items-center gap-4 mb-2">
           <Link

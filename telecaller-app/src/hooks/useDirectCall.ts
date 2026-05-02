@@ -160,10 +160,15 @@ export const useDirectCall = (): UseDirectCallReturn => {
         // Clean phone number
         const cleanPhone = lead.phone.replace(/[^\d+]/g, '');
 
+        // Generate unique request ID for idempotency (prevents duplicate call creation)
+        const requestId = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+        console.log('[useDirectCall] Request ID:', requestId);
+
         // Create call record in backend
         const payload: StartCallPayload = {
           leadId: lead.id,
           phoneNumber: lead.phone,
+          requestId,
         };
 
         let callData: Call | null = null;

@@ -441,6 +441,7 @@ router.get('/assigned-data/stats', async (req: TenantRequest, res: Response) => 
       interested: 0,
       notInterested: 0,
       noAnswer: 0,
+      busy: 0,
       callback: 0,
       converted: 0,
     };
@@ -455,6 +456,7 @@ router.get('/assigned-data/stats', async (req: TenantRequest, res: Response) => 
         case 'INTERESTED': result.interested = count; break;
         case 'NOT_INTERESTED': result.notInterested = count; break;
         case 'NO_ANSWER': result.noAnswer = count; break;
+        case 'BUSY': result.busy = count; break;
         case 'CALLBACK_REQUESTED': result.callback = count; break;
         case 'CONVERTED': result.converted = count; break;
       }
@@ -530,7 +532,7 @@ router.put('/assigned-data/:id/status', async (req: TenantRequest, res: Response
     const { status, notes, callSummary, interestLevel, duration, callbackAt, alternatePhone } = req.body;
 
     // Validate status
-    const validStatuses = ['CALLING', 'INTERESTED', 'NOT_INTERESTED', 'NO_ANSWER', 'CALLBACK_REQUESTED'];
+    const validStatuses = ['CALLING', 'INTERESTED', 'NOT_INTERESTED', 'NO_ANSWER', 'BUSY', 'CALLBACK_REQUESTED'];
     if (!validStatuses.includes(status)) {
       return ApiResponse.error(res, `Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
     }
@@ -561,10 +563,15 @@ router.put('/assigned-data/:id/status', async (req: TenantRequest, res: Response
         ...(callSummary && { callSummary }),
         ...(interestLevel && { interestLevel }),
         ...(alternatePhone && { alternatePhone }),
+        ...(scheduledAt && { callbackAt: scheduledAt }), // Save callback date for follow-up
         lastCallAt: new Date(),
         callAttempts: { increment: 1 },
       },
     });
+
+    if (scheduledAt) {
+      console.log(`[Telecaller] Saved callbackAt ${scheduledAt} for raw record ${id}`);
+    }
 
     if (alternatePhone) {
       console.log(`[Telecaller] Saved alternate phone ${alternatePhone} to raw record ${id}`);
@@ -576,17 +583,19 @@ router.put('/assigned-data/:id/status', async (req: TenantRequest, res: Response
       'INTERESTED': 'INTERESTED',
       'NOT_INTERESTED': 'NOT_INTERESTED',
       'NO_ANSWER': 'NO_ANSWER',
+      'BUSY': 'BUSY',
       'CALLBACK_REQUESTED': 'CALLBACK',  // Map to valid enum
       'CALLING': 'PENDING',
     };
 
-    // Find existing call for this raw import record (created when call started)
+    // Find existing call for this rawImportRecord within current session (30 min)
+    // Uses direct rawImportRecordId field for reliable matching
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     const existingCall = await prisma.telecallerCall.findFirst({
       where: {
         telecallerId: userId,
-        phoneNumber: existing.phone,
-        notes: { contains: id },
-        outcome: null, // Not yet finalized
+        rawImportRecordId: id,
+        createdAt: { gte: thirtyMinutesAgo },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -616,6 +625,7 @@ router.put('/assigned-data/:id/status', async (req: TenantRequest, res: Response
         data: {
           organizationId,
           telecallerId: userId,
+          rawImportRecordId: id, // Direct link
           phoneNumber: existing.phone,
           contactName: `${existing.firstName} ${existing.lastName || ''}`.trim(),
           status: 'COMPLETED',
@@ -716,21 +726,41 @@ router.post('/assigned-data/:id/call', async (req: TenantRequest, res: Response)
       },
     });
 
-    // Create telecaller call record for AI analysis later
-    const call = await prisma.telecallerCall.create({
-      data: {
-        organizationId: req.organization!.id,
+    // Check for existing call for this rawImportRecord within current session (30 min)
+    // Uses direct rawImportRecordId field for reliable matching
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    let call = await prisma.telecallerCall.findFirst({
+      where: {
         telecallerId: userId,
-        leadId: null, // Not a lead yet
-        phoneNumber: record.phone,
-        contactName: `${record.firstName} ${record.lastName || ''}`.trim(),
-        status: 'INITIATED',
-        callType: 'OUTBOUND',
-        startedAt: new Date(),
-        // Store raw import record ID in metadata for linking
-        notes: `Raw Import Record: ${id}`,
+        rawImportRecordId: id,
+        createdAt: { gte: thirtyMinutesAgo },
       },
+      orderBy: { createdAt: 'desc' },
     });
+
+    if (call) {
+      // Same session - reset status to INITIATED for retry
+      call = await prisma.telecallerCall.update({
+        where: { id: call.id },
+        data: { status: 'INITIATED', startedAt: new Date() },
+      });
+    } else {
+      // New session or first call - create new call record
+      call = await prisma.telecallerCall.create({
+        data: {
+          organizationId: req.organization!.id,
+          telecallerId: userId,
+          leadId: null,
+          rawImportRecordId: id, // Direct link to raw import record
+          phoneNumber: record.phone,
+          contactName: `${record.firstName} ${record.lastName || ''}`.trim(),
+          status: 'INITIATED',
+          callType: 'OUTBOUND',
+          startedAt: new Date(),
+          notes: `Raw Import Record: ${id}`,
+        },
+      });
+    }
 
     ApiResponse.success(res, 'Call initiated', { call, rawRecordId: id }, 201);
   } catch (error) {
@@ -776,35 +806,36 @@ router.post('/assigned-data/:id/recording', upload.single('recording'), async (r
     const recordingUrl = await uploadRecordingToS3(req.file.buffer, fileName, req.file.mimetype || 'audio/m4a');
     console.log(`[Telecaller] Recording uploaded to S3: ${recordingUrl}`);
 
-    // Find existing call record - first by callId, then by looking for recent INITIATED call
+    // Find existing call record by callId (primary) or rawImportRecordId (direct link)
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     let call;
+
     if (callId) {
+      // Primary: Find by exact callId (most reliable)
       call = await prisma.telecallerCall.findFirst({
         where: { id: callId, telecallerId: userId },
       });
     }
 
-    // If no callId provided or call not found, look for the most recent INITIATED call
-    // for this phone number by this telecaller (within last 30 minutes)
     if (!call) {
-      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+      // Fallback: Find by rawImportRecordId field (direct link, same session)
       call = await prisma.telecallerCall.findFirst({
         where: {
           telecallerId: userId,
-          phoneNumber: record.phone,
-          status: 'INITIATED',
+          rawImportRecordId: id,
           createdAt: { gte: thirtyMinutesAgo },
         },
         orderBy: { createdAt: 'desc' },
       });
     }
 
-    // Only create new record if no existing INITIATED call found
     if (!call) {
+      // No existing call in this session - create new one
       call = await prisma.telecallerCall.create({
         data: {
           organizationId: req.organization!.id,
           telecallerId: userId,
+          rawImportRecordId: id, // Direct link
           phoneNumber: record.phone,
           contactName: `${record.firstName} ${record.lastName || ''}`.trim(),
           status: 'COMPLETED',
@@ -1448,7 +1479,7 @@ router.get('/calls', async (req: TenantRequest, res: Response) => {
   res.set('Expires', '0');
   try {
     const userId = req.user!.id;
-    const { leadId, dateFrom, dateTo, outcome, limit = '50', offset = '0' } = req.query;
+    const { leadId, dateFrom, dateTo, outcome, limit = '50', offset = '0', search } = req.query;
 
     const whereClause: any = {
       telecallerId: userId,
@@ -1456,6 +1487,14 @@ router.get('/calls', async (req: TenantRequest, res: Response) => {
 
     if (leadId) {
       whereClause.leadId = leadId;
+    }
+
+    // Search by phone number or contact name
+    if (search) {
+      whereClause.OR = [
+        { phoneNumber: { contains: search as string } },
+        { contactName: { contains: search as string, mode: 'insensitive' } },
+      ];
     }
 
     if (outcome) {
@@ -1742,6 +1781,11 @@ router.post('/calls', async (req: TenantRequest, res: Response) => {
       return ApiResponse.error(res, 'Phone number is required', 400);
     }
 
+    // Normalize phone number for consistent duplicate detection
+    // Remove all non-digit characters except leading +
+    const normalizedPhone = phoneNumber.replace(/[^\d+]/g, '').replace(/^\+?0*/, '');
+    console.log(`[Telecaller/Calls] Normalized phone: ${phoneNumber} -> ${normalizedPhone}`);
+
     // ========================================================================
     // IDEMPOTENCY CHECK - Permanent duplicate prevention using unique requestId
     // ========================================================================
@@ -1765,10 +1809,14 @@ router.post('/calls', async (req: TenantRequest, res: Response) => {
     // ========================================================================
     // This catches duplicates from web or old mobile versions without requestId
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    // Search for both exact match and normalized match to catch different phone formats
     const recentCall = await prisma.telecallerCall.findFirst({
       where: {
         telecallerId: userId,
-        phoneNumber,
+        OR: [
+          { phoneNumber },
+          { phoneNumber: { endsWith: normalizedPhone.slice(-10) } }, // Match last 10 digits
+        ],
         createdAt: { gte: fiveMinutesAgo },
       },
       orderBy: { createdAt: 'desc' },
@@ -1902,10 +1950,11 @@ router.put('/calls/:id', async (req: TenantRequest, res: Response) => {
         },
       });
 
-      // Create follow-up if outcome is CALLBACK and callbackAt is provided
-      if (outcome === 'CALLBACK' && callbackAt) {
+      // Create follow-up if callbackAt is provided (for any outcome that requires follow-up)
+      // This includes: CALLBACK, NO_ANSWER, BUSY, INTERESTED, VOICEMAIL, and any custom outcomes
+      if (callbackAt && existing.leadId) {
         const scheduledAt = new Date(callbackAt);
-        console.log(`[Telecaller] Creating follow-up for lead ${existing.leadId} scheduled at ${scheduledAt}`);
+        console.log(`[Telecaller] Creating follow-up for lead ${existing.leadId} (outcome: ${outcome}) scheduled at ${scheduledAt}`);
 
         // Check if there's already a pending follow-up for this lead
         const existingFollowUp = await prisma.followUp.findFirst({
@@ -1916,13 +1965,18 @@ router.put('/calls/:id', async (req: TenantRequest, res: Response) => {
           },
         });
 
+        // Build follow-up notes based on outcome
+        const followUpNotes = notes
+          ? `${outcome}: ${notes}`
+          : `Follow-up scheduled from ${outcome} call`;
+
         if (existingFollowUp) {
           // Update existing follow-up
           await prisma.followUp.update({
             where: { id: existingFollowUp.id },
             data: {
               scheduledAt,
-              notes: notes || `Callback requested from call ${id}`,
+              notes: followUpNotes,
             },
           });
           console.log(`[Telecaller] Updated existing follow-up ${existingFollowUp.id}`);
@@ -1935,7 +1989,7 @@ router.put('/calls/:id', async (req: TenantRequest, res: Response) => {
               scheduledAt,
               status: 'UPCOMING',
               followUpType: 'HUMAN_CALL',
-              notes: notes || `Callback requested from call ${id}`,
+              notes: followUpNotes,
             },
           });
           console.log(`[Telecaller] Created new follow-up for lead ${existing.leadId}`);
@@ -1946,6 +2000,7 @@ router.put('/calls/:id', async (req: TenantRequest, res: Response) => {
           where: { id: existing.leadId },
           data: { nextFollowUpAt: scheduledAt },
         });
+        console.log(`[Telecaller] Updated lead nextFollowUpAt to ${scheduledAt}`);
       }
     }
 

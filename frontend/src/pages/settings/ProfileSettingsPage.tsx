@@ -156,7 +156,7 @@ export default function ProfileSettingsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+    <div className="p-6 space-y-6 max-w-5xl">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link

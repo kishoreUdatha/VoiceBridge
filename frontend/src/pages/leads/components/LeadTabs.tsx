@@ -247,8 +247,17 @@ export function OverviewTab({ lead, onEdit }: OverviewTabProps) {
 
       {/* Address Information */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="px-6 py-4 border-b border-slate-100">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-primary-600">Address</h3>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+            >
+              <PencilIcon className="h-3.5 w-3.5" />
+              Edit
+            </button>
+          )}
         </div>
         <div className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -292,8 +301,17 @@ export function OverviewTab({ lead, onEdit }: OverviewTabProps) {
 
       {/* Course & Assignment */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="px-6 py-4 border-b border-slate-100">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-primary-600">Course & Assignment</h3>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+            >
+              <PencilIcon className="h-3.5 w-3.5" />
+              Edit
+            </button>
+          )}
         </div>
         <div className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -309,8 +327,17 @@ export function OverviewTab({ lead, onEdit }: OverviewTabProps) {
 
       {/* Fee Details */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="px-6 py-4 border-b border-slate-100">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-primary-600">Fee Details</h3>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+            >
+              <PencilIcon className="h-3.5 w-3.5" />
+              Edit
+            </button>
+          )}
         </div>
         <div className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -326,8 +353,17 @@ export function OverviewTab({ lead, onEdit }: OverviewTabProps) {
 
       {/* Dates & Other */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="px-6 py-4 border-b border-slate-100">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-primary-600">Additional Information</h3>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+            >
+              <PencilIcon className="h-3.5 w-3.5" />
+              Edit
+            </button>
+          )}
         </div>
         <div className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -339,25 +375,7 @@ export function OverviewTab({ lead, onEdit }: OverviewTabProps) {
         </div>
       </div>
 
-      {/* Extracted Information (AI-derived custom fields) */}
-      {customFieldEntries.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-          <div className="px-6 py-4 border-b border-slate-100">
-            <h3 className="text-sm font-semibold text-primary-600">Extracted Information</h3>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {customFieldEntries.map(([key, val]) => (
-                <Field
-                  key={key}
-                  label={customFieldLabels[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())}
-                  value={formatCustomValue(val)}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Extracted Information section hidden - raw import columns (Column2, Column4, etc.) are not useful to display */}
 
       {/* Custom Fields (from Settings > Custom Contact Property) */}
       {lead.customFields && Object.keys(lead.customFields).length > 0 && (

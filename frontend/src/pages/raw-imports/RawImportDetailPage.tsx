@@ -415,13 +415,11 @@ export default function RawImportDetailPage() {
         </div>
         <div className="card p-2">
           <p className="text-xs text-gray-500">Pending</p>
-          <p className="text-lg font-semibold text-yellow-600">{currentImport.statusBreakdown?.PENDING || 0}</p>
+          <p className="text-lg font-semibold text-yellow-600">{currentImport.pendingCount || 0}</p>
         </div>
         <div className="card p-2">
           <p className="text-xs text-gray-500">Assigned</p>
-          <p className="text-lg font-semibold text-blue-600">
-            {(currentImport.statusBreakdown?.ASSIGNED || 0) + (currentImport.statusBreakdown?.CALLING || 0)}
-          </p>
+          <p className="text-lg font-semibold text-blue-600">{currentImport.assignedCount || 0}</p>
         </div>
         <div className="card p-2">
           <p className="text-xs text-gray-500">Interested</p>

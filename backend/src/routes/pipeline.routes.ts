@@ -150,12 +150,19 @@ router.delete('/:id', authorize(['admin', 'tenant_admin', 'super_admin', 'owner'
 
 /**
  * GET /api/pipelines/:id/analytics
- * Get pipeline analytics
+ * Get pipeline analytics with role-based filtering
  */
 router.get('/:id/analytics', async (req, res) => {
   try {
     const { id } = req.params;
-    const analytics = await pipelineService.getPipelineAnalytics(id);
+    const user = (req as any).user;
+    const roleSlug = user?.role?.slug || user?.roleSlug;
+
+    const analytics = await pipelineService.getPipelineAnalytics(id, {
+      organizationId: user?.organizationId,
+      userRole: roleSlug,
+      userId: user?.id,
+    });
 
     res.json({
       success: true,

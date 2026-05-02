@@ -1,5 +1,6 @@
 package ai.myleadx.app.callrecording;
 
+import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Environment;
@@ -590,6 +591,67 @@ public class CallRecordingModule extends ReactContextBaseJavaModule {
             WorkManager.getInstance(getReactApplicationContext())
                 .cancelUniqueWork("nightly_recording_cleanup");
             Log.d(TAG, "Nightly cleanup cancelled");
+            promise.resolve(true);
+        } catch (Exception e) {
+            promise.reject("CANCEL_ERROR", e.getMessage());
+        }
+    }
+
+    /**
+     * Schedule hourly cleanup that runs every 1 hour and reports to server
+     */
+    @ReactMethod
+    public void scheduleHourlyCleanup(String apiUrl, String authToken, Promise promise) {
+        Log.d(TAG, "========== SCHEDULING HOURLY CLEANUP ==========");
+        Log.d(TAG, "API URL: " + apiUrl);
+
+        try {
+            // Store API credentials for the worker to use
+            getReactApplicationContext()
+                .getSharedPreferences("cleanup_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putString("api_url", apiUrl)
+                .putString("auth_token", authToken)
+                .apply();
+
+            // Create periodic work request (every 1 hour)
+            PeriodicWorkRequest cleanupWork = new PeriodicWorkRequest.Builder(
+                    HourlyCleanupWorker.class,
+                    1, TimeUnit.HOURS
+                )
+                .addTag("hourly_recording_cleanup")
+                .build();
+
+            // Schedule with WorkManager
+            WorkManager.getInstance(getReactApplicationContext())
+                .enqueueUniquePeriodicWork(
+                    "hourly_recording_cleanup",
+                    ExistingPeriodicWorkPolicy.UPDATE,
+                    cleanupWork
+                );
+
+            Log.d(TAG, "Hourly cleanup scheduled successfully");
+
+            WritableMap result = Arguments.createMap();
+            result.putString("status", "scheduled");
+            result.putString("interval", "1 hour");
+            promise.resolve(result);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to schedule hourly cleanup: " + e.getMessage(), e);
+            promise.reject("SCHEDULE_ERROR", "Failed to schedule cleanup: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Cancel scheduled hourly cleanup
+     */
+    @ReactMethod
+    public void cancelHourlyCleanup(Promise promise) {
+        try {
+            WorkManager.getInstance(getReactApplicationContext())
+                .cancelUniqueWork("hourly_recording_cleanup");
+            Log.d(TAG, "Hourly cleanup cancelled");
             promise.resolve(true);
         } catch (Exception e) {
             promise.reject("CANCEL_ERROR", e.getMessage());

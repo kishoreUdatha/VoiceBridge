@@ -9,6 +9,7 @@ import { authenticate } from '../middlewares/auth';
 import { tenantMiddleware, TenantRequest } from '../middlewares/tenant';
 import { ApiResponse } from '../utils/apiResponse';
 import { body, validationResult } from 'express-validator';
+import { pushNotificationService } from '../services/push-notification.service';
 
 const router = Router();
 
@@ -200,6 +201,74 @@ router.get('/preferences', async (req: TenantRequest, res: Response) => {
     };
 
     ApiResponse.success(res, 'Preferences retrieved', preferences);
+  } catch (error) {
+    ApiResponse.error(res, (error as Error).message, 500);
+  }
+});
+
+/**
+ * Test push notification
+ * POST /api/notifications/test
+ * Sends a test notification to the current user's devices
+ */
+router.post('/test', async (req: TenantRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { title, body } = req.body;
+
+    // Check if Firebase is initialized
+    if (!pushNotificationService.isInitialized()) {
+      return ApiResponse.error(res, 'Firebase not initialized. Check FIREBASE_SERVICE_ACCOUNT_PATH in .env', 503);
+    }
+
+    // Send test notification
+    const result = await pushNotificationService.sendToUser(userId, {
+      title: title || 'Test Notification',
+      body: body || 'This is a test push notification from MyLeadX!',
+      type: 'SYSTEM',
+      data: {
+        screen: 'Home',
+        testId: Date.now().toString(),
+      },
+    });
+
+    if (result.successCount > 0) {
+      ApiResponse.success(res, `Test notification sent to ${result.successCount} device(s)`, result);
+    } else if (result.failureCount === 0 && result.successCount === 0) {
+      ApiResponse.error(res, 'No registered devices found. Make sure the app has registered its FCM token.', 404);
+    } else {
+      ApiResponse.error(res, `Failed to send notification: ${result.errors?.join(', ')}`, 500);
+    }
+  } catch (error) {
+    console.error('[Notifications] Test notification error:', error);
+    ApiResponse.error(res, (error as Error).message, 500);
+  }
+});
+
+/**
+ * Check Firebase status
+ * GET /api/notifications/status
+ */
+router.get('/status', async (req: TenantRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    // Check Firebase initialization
+    const firebaseInitialized = pushNotificationService.isInitialized();
+
+    // Count user's active devices
+    const deviceCount = await prisma.deviceToken.count({
+      where: {
+        userId,
+        isActive: true,
+      },
+    });
+
+    ApiResponse.success(res, 'Notification status', {
+      firebaseInitialized,
+      activeDevices: deviceCount,
+      ready: firebaseInitialized && deviceCount > 0,
+    });
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);
   }

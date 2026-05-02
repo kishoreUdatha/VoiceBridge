@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Partnership Proposal - MyLeadX</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --aws-orange: #FF9900;
+            --aws-dark: #232F3E;
+            --aws-squid: #1B2631;
+            --primary-blue: #0073BB;
+            --success-green: #1E8900;
+            --text-primary: #16191F;
+            --text-secondary: #545B64;
+            --border-light: #EAEDED;
+            --bg-light: #FAFAFA;
+            --white: #FFFFFF;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text-primary);
+            background: var(--white);
+        }
+
+        /* Cover Page */
+        .cover-page {
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--aws-squid) 0%, var(--aws-dark) 50%, #37475A 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: var(--white);
+            padding: 60px;
+            position: relative;
+            page-break-after: always;
+        }
+
+        .cover-page::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 8px;
+            background: var(--aws-orange);
+        }
+
+        .cover-logo {
+            width: 180px;
+            height: 60px;
+            background: var(--aws-orange);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            border-radius: 4px;
+            margin-bottom: 60px;
+        }
+
+        .cover-badge {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 12px 30px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 40px;
+        }
+
+        .cover-title {
+            font-size: 56px;
+            font-weight: 800;
+            margin-bottom: 20px;
+            letter-spacing: -1px;
+        }
+
+        .cover-subtitle {
+            font-size: 24px;
+            font-weight: 300;
+            opacity: 0.9;
+            margin-bottom: 50px;
+        }
+
+        .cover-amount {
+            font-size: 72px;
+            font-weight: 800;
+            color: var(--aws-orange);
+            margin-bottom: 10px;
+        }
+
+        .cover-amount-label {
+            font-size: 18px;
+            opacity: 0.8;
+            margin-bottom: 60px;
+        }
+
+        .cover-meta {
+            position: absolute;
+            bottom: 60px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+            font-size: 13px;
+            opacity: 0.7;
+        }
+
+        .cover-meta-item {
+            text-align: center;
+        }
+
+        .cover-meta-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 50px;
+        }
+
+        /* Page Header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--border-light);
+            margin-bottom: 40px;
+        }
+
+        .page-logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--aws-dark);
+        }
+
+        .page-title {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Section Styles */
+        .section {
+            margin-bottom: 50px;
+            page-break-inside: avoid;
+        }
+
+        .section-header {
+            margin-bottom: 30px;
+        }
+
+        .section-number {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--aws-orange);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+
+        .section-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--aws-dark);
+            line-height: 1.3;
+        }
+
+        .section-intro {
+            font-size: 16px;
+            color: var(--text-secondary);
+            margin-top: 15px;
+            line-height: 1.8;
+        }
+
+        /* Executive Summary Box */
+        .exec-summary {
+            background: linear-gradient(135deg, var(--aws-dark) 0%, #37475A 100%);
+            color: var(--white);
+            padding: 40px;
+            border-radius: 12px;
+            margin-bottom: 40px;
+        }
+
+        .exec-summary h3 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .exec-summary p {
+            font-size: 15px;
+            line-height: 1.9;
+            opacity: 0.95;
+        }
+
+        /* Key Metrics */
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin: 40px 0;
+        }
+
+        .metric-box {
+            background: var(--bg-light);
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 32px;
+            font-weight: 800;
+            color: var(--aws-orange);
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Info Grid */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin: 30px 0;
+        }
+
+        .info-card {
+            background: var(--bg-light);
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            padding: 30px;
+        }
+
+        .info-card h4 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--aws-dark);
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--aws-orange);
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .info-value {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 13px;
+        }
+
+        .info-value.highlight {
+            color: var(--aws-orange);
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            font-size: 13px;
+        }
+
+        thead {
+            background: var(--aws-dark);
+            color: var(--white);
+        }
+
+        th {
+            padding: 14px 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        tbody tr:hover {
+            background: var(--bg-light);
+        }
+
+        .table-highlight {
+            background: #FFF8E7 !important;
+            font-weight: 600;
+        }
+
+        .table-total {
+            background: #E8F5E9 !important;
+            font-weight: 700;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-success {
+            color: var(--success-green);
+            font-weight: 600;
+        }
+
+        .text-orange {
+            color: var(--aws-orange);
+            font-weight: 600;
+        }
+
+        /* Architecture */
+        .architecture-diagram {
+            background: var(--bg-light);
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            padding: 40px;
+            margin: 30px 0;
+        }
+
+        .arch-title {
+            text-align: center;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--aws-dark);
+            margin-bottom: 30px;
+        }
+
+        .arch-layer {
+            background: var(--white);
+            border: 1px solid var(--border-light);
+            border-left: 4px solid var(--aws-orange);
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin-bottom: 15px;
+        }
+
+        .arch-layer-name {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--aws-orange);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .arch-services {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .arch-service {
+            background: var(--aws-dark);
+            color: var(--white);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .arch-service.gpu {
+            background: var(--aws-orange);
+        }
+
+        .arch-service.db {
+            background: var(--primary-blue);
+        }
+
+        .arch-service.storage {
+            background: var(--success-green);
+        }
+
+        /* GPU Cards */
+        .gpu-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .gpu-card {
+            border: 2px solid var(--border-light);
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .gpu-card:hover {
+            border-color: var(--aws-orange);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+        }
+
+        .gpu-card.featured {
+            border-color: var(--aws-orange);
+            position: relative;
+        }
+
+        .gpu-card.featured::before {
+            content: 'PRIMARY';
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--aws-orange);
+            color: white;
+            padding: 4px 16px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .gpu-instance {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--aws-dark);
+            margin-bottom: 5px;
+        }
+
+        .gpu-chip {
+            font-size: 13px;
+            color: var(--aws-orange);
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .gpu-specs {
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-bottom: 15px;
+        }
+
+        .gpu-price {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--success-green);
+        }
+
+        .gpu-price span {
+            font-size: 12px;
+            font-weight: 400;
+            color: var(--text-secondary);
+        }
+
+        /* Credit Allocation */
+        .allocation-chart {
+            margin: 30px 0;
+        }
+
+        .allocation-item {
+            margin-bottom: 20px;
+        }
+
+        .allocation-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .allocation-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .allocation-value {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .allocation-bar {
+            height: 24px;
+            background: var(--border-light);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .allocation-fill {
+            height: 100%;
+            border-radius: 12px;
+            transition: width 0.5s ease;
+        }
+
+        .fill-gpu { background: linear-gradient(90deg, #FF9900, #FFB84D); }
+        .fill-infra { background: linear-gradient(90deg, #0073BB, #3498DB); }
+        .fill-db { background: linear-gradient(90deg, #8E44AD, #9B59B6); }
+        .fill-storage { background: linear-gradient(90deg, #1E8900, #27AE60); }
+        .fill-other { background: linear-gradient(90deg, #545B64, #7F8C8D); }
+
+        /* Timeline */
+        .timeline {
+            margin: 30px 0;
+        }
+
+        .timeline-item {
+            display: flex;
+            margin-bottom: 25px;
+        }
+
+        .timeline-marker {
+            width: 50px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .timeline-dot {
+            width: 16px;
+            height: 16px;
+            background: var(--aws-orange);
+            border-radius: 50%;
+            margin: 0 auto 10px;
+        }
+
+        .timeline-line {
+            width: 2px;
+            height: calc(100% - 16px);
+            background: var(--border-light);
+            margin: 0 auto;
+        }
+
+        .timeline-content {
+            flex: 1;
+            background: var(--bg-light);
+            border-radius: 8px;
+            padding: 20px;
+            margin-left: 15px;
+        }
+
+        .timeline-phase {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--aws-orange);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .timeline-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--aws-dark);
+            margin: 5px 0;
+        }
+
+        .timeline-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .timeline-amount {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--success-green);
+            margin-top: 10px;
+        }
+
+        /* ROI Box */
+        .roi-highlight {
+            background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+            border: 2px solid var(--success-green);
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .roi-number {
+            font-size: 48px;
+            font-weight: 800;
+            color: var(--success-green);
+        }
+
+        .roi-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+
+        /* Contact Section */
+        .contact-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin: 30px 0;
+        }
+
+        .contact-card {
+            background: var(--bg-light);
+            border-radius: 12px;
+            padding: 30px;
+        }
+
+        .contact-card h4 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--aws-dark);
+            margin-bottom: 20px;
+        }
+
+        .contact-item {
+            padding: 8px 0;
+            font-size: 14px;
+        }
+
+        .contact-label {
+            color: var(--text-secondary);
+            font-size: 12px;
+            margin-bottom: 2px;
+        }
+
+        .contact-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Signature */
+        .signature-section {
+            margin-top: 60px;
+            page-break-inside: avoid;
+        }
+
+        .signature-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+        }
+
+        .signature-box {
+            border: 2px solid var(--border-light);
+            border-radius: 12px;
+            padding: 30px;
+        }
+
+        .signature-role {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--aws-dark);
+            margin-bottom: 5px;
+        }
+
+        .signature-name {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+        }
+
+        .signature-line {
+            border-top: 2px solid var(--text-primary);
+            padding-top: 10px;
+        }
+
+        .signature-line-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        /* Footer */
+        .page-footer {
+            margin-top: 60px;
+            padding-top: 30px;
+            border-top: 2px solid var(--border-light);
+            text-align: center;
+        }
+
+        .footer-badges {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .footer-badge {
+            background: var(--aws-dark);
+            color: var(--white);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .footer-badge.orange {
+            background: var(--aws-orange);
+        }
+
+        .footer-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Bullet Lists */
+        .bullet-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .bullet-list li {
+            position: relative;
+            padding-left: 25px;
+            margin-bottom: 12px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .bullet-list li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 8px;
+            width: 8px;
+            height: 8px;
+            background: var(--aws-orange);
+            border-radius: 50%;
+        }
+
+        /* Callout Box */
+        .callout {
+            background: #FFF8E7;
+            border-left: 4px solid var(--aws-orange);
+            padding: 20px 25px;
+            border-radius: 0 8px 8px 0;
+            margin: 25px 0;
+        }
+
+        .callout-title {
+            font-weight: 700;
+            color: var(--aws-dark);
+            margin-bottom: 8px;
+        }
+
+        .callout-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* Page Break */
+        .page-break {
+            page-break-before: always;
+        }
+
+        /* Print Styles */
+        @media print {
+            body { font-size: 12px; }
+            .cover-page { min-height: 100vh; }
+            .container { padding: 40px 30px; }
+            .section { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Cover Page -->
+    <div class="cover-page">
+        <div class="cover-logo">AWS</div>
+        <div class="cover-badge">Partnership Proposal</div>
+        <h1 class="cover-title">MyLeadX</h1>
+        <p class="cover-subtitle">AI-Powered Sales & Communication Platform</p>
+        <div class="cover-amount">$200,000</div>
+        <p class="cover-amount-label">AWS Activate Credits Request</p>
+
+        <div class="cover-meta">
+            <div class="cover-meta-item">
+                <div class="cover-meta-label">Prepared By</div>
+                <div>Kishore, CEO & Founder</div>
+            </div>
+            <div class="cover-meta-item">
+                <div class="cover-meta-label">Email</div>
+                <div>kishore@myleadx.ai</div>
+            </div>
+            <div class="cover-meta-item">
+                <div class="cover-meta-label">Date</div>
+                <div>May 2026</div>
+            </div>
+            <div class="cover-meta-item">
+                <div class="cover-meta-label">Version</div>
+                <div>1.0</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container">
+
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="page-logo">MyLeadX</div>
+            <div class="page-title">AWS Partnership Proposal</div>
+        </div>
+
+        <!-- Section 1: Executive Summary -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-number">Section 01</div>
+                <h2 class="section-title">Executive Summary</h2>
+            </div>
+
+            <div class="exec-summary">
+                <h3>The Opportunity</h3>
+                <p>MyLeadX is building India's leading AI-powered sales automation platform, enabling over 10,000 small and medium businesses to transform their customer engagement through intelligent voice AI agents, WhatsApp automation, and unified CRM capabilities. We are seeking $200,000 in AWS Activate credits to deploy self-hosted AI/ML models on GPU infrastructure, reducing our AI costs by 74% while delivering enterprise-grade capabilities at SMB-friendly pricing.</p>
+            </div>
+
+            <div class="metrics-row">
+                <div class="metric-box">
+                    <div class="metric-value">$200K</div>
+                    <div class="metric-label">Credits Requested</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-value">24</div>
+                    <div class="metric-label">Months Duration</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-value">74%</div>
+                    <div class="metric-label">AI Cost Savings</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-value">$6M</div>
+                    <div class="metric-label">Projected ARR</div>
+                </div>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-card">
+                    <h4>Company Information</h4>
+                    <div class="info-row">
+                        <span class="info-label">Company Name</span>
+                        <span class="info-value">MyLeadX</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Industry</span>
+                        <span class="info-value">B2B SaaS / Artificial Intelligence</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Founded</span>
+                        <span class="info-value">2024</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Headquarters</span>
+                        <span class="info-value">Hyderabad, India</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Website</span>
+                        <span class="info-value">myleadx.ai</span>
+                    </div>
+                </div>
+                <div class="info-card">
+                    <h4>AWS Request Details</h4>
+                    <div class="info-row">
+                        <span class="info-label">Credits Requested</span>
+                        <span class="info-value highlight">$200,000</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Duration</span>
+                        <span class="info-value">24 Months</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Primary Region</span>
+                        <span class="info-value">ap-south-1 (Mumbai)</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Primary Use Case</span>
+                        <span class="info-value">GPU Compute for AI/ML</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Program</span>
+                        <span class="info-value">AWS Activate</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Problem & Solution -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-number">Section 02</div>
+                <h2 class="section-title">Problem & Solution</h2>
+                <p class="section-intro">Understanding the market opportunity and how MyLeadX addresses critical pain points for Indian SMBs.</p>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-card">
+                    <h4>The Problem</h4>
+                    <ul class="bullet-list">
+                        <li><strong>High Sales Costs:</strong> Indian SMBs spend $15B annually on manual telecalling with poor conversion rates</li>
+                        <li><strong>Slow Response Times:</strong> Average lead follow-up takes 48+ hours, resulting in 60% lead loss</li>
+                        <li><strong>Expensive AI Services:</strong> Third-party AI APIs cost $0.50-2.00 per 1000 calls, unaffordable for SMBs</li>
+                        <li><strong>Language Barriers:</strong> 90% of AI solutions are English-only, ignoring 500M+ regional language speakers</li>
+                        <li><strong>Fragmented Tools:</strong> Businesses juggle 5+ tools for calls, SMS, WhatsApp, and email</li>
+                    </ul>
+                </div>
+                <div class="info-card">
+                    <h4>Our Solution</h4>
+                    <ul class="bullet-list">
+                        <li><strong>AI Voice Agents:</strong> Automated outbound/inbound calls with human-like conversations in 10+ languages</li>
+                        <li><strong>Self-Hosted AI:</strong> 74% cost reduction using Qwen, Whisper, and XTTS models on AWS GPU</li>
+                        <li><strong>Unified Platform:</strong> Single dashboard for Voice, WhatsApp, SMS, and Email automation</li>
+                        <li><strong>Indian Language Support:</strong> Native Hindi, Tamil, Telugu, Kannada, Bengali, and more</li>
+                        <li><strong>SMB-Friendly Pricing:</strong> Starting at $49/month vs $500+ for competitors</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Market Opportunity</div>
+                <div class="callout-text">The Indian CRM and sales automation market is projected to reach $3.5 billion by 2027, with SMBs representing 70% of potential customers. MyLeadX is uniquely positioned to capture this market with AI-first, vernacular-language capabilities that no competitor currently offers.</div>
+            </div>
+
+            <h3 style="margin: 30px 0 20px; font-size: 18px;">Competitive Advantage</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Capability</th>
+                        <th>MyLeadX</th>
+                        <th>Competitors</th>
+                        <th>Advantage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>AI Model Hosting</td>
+                        <td class="text-success">Self-hosted on AWS GPU</td>
+                        <td>Third-party APIs</td>
+                        <td class="text-orange">74% cost savings</td>
+                    </tr>
+                    <tr>
+                        <td>Indian Languages</td>
+                        <td class="text-success">10+ languages native</td>
+                        <td>English only or limited</td>
+                        <td class="text-orange">500M+ user reach</td>
+                    </tr>
+                    <tr>
+                        <td>Voice AI Latency</td>
+                        <td class="text-success">&lt;200ms response</td>
+                        <td>500ms - 2 seconds</td>
+                        <td class="text-orange">3x faster</td>
+                    </tr>
+                    <tr>
+                        <td>Cost per 1000 API calls</td>
+                        <td class="text-success">$0.05</td>
+                        <td>$0.50 - $2.00</td>
+                        <td class="text-orange">10-40x cheaper</td>
+                    </tr>
+                    <tr>
+                        <td>Pricing Model</td>
+                        <td class="text-success">$49/month starter</td>
+                        <td>$500+/month</td>
+                        <td class="text-orange">SMB accessible</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Section 3: Technical Architecture -->
+        <section class="section page-break">
+            <div class="section-header">
+                <div class="section-number">Section 03</div>
+                <h2 class="section-title">Technical Architecture</h2>
+                <p class="section-intro">Our proposed AWS infrastructure leverages GPU compute for AI inference, with a scalable, secure, and cost-optimized design.</p>
+            </div>
+
+            <div class="architecture-diagram">
+                <div class="arch-title">Proposed AWS Production Architecture</div>
+
+                <div class="arch-layer">
+                    <div class="arch-layer-name">Edge & Security Layer</div>
+                    <div class="arch-services">
+                        <span class="arch-service">Amazon Route 53</span>
+                        <span class="arch-service">Amazon CloudFront</span>
+                        <span class="arch-service">AWS WAF</span>
+                        <span class="arch-service">AWS Shield</span>
+                        <span class="arch-service">AWS Certificate Manager</span>
+                    </div>
+                </div>
+
+                <div class="arch-layer">
+                    <div class="arch-layer-name">Application Layer (Auto-Scaling)</div>
+                    <div class="arch-services">
+                        <span class="arch-service">Application Load Balancer</span>
+                        <span class="arch-service">EC2 t3.medium (x3)</span>
+                        <span class="arch-service">Auto Scaling Group</span>
+                        <span class="arch-service">Amazon ECR</span>
+                    </div>
+                </div>
+
+                <div class="arch-layer">
+                    <div class="arch-layer-name">AI/ML Inference Layer (GPU Compute)</div>
+                    <div class="arch-services">
+                        <span class="arch-service gpu">g5.2xlarge - Qwen LLM</span>
+                        <span class="arch-service gpu">g5.xlarge - Whisper STT</span>
+                        <span class="arch-service gpu">g5.xlarge - XTTS TTS</span>
+                        <span class="arch-service gpu">p4d.24xlarge - Fine-tuning</span>
+                    </div>
+                </div>
+
+                <div class="arch-layer">
+                    <div class="arch-layer-name">Data & Storage Layer</div>
+                    <div class="arch-services">
+                        <span class="arch-service db">Amazon RDS PostgreSQL (Multi-AZ)</span>
+                        <span class="arch-service db">Amazon ElastiCache Redis</span>
+                        <span class="arch-service storage">Amazon S3 (Intelligent-Tiering)</span>
+                    </div>
+                </div>
+
+                <div class="arch-layer">
+                    <div class="arch-layer-name">Integration & Monitoring Layer</div>
+                    <div class="arch-services">
+                        <span class="arch-service">Amazon SES</span>
+                        <span class="arch-service">Amazon SNS</span>
+                        <span class="arch-service">Amazon SQS</span>
+                        <span class="arch-service">Amazon CloudWatch</span>
+                        <span class="arch-service">AWS X-Ray</span>
+                        <span class="arch-service">AWS Secrets Manager</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: GPU Infrastructure -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-number">Section 04</div>
+                <h2 class="section-title">GPU Infrastructure Requirements</h2>
+                <p class="section-intro">Detailed specifications for NVIDIA GPU instances required to run our self-hosted AI models.</p>
+            </div>
+
+            <div class="gpu-grid">
+                <div class="gpu-card">
+                    <div class="gpu-instance">g4dn.xlarge</div>
+                    <div class="gpu-chip">NVIDIA T4 (16GB)</div>
+                    <div class="gpu-specs">
+                        4 vCPUs / 16GB RAM<br>
+                        Development & Testing<br>
+                        CI/CD Pipelines
+                    </div>
+                    <div class="gpu-price">$0.21<span>/hr Spot</span></div>
+                </div>
+                <div class="gpu-card featured">
+                    <div class="gpu-instance">g5.xlarge</div>
+                    <div class="gpu-chip">NVIDIA A10G (24GB)</div>
+                    <div class="gpu-specs">
+                        4 vCPUs / 16GB RAM<br>
+                        STT & TTS Production<br>
+                        Real-time Inference
+                    </div>
+                    <div class="gpu-price">$0.41<span>/hr Spot</span></div>
+                </div>
+                <div class="gpu-card featured">
+                    <div class="gpu-instance">g5.2xlarge</div>
+                    <div class="gpu-chip">NVIDIA A10G (24GB)</div>
+                    <div class="gpu-specs">
+                        8 vCPUs / 32GB RAM<br>
+                        LLM Inference<br>
+                        Multi-model Hosting
+                    </div>
+                    <div class="gpu-price">$0.49<span>/hr Spot</span></div>
+                </div>
+            </div>
+
+            <h3 style="margin: 30px 0 20px; font-size: 18px;">GPU Allocation by Workload</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Workload</th>
+                        <th>Model</th>
+                        <th>GPU Instance</th>
+                        <th>Quantity</th>
+                        <th>Hours/Month</th>
+                        <th class="text-right">Cost/Month</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>LLM Inference</strong></td>
+                        <td>Qwen2.5-7B-Instruct</td>
+                        <td>g5.2xlarge (NVIDIA A10G)</td>
+                        <td class="text-center">2</td>
+                        <td class="text-center">1,440</td>
+                        <td class="text-right">$1,050</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Speech-to-Text</strong></td>
+                        <td>Faster-Whisper Large-v3</td>
+                        <td>g5.xlarge (NVIDIA A10G)</td>
+                        <td class="text-center">2</td>
+                        <td class="text-center">1,440</td>
+                        <td class="text-right">$590</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Text-to-Speech</strong></td>
+                        <td>XTTS-v2 (Coqui)</td>
+                        <td>g5.xlarge (NVIDIA A10G)</td>
+                        <td class="text-center">2</td>
+                        <td class="text-center">1,440</td>
+                        <td class="text-right">$590</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Model Fine-tuning</strong></td>
+                        <td>Indian Languages</td>
+                        <td>p4d.24xlarge (8x A100)</td>
+                        <td class="text-center">1</td>
+                        <td class="text-center">100</td>
+                        <td class="text-right">$1,300</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Development</strong></td>
+                        <td>Testing & CI/CD</td>
+                        <td>g4dn.xlarge (NVIDIA T4)</td>
+                        <td class="text-center">1</td>
+                        <td class="text-center">720</td>
+                        <td class="text-right">$150</td>
+                    </tr>
+                    <tr class="table-highlight">
+                        <td colspan="5"><strong>Total Monthly GPU Cost (Spot Pricing)</strong></td>
+                        <td class="text-right"><strong>$3,680</strong></td>
+                    </tr>
+                    <tr class="table-total">
+                        <td colspan="5"><strong>Total 24-Month GPU Investment</strong></td>
+                        <td class="text-right"><strong>$88,320</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="callout">
+                <div class="callout-title">GPU Memory Utilization</div>
+                <div class="callout-text">Our models are optimized to run efficiently on NVIDIA A10G (24GB VRAM): Qwen2.5-7B uses 6GB (4-bit quantized), Faster-Whisper uses 6GB, and XTTS-v2 uses 5GB. This allows us to potentially run multiple models on a single GPU, further optimizing costs as we scale.</div>
+            </div>
+        </section>
+
+        <!-- Section 5: Cost Projection -->
+        <section class="section page-break">
+            <div class="section-header">
+                <div class="section-number">Section 05</div>
+                <h2 class="section-title">24-Month Cost Projection</h2>
+                <p class="section-intro">Detailed breakdown of projected AWS infrastructure costs across four growth phases.</p>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Phase</th>
+                        <th>Timeline</th>
+                        <th>Description</th>
+                        <th class="text-right">Monthly Cost</th>
+                        <th class="text-right">Phase Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Phase 1</strong></td>
+                        <td>Months 1-6</td>
+                        <td>Foundation & MVP Launch</td>
+                        <td class="text-right">$1,500</td>
+                        <td class="text-right">$9,000</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Phase 2</strong></td>
+                        <td>Months 7-12</td>
+                        <td>Growth & Scaling</td>
+                        <td class="text-right">$2,950</td>
+                        <td class="text-right">$17,700</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Phase 3</strong></td>
+                        <td>Months 13-18</td>
+                        <td>Scale & Optimization</td>
+                        <td class="text-right">$4,815</td>
+                        <td class="text-right">$28,890</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Phase 4</strong></td>
+                        <td>Months 19-24</td>
+                        <td>Enterprise Expansion</td>
+                        <td class="text-right">$6,690</td>
+                        <td class="text-right">$40,140</td>
+                    </tr>
+                    <tr class="table-highlight">
+                        <td colspan="4"><strong>Projected 24-Month AWS Spend</strong></td>
+                        <td class="text-right"><strong>$95,730</strong></td>
+                    </tr>
+                    <tr class="table-total">
+                        <td colspan="4"><strong>AWS Credits Requested</strong></td>
+                        <td class="text-right text-orange"><strong>$200,000</strong></td>
+                    </tr>
+                    <tr class="table-total">
+                        <td colspan="4"><strong>Buffer for Growth & Contingency</strong></td>
+                        <td class="text-right"><strong>$104,270</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 style="margin: 40px 0 20px; font-size: 18px;">Phase 2 Cost Breakdown (Months 7-12)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Service Category</th>
+                        <th>Configuration</th>
+                        <th class="text-right">Monthly Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>EC2 (Application Servers)</td>
+                        <td>3x t3.medium with Auto Scaling</td>
+                        <td class="text-right">$105</td>
+                    </tr>
+                    <tr>
+                        <td>EC2 (GPU - STT/TTS)</td>
+                        <td>3x g5.xlarge Spot Instances</td>
+                        <td class="text-right">$900</td>
+                    </tr>
+                    <tr>
+                        <td>EC2 (GPU - LLM)</td>
+                        <td>1x g5.2xlarge Spot Instance</td>
+                        <td class="text-right">$350</td>
+                    </tr>
+                    <tr>
+                        <td>EC2 (GPU - Fine-tuning)</td>
+                        <td>p4d.24xlarge (80 hours/month)</td>
+                        <td class="text-right">$1,040</td>
+                    </tr>
+                    <tr>
+                        <td>RDS PostgreSQL</td>
+                        <td>db.t3.medium Multi-AZ</td>
+                        <td class="text-right">$120</td>
+                    </tr>
+                    <tr>
+                        <td>ElastiCache Redis</td>
+                        <td>cache.t3.small cluster</td>
+                        <td class="text-right">$50</td>
+                    </tr>
+                    <tr>
+                        <td>S3 Storage</td>
+                        <td>500GB with Lifecycle Policies</td>
+                        <td class="text-right">$25</td>
+                    </tr>
+                    <tr>
+                        <td>CloudFront CDN</td>
+                        <td>500GB data transfer</td>
+                        <td class="text-right">$50</td>
+                    </tr>
+                    <tr>
+                        <td>Other Services</td>
+                        <td>SES, ALB, NAT, CloudWatch, Security</td>
+                        <td class="text-right">$310</td>
+                    </tr>
+                    <tr class="table-highlight">
+                        <td colspan="2"><strong>Monthly Total</strong></td>
+                        <td class="text-right"><strong>$2,950</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Section 6: Credits Allocation -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-number">Section 06</div>
+                <h2 class="section-title">AWS Credits Allocation</h2>
+                <p class="section-intro">Detailed breakdown of how the $200,000 in AWS credits will be allocated across services.</p>
+            </div>
+
+            <div class="allocation-chart">
+                <div class="allocation-item">
+                    <div class="allocation-header">
+                        <span class="allocation-label">GPU Compute (AI Inference)</span>
+                        <span class="allocation-value">$80,000 (40%)</span>
+                    </div>
+                    <div class="allocation-bar">
+                        <div class="allocation-fill fill-gpu" style="width: 40%;"></div>
+                    </div>
+                </div>
+
+                <div class="allocation-item">
+                    <div class="allocation-header">
+                        <span class="allocation-label">GPU Compute (Model Training)</span>
+                        <span class="allocation-value">$30,000 (15%)</span>
+                    </div>
+                    <div class="allocation-bar">
+                        <div class="allocation-fill fill-gpu" style="width: 15%;"></div>
+                    </div>
+                </div>
+
+                <div class="allocation-item">
+                    <div class="allocation-header">
+                        <span class="allocation-label">Application Infrastructure</span>
+                        <span class="allocation-value">$25,000 (12.5%)</span>
+                    </div>
+                    <div class="allocation-bar">
+                        <div class="allocation-fill fill-infra" style="width: 12.5%;"></div>
+                    </div>
+                </div>
+
+                <div class="allocation-item">
+                    <div class="allocation-header">
+                        <span class="allocation-label">Database Services</span>
+                        <span class="allocation-value">$20,000 (10%)</span>
+                    </div>
+                    <div class="allocation-bar">
+                        <div class="allocation-fill fill-db" style="width: 10%;"></div>
+                    </div>
+                </div>
+
+                <div class="allocation-item">
+                    <div class="allocation-header">
+                        <span class="allocation-label">Storage & Data Transfer</span>
+                        <span class="allocation-value">$15,000 (7.5%)</span>
+                    </div>
+                    <div class="allocation-bar">
+                        <div class="allocation-fill fill-storage" style="width: 7.5%;"></div>
+                    </div>
+                </div>
+
+                <div class="allocation-item">
+                    <div class="allocation-header">
+                        <span class="allocation-label">ML Platform (SageMaker)</span>
+                        <span class="allocation-value">$10,000 (5%)</span>
+                    </div>
+                    <div class="allocation-bar">
+                        <div class="allocation-fill fill-other" style="width: 5%;"></div>
+                    </div>
+                </div>
+
+                <div class="allocation-item">
+                    <div class="allocation-header">
+                        <span class="allocation-label">Security & Compliance</span>
+                        <span class="allocation-value">$8,000 (4%)</span>
+                    </div>
+                    <div class="allocation-bar">
+                        <div class="allocation-fill fill-other" style="width: 4%;"></div>
+                    </div>
+                </div>
+
+                <div class="allocation-item">
+                    <div class="allocation-header">
+                        <span class="allocation-label">Monitoring, DR & Buffer</span>
+                        <span class="allocation-value">$12,000 (6%)</span>
+                    </div>
+                    <div class="allocation-bar">
+                        <div class="allocation-fill fill-other" style="width: 6%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="margin: 40px 0 20px; font-size: 18px;">Key Milestones & Deliverables</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Milestone</th>
+                        <th>Timeline</th>
+                        <th>AWS Services</th>
+                        <th class="text-right">Credits</th>
+                        <th>Deliverable</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Infrastructure Setup</td>
+                        <td>Month 1-2</td>
+                        <td>VPC, EC2, RDS, S3, ALB</td>
+                        <td class="text-right">$8,000</td>
+                        <td>Production Environment</td>
+                    </tr>
+                    <tr>
+                        <td>AI Model Deployment</td>
+                        <td>Month 2-3</td>
+                        <td>GPU EC2 (g5), S3, ECR</td>
+                        <td class="text-right">$12,000</td>
+                        <td>Self-hosted LLM, TTS, STT</td>
+                    </tr>
+                    <tr>
+                        <td>Indian Language Models</td>
+                        <td>Month 4-6</td>
+                        <td>p4d.24xlarge, SageMaker</td>
+                        <td class="text-right">$15,000</td>
+                        <td>Hindi, Tamil, Telugu Support</td>
+                    </tr>
+                    <tr class="table-highlight">
+                        <td><strong>500 Organizations</strong></td>
+                        <td>Month 6</td>
+                        <td>Full Stack</td>
+                        <td class="text-right">-</td>
+                        <td><strong>Business Milestone</strong></td>
+                    </tr>
+                    <tr>
+                        <td>High Availability</td>
+                        <td>Month 6-8</td>
+                        <td>Multi-AZ, ElastiCache</td>
+                        <td class="text-right">$10,000</td>
+                        <td>99.9% Uptime SLA</td>
+                    </tr>
+                    <tr>
+                        <td>Enterprise Security</td>
+                        <td>Month 10-14</td>
+                        <td>WAF, Shield, GuardDuty</td>
+                        <td class="text-right">$15,000</td>
+                        <td>SOC 2 Readiness</td>
+                    </tr>
+                    <tr class="table-highlight">
+                        <td><strong>1,000 Organizations</strong></td>
+                        <td>Month 12</td>
+                        <td>Scaled Infrastructure</td>
+                        <td class="text-right">-</td>
+                        <td><strong>Business Milestone</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Multi-Region DR</td>
+                        <td>Month 14-16</td>
+                        <td>Cross-region, Route 53</td>
+                        <td class="text-right">$18,000</td>
+                        <td>Disaster Recovery</td>
+                    </tr>
+                    <tr class="table-highlight">
+                        <td><strong>2,000 Organizations</strong></td>
+                        <td>Month 18</td>
+                        <td>Enterprise Stack</td>
+                        <td class="text-right">-</td>
+                        <td><strong>Business Milestone</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Edge Deployment</td>
+                        <td>Month 18-20</td>
+                        <td>CloudFront, Lambda@Edge</td>
+                        <td class="text-right">$20,000</td>
+                        <td>Global Low Latency</td>
+                    </tr>
+                    <tr class="table-total">
+                        <td><strong>Series A Readiness</strong></td>
+                        <td>Month 24</td>
+                        <td>Full Enterprise Architecture</td>
+                        <td class="text-right">-</td>
+                        <td><strong>Investor Ready</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Section 7: ROI -->
+        <section class="section page-break">
+            <div class="section-header">
+                <div class="section-number">Section 07</div>
+                <h2 class="section-title">Business Impact & ROI</h2>
+                <p class="section-intro">Demonstrating the return on investment for AWS and the strategic value of this partnership.</p>
+            </div>
+
+            <h3 style="margin-bottom: 20px; font-size: 18px;">AI Cost Savings Analysis</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>AI Service</th>
+                        <th>Third-Party Provider</th>
+                        <th class="text-right">Monthly Cost</th>
+                        <th>Self-Hosted Model</th>
+                        <th class="text-right">Monthly Cost</th>
+                        <th class="text-center">Savings</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Large Language Model</td>
+                        <td>OpenAI GPT-4</td>
+                        <td class="text-right">$3,000</td>
+                        <td>Qwen2.5-7B on AWS GPU</td>
+                        <td class="text-right">$800</td>
+                        <td class="text-center text-success">73%</td>
+                    </tr>
+                    <tr>
+                        <td>Speech-to-Text</td>
+                        <td>Deepgram</td>
+                        <td class="text-right">$500</td>
+                        <td>Faster-Whisper on AWS GPU</td>
+                        <td class="text-right">$150</td>
+                        <td class="text-center text-success">70%</td>
+                    </tr>
+                    <tr>
+                        <td>Text-to-Speech</td>
+                        <td>ElevenLabs</td>
+                        <td class="text-right">$800</td>
+                        <td>XTTS-v2 on AWS GPU</td>
+                        <td class="text-right">$150</td>
+                        <td class="text-center text-success">81%</td>
+                    </tr>
+                    <tr class="table-highlight">
+                        <td colspan="2"><strong>Total Monthly</strong></td>
+                        <td class="text-right"><strong>$4,300</strong></td>
+                        <td></td>
+                        <td class="text-right"><strong>$1,100</strong></td>
+                        <td class="text-center text-success"><strong>74%</strong></td>
+                    </tr>
+                    <tr class="table-total">
+                        <td colspan="2"><strong>24-Month Savings</strong></td>
+                        <td class="text-right">$103,200</td>
+                        <td></td>
+                        <td class="text-right">$26,400</td>
+                        <td class="text-center text-success"><strong>$76,800</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="roi-highlight">
+                <div class="roi-number">$22.50</div>
+                <div class="roi-label">Revenue Generated per $1 of AWS Credits</div>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-card">
+                    <h4>Return on Investment</h4>
+                    <div class="info-row">
+                        <span class="info-label">Credits Requested</span>
+                        <span class="info-value highlight">$200,000</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Projected 24-Month Revenue</span>
+                        <span class="info-value">$4,500,000</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">AI Cost Savings (24 months)</span>
+                        <span class="info-value">$76,800</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Post-Credit Annual AWS Spend</span>
+                        <span class="info-value highlight">$80,000+</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Jobs Created</span>
+                        <span class="info-value">15-20</span>
+                    </div>
+                </div>
+                <div class="info-card">
+                    <h4>Strategic Value to AWS</h4>
+                    <div class="info-row">
+                        <span class="info-label">Long-term Customer Value</span>
+                        <span class="info-value">$80K+/year recurring</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">SMBs Onboarded to AWS</span>
+                        <span class="info-value">2,000+ organizations</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Case Study Potential</span>
+                        <span class="info-value">AI/ML Cost Optimization</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">AWS Marketplace</span>
+                        <span class="info-value">Future SaaS Listing</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">India Market Reference</span>
+                        <span class="info-value">Startup Success Story</span>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="margin: 40px 0 20px; font-size: 18px;">Growth Projections</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th class="text-center">Month 6</th>
+                        <th class="text-center">Month 12</th>
+                        <th class="text-center">Month 18</th>
+                        <th class="text-center">Month 24</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Active Organizations</td>
+                        <td class="text-center">200</td>
+                        <td class="text-center">500</td>
+                        <td class="text-center">1,000</td>
+                        <td class="text-center text-success">2,000</td>
+                    </tr>
+                    <tr>
+                        <td>Monthly Voice Minutes</td>
+                        <td class="text-center">100K</td>
+                        <td class="text-center">500K</td>
+                        <td class="text-center">1.5M</td>
+                        <td class="text-center text-success">3M</td>
+                    </tr>
+                    <tr>
+                        <td>Monthly API Calls</td>
+                        <td class="text-center">1M</td>
+                        <td class="text-center">5M</td>
+                        <td class="text-center">15M</td>
+                        <td class="text-center text-success">30M</td>
+                    </tr>
+                    <tr>
+                        <td>Monthly Recurring Revenue</td>
+                        <td class="text-center">$30K</td>
+                        <td class="text-center">$100K</td>
+                        <td class="text-center">$250K</td>
+                        <td class="text-center text-success">$500K</td>
+                    </tr>
+                    <tr class="table-total">
+                        <td>Annual Run Rate (ARR)</td>
+                        <td class="text-center">$360K</td>
+                        <td class="text-center">$1.2M</td>
+                        <td class="text-center">$3M</td>
+                        <td class="text-center text-success">$6M</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Section 8: Security -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-number">Section 08</div>
+                <h2 class="section-title">Security & Compliance</h2>
+                <p class="section-intro">Our multi-layered security architecture ensures enterprise-grade protection for customer data.</p>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-card">
+                    <h4>Security Architecture</h4>
+                    <ul class="bullet-list">
+                        <li><strong>Edge Security:</strong> Route 53, CloudFront, WAF, Shield</li>
+                        <li><strong>Network Security:</strong> VPC, Security Groups, NACLs, Private Subnets</li>
+                        <li><strong>Application Security:</strong> JWT Auth, RBAC, Rate Limiting, CSRF/XSS Protection</li>
+                        <li><strong>Data Security:</strong> RDS Encryption, S3 Encryption, KMS, Secrets Manager</li>
+                        <li><strong>Monitoring:</strong> GuardDuty, CloudTrail, Security Hub, Config Rules</li>
+                    </ul>
+                </div>
+                <div class="info-card">
+                    <h4>Compliance Roadmap</h4>
+                    <div class="info-row">
+                        <span class="info-label">India DPDP Act</span>
+                        <span class="info-value text-success">Ready (Month 3)</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">GDPR Compliance</span>
+                        <span class="info-value text-success">Ready (Month 6)</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">SOC 2 Type II</span>
+                        <span class="info-value">Planned (Month 18)</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">ISO 27001</span>
+                        <span class="info-value">Planned (Month 24)</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 9: Contact -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-number">Section 09</div>
+                <h2 class="section-title">Contact Information</h2>
+            </div>
+
+            <div class="contact-grid">
+                <div class="contact-card">
+                    <h4>Company Details</h4>
+                    <div class="contact-item">
+                        <div class="contact-label">Company Name</div>
+                        <div class="contact-value">MyLeadX</div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-label">Website</div>
+                        <div class="contact-value">myleadx.ai</div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-label">Industry</div>
+                        <div class="contact-value">B2B SaaS / Artificial Intelligence</div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-label">Founded</div>
+                        <div class="contact-value">2024</div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-label">Location</div>
+                        <div class="contact-value">Hyderabad, India</div>
+                    </div>
+                </div>
+                <div class="contact-card">
+                    <h4>Primary Contact</h4>
+                    <div class="contact-item">
+                        <div class="contact-label">Name</div>
+                        <div class="contact-value">Kishore</div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-label">Title</div>
+                        <div class="contact-value">CEO & Founder</div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-label">Email</div>
+                        <div class="contact-value">kishore@myleadx.ai</div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-label">Phone</div>
+                        <div class="contact-value">+91-9876543210</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="signature-section">
+                <h3 style="margin-bottom: 30px; font-size: 18px; text-align: center;">Document Approval</h3>
+                <div class="signature-grid">
+                    <div class="signature-box">
+                        <div class="signature-role">CEO & Founder</div>
+                        <div class="signature-name">Kishore</div>
+                        <div class="signature-line">
+                            <div class="signature-line-label">Signature & Date</div>
+                        </div>
+                    </div>
+                    <div class="signature-box">
+                        <div class="signature-role">AWS Representative</div>
+                        <div class="signature-name">&nbsp;</div>
+                        <div class="signature-line">
+                            <div class="signature-line-label">Signature & Date</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <div class="page-footer">
+            <div class="footer-badges">
+                <span class="footer-badge orange">Built on AWS</span>
+                <span class="footer-badge">$200,000 Credits Request</span>
+                <span class="footer-badge">ap-south-1 Region</span>
+            </div>
+            <p class="footer-text">This document is confidential and intended for AWS partnership evaluation purposes only.</p>
+            <p class="footer-text" style="margin-top: 8px;"><strong>Document Version:</strong> 1.0 &nbsp;|&nbsp; <strong>Last Updated:</strong> May 2026</p>
+        </div>
+
+    </div>
+
+</body>
+</html>

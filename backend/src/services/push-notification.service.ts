@@ -4,19 +4,33 @@
  */
 
 import * as admin from 'firebase-admin';
+import * as fs from 'fs';
+import * as path from 'path';
 import { prisma } from '../config/database';
 
 // Initialize Firebase Admin SDK
-// You need to download the service account key from Firebase Console
-// and either set GOOGLE_APPLICATION_CREDENTIALS env var or pass it here
 let firebaseInitialized = false;
 
 const initializeFirebase = () => {
   if (firebaseInitialized) return;
 
   try {
-    // Option 1: Use service account from environment variable
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    // Option 1: Use service account from file path
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      const filePath = path.resolve(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+      if (fs.existsSync(filePath)) {
+        const serviceAccount = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+        });
+        firebaseInitialized = true;
+        console.log('[PushNotification] Firebase Admin initialized with service account file');
+      } else {
+        console.warn('[PushNotification] Service account file not found:', filePath);
+      }
+    }
+    // Option 2: Use service account from environment variable (JSON string)
+    else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
@@ -24,7 +38,7 @@ const initializeFirebase = () => {
       firebaseInitialized = true;
       console.log('[PushNotification] Firebase Admin initialized with service account');
     }
-    // Option 2: Use GOOGLE_APPLICATION_CREDENTIALS env var
+    // Option 3: Use GOOGLE_APPLICATION_CREDENTIALS env var
     else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
       admin.initializeApp({
         credential: admin.credential.applicationDefault(),
@@ -32,10 +46,10 @@ const initializeFirebase = () => {
       firebaseInitialized = true;
       console.log('[PushNotification] Firebase Admin initialized with application default credentials');
     }
-    // Option 3: Development mode - skip initialization
+    // Option 4: Development mode - skip initialization
     else {
       console.warn('[PushNotification] Firebase not configured. Push notifications disabled.');
-      console.warn('[PushNotification] To enable, set FIREBASE_SERVICE_ACCOUNT or GOOGLE_APPLICATION_CREDENTIALS');
+      console.warn('[PushNotification] To enable, set FIREBASE_SERVICE_ACCOUNT_PATH');
     }
   } catch (error) {
     console.error('[PushNotification] Firebase initialization failed:', error);

@@ -73,7 +73,7 @@ const IntegrationSettingsPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-6xl p-6">
         {/* Navigation Tabs */}
         <div className="flex gap-2 mb-6 bg-white p-1 rounded-lg border border-gray-200">
           {TABS.map((tab) => (

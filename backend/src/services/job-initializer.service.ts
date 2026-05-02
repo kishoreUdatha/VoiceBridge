@@ -3,6 +3,11 @@ import { apifySchedulerService } from './apify-scheduler.service';
 import { leadLifecycleService } from './lead-lifecycle.service';
 import { assignmentScheduleService } from './assignmentSchedule.service';
 import { messageRetryService } from './message-retry.service';
+import { appointmentReminderService } from './appointment-reminder.service';
+import { crmAutomationService } from './crm-automation.service';
+import { autoReportsService } from './auto-reports.service';
+import { resendService } from './resend.service';
+import { reportGeneratorService } from './report-generator.service';
 
 /**
  * Job Initializer Service
@@ -47,6 +52,15 @@ class JobInitializerService {
 
       // 8. Start the message retry processor (runs every minute)
       this.startMessageRetryProcessor();
+
+      // 9. Start the appointment reminder checker (runs every 15 minutes)
+      this.startAppointmentReminderChecker();
+
+      // 10. Start the CRM automation checker (runs every 30 minutes)
+      this.startCrmAutomationChecker();
+
+      // 11. Start the auto-report scheduler (runs every minute to check for due reports)
+      this.startAutoReportChecker();
 
       this.initialized = true;
       console.log('[JobInitializer] All scheduled jobs initialized successfully');
@@ -213,6 +227,211 @@ class JobInitializerService {
   private startMessageRetryProcessor(): void {
     messageRetryService.start();
     console.log('[JobInitializer] Message retry processor started (runs every minute)');
+  }
+
+  /**
+   * Start the appointment reminder checker
+   * Sends reminders at 24h, 2h, and 30min before appointments
+   */
+  private startAppointmentReminderChecker(): void {
+    // Run every 15 minutes (900000ms)
+    setInterval(async () => {
+      try {
+        const results = await appointmentReminderService.checkAndSendReminders();
+        if (results.length > 0) {
+          const successful = results.filter(r => r.success).length;
+          console.log(`[AppointmentReminder] Processed ${results.length} reminders: ${successful} successful`);
+        }
+      } catch (error) {
+        console.error('[AppointmentReminder] Error checking reminders:', error);
+      }
+    }, 15 * 60 * 1000);
+
+    // Run once on startup (after 30 second delay)
+    setTimeout(async () => {
+      try {
+        const results = await appointmentReminderService.checkAndSendReminders();
+        if (results.length > 0) {
+          console.log(`[AppointmentReminder] Initial check: processed ${results.length} reminders`);
+        }
+      } catch (error) {
+        console.error('[AppointmentReminder] Error in initial check:', error);
+      }
+    }, 30000);
+
+    console.log('[JobInitializer] Appointment reminder checker started (runs every 15 minutes)');
+  }
+
+  /**
+   * Start the CRM automation checker
+   * Processes Birthday, Re-engagement, SLA, Payment, Quote, Aging, Review automations
+   */
+  private startCrmAutomationChecker(): void {
+    // Run every 30 minutes (1800000ms)
+    setInterval(async () => {
+      try {
+        const results = await crmAutomationService.runAllAutomations();
+        const totalProcessed = Object.values(results).reduce(
+          (sum, r: any) => sum + (r.processed || 0),
+          0
+        );
+        if (totalProcessed > 0) {
+          console.log(`[CrmAutomation] Processed ${totalProcessed} automation tasks`);
+        }
+      } catch (error) {
+        console.error('[CrmAutomation] Error running automations:', error);
+      }
+    }, 30 * 60 * 1000);
+
+    // Run once on startup (after 45 second delay to let server stabilize)
+    setTimeout(async () => {
+      try {
+        const results = await crmAutomationService.runAllAutomations();
+        const totalProcessed = Object.values(results).reduce(
+          (sum, r: any) => sum + (r.processed || 0),
+          0
+        );
+        if (totalProcessed > 0) {
+          console.log(`[CrmAutomation] Initial check: processed ${totalProcessed} automation tasks`);
+        }
+      } catch (error) {
+        console.error('[CrmAutomation] Error in initial check:', error);
+      }
+    }, 45000);
+
+    console.log('[JobInitializer] CRM automation checker started (runs every 30 minutes)');
+  }
+
+  /**
+   * Start the auto-report scheduler
+   * Checks for due report schedules and sends them via email
+   */
+  private startAutoReportChecker(): void {
+    // Run every minute (60000ms) to check for due reports
+    setInterval(async () => {
+      try {
+        const dueSchedules = await autoReportsService.getDueSchedules();
+
+        if (dueSchedules.length > 0) {
+          console.log(`[AutoReports] Found ${dueSchedules.length} due report(s)`);
+
+          for (const schedule of dueSchedules) {
+            try {
+              // Generate and send the report
+              await this.generateAndSendReport(schedule);
+
+              // Mark as sent and calculate next send time
+              await autoReportsService.markScheduleSent(schedule.id);
+
+              console.log(`[AutoReports] Report "${schedule.name}" sent to ${schedule.recipients.length} recipient(s)`);
+            } catch (error) {
+              console.error(`[AutoReports] Error sending report "${schedule.name}":`, error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[AutoReports] Error checking due schedules:', error);
+      }
+    }, 60 * 1000);
+
+    // Run once on startup (after 20 second delay)
+    setTimeout(async () => {
+      try {
+        const dueSchedules = await autoReportsService.getDueSchedules();
+        if (dueSchedules.length > 0) {
+          console.log(`[AutoReports] Initial check: found ${dueSchedules.length} due report(s)`);
+          for (const schedule of dueSchedules) {
+            try {
+              await this.generateAndSendReport(schedule);
+              await autoReportsService.markScheduleSent(schedule.id);
+              console.log(`[AutoReports] Initial: Report "${schedule.name}" sent`);
+            } catch (error) {
+              console.error(`[AutoReports] Error in initial send "${schedule.name}":`, error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[AutoReports] Error in initial check:', error);
+      }
+    }, 20000);
+
+    console.log('[JobInitializer] Auto-report scheduler started (checks every minute)');
+  }
+
+  /**
+   * Generate and send a report via email with attachment
+   */
+  private async generateAndSendReport(schedule: any): Promise<void> {
+    const orgName = schedule.organization?.name || 'Your Organization';
+    const reportTypeLabel = autoReportsService.REPORT_TYPES.find(
+      (t: any) => t.value === schedule.reportType
+    )?.label || schedule.reportType;
+
+    // Generate the report file
+    let reportFile: { buffer: Buffer; filename: string; contentType: string } | null = null;
+    try {
+      const format = schedule.format === 'excel' ? 'excel' : 'csv';
+      reportFile = await reportGeneratorService.generateReport(
+        schedule.organizationId,
+        schedule.reportType,
+        format
+      );
+      console.log(`[AutoReports] Generated ${reportFile.filename} (${reportFile.buffer.length} bytes)`);
+    } catch (error) {
+      console.error(`[AutoReports] Failed to generate report:`, error);
+    }
+
+    const emailContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 8px 8px 0 0;">
+          <h2 style="color: white; margin: 0;">${reportTypeLabel}</h2>
+        </div>
+        <div style="padding: 20px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
+          <p>Hi,</p>
+          <p>Please find attached your scheduled <strong>${reportTypeLabel}</strong> for <strong>${orgName}</strong>.</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;"><strong>Schedule:</strong></td>
+              <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${schedule.frequency} at ${schedule.time}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;"><strong>Format:</strong></td>
+              <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${schedule.format.toUpperCase()}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px;"><strong>Generated:</strong></td>
+              <td style="padding: 8px;">${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</td>
+            </tr>
+          </table>
+          ${reportFile ? `<p style="color: #22c55e;">✅ Report attached: <strong>${reportFile.filename}</strong></p>` : '<p style="color: #ef4444;">⚠️ Report generation failed. Please contact support.</p>'}
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;"/>
+          <p style="color: #666; font-size: 12px;">
+            This is an automated report from MyLeadX.<br/>
+            To manage your report schedules, visit Settings → Automatic Reports.
+          </p>
+        </div>
+      </div>
+    `;
+
+    // Send to all recipients
+    for (const recipient of schedule.recipients) {
+      try {
+        await resendService.sendEmail({
+          to: recipient,
+          subject: `[${orgName}] ${reportTypeLabel} - ${new Date().toLocaleDateString('en-IN')}`,
+          body: `Your scheduled ${reportTypeLabel} is attached.`,
+          html: emailContent,
+          attachments: reportFile ? [{
+            filename: reportFile.filename,
+            content: reportFile.buffer,
+            contentType: reportFile.contentType,
+          }] : undefined,
+        });
+        console.log(`[AutoReports] Email sent to ${recipient} with attachment`);
+      } catch (error) {
+        console.error(`[AutoReports] Failed to send to ${recipient}:`, error);
+      }
+    }
   }
 
   /**

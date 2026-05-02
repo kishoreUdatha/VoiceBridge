@@ -330,6 +330,17 @@ export class AssignmentScheduleService {
   ) {
     const startTime = Date.now();
 
+    // Skip assignment on Sundays (day 0)
+    const today = new Date();
+    if (today.getDay() === 0) {
+      console.log(`[AssignmentSchedule] Skipping schedule ${scheduleId} - Sunday`);
+      return {
+        success: true,
+        skippedReason: 'Sunday - no assignments',
+        totalRecordsAssigned: 0,
+      };
+    }
+
     const schedule = await prisma.assignmentSchedule.findUnique({
       where: { id: scheduleId },
       include: {
@@ -995,21 +1006,17 @@ export class AssignmentScheduleService {
       },
     });
 
-    // Count pending records for each telecaller
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
+    // Count ALL pending records for each telecaller (not just today's)
+    // This ensures yesterday's incomplete work is counted towards daily limit
     const capacities: TelecallerCapacity[] = [];
 
     for (const telecaller of telecallers) {
-      // Count records assigned today that are not completed
+      // Count ALL records that are still pending (ASSIGNED or CALLING status)
+      // This includes records from previous days that weren't completed
       const pendingCount = await prisma.rawImportRecord.count({
         where: {
           organizationId,
           assignedToId: telecaller.id,
-          assignedAt: {
-            gte: today,
-          },
           status: {
             in: ['ASSIGNED', 'CALLING'],
           },
@@ -1053,9 +1060,8 @@ export class AssignmentScheduleService {
       },
     });
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
+    // Count ALL pending records for each agent (not just today's)
+    // This ensures yesterday's incomplete work is counted towards daily limit
     const capacities: VoiceAgentCapacity[] = [];
 
     for (const agent of agents) {
@@ -1063,9 +1069,6 @@ export class AssignmentScheduleService {
         where: {
           organizationId,
           assignedAgentId: agent.id,
-          assignedAt: {
-            gte: today,
-          },
           status: {
             in: ['ASSIGNED', 'CALLING'],
           },

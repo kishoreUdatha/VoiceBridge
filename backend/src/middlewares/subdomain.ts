@@ -49,8 +49,8 @@ function extractSubdomain(hostname: string): string | null {
   // Remove port if present
   const host = hostname.split(':')[0];
 
-  // Skip localhost and IP addresses
-  if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+  // Skip localhost, IP addresses, and ngrok domains
+  if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes('ngrok')) {
     return null;
   }
 

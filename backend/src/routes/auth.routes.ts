@@ -92,6 +92,15 @@ const loginValidation = [
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
+const loginOtpValidation = [
+  body('phone')
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number is required')
+    .isMobilePhone('any')
+    .withMessage('Invalid phone number'),
+];
+
 // refreshToken validation removed - tokens are now in httpOnly cookies
 // The controller handles both cookie and body (for backward compatibility)
 
@@ -141,6 +150,8 @@ router.get('/industries', async (req, res, next) => {
 // Routes
 router.post('/register', rateLimiters.authRegister, validate(registerValidation), authController.register.bind(authController));
 router.post('/login', subdomainTenant, validate(loginValidation), authController.login.bind(authController));
+router.post('/validate-credentials', validate(loginValidation), authController.validateCredentials.bind(authController));
+router.post('/login-otp', validate(loginOtpValidation), authController.loginWithOtp.bind(authController));
 router.post('/refresh-token', authController.refreshToken.bind(authController));
 router.post('/logout', authenticate, authController.logout.bind(authController));
 router.post('/forgot-password', rateLimiters.authPasswordReset, validate(forgotPasswordValidation), authController.forgotPassword.bind(authController));

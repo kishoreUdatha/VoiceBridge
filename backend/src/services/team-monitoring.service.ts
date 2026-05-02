@@ -904,7 +904,8 @@ class TeamMonitoringService {
       lastActivity?: Date;
     }>;
   }> {
-    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    // Use 30 minutes to match work-session service (consistent with header)
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     const normalizedRole = currentUserRole?.toLowerCase().replace(/[_-]/g, '');
 
     // Build where clause based on role
@@ -973,9 +974,9 @@ class TeamMonitoringService {
         };
       }
 
-      // Determine status based on activity
+      // Determine status based on activity (30 min window - matches header)
       let status: 'active' | 'break' | 'offline' = 'offline';
-      if (lastActivity && lastActivity > fifteenMinutesAgo) {
+      if (lastActivity && lastActivity > thirtyMinutesAgo) {
         status = 'active';
       }
 

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { authService } from '../services/auth.service';
+import { otpService } from '../services/otp.service';
 import { ApiResponse } from '../utils/apiResponse';
 import { AuthenticatedRequest } from '../middlewares/auth';
 import { setAuthCookies, clearAuthCookies, getRefreshToken } from '../utils/cookies';
@@ -197,6 +198,93 @@ export class AuthController {
       }
 
       ApiResponse.success(res, 'User profile retrieved', req.user);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Validate credentials without completing login
+   * Used for 2FA - validates email/password and returns user's phone for OTP
+   */
+  async validateCredentials(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { email, password } = req.body;
+
+      const result = await authService.validateCredentials(email, password);
+
+      if (!result.success) {
+        ApiResponse.unauthorized(res, result.message);
+        return;
+      }
+
+      ApiResponse.success(res, 'Credentials valid', {
+        success: true,
+        phone: result.phone,
+        userId: result.userId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Login with verified OTP
+   * User must have verified OTP before calling this endpoint
+   */
+  async loginWithOtp(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { phone } = req.body;
+
+      if (!phone) {
+        ApiResponse.badRequest(res, 'Phone number is required');
+        return;
+      }
+
+      // Verify that OTP was verified for this phone
+      const isVerified = await otpService.isVerified(phone, 'ACCOUNT_LOGIN');
+      if (!isVerified) {
+        ApiResponse.unauthorized(res, 'Phone number not verified. Please verify OTP first.');
+        return;
+      }
+
+      // Login with phone number
+      const result = await authService.loginWithPhone(phone);
+
+      // Check maintenance mode
+      const maintenance = getMaintenanceMode();
+      if (maintenance.active) {
+        const userRole = result.user?.role?.slug?.toLowerCase() || result.user?.roleSlug?.toLowerCase() || '';
+        if (userRole !== 'super_admin' && userRole !== 'superadmin') {
+          ApiResponse.error(
+            res,
+            maintenance.message || 'System is under maintenance. Please try again later.',
+            503,
+            'MAINTENANCE_MODE'
+          );
+          return;
+        }
+      }
+
+      // Set httpOnly cookies for tokens
+      setAuthCookies(res, {
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      });
+
+      // Check if request is from mobile app
+      const userAgent = req.headers['user-agent'] || '';
+      const isMobileApp = userAgent.includes('okhttp') ||
+                          userAgent.includes('Expo') ||
+                          userAgent.includes('React Native') ||
+                          req.headers['x-client-type'] === 'mobile';
+
+      if (isMobileApp) {
+        ApiResponse.success(res, 'Login successful', result);
+      } else {
+        const { accessToken, refreshToken, ...safeResult } = result;
+        ApiResponse.success(res, 'Login successful', safeResult);
+      }
     } catch (error) {
       next(error);
     }

@@ -99,7 +99,7 @@ export const config = {
       }
       return secret;
     })(),
-    expiry: process.env.JWT_EXPIRY || '15m',
+    expiry: process.env.JWT_EXPIRY || '24h',
     refreshExpiry: process.env.JWT_REFRESH_EXPIRY || '7d',
   },
 
@@ -110,7 +110,7 @@ export const config = {
     sameSite: 'lax' as 'strict' | 'lax' | 'none',
     // Set domain for cross-subdomain cookies (api.myleadx.ai <-> app.myleadx.ai)
     domain: process.env.COOKIE_DOMAIN || (isProduction ? '.myleadx.ai' : undefined),
-    accessTokenMaxAge: 15 * 60 * 1000, // 15 minutes in ms
+    accessTokenMaxAge: 24 * 60 * 60 * 1000, // 24 hours in ms
     refreshTokenMaxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
   },
 
@@ -174,6 +174,7 @@ export const config = {
     dltEntityId: process.env.MSG91_DLT_ENTITY_ID,
     route: process.env.MSG91_ROUTE || '4', // 4 = Transactional, 1 = Promotional
     baseUrl: process.env.MSG91_BASE_URL || 'https://control.msg91.com',
+    otpTemplateId: process.env.MSG91_OTP_TEMPLATE_ID, // DLT registered OTP template
   },
 
   smtp: {

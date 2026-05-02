@@ -47,7 +47,8 @@ router.post('/send', otpSendRateLimiter, validate([
   body('identifierType').isIn(['PHONE', 'EMAIL']).withMessage('Valid identifier type (PHONE or EMAIL) is required'),
   body('purpose').isIn([
     'PHONE_VERIFICATION', 'EMAIL_VERIFICATION', 'APPLICATION_SUBMISSION',
-    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION'
+    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION',
+    'ACCOUNT_LOGIN', 'PASSWORD_RESET'
   ]).withMessage('Invalid OTP purpose'),
   body('channel').optional().isIn(['SMS', 'EMAIL', 'WHATSAPP']),
   body('leadId').optional().isUUID().withMessage('Invalid lead ID'),
@@ -107,7 +108,8 @@ router.post('/verify', otpVerifyRateLimiter, validate([
     .isLength({ max: 255 }).withMessage('Identifier too long'),
   body('purpose').isIn([
     'PHONE_VERIFICATION', 'EMAIL_VERIFICATION', 'APPLICATION_SUBMISSION',
-    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION'
+    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION',
+    'ACCOUNT_LOGIN', 'PASSWORD_RESET'
   ]).withMessage('Invalid OTP purpose'),
   body('otp').matches(/^\d{6}$/).withMessage('OTP must be 6 digits'),
 ]), async (req: Request, res: Response) => {
@@ -146,7 +148,8 @@ router.post('/resend', otpSendRateLimiter, validate([
     .isLength({ max: 255 }).withMessage('Identifier too long'),
   body('purpose').isIn([
     'PHONE_VERIFICATION', 'EMAIL_VERIFICATION', 'APPLICATION_SUBMISSION',
-    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION'
+    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION',
+    'ACCOUNT_LOGIN', 'PASSWORD_RESET'
   ]).withMessage('Invalid OTP purpose'),
 ]), async (req: Request, res: Response) => {
   try {
@@ -182,7 +185,8 @@ router.get('/status', otpStatusRateLimiter, validate([
     .isLength({ max: 255 }).withMessage('Identifier too long'),
   query('purpose').isIn([
     'PHONE_VERIFICATION', 'EMAIL_VERIFICATION', 'APPLICATION_SUBMISSION',
-    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION'
+    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION',
+    'ACCOUNT_LOGIN', 'PASSWORD_RESET'
   ]).withMessage('Invalid OTP purpose'),
 ]), async (req: Request, res: Response) => {
   try {
@@ -214,7 +218,8 @@ router.post('/lead/:leadId/send', validate([
   body('identifierType').isIn(['PHONE', 'EMAIL']).withMessage('Valid identifier type (PHONE or EMAIL) is required'),
   body('purpose').isIn([
     'PHONE_VERIFICATION', 'EMAIL_VERIFICATION', 'APPLICATION_SUBMISSION',
-    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION'
+    'DOCUMENT_UPLOAD', 'PAYMENT_CONFIRMATION', 'ADMISSION_CONFIRMATION',
+    'ACCOUNT_LOGIN', 'PASSWORD_RESET'
   ]).withMessage('Invalid OTP purpose'),
   body('channel').optional().isIn(['SMS', 'EMAIL', 'WHATSAPP']),
 ]), async (req: TenantRequest, res: Response) => {

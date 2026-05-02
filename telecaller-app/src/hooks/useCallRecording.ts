@@ -178,10 +178,15 @@ export const useCallRecording = (): UseCallRecordingReturn => {
         const cleanPhone = lead.phone.replace(/[^\d+]/g, '');
         console.log('[useCallRecording] Clean phone:', cleanPhone);
 
+        // Generate unique request ID for idempotency (prevents duplicate call creation)
+        const requestId = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+        console.log('[useCallRecording] Request ID:', requestId);
+
         // STEP 1: Create call record in backend FIRST (to get call ID)
         const payload: StartCallPayload = {
           leadId: lead.id,
           phoneNumber: lead.phone,
+          requestId,
         };
 
         let callId: string | null = null;

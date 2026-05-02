@@ -57,13 +57,19 @@ export class RawImportService {
     page: number = 1,
     limit: number = 20,
     userRole?: string,
-    userId?: string
+    userId?: string,
+    search?: string
   ) {
     const skip = (page - 1) * limit;
 
     // Build where clause based on role
     const where: any = { organizationId };
     const normalizedRole = userRole?.toLowerCase().replace('_', '');
+
+    // Add search filter
+    if (search) {
+      where.fileName = { contains: search, mode: 'insensitive' };
+    }
 
     // Manager: only see bulk imports assigned to them
     if (normalizedRole === 'manager' && userId) {
@@ -106,6 +112,47 @@ export class RawImportService {
       }),
       prisma.bulkImport.count({ where }),
     ]);
+
+    // Get per-import assignment counts (Assigned + Pending = Total)
+    const importIds = imports.map((i) => i.id);
+    if (importIds.length > 0) {
+      const [assignedCounts, pendingCounts] = await Promise.all([
+        // Assigned = records with assignedToId OR assignedAgentId
+        prisma.rawImportRecord.groupBy({
+          by: ['bulkImportId'],
+          where: {
+            bulkImportId: { in: importIds },
+            OR: [
+              { assignedToId: { not: null } },
+              { assignedAgentId: { not: null } },
+            ],
+          },
+          _count: { id: true },
+        }),
+        // Pending = records with neither
+        prisma.rawImportRecord.groupBy({
+          by: ['bulkImportId'],
+          where: {
+            bulkImportId: { in: importIds },
+            assignedToId: null,
+            assignedAgentId: null,
+          },
+          _count: { id: true },
+        }),
+      ]);
+
+      // Map counts to imports
+      const assignedMap = new Map(assignedCounts.map((c) => [c.bulkImportId, c._count.id]));
+      const pendingMap = new Map(pendingCounts.map((c) => [c.bulkImportId, c._count.id]));
+
+      const importsWithCounts = imports.map((imp) => ({
+        ...imp,
+        assignedCount: assignedMap.get(imp.id) || 0,
+        pendingCount: pendingMap.get(imp.id) || 0,
+      }));
+
+      return { imports: importsWithCounts, total };
+    }
 
     return { imports, total };
   }
@@ -217,9 +264,33 @@ export class RawImportService {
       return acc;
     }, {} as Record<string, number>);
 
+    // Get assignment-based counts (Assigned + Pending = Total)
+    // Assigned = records with assignedToId OR assignedAgentId set
+    // Pending (unassigned) = records with neither assignedToId nor assignedAgentId
+    const [assignedCount, pendingCount] = await Promise.all([
+      prisma.rawImportRecord.count({
+        where: {
+          ...recordWhere,
+          OR: [
+            { assignedToId: { not: null } },
+            { assignedAgentId: { not: null } },
+          ],
+        },
+      }),
+      prisma.rawImportRecord.count({
+        where: {
+          ...recordWhere,
+          assignedToId: null,
+          assignedAgentId: null,
+        },
+      }),
+    ]);
+
     return {
       ...bulkImport,
       statusBreakdown: breakdown,
+      assignedCount,
+      pendingCount,
     };
   }
 
@@ -429,6 +500,36 @@ export class RawImportService {
     }
 
     return record;
+  }
+
+  // Search records for global search
+  async searchRecords(organizationId: string, search: string, limit: number = 5) {
+    const records = await prisma.rawImportRecord.findMany({
+      where: {
+        organizationId,
+        OR: [
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search } },
+          { alternatePhone: { contains: search } },
+          { city: { contains: search, mode: 'insensitive' } },
+          { state: { contains: search, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        email: true,
+        status: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    return records;
   }
 
   // ==================== ASSIGNMENT ====================
@@ -780,6 +881,9 @@ export class RawImportService {
       totalRecords,
       statusCounts,
       todayAssignedCount,
+      // Assignment-based counts (Assigned + Pending = Total)
+      assignedCount,
+      pendingCount,
     ] = await Promise.all([
       prisma.bulkImport.count({ where: { organizationId } }),
       prisma.rawImportRecord.count({ where: { organizationId } }),
@@ -796,6 +900,24 @@ export class RawImportService {
           assignedAt: { gte: todayStart },
         },
       }),
+      // Assigned = records with assignedToId OR assignedAgentId
+      prisma.rawImportRecord.count({
+        where: {
+          organizationId,
+          OR: [
+            { assignedToId: { not: null } },
+            { assignedAgentId: { not: null } },
+          ],
+        },
+      }),
+      // Pending = records with neither assignedToId nor assignedAgentId
+      prisma.rawImportRecord.count({
+        where: {
+          organizationId,
+          assignedToId: null,
+          assignedAgentId: null,
+        },
+      }),
     ]);
 
     const countByStatus = statusCounts.reduce((acc, item) => {
@@ -806,8 +928,9 @@ export class RawImportService {
     return {
       totalImports,
       totalRecords,
-      pendingRecords: countByStatus['PENDING'] || 0,
-      assignedRecords: countByStatus['ASSIGNED'] || 0,
+      // Use assignment-based counts for Pending and Assigned
+      pendingRecords: pendingCount,
+      assignedRecords: assignedCount,
       interestedRecords: countByStatus['INTERESTED'] || 0,
       convertedRecords: countByStatus['CONVERTED'] || 0,
       notInterestedRecords: countByStatus['NOT_INTERESTED'] || 0,

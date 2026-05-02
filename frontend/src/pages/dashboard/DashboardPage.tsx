@@ -8,6 +8,7 @@ import subscriptionService, { Subscription } from '../../services/subscription.s
 import api from '../../services/api';
 import { teamMonitoringService, LiveTeamStatus } from '../../services/team-monitoring.service';
 import pipelineSettingsService, { Pipeline, PipelineAnalytics } from '../../services/pipeline-settings.service';
+import { useCallOutcomes } from '../../hooks/useCallOutcomes';
 import {
   PieChart,
   Pie,
@@ -229,6 +230,9 @@ export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+
+  // Use custom call outcomes for dynamic colors
+  const { getOutcomeBadgeClasses, getOutcomeLabel } = useCallOutcomes();
 
   // Get user role - Admin dashboard is the default fallback
   const userRole = (user?.role?.toLowerCase() || '').trim();
@@ -843,7 +847,7 @@ function TelecallerDashboard({ user, getGreeting, currentTime, lastRefresh, setL
                     </div>
                     {call.outcome && (
                       <span className={`text-[10px] px-2 py-1 rounded-full font-bold shadow-sm ${getOutcomeColor(call.outcome)}`}>
-                        {call.outcome.replace('_', ' ')}
+                        {getOutcomeLabel(call.outcome)}
                       </span>
                     )}
                   </div>
@@ -1427,14 +1431,14 @@ function ManagerDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stat
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 font-medium">Converted</p>
-              <p className="text-3xl font-bold text-emerald-600 mt-1">{rawImportStats?.convertedRecords || 0}</p>
+              <p className="text-3xl font-bold text-emerald-600 mt-1">{stats?.converted || 0}</p>
             </div>
             <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
               <CheckCircleIcon className="w-6 h-6 text-emerald-600" />
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-gray-100">
-            <span className="text-sm text-gray-500">{overallConversionRate}% conversion rate</span>
+            <span className="text-sm text-gray-500">{stats?.conversionRate || 0}% conversion rate</span>
           </div>
         </div>
 
@@ -1810,19 +1814,23 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
   };
 
   // Pipeline stages data for chart - prioritize Pipeline Stages from Settings
+  // Keep stages in pipeline order (not sorted by count) to match Pipeline Settings page
   const pipelineStages = pipelineAnalytics?.stageStats && pipelineAnalytics.stageStats.length > 0
     ? pipelineAnalytics.stageStats.map((stage, index) => {
         // Find the stage in default pipeline to get color
         const pipelineStage = defaultPipeline?.stages?.find(s => s.id === stage.stageId);
         return {
+          id: stage.stageId, // Include stage ID for linking
           name: stage.stageName,
           value: stage.count,
+          order: pipelineStage?.order ?? index, // Keep pipeline order
           color: pipelineStage?.color || STAGE_COLORS[stage.stageName.toUpperCase().replace(/\s+/g, '_')] || PIE_COLORS[index % PIE_COLORS.length],
         };
-      }).sort((a, b) => b.value - a.value)
+      }).sort((a, b) => a.order - b.order) // Sort by pipeline order, not by count
     : stats?.byStatus && Object.keys(stats.byStatus).length > 0
     ? Object.entries(stats.byStatus)
         .map(([stage, count], index) => ({
+          id: null as string | null, // No ID for legacy status
           name: stage.replace(/_/g, ' '),
           value: count as number,
           color: STAGE_COLORS[stage] || PIE_COLORS[index % PIE_COLORS.length],
@@ -1831,6 +1839,7 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
     : rawImportStats?.byStatus && Object.keys(rawImportStats.byStatus).length > 0
     ? Object.entries(rawImportStats.byStatus)
         .map(([stage, count], index) => ({
+          id: null as string | null, // No ID for raw import status
           name: stage.replace(/_/g, ' '),
           value: count as number,
           color: STAGE_COLORS[stage] || PIE_COLORS[index % PIE_COLORS.length],
@@ -1970,7 +1979,7 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={pipelineStages.slice(0, 6)}
+                        data={pipelineStages}
                         cx="50%"
                         cy="50%"
                         innerRadius={40}
@@ -1978,7 +1987,7 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
                         paddingAngle={3}
                         dataKey="value"
                       >
-                        {pipelineStages.slice(0, 6).map((entry, index) => (
+                        {pipelineStages.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                         ))}
                       </Pie>
@@ -1999,11 +2008,11 @@ function AdminDashboard({ user, getGreeting, lastRefresh, setLastRefresh, stats,
                   </div>
                 </div>
               </div>
-              <div className="flex-1 space-y-2">
-                {pipelineStages.slice(0, 6).map((stage, index) => (
+              <div className="flex-1 space-y-1">
+                {pipelineStages.map((stage, index) => (
                   <Link
                     key={index}
-                    to={`/leads?stage=${encodeURIComponent(stage.name)}`}
+                    to={stage.id ? `/leads?pipelineStageId=${stage.id}` : `/leads?stage=${encodeURIComponent(stage.name)}`}
                     className="flex items-center justify-between p-1.5 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-2">

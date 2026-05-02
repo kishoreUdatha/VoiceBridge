@@ -499,6 +499,9 @@ class WorkSessionService {
 
     const sessionMap = new Map(activeSessions.map(s => [s.userId, s]));
 
+    // Consider session stale if no activity for 30 minutes
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+
     const active: { id: string; name: string; since: Date }[] = [];
     const onBreak: { id: string; name: string; since: Date; breakType: string }[] = [];
     const offline: { id: string; name: string; lastSeen?: Date }[] = [];
@@ -507,8 +510,11 @@ class WorkSessionService {
       const name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown';
       const session = sessionMap.get(user.id);
 
-      if (!session) {
-        // No active session = offline
+      // Check if user has been active recently (within 30 minutes)
+      const isRecentlyActive = user.lastActivityAt && user.lastActivityAt > thirtyMinutesAgo;
+
+      if (!session || !isRecentlyActive) {
+        // No active session OR no recent activity = offline
         offline.push({
           id: user.id,
           name,
@@ -524,7 +530,7 @@ class WorkSessionService {
           breakType: currentBreak.breakType,
         });
       } else {
-        // Active
+        // Active = has session AND recent activity
         active.push({
           id: user.id,
           name,

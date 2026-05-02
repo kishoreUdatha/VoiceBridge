@@ -135,6 +135,29 @@ export function getAllTemplates() {
   }));
 }
 
+/**
+ * Search agents by name or industry (for global search)
+ */
+export async function searchAgents(organizationId: string, search: string, limit: number = 5) {
+  return await prisma.voiceAgent.findMany({
+    where: {
+      organizationId,
+      OR: [
+        { name: { contains: search, mode: 'insensitive' } },
+        { industry: { contains: search, mode: 'insensitive' } },
+      ],
+    },
+    select: {
+      id: true,
+      name: true,
+      industry: true,
+      isActive: true,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
+}
+
 export const voiceAgentService = {
   createAgent,
   getAgent,
@@ -144,6 +167,7 @@ export const voiceAgentService = {
   getAgentWithOrganization,
   getTemplate,
   getAllTemplates,
+  searchAgents,
 };
 
 export default voiceAgentService;

@@ -34,6 +34,8 @@ export interface BulkImport {
     records: number;
   };
   statusBreakdown?: Record<string, number>;
+  assignedCount?: number;
+  pendingCount?: number;
 }
 
 export interface RawImportRecord {

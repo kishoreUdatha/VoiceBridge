@@ -167,10 +167,8 @@ export class LeadController {
       const userRole = req.user!.role;
       const userId = req.user!.id;
 
-      // For telecallers/counselors, only show stats for their assigned leads
-      const assignedToId = hasElevatedAccess(userRole) ? undefined : userId;
-
-      const stats = await leadService.getStats(req.organizationId!, assignedToId);
+      // Pass role and userId for proper role-based filtering
+      const stats = await leadService.getStats(req.organizationId!, userRole, userId);
 
       ApiResponse.success(res, 'Lead statistics retrieved successfully', stats);
     } catch (error) {

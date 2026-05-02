@@ -2,11 +2,70 @@
  * API Service
  *
  * Axios instance with automatic token management, refresh, and CSRF protection
+ * Includes proactive token refresh to prevent session interruptions
  */
 
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+// Proactive token refresh timer
+let tokenRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let lastRefreshTime = 0;
+
+// Refresh tokens every 7 minutes to ensure they don't expire during use
+// This is less than the typical JWT expiry (8h) but frequent enough to keep session alive
+const TOKEN_REFRESH_INTERVAL = 7 * 60 * 1000; // 7 minutes
+
+/**
+ * Schedule proactive token refresh
+ * Refreshes tokens before they expire to prevent session interruptions
+ */
+function scheduleTokenRefresh() {
+  // Clear any existing timer
+  if (tokenRefreshTimer) {
+    clearTimeout(tokenRefreshTimer);
+  }
+
+  tokenRefreshTimer = setTimeout(async () => {
+    const now = Date.now();
+    // Avoid refreshing too frequently (minimum 5 minutes between refreshes)
+    if (now - lastRefreshTime < 5 * 60 * 1000) {
+      scheduleTokenRefresh();
+      return;
+    }
+
+    try {
+      // Refresh tokens proactively
+      await axios.post(`${API_BASE_URL}/auth/refresh-token`, {}, { withCredentials: true });
+      lastRefreshTime = now;
+      console.debug('[API] Proactive token refresh successful');
+    } catch (error) {
+      console.debug('[API] Proactive token refresh failed - user may need to login again');
+    }
+
+    // Schedule next refresh
+    scheduleTokenRefresh();
+  }, TOKEN_REFRESH_INTERVAL);
+}
+
+/**
+ * Start proactive token refresh (call after successful login)
+ */
+export function startProactiveTokenRefresh() {
+  lastRefreshTime = Date.now();
+  scheduleTokenRefresh();
+}
+
+/**
+ * Stop proactive token refresh (call on logout)
+ */
+export function stopProactiveTokenRefresh() {
+  if (tokenRefreshTimer) {
+    clearTimeout(tokenRefreshTimer);
+    tokenRefreshTimer = null;
+  }
+}
 
 /**
  * Get CSRF token from cookie
@@ -25,29 +84,44 @@ function getCsrfToken(): string | null {
 }
 
 // Track if we're currently fetching CSRF token to avoid multiple requests
-let csrfFetchPromise: Promise<void> | null = null;
+let csrfFetchPromise: Promise<string | null> | null = null;
+// Cache the token from the server response (more reliable than reading from cookie)
+let cachedCsrfToken: string | null = null;
 
 /**
  * Ensure CSRF token is available
- * Fetches from server if not in cookie
+ * Fetches from server if not in cookie or cache
  */
 async function ensureCsrfToken(): Promise<string | null> {
+  // First check cache, then cookie
+  if (cachedCsrfToken) return cachedCsrfToken;
+
   let token = getCsrfToken();
-  if (token) return token;
+  if (token) {
+    cachedCsrfToken = token;
+    return token;
+  }
 
   // Avoid multiple concurrent fetches
   if (!csrfFetchPromise) {
     csrfFetchPromise = axios.get(`${API_BASE_URL}/csrf-token`, { withCredentials: true })
-      .then(() => {
-        csrfFetchPromise = null;
+      .then((response) => {
+        // Use token from response body (more reliable than cookie)
+        const serverToken = response.data?.token;
+        if (serverToken) {
+          cachedCsrfToken = serverToken;
+        }
+        return serverToken || getCsrfToken();
       })
       .catch(() => {
+        return getCsrfToken();
+      })
+      .finally(() => {
         csrfFetchPromise = null;
       });
   }
 
-  await csrfFetchPromise;
-  return getCsrfToken();
+  return csrfFetchPromise;
 }
 
 const api = axios.create({
@@ -112,13 +186,19 @@ api.interceptors.response.use(
       originalRequest._csrfRetry = true;
 
       try {
-        // Fetch fresh CSRF token
-        await axios.get(`${API_BASE_URL}/csrf-token`, { withCredentials: true });
+        // Clear cached token and fetch fresh one
+        cachedCsrfToken = null;
 
-        // Update the header with new token
-        const newToken = getCsrfToken();
-        if (newToken && originalRequest.headers) {
-          originalRequest.headers['x-csrf-token'] = newToken;
+        // Fetch fresh CSRF token
+        const response = await axios.get(`${API_BASE_URL}/csrf-token`, { withCredentials: true });
+
+        // Use token from response body (more reliable)
+        const newToken = response.data?.token || getCsrfToken();
+        if (newToken) {
+          cachedCsrfToken = newToken;
+          if (originalRequest.headers) {
+            originalRequest.headers['x-csrf-token'] = newToken;
+          }
         }
 
         // Retry the original request
@@ -136,10 +216,15 @@ api.interceptors.response.use(
         // The refresh token is sent automatically via httpOnly cookie
         await api.post('/auth/refresh-token');
 
+        // Token refresh successful - restart proactive refresh timer
+        lastRefreshTime = Date.now();
+        scheduleTokenRefresh();
+
         // Retry the original request (new access token is now in cookie)
         return api(originalRequest);
       } catch (refreshError) {
-        // Token refresh failed, redirect to login
+        // Token refresh failed, stop proactive refresh and redirect to login
+        stopProactiveTokenRefresh();
         console.error('[API] Token refresh failed:', refreshError);
 
         // Clear any local state and redirect (except for public pages)

@@ -133,6 +133,7 @@ export interface CallsState {
 export interface StartCallPayload {
   leadId: string;
   phoneNumber: string;
+  requestId?: string; // Unique ID for idempotency - prevents duplicate call creation
 }
 
 export interface UpdateCallPayload {

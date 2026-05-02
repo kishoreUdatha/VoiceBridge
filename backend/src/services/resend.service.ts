@@ -6,11 +6,18 @@
 import { Resend } from 'resend';
 import { config } from '../config';
 
+interface EmailAttachment {
+  filename: string;
+  content: Buffer | string;
+  contentType?: string;
+}
+
 interface SendEmailParams {
   to: string;
   subject: string;
   body: string;
   html?: string;
+  attachments?: EmailAttachment[];
 }
 
 interface SendOtpParams {
@@ -50,13 +57,23 @@ class ResendService {
     }
 
     try {
-      const { data, error } = await this.client.emails.send({
+      const emailData: any = {
         from: `${this.fromName} <${this.fromEmail}>`,
         to: params.to,
         subject: params.subject,
         text: params.body,
         html: params.html || this.textToHtml(params.body),
-      });
+      };
+
+      // Add attachments if provided
+      if (params.attachments && params.attachments.length > 0) {
+        emailData.attachments = params.attachments.map(att => ({
+          filename: att.filename,
+          content: att.content instanceof Buffer ? att.content : Buffer.from(att.content, 'utf-8'),
+        }));
+      }
+
+      const { data, error } = await this.client.emails.send(emailData);
 
       if (error) {
         console.error('[Resend] Error:', error);

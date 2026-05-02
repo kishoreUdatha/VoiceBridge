@@ -123,7 +123,7 @@ export default function BrandingSettingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-6 max-w-5xl">
       {/* Header */}
       <div className="mb-6">
         <Link

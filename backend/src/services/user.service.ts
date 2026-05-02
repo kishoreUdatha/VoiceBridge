@@ -520,10 +520,12 @@ export class UserService {
     userRole: string,
     userId: string
   ): Promise<string[] | null> {
-    const normalizedRole = userRole?.toLowerCase().replace('_', '');
+    const normalizedRole = userRole?.toLowerCase().replace(/_/g, '');
 
-    // Admin can view all - return null to indicate no filtering needed
-    if (normalizedRole === 'admin' || normalizedRole === 'superadmin' || normalizedRole === 'super_admin') {
+    console.log(`[getViewableTeamMemberIds] userId=${userId}, userRole=${userRole}, normalizedRole=${normalizedRole}`);
+
+    // Admin/Owner can view all - return null to indicate no filtering needed
+    if (normalizedRole === 'admin' || normalizedRole === 'superadmin' || normalizedRole === 'owner' || normalizedRole === 'orgadmin') {
       return null;
     }
 
@@ -648,6 +650,42 @@ export class UserService {
       where: { id },
       data: { password: hashedPassword },
     });
+  }
+
+  /**
+   * Search users by name or email (for global search)
+   */
+  async searchUsers(organizationId: string, search: string, limit: number = 5) {
+    const users = await prisma.user.findMany({
+      where: {
+        organizationId,
+        isActive: true,
+        OR: [
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: {
+          select: { name: true, slug: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    return users.map((user) => ({
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+    }));
   }
 
   async getBulkStats(organizationId: string, userIds: string[]) {

@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
+  Image,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -100,11 +101,11 @@ const LoginScreen: React.FC = () => {
         >
           {/* Logo Section */}
           <View style={styles.logoContainer}>
-            <View style={styles.logoIcon}>
-              <Icon name="phone-in-talk" size={48} color={colors.neutral[0]} />
-            </View>
-            <Text style={styles.title}>VoiceBridge</Text>
-            <Text style={styles.subtitle}>MyLeadX</Text>
+            <Image
+              source={require('../../assets/myleadx-logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
 
           {/* Form Card */}
@@ -271,27 +272,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing['2xl'],
   },
-  logoIcon: {
-    width: 88,
-    height: 88,
-    borderRadius: 24,
-    backgroundColor: `${colors.neutral[0]}20`,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.base,
-    borderWidth: 2,
-    borderColor: `${colors.neutral[0]}30`,
-  },
-  title: {
-    fontSize: typography.fontSize['3xl'],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.neutral[0],
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: typography.fontSize.md,
-    color: `${colors.neutral[0]}80`,
-    fontWeight: typography.fontWeight.medium,
+  logoImage: {
+    width: 280,
+    height: 80,
   },
   formCard: {
     backgroundColor: colors.background.card,

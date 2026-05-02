@@ -26,18 +26,19 @@ try {
 // CONFIGURATION - Adjust these settings as needed
 // ============================================================
 
-// Production API URL - HARDCODED for production builds
-const PRODUCTION_API_URL = 'https://api.myleadx.ai/api';
+// Production API URL - Set to empty string for local development
+// const PRODUCTION_API_URL = 'https://api.myleadx.ai/api';
+const PRODUCTION_API_URL = ''; // LOCAL DEVELOPMENT MODE
 
 // Set to false for production, true only for local development
 const USE_ADB_REVERSE = false;
 
 // Set to true when testing on physical device WITHOUT adb reverse
-const USE_PHYSICAL_DEVICE = false;
+const USE_PHYSICAL_DEVICE = true;
 
 // Your computer's local IP (only used when USE_PHYSICAL_DEVICE is true)
 // Find it with: ipconfig (Windows) or ifconfig (Mac/Linux)
-const PHYSICAL_DEVICE_IP = Config.PHYSICAL_DEVICE_IP || '192.168.0.106';
+const PHYSICAL_DEVICE_IP = Config.PHYSICAL_DEVICE_IP || '10.22.70.139';
 
 // API Port (configurable)
 const API_PORT = Config.API_PORT || '3001';

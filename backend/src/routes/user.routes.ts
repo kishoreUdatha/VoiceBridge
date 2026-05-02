@@ -110,6 +110,16 @@ router.get(
   userController.findAll.bind(userController)
 );
 
+// Search users (for global search)
+router.get(
+  '/search',
+  validate([
+    query('search').notEmpty().withMessage('Search query is required'),
+    query('limit').optional().isInt({ min: 1, max: 20 }).withMessage('Limit must be between 1 and 20'),
+  ]),
+  userController.searchUsers.bind(userController)
+);
+
 router.get(
   '/:id',
   validate([param('id').isUUID().withMessage('Invalid user ID')]),

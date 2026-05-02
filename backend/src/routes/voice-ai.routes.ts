@@ -994,6 +994,22 @@ router.get('/agents', async (req: TenantRequest, res: Response) => {
   }
 });
 
+// Search agents (for global search)
+router.get('/agents/search', validate([
+  query('search').notEmpty().withMessage('Search query is required'),
+  query('limit').optional().isInt({ min: 1, max: 20 }).withMessage('Limit must be between 1 and 20'),
+]), async (req: TenantRequest, res: Response) => {
+  try {
+    const search = req.query.search as string;
+    const limit = parseInt(req.query.limit as string) || 5;
+    const { searchAgents } = await import('../services/voice-agent.service');
+    const agents = await searchAgents(req.organizationId!, search, limit);
+    ApiResponse.success(res, 'Search results', { agents });
+  } catch (error) {
+    ApiResponse.error(res, (error as Error).message, 500);
+  }
+});
+
 // Get single agent
 router.get('/agents/:agentId', validate([
   param('agentId').isUUID().withMessage('Invalid agent ID'),

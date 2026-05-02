@@ -1,10 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
-import { checkAuth } from '../store/slices/authSlice';
-import { View, ActivityIndicator, Text } from 'react-native';
+import { checkAuth, clearError } from '../store/slices/authSlice';
+import { View, ActivityIndicator, Text, TouchableOpacity, AppState, AppStateStatus } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Auth Screens
@@ -152,17 +152,87 @@ function TelecallerTabNavigator() {
 
 export default function RootNavigator() {
   const dispatch = useDispatch<AppDispatch>();
-  const { isAuthenticated, isLoading, user } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, isLoading, user, networkError } = useSelector((state: RootState) => state.auth);
+  const appState = useRef(AppState.currentState);
+  const lastAuthCheck = useRef<number>(0);
 
+  // Initial auth check
   useEffect(() => {
     dispatch(checkAuth());
+    lastAuthCheck.current = Date.now();
+  }, [dispatch]);
+
+  // Re-check auth when app comes back to foreground (handles token expiry while backgrounded)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        // Only re-check if more than 1 hour since last check (tokens last 24h)
+        const timeSinceLastCheck = Date.now() - lastAuthCheck.current;
+        if (timeSinceLastCheck > 60 * 60 * 1000) {
+          console.log('[Nav] App resumed after >1hr, re-checking auth');
+          dispatch(checkAuth());
+          lastAuthCheck.current = Date.now();
+        }
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => subscription.remove();
+  }, [dispatch]);
+
+  // Auto-retry auth check periodically when there's a network error
+  useEffect(() => {
+    if (!networkError) return;
+
+    // Retry every 30 seconds when there's a network error
+    const retryInterval = setInterval(() => {
+      console.log('[Nav] Auto-retrying auth check after network error');
+      dispatch(checkAuth());
+      lastAuthCheck.current = Date.now();
+    }, 30000);
+
+    return () => clearInterval(retryInterval);
+  }, [dispatch, networkError]);
+
+  // Manual retry function
+  const handleRetry = useCallback(() => {
+    dispatch(clearError());
+    dispatch(checkAuth());
+    lastAuthCheck.current = Date.now();
   }, [dispatch]);
 
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#3b82f6' }}>
         <ActivityIndicator size="large" color="#fff" />
-        <Text style={{ color: '#fff', marginTop: 16, fontSize: 16 }}>VoiceBridge CRM</Text>
+        <Text style={{ color: '#fff', marginTop: 16, fontSize: 16 }}>MyLeadX</Text>
+      </View>
+    );
+  }
+
+  // Show network error banner if there's a network issue but user has tokens
+  // This allows users to continue using cached data or retry
+  if (networkError && !isAuthenticated) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f3f4f6', padding: 20 }}>
+        <Text style={{ fontSize: 48, marginBottom: 16 }}>📡</Text>
+        <Text style={{ fontSize: 18, fontWeight: '600', color: '#1f2937', marginBottom: 8, textAlign: 'center' }}>
+          Connection Issue
+        </Text>
+        <Text style={{ fontSize: 14, color: '#6b7280', marginBottom: 24, textAlign: 'center' }}>
+          Unable to connect to the server. Please check your internet connection and try again.
+        </Text>
+        <TouchableOpacity
+          onPress={handleRetry}
+          style={{
+            backgroundColor: '#3b82f6',
+            paddingHorizontal: 32,
+            paddingVertical: 12,
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }

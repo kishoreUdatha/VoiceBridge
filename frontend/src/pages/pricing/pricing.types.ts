@@ -43,9 +43,8 @@ export interface WalletRate {
 
 export interface SimplePlanFeature {
   name: string;
-  starter: boolean | string;
   growth: boolean | string;
-  business: boolean | string;
+  scale: boolean | string;
   enterprise: boolean | string;
 }
 
@@ -73,4 +72,4 @@ export interface FeatureCategory {
   features: SimplePlanFeature[];
 }
 
-export type PlanTier = 'starter' | 'growth' | 'business' | 'enterprise';
+export type PlanTier = 'growth' | 'scale' | 'enterprise';

@@ -25,6 +25,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { CheckBadgeIcon as CheckBadgeSolidIcon } from '@heroicons/react/24/solid';
 import toast from 'react-hot-toast';
+import { getDisplayName, getNameInitials } from '../../utils/nameUtils';
 
 // Custom WhatsApp Icon
 const WhatsAppIcon = ({ className }: { className?: string }) => (
@@ -353,7 +354,7 @@ export default function LeadDetailPage() {
     }
 
     const confirmed = window.confirm(
-      `Are you sure you want to mark "${currentLead?.firstName} ${currentLead?.lastName}" as converted?\n\nThis action indicates the lead has become a customer.`
+      `Are you sure you want to mark "${displayName}" as converted?\n\nThis action indicates the lead has become a customer.`
     );
 
     if (!confirmed) return;
@@ -396,8 +397,9 @@ export default function LeadDetailPage() {
   const isMoreTabActive = moreTabs.some(t => t.id === activeTab);
   const activeMoreTab = moreTabs.find(t => t.id === activeTab);
 
-  // Get initials for avatar
-  const initials = `${currentLead.firstName?.[0] || ''}${currentLead.lastName?.[0] || ''}`.toUpperCase();
+  // Get initials and display name using utility functions
+  const initials = getNameInitials(currentLead.firstName, currentLead.lastName);
+  const displayName = getDisplayName(currentLead.firstName, currentLead.lastName);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -421,7 +423,7 @@ export default function LeadDetailPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-semibold text-slate-900 truncate">
-                  {currentLead.firstName} {currentLead.lastName}
+                  {displayName}
                 </h1>
                 <span className="text-slate-400 text-xs">#{currentLead.id?.slice(0, 7)}</span>
                 <button
@@ -524,7 +526,7 @@ export default function LeadDetailPage() {
               </button>
               <QuickReminderDropdown
                 leadId={currentLead.id}
-                leadName={`${currentLead.firstName} ${currentLead.lastName}`}
+                leadName={displayName || ''}
                 compact
               />
               <button onClick={() => setShowEmailModal(true)} className="p-1.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-600 transition-colors" title="Email">
@@ -925,7 +927,7 @@ export default function LeadDetailPage() {
         onClose={() => setShowEmailModal(false)}
         onSubmit={handleSendEmail}
         email={currentLead.email || ''}
-        leadName={`${currentLead.firstName} ${currentLead.lastName}`}
+        leadName={displayName || ''}
       />
 
       <EditLeadModal
@@ -939,7 +941,7 @@ export default function LeadDetailPage() {
         isOpen={showCallPrepModal}
         onClose={() => setShowCallPrepModal(false)}
         phoneNumber={currentLead.phone || ''}
-        leadName={`${currentLead.firstName} ${currentLead.lastName}`}
+        leadName={displayName || ''}
         onProceedToCall={() => {
           setShowCallPrepModal(false);
           // Trigger the actual call
@@ -951,7 +953,7 @@ export default function LeadDetailPage() {
         isOpen={showCloseAdmissionModal}
         onClose={() => setShowCloseAdmissionModal(false)}
         leadId={currentLead.id}
-        leadName={`${currentLead.firstName} ${currentLead.lastName || ''}`}
+        leadName={displayName || ''}
         onSuccess={handleAdmissionSuccess}
         industry={organizationIndustry}
       />

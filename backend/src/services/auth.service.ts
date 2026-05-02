@@ -376,6 +376,37 @@ export class AuthService {
       throw new ConflictError('Organization with this slug already exists');
     }
 
+    // Check if email already exists
+    const existingUserByEmail = await prisma.user.findFirst({
+      where: { email: input.email.toLowerCase() },
+    });
+
+    if (existingUserByEmail) {
+      throw new ConflictError('An account with this email already exists');
+    }
+
+    // Check if phone already exists (if provided)
+    if (input.phone) {
+      // Normalize phone number for comparison
+      const normalizedPhone = input.phone.replace(/[\s\-\(\)]/g, '');
+      const phoneVariants = [
+        normalizedPhone,
+        normalizedPhone.replace(/^\+91/, ''),
+        normalizedPhone.replace(/^91/, ''),
+        normalizedPhone.startsWith('+') ? normalizedPhone : `+91${normalizedPhone}`,
+      ];
+
+      const existingUserByPhone = await prisma.user.findFirst({
+        where: {
+          phone: { in: phoneVariants },
+        },
+      });
+
+      if (existingUserByPhone) {
+        throw new ConflictError('An account with this phone number already exists');
+      }
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(input.password, 12);
 
@@ -677,6 +708,110 @@ export class AuthService {
   }
 
   /**
+   * Login with verified phone number (OTP authentication)
+   */
+  async loginWithPhone(phone: string): Promise<AuthResult> {
+    // Normalize phone number (remove spaces, ensure +91 prefix for India)
+    let normalizedPhone = phone.replace(/[\s-]/g, '');
+    if (normalizedPhone.startsWith('0')) {
+      normalizedPhone = '+91' + normalizedPhone.substring(1);
+    } else if (!normalizedPhone.startsWith('+')) {
+      if (normalizedPhone.length === 10) {
+        normalizedPhone = '+91' + normalizedPhone;
+      } else if (normalizedPhone.startsWith('91') && normalizedPhone.length === 12) {
+        normalizedPhone = '+' + normalizedPhone;
+      }
+    }
+
+    // Find user by phone number
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { phone: normalizedPhone },
+          { phone: normalizedPhone.replace('+91', '') }, // 10-digit format
+          { phone: normalizedPhone.replace('+', '') }, // Without +
+        ],
+      },
+      include: {
+        organization: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedError('No account found with this phone number');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedError('Your account has been deactivated');
+    }
+
+    if (!user.organization.isActive) {
+      throw new UnauthorizedError('Your organization has been deactivated');
+    }
+
+    // Check subscription status
+    if (user.organization.subscriptionStatus === 'SUSPENDED') {
+      throw new UnauthorizedError('Your organization subscription is suspended. Please contact support.');
+    }
+
+    if (user.organization.subscriptionStatus === 'EXPIRED') {
+      throw new UnauthorizedError('Your organization subscription has expired. Please renew to continue.');
+    }
+
+    // Generate tokens
+    const tokens = generateTokenPair({
+      userId: user.id,
+      organizationId: user.organizationId,
+      roleSlug: user.role.slug,
+    });
+
+    // Update refresh token and last login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        refreshToken: tokens.refreshToken,
+        lastLoginAt: new Date(),
+      },
+    });
+
+    // Start a work session for tracking
+    try {
+      await workSessionService.startSession(user.id, user.organizationId);
+    } catch (err) {
+      console.error('Failed to start work session:', err);
+    }
+
+    // Get onboarding status from organization settings
+    const orgSettings = (user.organization.settings as any) || {};
+    const onboardingCompleted = orgSettings.onboardingCompleted || false;
+
+    // Generate tenant URL for subdomain redirect
+    const tenantUrl = this.getTenantUrl(user.organization.slug);
+
+    // Get permissions from role
+    const permissions = (user.role.permissions as string[]) || [];
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        organizationId: user.organizationId,
+        organizationName: user.organization.name,
+        organizationSlug: user.organization.slug,
+        role: user.role.slug,
+        permissions,
+        onboardingCompleted,
+        organizationIndustry: user.organization.industry,
+      },
+      ...tokens,
+      tenantUrl,
+    };
+  }
+
+  /**
    * Generate tenant URL with subdomain
    */
   private getTenantUrl(slug: string): string {
@@ -852,6 +987,63 @@ export class AuthService {
       where: { id: userId },
       data: { password: hashedPassword },
     });
+  }
+
+  /**
+   * Validate credentials without completing login (for 2FA flow)
+   * Returns user's phone number for OTP verification
+   */
+  async validateCredentials(email: string, password: string): Promise<{
+    success: boolean;
+    message: string;
+    phone?: string;
+    userId?: string;
+  }> {
+    const user = await prisma.user.findFirst({
+      where: { email },
+      include: {
+        organization: true,
+      },
+    });
+
+    if (!user) {
+      return { success: false, message: 'Invalid email or password' };
+    }
+
+    if (!user.isActive) {
+      return { success: false, message: 'Your account has been deactivated' };
+    }
+
+    if (!user.organization.isActive) {
+      return { success: false, message: 'Your organization has been deactivated' };
+    }
+
+    // Check subscription status
+    if (user.organization.subscriptionStatus === 'SUSPENDED') {
+      return { success: false, message: 'Your organization subscription is suspended. Please contact support.' };
+    }
+
+    if (user.organization.subscriptionStatus === 'EXPIRED') {
+      return { success: false, message: 'Your organization subscription has expired. Please renew to continue.' };
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return { success: false, message: 'Invalid email or password' };
+    }
+
+    // Check if user has a phone number for OTP
+    if (!user.phone) {
+      return { success: false, message: 'No phone number associated with this account. Please contact admin.' };
+    }
+
+    return {
+      success: true,
+      message: 'Credentials valid',
+      phone: user.phone,
+      userId: user.id,
+    };
   }
 }
 

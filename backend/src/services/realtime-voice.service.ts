@@ -13,6 +13,7 @@ import {
   AI4BHARAT_LANGUAGES,
   AI4BharatLanguageCode,
 } from '../integrations/ai4bharat.service';
+import { sarvamService, SARVAM_LANGUAGES } from '../integrations/sarvam.service';
 import { agentSecurityService, SecurityContext } from './agent-security.service';
 import { voiceLeadIntegrationService } from './voice-lead-integration.service';
 import {
@@ -850,17 +851,25 @@ ${instructions}`;
       const combinedAudio = Buffer.concat(session.hybridAudioBuffer);
       session.hybridAudioBuffer = []; // Clear buffer
 
-      // Convert PCM16 to WAV for AI4Bharat
+      // Convert PCM16 to WAV for STT
       const wavBuffer = this.pcmToWav(combinedAudio, 24000);
 
       console.log(`[RealtimeVoice] Hybrid: Processing ${wavBuffer.length} bytes of audio`);
 
-      // 1. STT: Transcribe using AI4Bharat IndicWhisper
-      const transcription = await ai4bharatService.transcribe(
-        wavBuffer,
-        session.hybridLanguage!,
-        16000
-      );
+      // 1. STT: Transcribe using Sarvam (preferred) or AI4Bharat
+      let transcription: { text: string };
+      if (sarvamService.isAvailable()) {
+        console.log('[RealtimeVoice] Using Sarvam STT for transcription');
+        const result = await sarvamService.speechToText(wavBuffer, 16000, session.hybridLanguage);
+        transcription = { text: result.text };
+      } else {
+        console.log('[RealtimeVoice] Sarvam not available, using AI4Bharat STT');
+        transcription = await ai4bharatService.transcribe(
+          wavBuffer,
+          session.hybridLanguage!,
+          16000
+        );
+      }
 
       const userText = transcription.text.trim();
       if (!userText) {
@@ -963,7 +972,7 @@ ${instructions}`;
   }
 
   /**
-   * Speak text using AI4Bharat TTS in hybrid mode with retry logic
+   * Speak text using Sarvam/AI4Bharat TTS in hybrid mode with retry logic
    */
   private async speakHybridResponse(session: ActiveSession, text: string): Promise<void> {
     if (!session.hybridLanguage) {
@@ -976,45 +985,79 @@ ${instructions}`;
 
     let lastError: Error | null = null;
 
-    // Try AI4Bharat TTS with retries
-    for (let attempt = 1; attempt <= TTS_MAX_RETRIES; attempt++) {
-      try {
-        // Generate audio using AI4Bharat TTS
-        const ttsResult = await ai4bharatService.synthesize(
-          text,
-          session.hybridLanguage,
-          session.hybridGender || 'female',
-          24000 // 24kHz for better quality
-        );
+    // Try Sarvam TTS first (preferred for Indian languages)
+    if (sarvamService.isAvailable()) {
+      for (let attempt = 1; attempt <= TTS_MAX_RETRIES; attempt++) {
+        try {
+          console.log(`[RealtimeVoice] Using Sarvam TTS (attempt ${attempt})`);
+          // Select voice based on gender: priya/neha for female, aditya/rahul for male
+          const sarvamVoice = (session.hybridGender || 'female') === 'female' ? 'priya' : 'aditya';
+          const audioBuffer = await sarvamService.textToSpeech(
+            text,
+            sarvamVoice,
+            session.hybridLanguage!,
+            22050 // Higher sample rate for better quality
+          );
 
-        console.log(`[RealtimeVoice] Hybrid TTS (attempt ${attempt}): Generated ${ttsResult.audio.length} bytes`);
+          console.log(`[RealtimeVoice] Sarvam TTS (attempt ${attempt}): Generated ${audioBuffer.length} bytes`);
 
-        // Convert WAV to PCM16 for streaming
-        let pcmData = ttsResult.audio;
-        if (ttsResult.format === 'wav') {
-          // Skip WAV header (44 bytes)
-          pcmData = ttsResult.audio.slice(44);
-        }
+          // Stream audio in chunks to frontend
+          await this.streamAudioToSocket(session.socket, audioBuffer, 22050);
+          return; // Success - exit the function
 
-        // Stream audio in chunks to frontend
-        await this.streamAudioToSocket(session.socket, pcmData, 24000);
-        return; // Success - exit the function
+        } catch (error: any) {
+          lastError = error;
+          console.error(`[RealtimeVoice] Sarvam TTS attempt ${attempt}/${TTS_MAX_RETRIES} failed:`, error.message);
 
-      } catch (error: any) {
-        lastError = error;
-        console.error(`[RealtimeVoice] AI4Bharat TTS attempt ${attempt}/${TTS_MAX_RETRIES} failed:`, error.message);
-
-        if (attempt < TTS_MAX_RETRIES) {
-          // Exponential backoff before retry
-          const delay = TTS_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-          console.log(`[RealtimeVoice] Retrying AI4Bharat TTS in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          if (attempt < TTS_MAX_RETRIES) {
+            const delay = TTS_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+            console.log(`[RealtimeVoice] Retrying Sarvam TTS in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
         }
       }
+      console.log('[RealtimeVoice] Sarvam TTS failed after all retries, falling back to OpenAI TTS...');
+    } else {
+      // Try AI4Bharat TTS with retries (fallback if Sarvam not configured)
+      for (let attempt = 1; attempt <= TTS_MAX_RETRIES; attempt++) {
+        try {
+          // Generate audio using AI4Bharat TTS
+          const ttsResult = await ai4bharatService.synthesize(
+            text,
+            session.hybridLanguage,
+            session.hybridGender || 'female',
+            24000 // 24kHz for better quality
+          );
+
+          console.log(`[RealtimeVoice] AI4Bharat TTS (attempt ${attempt}): Generated ${ttsResult.audio.length} bytes`);
+
+          // Convert WAV to PCM16 for streaming
+          let pcmData = ttsResult.audio;
+          if (ttsResult.format === 'wav') {
+            // Skip WAV header (44 bytes)
+            pcmData = ttsResult.audio.slice(44);
+          }
+
+          // Stream audio in chunks to frontend
+          await this.streamAudioToSocket(session.socket, pcmData, 24000);
+          return; // Success - exit the function
+
+        } catch (error: any) {
+          lastError = error;
+          console.error(`[RealtimeVoice] AI4Bharat TTS attempt ${attempt}/${TTS_MAX_RETRIES} failed:`, error.message);
+
+          if (attempt < TTS_MAX_RETRIES) {
+            // Exponential backoff before retry
+            const delay = TTS_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+            console.log(`[RealtimeVoice] Retrying AI4Bharat TTS in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        }
+      }
+      console.log('[RealtimeVoice] AI4Bharat TTS failed after all retries, falling back to OpenAI TTS...');
     }
 
-    // AI4Bharat failed after all retries, try OpenAI TTS with retries
-    console.log('[RealtimeVoice] AI4Bharat TTS failed after all retries, falling back to OpenAI TTS...');
+    // Both Sarvam and AI4Bharat failed, try OpenAI TTS with retries
 
     for (let attempt = 1; attempt <= TTS_MAX_RETRIES; attempt++) {
       try {

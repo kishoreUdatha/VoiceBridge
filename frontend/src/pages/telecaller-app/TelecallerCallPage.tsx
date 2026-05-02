@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { getDisplayName } from '../../utils/nameUtils';
 
 interface Lead {
   id: string;
@@ -74,7 +75,7 @@ const TelecallerCallPage: React.FC = () => {
       const res = await api.post('/telecaller/calls', {
         leadId: lead.id,
         phoneNumber: lead.phone,
-        contactName: `${lead.firstName} ${lead.lastName || ''}`.trim(),
+        contactName: getDisplayName(lead.firstName, lead.lastName),
       });
       setCallRecord(res.data.data);
       setCallState('calling');
@@ -240,7 +241,7 @@ const TelecallerCallPage: React.FC = () => {
           </div>
 
           <h2 className="text-2xl font-bold text-gray-800">
-            {lead.firstName} {lead.lastName || ''}
+            {getDisplayName(lead.firstName, lead.lastName)}
           </h2>
           <p className="text-gray-500 text-lg mt-1">{lead.phone}</p>
           {lead.email && <p className="text-gray-400 text-sm mt-1">{lead.email}</p>}

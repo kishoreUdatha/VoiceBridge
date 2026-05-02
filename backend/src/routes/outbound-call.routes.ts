@@ -347,7 +347,12 @@ router.post('/campaigns', validate([
 // List campaigns
 router.get('/campaigns', async (req: TenantRequest, res: Response) => {
   try {
-    const campaigns = await outboundCallService.listCampaigns(req.organization!.id);
+    const { search, limit } = req.query;
+    const campaigns = await outboundCallService.listCampaigns(
+      req.organization!.id,
+      search as string | undefined,
+      limit ? parseInt(limit as string) : undefined
+    );
     ApiResponse.success(res, 'Campaigns retrieved', campaigns);
   } catch (error) {
     ApiResponse.error(res, (error as Error).message, 500);

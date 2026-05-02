@@ -13,13 +13,15 @@ export class RawImportController {
       const limit = parseInt(req.query.limit as string) || 20;
       const userRole = req.user?.role || req.user?.roleSlug;
       const userId = req.user?.id;
+      const search = req.query.search as string | undefined;
 
       const { imports, total } = await rawImportService.getBulkImports(
         req.organizationId!,
         page,
         limit,
         userRole,
-        userId
+        userId,
+        search
       );
 
       ApiResponse.paginated(res, 'Bulk imports retrieved successfully', imports, page, limit, total);
@@ -131,6 +133,24 @@ export class RawImportController {
       );
 
       ApiResponse.success(res, 'Record retrieved successfully', record);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Search records (for global search)
+  async searchRecords(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const search = req.query.search as string;
+      const limit = parseInt(req.query.limit as string) || 5;
+
+      const records = await rawImportService.searchRecords(
+        req.organizationId!,
+        search,
+        limit
+      );
+
+      ApiResponse.success(res, 'Search results', { records });
     } catch (error) {
       next(error);
     }

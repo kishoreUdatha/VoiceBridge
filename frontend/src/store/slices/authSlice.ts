@@ -81,6 +81,19 @@ export const logout = createAsyncThunk('auth/logout', async () => {
   await authService.logout();
 });
 
+export const loginWithOtp = createAsyncThunk(
+  'auth/loginWithOtp',
+  async (phone: string, { rejectWithValue }) => {
+    try {
+      const response = await authService.loginWithOtp(phone);
+      return response;
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      return rejectWithValue(err.response?.data?.message || 'OTP login failed');
+    }
+  }
+);
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -152,6 +165,23 @@ const authSlice = createSlice({
       state.user = null;
       state.isAuthenticated = false;
       state.tenantUrl = null;
+    });
+
+    // Login with OTP
+    builder.addCase(loginWithOtp.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
+    builder.addCase(loginWithOtp.fulfilled, (state, action: PayloadAction<AuthResponse>) => {
+      state.isLoading = false;
+      state.user = action.payload.user;
+      state.isAuthenticated = true;
+      state.isInitialized = true;
+      state.tenantUrl = action.payload.tenantUrl || null;
+    });
+    builder.addCase(loginWithOtp.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
     });
   },
 });

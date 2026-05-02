@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { useCallOutcomes } from '../../hooks/useCallOutcomes';
 
 interface Call {
   id: string;
@@ -26,6 +27,9 @@ const TelecallerCallHistory: React.FC = () => {
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
+
+  // Use custom call outcomes for dynamic colors
+  const { getOutcomeBadgeClasses, getOutcomeLabel } = useCallOutcomes();
 
   useEffect(() => {
     fetchCalls();
@@ -65,18 +69,11 @@ const TelecallerCallHistory: React.FC = () => {
            date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  // Use dynamic outcome colors from hook
   const getOutcomeColor = (outcome?: string) => {
-    switch (outcome) {
-      case 'INTERESTED':
-      case 'CONVERTED':
-        return 'bg-green-100 text-green-700';
-      case 'NOT_INTERESTED':
-        return 'bg-red-100 text-red-700';
-      case 'CALLBACK':
-        return 'bg-yellow-100 text-yellow-700';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
+    if (!outcome) return 'bg-gray-100 text-gray-700';
+    const classes = getOutcomeBadgeClasses(outcome);
+    return `${classes.bg} ${classes.text}`;
   };
 
   const getSentimentEmoji = (sentiment?: string) => {

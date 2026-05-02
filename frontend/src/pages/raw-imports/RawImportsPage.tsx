@@ -227,7 +227,7 @@ export default function RawImportsPage() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
+        <div className="grid grid-cols-3 md:grid-cols-7 gap-2 mb-4">
           <div className="card p-2">
             <p className="text-xs text-gray-500">Total Imports</p>
             <p className="text-lg font-semibold text-gray-900">{stats.totalImports}</p>
@@ -239,6 +239,10 @@ export default function RawImportsPage() {
           <div className="card p-2">
             <p className="text-xs text-gray-500">Pending</p>
             <p className="text-lg font-semibold text-yellow-600">{stats.pendingRecords}</p>
+          </div>
+          <div className="card p-2">
+            <p className="text-xs text-gray-500">Assigned</p>
+            <p className="text-lg font-semibold text-blue-600">{stats.assignedRecords}</p>
           </div>
           <div className="card p-2">
             <p className="text-xs text-gray-500">Interested</p>
@@ -302,6 +306,7 @@ export default function RawImportsPage() {
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Date</th>
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Records</th>
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Pending</th>
+                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Assigned</th>
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Converted</th>
                 {isAdmin && <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Manager</th>}
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Status</th>
@@ -311,11 +316,11 @@ export default function RawImportsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 7} className="px-6 py-12 text-center text-gray-500">Loading...</td>
+                  <td colSpan={isAdmin ? 9 : 8} className="px-6 py-12 text-center text-gray-500">Loading...</td>
                 </tr>
               ) : filteredImports.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 7} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={isAdmin ? 9 : 8} className="px-4 py-8 text-center text-gray-500">
                     <DocumentArrowUpIcon className="h-8 w-8 mx-auto text-gray-300 mb-2" />
                     <p className="text-sm font-medium">No imports yet</p>
                     <p className="text-xs mt-1">Upload a CSV or Excel file to get started</p>
@@ -324,7 +329,7 @@ export default function RawImportsPage() {
               ) : (
                 filteredImports.map((item: any) => {
                   const source = getSourceFromFileName(item.fileName);
-                  const pendingCount = item.statusBreakdown?.PENDING || 0;
+                  const pendingCount = item.pendingCount || 0;
                   return (
                     <tr
                       key={item.id}
@@ -347,6 +352,11 @@ export default function RawImportsPage() {
                       <td className="px-3 py-2 whitespace-nowrap">
                         <span className={`text-xs font-medium ${pendingCount > 0 ? 'text-yellow-600' : 'text-gray-400'}`}>
                           {pendingCount}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <span className={`text-xs font-medium ${(item.assignedCount || 0) > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
+                          {item.assignedCount || 0}
                         </span>
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap text-xs">

@@ -554,13 +554,22 @@ export const telecallerApi = {
    * Returns outcomes configured by admin for selection after calls
    */
   getCallOutcomes: async (): Promise<CustomCallOutcome[]> => {
+    console.log('[TelecallerAPI] getCallOutcomes() called');
     try {
+      console.log('[TelecallerAPI] Making GET request to /call-outcomes/telecaller-app');
       const response = await api.get<ApiResponse<{ outcomes: CustomCallOutcome[] }>>(
         '/call-outcomes/telecaller-app'
       );
-      return response.data.data.outcomes;
-    } catch (error) {
-      console.error('[TelecallerAPI] Error fetching call outcomes:', error);
+      console.log('[TelecallerAPI] Response status:', response.status);
+      console.log('[TelecallerAPI] Response data:', JSON.stringify(response.data, null, 2));
+      const outcomes = response.data.data.outcomes;
+      console.log('[TelecallerAPI] Parsed outcomes count:', outcomes?.length || 0);
+      return outcomes;
+    } catch (error: any) {
+      console.error('[TelecallerAPI] === ERROR fetching call outcomes ===');
+      console.error('[TelecallerAPI] Error message:', error?.message);
+      console.error('[TelecallerAPI] Response status:', error?.response?.status);
+      console.error('[TelecallerAPI] Response data:', JSON.stringify(error?.response?.data, null, 2));
       throw new Error(getErrorMessage(error));
     }
   },

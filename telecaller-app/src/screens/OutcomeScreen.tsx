@@ -61,17 +61,25 @@ const OutcomeScreen: React.FC = () => {
   // Fetch outcomes from API on mount
   useEffect(() => {
     const fetchOutcomes = async () => {
+      console.log('[OutcomeScreen] === Starting outcomes fetch ===');
       try {
         setIsLoadingOutcomes(true);
+        console.log('[OutcomeScreen] Calling telecallerApi.getCallOutcomes()...');
         const fetchedOutcomes = await telecallerApi.getCallOutcomes();
+        console.log('[OutcomeScreen] API returned:', fetchedOutcomes?.length || 0, 'outcomes');
         if (fetchedOutcomes && fetchedOutcomes.length > 0) {
+          console.log('[OutcomeScreen] Setting custom outcomes:', fetchedOutcomes.map(o => o.name).join(', '));
           setOutcomes(fetchedOutcomes);
+        } else {
+          console.log('[OutcomeScreen] No outcomes returned, keeping fallback');
         }
-      } catch (error) {
-        console.log('[OutcomeScreen] Failed to fetch outcomes, using fallback:', error);
+      } catch (error: any) {
+        console.error('[OutcomeScreen] ERROR fetching outcomes:', error?.message || error);
+        console.error('[OutcomeScreen] Full error:', JSON.stringify(error, null, 2));
         // Keep using fallback outcomes
       } finally {
         setIsLoadingOutcomes(false);
+        console.log('[OutcomeScreen] === Fetch complete ===');
       }
     };
 

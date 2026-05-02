@@ -149,9 +149,16 @@ class CampaignManagementService {
   /**
    * List campaigns for an organization
    */
-  async listCampaigns(organizationId: string) {
+  async listCampaigns(organizationId: string, search?: string, limit?: number) {
+    const where: any = { organizationId };
+
+    // Add search filter
+    if (search) {
+      where.name = { contains: search, mode: 'insensitive' };
+    }
+
     return prisma.outboundCallCampaign.findMany({
-      where: { organizationId },
+      where,
       include: {
         agent: {
           select: { id: true, name: true, industry: true },
@@ -161,6 +168,7 @@ class CampaignManagementService {
         },
       },
       orderBy: { createdAt: 'desc' },
+      ...(limit && { take: limit }),
     });
   }
 

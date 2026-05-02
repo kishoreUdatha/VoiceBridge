@@ -140,6 +140,19 @@ export class UserController {
     }
   }
 
+  async searchUsers(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const search = req.query.search as string;
+      const limit = parseInt(req.query.limit as string) || 5;
+
+      const users = await userService.searchUsers(req.organizationId!, search, limit);
+
+      ApiResponse.success(res, 'Search results', { users });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getBulkStats(req: TenantRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const userIds = (req.query.userIds as string)?.split(',').filter(Boolean) || [];

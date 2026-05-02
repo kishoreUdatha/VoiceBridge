@@ -491,7 +491,7 @@ export default function PipelineSettingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-6xl">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-4 mb-2">

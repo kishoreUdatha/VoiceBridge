@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { authApi } from '../../api/auth';
+import { startProactiveTokenRefresh } from '../../api/index';
 import { AuthState, LoginCredentials, User } from '../../types';
 
 const initialState: AuthState = {
@@ -38,6 +39,8 @@ export const checkAuth = createAsyncThunk('auth/checkAuth', async (_, { rejectWi
     if (isAuth) {
       const user = await authApi.getCurrentUser();
       const token = await authApi.getToken();
+      // Start proactive token refresh to prevent auto-logout
+      startProactiveTokenRefresh();
       return { user, token };
     }
     return null;

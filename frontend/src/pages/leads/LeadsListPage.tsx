@@ -9,6 +9,7 @@ import api from '../../services/api';
 import leadTagsService, { LeadTag } from '../../services/lead-tags.service';
 import { customFieldsService, CustomField } from '../../services/custom-fields.service';
 import { PermissionGate } from '../../components/PermissionGate';
+import { getDisplayName, getNameInitials } from '../../utils/nameUtils';
 
 // Debounce delay in milliseconds
 const SEARCH_DEBOUNCE_MS = 400;
@@ -960,7 +961,7 @@ export default function LeadsListPage() {
                               ? 'bg-gradient-to-br from-emerald-500 to-emerald-600'
                               : 'bg-gradient-to-br from-primary-500 to-primary-600'
                           }`}>
-                            {lead.firstName?.[0]}{lead.lastName?.[0]}
+                            {getNameInitials(lead.firstName, lead.lastName)}
                             {lead.isConverted && (
                               <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-white rounded-full flex items-center justify-center shadow-sm">
                                 <CheckBadgeSolidIcon className="w-2.5 h-2.5 text-emerald-500" />
@@ -970,7 +971,7 @@ export default function LeadsListPage() {
                           <div>
                             <div className="flex items-center gap-1.5">
                               <p className="text-xs font-medium text-slate-900">
-                                {lead.firstName} {lead.lastName}
+                                {getDisplayName(lead.firstName, lead.lastName)}
                               </p>
                               {lead.isConverted && (
                                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700">

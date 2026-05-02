@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { getDisplayName } from '../../utils/nameUtils';
 
 interface TelecallerStats {
   totalLeads: number;
@@ -250,7 +251,7 @@ const TelecallerDashboard: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-800">
-                      {lead.firstName} {lead.lastName || ''}
+                      {getDisplayName(lead.firstName, lead.lastName)}
                     </h3>
                     <p className="text-gray-500 text-sm">{lead.phone}</p>
                     {lead.status && (

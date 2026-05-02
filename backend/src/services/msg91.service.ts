@@ -32,6 +32,7 @@ export interface SendOtpInput {
   templateId?: string;
   otpLength?: number;
   otpExpiry?: number; // in minutes
+  otp?: string; // Custom OTP to send (if not provided, MSG91 generates one)
   userId?: string;
   organizationId?: string;
 }
@@ -153,7 +154,7 @@ class Msg91Service {
 
       // If using template ID (MSG91 Flow), use the flow API
       if (input.templateId) {
-        const response = await this.client.post('/api/v5/flow/', {
+        const flowPayload = {
           template_id: input.templateId,
           short_url: '0',
           recipients: [
@@ -162,7 +163,13 @@ class Msg91Service {
               ...input.variables,
             },
           ],
-        });
+        };
+
+        console.log('[MSG91] Flow API request:', JSON.stringify(flowPayload, null, 2));
+
+        const response = await this.client.post('/api/v5/flow/', flowPayload);
+
+        console.log('[MSG91] Flow API response:', JSON.stringify(response.data, null, 2));
 
         // Log to database
         await this.logSms({
@@ -319,7 +326,8 @@ class Msg91Service {
   }
 
   /**
-   * Send OTP via MSG91
+   * Send OTP via MSG91 dedicated OTP API
+   * Uses /api/v5/otp endpoint which supports ##OTP## template placeholder
    */
   async sendOtp(input: SendOtpInput): Promise<{ success: boolean; requestId?: string; error?: string }> {
     if (!this.isConfigured()) {
@@ -334,16 +342,23 @@ class Msg91Service {
         mobile: phone,
         sender: this.senderId,
         otp_length: input.otpLength || 6,
-        otp_expiry: input.otpExpiry || 5,
+        otp_expiry: input.otpExpiry || 10, // Match our OTP expiry (10 minutes)
       };
+
+      // Pass custom OTP if provided (MSG91 supports this)
+      if (input.otp) {
+        payload.otp = input.otp;
+      }
 
       if (input.templateId) {
         payload.template_id = input.templateId;
       }
 
+      console.log('[MSG91] OTP API request:', JSON.stringify(payload, null, 2));
+
       const response = await this.client.post('/api/v5/otp', payload);
 
-      console.log('[MSG91] OTP sent:', response.data);
+      console.log('[MSG91] OTP API response:', JSON.stringify(response.data, null, 2));
 
       return {
         success: response.data?.type === 'success',

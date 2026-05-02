@@ -4,6 +4,10 @@
 .env.*.local
 !.env.example
 
+# Firebase service account (contains private key - NEVER commit)
+firebase-service-account.json
+*-firebase-adminsdk-*.json
+
 # Dependencies
 node_modules/
 
@@ -37,3 +41,5 @@ prisma/*.db-journal
 # Test coverage
 coverage/
 .nyc_output/
+myleadx-c458a-1b8b15f95e52.json
+*.json

@@ -1029,7 +1029,17 @@ export interface EditLeadFormData {
   walkinDate: string;
   lineupDate: string;
   preferredLocation: string;
+  // Course & Assignment
+  centerName: string;
+  agentName: string;
+  facultyName: string;
+  // Fee Details
   totalFees: string;
+  paidAmount: string;
+  paymentStatus: string;
+  installment1: string;
+  installment2: string;
+  installment3: string;
   // Custom Fields (dynamic)
   customFields: Record<string, any>;
 }
@@ -1075,7 +1085,17 @@ export function EditLeadModal({ isOpen, onClose, onSubmit, lead }: EditLeadModal
     walkinDate: '',
     lineupDate: '',
     preferredLocation: '',
+    // Course & Assignment
+    centerName: '',
+    agentName: '',
+    facultyName: '',
+    // Fee Details
     totalFees: '',
+    paidAmount: '',
+    paymentStatus: '',
+    installment1: '',
+    installment2: '',
+    installment3: '',
     customFields: {},
   });
 
@@ -1138,7 +1158,17 @@ export function EditLeadModal({ isOpen, onClose, onSubmit, lead }: EditLeadModal
         walkinDate: formatDateForInput(lead.walkinDate),
         lineupDate: formatDateForInput(lead.lineupDate),
         preferredLocation: lead.preferredLocation || '',
+        // Course & Assignment
+        centerName: lead.centerName || '',
+        agentName: lead.agentName || '',
+        facultyName: lead.facultyName || '',
+        // Fee Details
         totalFees: lead.totalFees ? String(lead.totalFees) : '',
+        paidAmount: lead.paidAmount ? String(lead.paidAmount) : '',
+        paymentStatus: lead.paymentStatus || '',
+        installment1: lead.installment1 ? String(lead.installment1) : '',
+        installment2: lead.installment2 ? String(lead.installment2) : '',
+        installment3: lead.installment3 ? String(lead.installment3) : '',
         customFields: lead.customFields || {},
       });
     }
@@ -1601,12 +1631,114 @@ export function EditLeadModal({ isOpen, onClose, onSubmit, lead }: EditLeadModal
             />
           </div>
 
+          {/* Course & Assignment */}
+          <div className="col-span-2 mt-2">
+            <p className="text-sm font-medium text-slate-700 mb-2">Course & Assignment</p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Center Name</label>
+            <input
+              type="text"
+              value={form.centerName}
+              onChange={(e) => handleChange('centerName', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Center Name"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Agent Name</label>
+            <input
+              type="text"
+              value={form.agentName}
+              onChange={(e) => handleChange('agentName', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Agent Name"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Faculty Name</label>
+            <input
+              type="text"
+              value={form.facultyName}
+              onChange={(e) => handleChange('facultyName', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Faculty Name"
+            />
+          </div>
+
+          {/* Fee Details */}
+          <div className="col-span-2 mt-2">
+            <p className="text-sm font-medium text-slate-700 mb-2">Fee Details</p>
+          </div>
+
           <div>
             <label className="block text-xs text-slate-500 mb-1">Total Fees</label>
             <input
               type="number"
               value={form.totalFees}
               onChange={(e) => handleChange('totalFees', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="0"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Paid Amount</label>
+            <input
+              type="number"
+              value={form.paidAmount}
+              onChange={(e) => handleChange('paidAmount', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="0"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Payment Status</label>
+            <select
+              value={form.paymentStatus}
+              onChange={(e) => handleChange('paymentStatus', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">Select Status</option>
+              <option value="PENDING">Pending</option>
+              <option value="PARTIAL">Partial</option>
+              <option value="PAID">Paid</option>
+              <option value="OVERDUE">Overdue</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Installment 1</label>
+            <input
+              type="number"
+              value={form.installment1}
+              onChange={(e) => handleChange('installment1', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="0"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Installment 2</label>
+            <input
+              type="number"
+              value={form.installment2}
+              onChange={(e) => handleChange('installment2', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="0"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Installment 3</label>
+            <input
+              type="number"
+              value={form.installment3}
+              onChange={(e) => handleChange('installment3', e.target.value)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               placeholder="0"
             />

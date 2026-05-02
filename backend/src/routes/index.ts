@@ -36,6 +36,7 @@ import emailSettingsRoutes from './email-settings.routes';
 import partnerRoutes from './partner.routes';
 import marketplaceRoutes from './marketplace.routes';
 import publicApiRoutes from './public-api.routes';
+import v2Routes from './v2';
 import apiKeysRoutes from './api-keys.routes';
 import webhooksRoutes from './webhooks.routes';
 import templatesRoutes from './templates.routes';
@@ -81,6 +82,8 @@ import sulekhaIntegrationRoutes from './sulekha-integration.routes';
 import tawkToIntegrationRoutes from './tawkto-integration.routes';
 import zapierIntegrationRoutes from './zapier-integration.routes';
 import scheduledCallsRoutes from './scheduled-calls.routes';
+import appointmentReminderRoutes from './appointment-reminder.routes';
+import crmAutomationRoutes from './crm-automation.routes';
 import healthRoutes from './health.routes';
 import complianceRoutes from './compliance.routes';
 import leadScoringRoutes from './lead-scoring.routes';
@@ -105,6 +108,7 @@ import userManagementRoutes from './user-management.routes';
 import branchRoutes from './branch.routes';
 import roleRoutes from './role.routes';
 import leadStageRoutes from './lead-stage.routes';
+import callOutcomeRoutes from './call-outcome.routes';
 import industryCustomFieldsRoutes from './industry-custom-fields.routes';
 import industryManagementRoutes from './admin/industry-management.routes';
 import customFieldsRoutes from './custom-fields.routes';
@@ -159,6 +163,7 @@ import workflowAutomationRoutes from './workflow-automation.routes';
 import pipelineKanbanRoutes from './pipeline-kanban.routes';
 import batchOperationsRoutes from './batch-operations.routes';
 import realtimeAlertsRoutes from './realtime-alerts.routes';
+import globalSearchRoutes from './global-search.routes';
 
 // Enterprise CRM Features
 import territoryRoutes from './territory.routes';
@@ -202,6 +207,7 @@ router.use('/branding', brandingRoutes);
 
 // API routes
 router.use('/auth', authRoutes);
+router.use('/global-search', globalSearchRoutes);
 router.use('/users', userRoutes);
 router.use('/user-management', userManagementRoutes);
 router.use('/leads', leadRoutes);
@@ -305,6 +311,8 @@ router.use('/apify', apifyIntegrationRoutes);
 
 // Scheduled Calls & Reminders
 router.use('/scheduled-calls', scheduledCallsRoutes);
+router.use('/appointment-reminders', appointmentReminderRoutes);
+router.use('/crm-automations', crmAutomationRoutes);
 
 // Compliance & Analytics
 router.use('/compliance', complianceRoutes);
@@ -335,6 +343,9 @@ router.use('/roles', roleRoutes);
 
 // Lead Stage Management (Industry-specific)
 router.use('/lead-stages', leadStageRoutes);
+
+// Call Outcome Management (Custom outcomes for telecaller app)
+router.use('/call-outcomes', callOutcomeRoutes);
 
 // Lead Source Management (Custom sources)
 router.use('/lead-sources', leadSourceRoutes);
@@ -495,5 +506,9 @@ router.use('/settings', notificationPreferencesRoutes);
 
 // Public API (versioned) - for external integrations
 router.use('/v1', publicApiRoutes);
+
+// V2 Unified API - consistent endpoints for mobile and web
+// Provides unified role-based access control across all clients
+router.use('/v2', v2Routes);
 
 export default router;

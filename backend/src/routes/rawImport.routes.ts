@@ -84,9 +84,11 @@ router.get(
   rawImportController.getTelecallerAssignmentStats.bind(rawImportController)
 );
 
-// Bulk Imports List
+// Bulk Imports List (with optional search)
 router.get(
   '/',
+  query('search').optional().isString(),
+  query('limit').optional().isInt({ min: 1, max: 100 }),
   rawImportController.listBulkImports.bind(rawImportController)
 );
 
@@ -95,6 +97,15 @@ router.get(
   '/records',
   validate(listRecordsValidation),
   rawImportController.listRecords.bind(rawImportController)
+);
+
+// Search records (for global search)
+router.get(
+  '/records/search',
+  query('search').notEmpty().withMessage('Search query is required'),
+  query('limit').optional().isInt({ min: 1, max: 20 }).withMessage('Limit must be between 1 and 20'),
+  validate([]),
+  rawImportController.searchRecords.bind(rawImportController)
 );
 
 // Get single bulk import

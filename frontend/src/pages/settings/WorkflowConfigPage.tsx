@@ -426,7 +426,7 @@ export default function WorkflowConfigPage() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-6 max-w-6xl">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
         </div>
@@ -435,7 +435,7 @@ export default function WorkflowConfigPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-6xl">
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">

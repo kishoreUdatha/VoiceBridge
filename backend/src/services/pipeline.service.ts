@@ -1,4 +1,5 @@
 import { prisma } from '../config/database';
+import { userService } from './user.service';
 
 /**
  * Get all pipelines for an organization
@@ -99,6 +100,19 @@ export const createPipeline = async (
     isDefault?: boolean;
   }
 ) => {
+  // Check if pipeline with same name already exists for this organization and entity type
+  const existingPipeline = await prisma.pipeline.findFirst({
+    where: {
+      organizationId,
+      name: data.name,
+      entityType: (data.entityType || 'LEAD') as any,
+    },
+  });
+
+  if (existingPipeline) {
+    throw new Error(`Pipeline "${data.name}" already exists for this organization. Please use a different name or edit the existing pipeline.`);
+  }
+
   // Generate unique slug
   const slug = data.slug
     ? await generateUniqueSlug(organizationId, data.slug)
@@ -531,9 +545,16 @@ export const getPipelineRecordHistory = async (pipelineRecordId: string) => {
 };
 
 /**
- * Get pipeline analytics
+ * Get pipeline analytics with role-based filtering
  */
-export const getPipelineAnalytics = async (pipelineId: string) => {
+export const getPipelineAnalytics = async (
+  pipelineId: string,
+  filters?: {
+    organizationId?: string;
+    userRole?: string;
+    userId?: string;
+  }
+) => {
   const pipeline = await prisma.pipeline.findUnique({
     where: { id: pipelineId },
     include: {
@@ -551,19 +572,39 @@ export const getPipelineAnalytics = async (pipelineId: string) => {
   // Get stage IDs for this pipeline
   const stageIds = pipeline.stages.map(s => s.id);
 
-  // Count leads directly by pipelineStageId (primary source)
+  // Build base lead filter
+  const baseLeadFilter: any = {
+    pipelineStageId: { in: stageIds },
+  };
+
+  // Apply role-based filtering
+  if (filters?.organizationId && filters?.userRole && filters?.userId) {
+    const viewableUserIds = await userService.getViewableTeamMemberIds(
+      filters.organizationId,
+      filters.userRole,
+      filters.userId
+    );
+
+    console.log(`[Pipeline Analytics] Role: ${filters.userRole}, UserId: ${filters.userId}`);
+    console.log(`[Pipeline Analytics] Viewable User IDs: ${viewableUserIds ? viewableUserIds.length + ' users' : 'ALL (null)'}`);
+
+    // If viewableUserIds is not null, filter leads by their active assignments
+    if (viewableUserIds !== null) {
+      // Filter leads that have an active assignment to one of the viewable users
+      baseLeadFilter.assignments = {
+        some: {
+          assignedToId: { in: viewableUserIds },
+          isActive: true,
+        },
+      };
+      console.log(`[Pipeline Analytics] Filtering leads by assignment to ${viewableUserIds.length} users`);
+    }
+  }
+
+  // Count leads directly by pipelineStageId with role-based filtering
   const leadCountsByStage = await prisma.lead.groupBy({
     by: ['pipelineStageId'],
-    where: {
-      pipelineStageId: { in: stageIds },
-    },
-    _count: { id: true },
-  });
-
-  // Also get PipelineRecord counts as backup
-  const pipelineRecordCounts = await prisma.pipelineRecord.groupBy({
-    by: ['stageId'],
-    where: { pipelineId, isActive: true },
+    where: baseLeadFilter,
     _count: { id: true },
   });
 
@@ -577,34 +618,31 @@ export const getPipelineAnalytics = async (pipelineId: string) => {
     _avg: { durationMinutes: true },
   });
 
-  // Count total leads in this pipeline's stages
+  // Count total leads in this pipeline's stages (with role filter)
   const totalLeads = await prisma.lead.count({
-    where: {
-      pipelineStageId: { in: stageIds },
-    },
+    where: baseLeadFilter,
   });
 
-  // Count won/lost based on stage type
+  // Count won/lost based on stage type (with role filter)
   const wonStageIds = pipeline.stages.filter(s => s.stageType === 'won').map(s => s.id);
   const lostStageIds = pipeline.stages.filter(s => s.stageType === 'lost').map(s => s.id);
 
   const wonLeads = wonStageIds.length > 0 ? await prisma.lead.count({
-    where: { pipelineStageId: { in: wonStageIds } },
+    where: { ...baseLeadFilter, pipelineStageId: { in: wonStageIds } },
   }) : 0;
 
   const lostLeads = lostStageIds.length > 0 ? await prisma.lead.count({
-    where: { pipelineStageId: { in: lostStageIds } },
+    where: { ...baseLeadFilter, pipelineStageId: { in: lostStageIds } },
   }) : 0;
 
   // Build stage data with counts
   const stages = pipeline.stages.map(stage => {
-    // Prefer direct lead counts, fallback to PipelineRecord counts
+    // Use filtered lead counts (role-based filtering applied)
     const leadCount = leadCountsByStage.find(s => s.pipelineStageId === stage.id)?._count.id || 0;
-    const recordCount = pipelineRecordCounts.find(s => s.stageId === stage.id)?._count.id || 0;
 
     return {
       ...stage,
-      recordCount: leadCount || recordCount,
+      recordCount: leadCount,
       avgTimeMinutes: stageTimeAvg.find(s => s.stageId === stage.id)?._avg.durationMinutes || 0,
     };
   });

@@ -16,6 +16,8 @@ import {
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { getDisplayName } from '../../utils/nameUtils';
+import { useCallOutcomes } from '../../hooks/useCallOutcomes';
 
 interface Telecaller {
   id: string;
@@ -53,17 +55,7 @@ interface Call {
 
 type DateRangeOption = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';
 
-const OUTCOMES = [
-  { value: '', label: 'All Outcomes' },
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'INTERESTED', label: 'Interested' },
-  { value: 'NOT_INTERESTED', label: 'Not Interested' },
-  { value: 'CALLBACK', label: 'Callback' },
-  { value: 'CONVERTED', label: 'Converted' },
-  { value: 'NO_ANSWER', label: 'No Answer' },
-  { value: 'WRONG_NUMBER', label: 'Wrong Number' },
-  { value: 'BUSY', label: 'Busy' },
-];
+// Note: OUTCOMES is now dynamic - see useCallOutcomes hook usage below
 
 const STATUSES = [
   { value: '', label: 'All Statuses' },
@@ -126,6 +118,9 @@ const AdminTelecallerCallHistory: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [outcomeCounts, setOutcomeCounts] = useState<Record<string, number>>({});
+
+  // Use custom call outcomes hook for dynamic outcomes
+  const { filterOptions: OUTCOMES, getOutcomeBadgeClasses, getOutcomeLabel, statsOutcomes } = useCallOutcomes();
 
   // Check if user is a telecaller/counselor (can only see their own calls)
   const isTelecaller = user?.role === 'telecaller' || user?.role === 'counselor';
@@ -242,23 +237,11 @@ const AdminTelecallerCallHistory: React.FC = () => {
     });
   };
 
+  // Use dynamic outcome colors from hook
   const getOutcomeColor = (outcome?: string) => {
-    switch (outcome) {
-      case 'INTERESTED':
-      case 'CONVERTED':
-        return 'bg-green-100 text-green-700';
-      case 'NOT_INTERESTED':
-        return 'bg-red-100 text-red-700';
-      case 'CALLBACK':
-        return 'bg-yellow-100 text-yellow-700';
-      case 'NO_ANSWER':
-      case 'BUSY':
-        return 'bg-orange-100 text-orange-700';
-      case 'WRONG_NUMBER':
-        return 'bg-gray-100 text-gray-700';
-      default:
-        return 'bg-blue-100 text-blue-700';
-    }
+    if (!outcome) return 'bg-blue-100 text-blue-700';
+    const classes = getOutcomeBadgeClasses(outcome);
+    return `${classes.bg} ${classes.text}`;
   };
 
   const getStatusColor = (status: string) => {
@@ -393,7 +376,7 @@ const AdminTelecallerCallHistory: React.FC = () => {
               <option value="">All Telecallers</option>
               {telecallers.map((tc) => (
                 <option key={tc.id} value={tc.id}>
-                  {tc.firstName} {tc.lastName || ''}
+                  {getDisplayName(tc.firstName, tc.lastName)}
                 </option>
               ))}
             </select>
@@ -563,7 +546,7 @@ const AdminTelecallerCallHistory: React.FC = () => {
                           <div>
                             <div className="font-medium text-gray-900">
                               {call.telecaller
-                                ? `${call.telecaller.firstName} ${call.telecaller.lastName || ''}`
+                                ? getDisplayName(call.telecaller.firstName, call.telecaller.lastName)
                                 : 'Unknown'}
                             </div>
                             <div className="text-xs text-gray-500">{call.telecaller?.email}</div>
@@ -574,7 +557,7 @@ const AdminTelecallerCallHistory: React.FC = () => {
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">
                         {call.contactName ||
-                          (call.lead ? `${call.lead.firstName} ${call.lead.lastName || ''}` : 'Unknown')}
+                          (call.lead ? getDisplayName(call.lead.firstName, call.lead.lastName) : 'Unknown')}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -684,7 +667,7 @@ const AdminTelecallerCallHistory: React.FC = () => {
                   <div>
                     <div className="font-semibold text-gray-900">
                       {selectedCall.telecaller
-                        ? `${selectedCall.telecaller.firstName} ${selectedCall.telecaller.lastName || ''}`
+                        ? getDisplayName(selectedCall.telecaller.firstName, selectedCall.telecaller.lastName)
                         : 'Unknown Telecaller'}
                     </div>
                     <div className="text-sm text-gray-500">{selectedCall.telecaller?.email}</div>
@@ -703,7 +686,7 @@ const AdminTelecallerCallHistory: React.FC = () => {
                     <div className="font-medium text-gray-900">
                       {selectedCall.contactName ||
                         (selectedCall.lead
-                          ? `${selectedCall.lead.firstName} ${selectedCall.lead.lastName || ''}`
+                          ? getDisplayName(selectedCall.lead.firstName, selectedCall.lead.lastName)
                           : 'Unknown')}
                     </div>
                     <div className="text-sm text-gray-500 font-mono">{selectedCall.phoneNumber}</div>

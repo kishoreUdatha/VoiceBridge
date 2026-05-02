@@ -771,6 +771,17 @@ async function handleIncomingMessage(message: any, metadata: any) {
 
     console.log(`[WhatsApp Incoming] From: ${from}, Type: ${messageType}, Content: ${content}`);
 
+    // Check for appointment confirmation keywords
+    const confirmKeywords = ['confirm', 'yes', 'confirmed', 'ok', 'okay', 'sure', 'coming', 'will come'];
+    const isConfirmation = confirmKeywords.some(keyword =>
+      content.toLowerCase().trim().includes(keyword)
+    );
+
+    // If this looks like a confirmation, check for upcoming appointments
+    if (isConfirmation) {
+      await handleAppointmentConfirmation(from, content);
+    }
+
     // Find lead by phone number
     const lead = await prisma.lead.findFirst({
       where: {
@@ -812,6 +823,61 @@ async function handleIncomingMessage(message: any, metadata: any) {
     }
   } catch (error) {
     console.error('[WhatsApp] Error handling incoming message:', error);
+  }
+}
+
+/**
+ * Handle appointment confirmation from WhatsApp reply
+ */
+async function handleAppointmentConfirmation(phoneNumber: string, message: string) {
+  try {
+    // Normalize phone number
+    const phoneVariants = [
+      phoneNumber,
+      `+${phoneNumber}`,
+      phoneNumber.replace(/^91/, ''),
+      phoneNumber.replace(/^\+91/, ''),
+      `+91${phoneNumber.replace(/^91/, '').replace(/^\+/, '')}`,
+    ];
+
+    // Find upcoming appointments for this phone number
+    const now = new Date();
+    const upcomingAppointment = await prisma.appointment.findFirst({
+      where: {
+        contactPhone: { in: phoneVariants },
+        status: { in: ['SCHEDULED', 'CONFIRMED'] },
+        scheduledAt: { gte: now },
+        customerConfirmed: false,
+      },
+      orderBy: { scheduledAt: 'asc' },
+    });
+
+    if (upcomingAppointment) {
+      // Mark appointment as confirmed
+      await prisma.appointment.update({
+        where: { id: upcomingAppointment.id },
+        data: {
+          customerConfirmed: true,
+          status: 'CONFIRMED',
+          confirmedAt: new Date(),
+        },
+      });
+
+      // Log the confirmation
+      await prisma.appointmentReminderLog.create({
+        data: {
+          appointmentId: upcomingAppointment.id,
+          reminderType: 'confirmation_reply',
+          channel: 'whatsapp',
+          status: 'confirmed',
+          messageId: null,
+        },
+      });
+
+      console.log(`[WhatsApp] Appointment ${upcomingAppointment.id} confirmed via WhatsApp reply`);
+    }
+  } catch (error) {
+    console.error('[WhatsApp] Error handling appointment confirmation:', error);
   }
 }
 

@@ -126,6 +126,8 @@ export interface LeadFilter {
 
 export interface LeadStats {
   total: number;
+  converted: number;
+  conversionRate: number;
   byStatus: Record<string, number>;
   bySource: Record<string, number>;
   todayCount: number;

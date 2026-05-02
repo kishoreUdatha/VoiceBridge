@@ -180,9 +180,14 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isAnnual, onSelectPlan }) => 
                 <span className="text-gray-500 ml-1 text-sm">/month</span>
               </div>
               {isAnnual && (
-                <p className="text-green-600 text-xs font-medium mt-1">
-                  Save {formatPrice((plan.monthlyPrice - plan.annualPrice) * 12)}/year
-                </p>
+                <>
+                  <p className="text-gray-500 text-xs mt-1">
+                    billed annually ({formatPrice(plan.annualPrice * 12)}/year)
+                  </p>
+                  <p className="text-green-600 text-xs font-medium">
+                    Save {formatPrice((plan.monthlyPrice - plan.annualPrice) * 12)}/year
+                  </p>
+                </>
               )}
             </div>
           )}
@@ -392,17 +397,16 @@ export const CategoryComparisonTable: React.FC<CategoryComparisonTableProps> = (
           <thead className="sticky top-0 z-10">
             <tr className="bg-gray-900 text-white">
               <th className="px-6 py-5 text-left text-sm font-bold sticky left-0 bg-gray-900 min-w-[220px]">Feature</th>
-              <th className="px-4 py-5 text-center text-sm font-bold min-w-[100px]">Starter</th>
-              <th className="px-4 py-5 text-center text-sm font-bold bg-blue-600 min-w-[100px]">Growth</th>
-              <th className="px-4 py-5 text-center text-sm font-bold min-w-[100px]">Business</th>
-              <th className="px-4 py-5 text-center text-sm font-bold min-w-[100px]">Enterprise</th>
+              <th className="px-4 py-5 text-center text-sm font-bold min-w-[120px]">Growth</th>
+              <th className="px-4 py-5 text-center text-sm font-bold bg-blue-600 min-w-[120px]">Scale</th>
+              <th className="px-4 py-5 text-center text-sm font-bold min-w-[120px]">Enterprise</th>
             </tr>
           </thead>
           <tbody>
             {categories.map((category, catIdx) => (
               <React.Fragment key={catIdx}>
                 <tr className="bg-gray-100">
-                  <td colSpan={5} className="px-6 py-3 text-sm font-bold text-gray-900">
+                  <td colSpan={4} className="px-6 py-3 text-sm font-bold text-gray-900">
                     {category.category}
                   </td>
                 </tr>
@@ -412,7 +416,7 @@ export const CategoryComparisonTable: React.FC<CategoryComparisonTableProps> = (
                       {feature.name}
                     </td>
                     {PLAN_TIERS.map((plan: PlanTier) => (
-                      <td key={plan} className={`px-4 py-3 text-center ${plan === 'growth' ? 'bg-blue-50/50' : ''}`}>
+                      <td key={plan} className={`px-4 py-3 text-center ${plan === 'scale' ? 'bg-blue-50/50' : ''}`}>
                         {typeof feature[plan] === 'boolean' ? (
                           feature[plan] ? (
                             <CheckIcon className="w-5 h-5 text-green-500 mx-auto" />

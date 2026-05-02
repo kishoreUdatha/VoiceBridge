@@ -39,6 +39,8 @@ export { default as PipelineSettingsPage } from './PipelineSettingsPage';
 export { default as TagManagementPage } from './TagManagementPage';
 export { default as IndustrySettingsPage } from './IndustrySettingsPage';
 export { default as LeadManagementSettingsPage } from './LeadManagementSettingsPage';
+export { default as AppointmentReminderSettingsPage } from './AppointmentReminderSettingsPage';
+export { default as CrmAutomationSettingsPage } from './CrmAutomationSettingsPage';
 export { default as BranchesPage } from './BranchesPage';
 export { default as BranchFormPage } from './BranchFormPage';
 export { default as PhoneNumbersPage } from './PhoneNumbersPage';

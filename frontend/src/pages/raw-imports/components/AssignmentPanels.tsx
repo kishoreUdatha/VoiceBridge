@@ -3,13 +3,14 @@
  * Telecaller and AI Campaign assignment panels
  */
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   XMarkIcon,
   UserGroupIcon,
   CpuChipIcon,
   PhoneIcon,
   ClockIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 
 interface VoiceAgent {
@@ -24,10 +25,8 @@ interface Telecaller {
   firstName: string;
   lastName: string;
   activeRecordCount?: number;
-  role?: {
-    name: string;
-    slug: string;
-  };
+  role?: string;
+  roleSlug?: string;
 }
 
 // Telecaller Assignment Panel
@@ -47,120 +46,155 @@ export const TelecallerAssignPanel: React.FC<TelecallerPanelProps> = ({
   onToggleTelecaller,
   onAssign,
   onClose,
-}) => (
-  <>
-    {/* Backdrop */}
-    <div
-      className="fixed top-11 left-0 right-0 bottom-0 lg:left-52 bg-black bg-opacity-30 z-40"
-      onClick={onClose}
-    />
+}) => {
+  const [searchQuery, setSearchQuery] = useState('');
 
-    {/* Side Panel */}
-    <div className="fixed top-11 right-0 bottom-0 w-96 max-w-[calc(100vw-13rem)] bg-white shadow-2xl z-50 flex flex-col border-l border-gray-200 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-blue-50">
-        <h3 className="text-sm font-semibold flex items-center gap-2 text-blue-900">
-          <UserGroupIcon className="h-5 w-5 text-blue-600" />
-          Assign to Telecallers
-        </h3>
-        <button
-          onClick={onClose}
-          className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-blue-100"
-        >
-          <XMarkIcon className="h-5 w-5" />
-        </button>
-      </div>
+  // Filter telecallers based on search query
+  const filteredTelecallers = useMemo(() => {
+    if (!searchQuery.trim()) return telecallers;
+    const query = searchQuery.toLowerCase();
+    return telecallers.filter(
+      (t) =>
+        t.firstName.toLowerCase().includes(query) ||
+        t.lastName.toLowerCase().includes(query) ||
+        t.role?.toLowerCase().includes(query) ||
+        t.roleSlug?.toLowerCase().includes(query)
+    );
+  }, [telecallers, searchQuery]);
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
-        {/* Selected Records Info */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
-              <UserGroupIcon className="h-4 w-4 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-blue-900">{selectedRecordsCount} Records Selected</p>
-              <p className="text-xs text-blue-600">Will be distributed round-robin</p>
-            </div>
-          </div>
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed top-11 left-0 right-0 bottom-0 lg:left-52 bg-black bg-opacity-30 z-40"
+        onClick={onClose}
+      />
+
+      {/* Side Panel */}
+      <div className="fixed top-11 right-0 bottom-0 w-96 max-w-[calc(100vw-13rem)] bg-white shadow-2xl z-50 flex flex-col border-l border-gray-200 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b bg-blue-50">
+          <h3 className="text-sm font-semibold flex items-center gap-2 text-blue-900">
+            <UserGroupIcon className="h-5 w-5 text-blue-600" />
+            Assign to Telecallers
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-blue-100"
+          >
+            <XMarkIcon className="h-5 w-5" />
+          </button>
         </div>
 
-        {/* Telecaller Selection */}
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-2">
-            Select Telecallers
-          </label>
-          {telecallers.length === 0 ? (
-            <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-              <UserGroupIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-500 text-xs">No telecallers available</p>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          {/* Selected Records Info */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
+                <UserGroupIcon className="h-4 w-4 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-blue-900">{selectedRecordsCount} Records Selected</p>
+                <p className="text-xs text-blue-600">Will be distributed round-robin</p>
+              </div>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {telecallers.map((telecaller) => (
-                <label
-                  key={telecaller.id}
-                  className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${
-                    selectedTelecallers.includes(telecaller.id)
-                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                      : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedTelecallers.includes(telecaller.id)}
-                    onChange={() => onToggleTelecaller(telecaller.id)}
-                    className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <div className="ml-3 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-gray-900">
-                        {telecaller.firstName} {telecaller.lastName}
+          </div>
+
+          {/* Telecaller Selection */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-2">
+              Select Telecallers
+            </label>
+
+            {/* Search Input */}
+            <div className="relative mb-3">
+              <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search by name or role..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            {telecallers.length === 0 ? (
+              <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                <UserGroupIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-500 text-xs">No telecallers available</p>
+              </div>
+            ) : filteredTelecallers.length === 0 ? (
+              <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                <MagnifyingGlassIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-500 text-xs">No telecallers match "{searchQuery}"</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {filteredTelecallers.map((telecaller) => (
+                  <label
+                    key={telecaller.id}
+                    className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${
+                      selectedTelecallers.includes(telecaller.id)
+                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                        : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTelecallers.includes(telecaller.id)}
+                      onChange={() => onToggleTelecaller(telecaller.id)}
+                      className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                    />
+                    <div className="ml-3 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900">
+                          {telecaller.firstName} {telecaller.lastName}
+                        </p>
+                        {telecaller.role && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700">
+                            {telecaller.role}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {telecaller.activeRecordCount || 0} active records
                       </p>
-                      {telecaller.role?.name && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
-                          {telecaller.role.name}
-                        </span>
-                      )}
                     </div>
-                    <p className="text-xs text-gray-500">
-                      {telecaller.activeRecordCount || 0} active records
-                    </p>
-                  </div>
-                </label>
-              ))}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Distribution Info */}
+          {selectedTelecallers.length > 0 && (
+            <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
+              <p className="font-medium mb-1">Distribution Info:</p>
+              <p>Records will be evenly distributed among {selectedTelecallers.length} selected telecaller(s).</p>
+              <p className="mt-1">~{Math.ceil(selectedRecordsCount / selectedTelecallers.length)} records per telecaller</p>
             </div>
           )}
         </div>
 
-        {/* Distribution Info */}
-        {selectedTelecallers.length > 0 && (
-          <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
-            <p className="font-medium mb-1">Distribution Info:</p>
-            <p>Records will be evenly distributed among {selectedTelecallers.length} selected telecaller(s).</p>
-            <p className="mt-1">~{Math.ceil(selectedRecordsCount / selectedTelecallers.length)} records per telecaller</p>
-          </div>
-        )}
+        {/* Footer */}
+        <div className="border-t bg-gray-50 p-4 space-y-3">
+          <button
+            onClick={onAssign}
+            disabled={selectedTelecallers.length === 0}
+            className="w-full btn text-sm bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed py-2.5 rounded-lg font-medium flex items-center justify-center gap-2"
+          >
+            <UserGroupIcon className="h-4 w-4" />
+            Assign to {selectedTelecallers.length || 0} Telecaller(s)
+          </button>
+          <button onClick={onClose} className="w-full btn btn-outline text-sm py-2 rounded-lg">
+            Cancel
+          </button>
+        </div>
       </div>
-
-      {/* Footer */}
-      <div className="border-t bg-gray-50 p-4 space-y-3">
-        <button
-          onClick={onAssign}
-          disabled={selectedTelecallers.length === 0}
-          className="w-full btn text-sm bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed py-2.5 rounded-lg font-medium flex items-center justify-center gap-2"
-        >
-          <UserGroupIcon className="h-4 w-4" />
-          Assign to {selectedTelecallers.length || 0} Telecaller(s)
-        </button>
-        <button onClick={onClose} className="w-full btn btn-outline text-sm py-2 rounded-lg">
-          Cancel
-        </button>
-      </div>
-    </div>
-  </>
-);
+    </>
+  );
+};
 
 // AI Campaign Panel
 interface AICampaignPanelProps {

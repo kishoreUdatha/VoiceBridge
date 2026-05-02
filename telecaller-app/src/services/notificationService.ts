@@ -229,14 +229,16 @@ class NotificationService {
 
   /**
    * Register FCM token with backend
+   * @param authToken - Optional auth token to use directly (bypasses axios interceptor)
    */
-  private async registerTokenWithBackend(token: string): Promise<void> {
+  private async registerTokenWithBackend(token: string, authToken?: string): Promise<void> {
     try {
+      const config = authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : {};
       await api.post('/notifications/register-device', {
         token,
         platform: Platform.OS,
         deviceId: `${Platform.OS}-${Date.now()}`,
-      });
+      }, config);
       console.log('[NotificationService] Token registered with backend');
     } catch (error) {
       console.error('[NotificationService] Failed to register token:', error);
@@ -658,6 +660,33 @@ class NotificationService {
    */
   getCurrentToken(): string | null {
     return this.fcmToken;
+  }
+
+  /**
+   * Force re-register FCM token with backend
+   * Call this after successful login to ensure token is registered with auth
+   * @param authToken - Optional auth token to use directly (avoids race condition with AsyncStorage)
+   */
+  async forceRegisterToken(authToken?: string): Promise<boolean> {
+    if (!messaging) {
+      console.log('[NotificationService] Firebase messaging not available');
+      return false;
+    }
+
+    try {
+      const token = await messaging().getToken();
+      if (token) {
+        this.fcmToken = token;
+        await AsyncStorage.setItem(FCM_TOKEN_KEY, token);
+        await this.registerTokenWithBackend(token, authToken);
+        console.log('[NotificationService] Force registered FCM token');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('[NotificationService] Force register failed:', error);
+      return false;
+    }
   }
 
   /**
