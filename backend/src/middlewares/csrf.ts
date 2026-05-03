@@ -114,8 +114,11 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
   // Also skip logout - it's a session-destroying action that should work even if CSRF cookie is stale
   const csrfExemptEndpoints = [
     '/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password',
-    '/auth/refresh-token', '/auth/logout', '/super-admin/login', '/super-admin/logout',
+    '/auth/refresh-token', '/auth/logout', '/auth/login-otp', '/auth/validate-credentials',
+    '/super-admin/login', '/super-admin/logout',
     '/super-admin/setup', // First-time setup endpoint
+    // OTP endpoints - used for pre-auth flows (login, registration, password reset)
+    '/otp/send', '/otp/verify', '/otp/resend', '/otp/status',
     // Onboarding endpoints - CSRF cookie may not be set yet after login
     '/lead-stages/industry', '/onboarding', '/organization/complete-onboarding',
     // Mobile app notification endpoints
