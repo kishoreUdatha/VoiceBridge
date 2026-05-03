@@ -108,14 +108,15 @@ class OtpService {
       },
     });
 
-    // Generate new OTP - use fixed OTP for local development
-    const otp = process.env.NODE_ENV === 'production' ? this.generateOtp() : '112820';
+    // Generate new OTP - use DEFAULT_OTP env var if set, otherwise generate random in production
+    const defaultOtp = process.env.DEFAULT_OTP;
+    const otp = defaultOtp || (process.env.NODE_ENV === 'production' ? this.generateOtp() : '112820');
     const hashedOtp = this.hashOtp(otp);
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
-    // Log OTP for development
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[DEV] OTP for ${identifier}: ${otp}`);
+    // Log OTP for development or when using default OTP
+    if (process.env.NODE_ENV !== 'production' || defaultOtp) {
+      console.log(`[OTP] OTP for ${identifier}: ${otp}`);
     }
 
     // Create OTP record
@@ -134,6 +135,18 @@ class OtpService {
         expiresAt,
       },
     });
+
+    // Skip OTP delivery if SKIP_OTP_DELIVERY is set (for testing without SMS/WhatsApp providers)
+    if (process.env.SKIP_OTP_DELIVERY === 'true') {
+      console.log(`[OTP] Skipping delivery (SKIP_OTP_DELIVERY=true). OTP for ${identifier}: ${otp}`);
+      return {
+        success: true,
+        message: `OTP sent successfully (test mode) to ${this.maskIdentifier(identifier, identifierType)}`,
+        otpId: otpRecord.id,
+        expiresAt,
+        channelUsed: channel,
+      };
+    }
 
     // Send OTP via the appropriate channel with auto-fallback
     try {
