@@ -13,7 +13,7 @@ import {
 import { calendarService } from '../services/calendar.service';
 
 const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime';
-const DEFAULT_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-4o-realtime-preview-2024-10-01';
+const DEFAULT_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-4o-realtime-preview';
 
 // Retry configuration for WebSocket connections
 const RECONNECT_CONFIG = {

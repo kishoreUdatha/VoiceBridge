@@ -37,7 +37,7 @@ router.get('/config/:agentId', authenticate, async (req: Request, res: Response)
       agent,
       realtime: {
         enabled: agent.realtimeEnabled,
-        model: process.env.OPENAI_REALTIME_MODEL || 'gpt-4o-realtime-preview-2024-12-17',
+        model: process.env.OPENAI_REALTIME_MODEL || 'gpt-4o-realtime-preview',
       },
       webrtc: {
         enabled: agent.webrtcEnabled,
@@ -264,7 +264,7 @@ router.get('/status', authenticate, async (req: Request, res: Response) => {
     res.json({
       openai: {
         configured: openaiConfigured,
-        model: process.env.OPENAI_REALTIME_MODEL || 'gpt-4o-realtime-preview-2024-12-17',
+        model: process.env.OPENAI_REALTIME_MODEL || 'gpt-4o-realtime-preview',
       },
       features: {
         realtime: realtimeEnabled && openaiConfigured,
